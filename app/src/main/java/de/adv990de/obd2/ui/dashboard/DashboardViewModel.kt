@@ -24,6 +24,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Three sites in DashboardViewModel construct a full DashboardUiState() to reset state:
+// (1) generic Exception catch in the session loop, (2) reconnect loop terminal error,
+// (3) the else branch in the collect lambda. If you add a field with a non-trivial default,
+// update all three. Search for "DashboardUiState(" to find them.
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
@@ -87,6 +91,9 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: ObdException.ConnectionLost) {
                                 // Signal the reconnect coroutine. Do NOT set error state here —
                                 // the reconnect coroutine manages isReconnecting and error.
+                                // If the loop is already active, tryEmit() drops silently —
+                                // that is intentional: the running loop will attempt up to 5
+                                // reconnects regardless of how many ConnectionLost events fired.
                                 _reconnectTrigger.tryEmit(Unit)
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
@@ -130,7 +137,11 @@ class DashboardViewModel @Inject constructor(
                     delay(delayMs)
                     try {
                         obdRepository.reconnect()
-                        return@collect  // success — isConnectedFlow emits true → flatMapLatest restarts
+                        // Clear reconnecting state immediately so the spinner stops as soon as
+                        // the connection is confirmed. The session loop will overwrite with real
+                        // readings once the first livePids emission arrives.
+                        _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0)
+                        return@collect  // isConnectedFlow emits true → flatMapLatest restarts
                     } catch (ce: CancellationException) {
                         throw ce
                     } catch (_: Exception) {

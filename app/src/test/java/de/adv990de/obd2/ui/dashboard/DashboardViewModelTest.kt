@@ -19,12 +19,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -181,7 +183,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `reconnect loop starts when ConnectionLost is thrown`() = runTest {
+    fun `reconnect loop starts isReconnecting state before first delay`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
@@ -191,7 +193,8 @@ class DashboardViewModelTest {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            coEvery { reconnect() } just Runs
+            // reconnect fails so isReconnecting stays true and we can observe the state
+            coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -202,10 +205,40 @@ class DashboardViewModelTest {
 
         val vm = DashboardViewModel(obdRepo, sessionRepo, prefs)
         isConnectedFlow.value = true
-        advanceUntilIdle()
+        // Advance 1ms: runs pending work and starts the reconnect loop up to the first
+        // delay(3_000L), but does not advance past it.
+        advanceTimeBy(1)
 
         assertTrue(vm.uiState.value.isReconnecting)
         assertEquals(1, vm.uiState.value.reconnectAttempt)
         assertEquals(5, vm.uiState.value.reconnectTotal)
+    }
+
+    @Test
+    fun `reconnect loop sets permanent error after all attempts fail`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } throws Exception("reconnect failed")
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs()
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs)
+        isConnectedFlow.value = true
+        // Advances through all 5 delays (3+6+12+24+48 = 93 seconds virtual time)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isReconnecting)
+        assertEquals("Verbindung dauerhaft unterbrochen.", vm.uiState.value.error)
     }
 }
