@@ -27,8 +27,8 @@ class ObdRepository @Inject constructor(
     private val dtcParser: DtcParser
 ) {
 
-    private var connection: ObdConnection? = null
-    private var elm: ElmController? = null
+    @Volatile private var connection: ObdConnection? = null
+    @Volatile private var elm: ElmController? = null
 
     private val _isConnected = MutableStateFlow(false)
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()

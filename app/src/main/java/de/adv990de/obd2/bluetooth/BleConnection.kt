@@ -51,7 +51,15 @@ class BleConnection(
             }
 
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    g.close()
+                    connectedDeferred.completeExceptionally(
+                        BluetoothException.ConnectionFailed("Service discovery failed, status=$status")
+                    )
+                    return
+                }
                 val service = g.getService(SERVICE_UUID) ?: run {
+                    g.close()
                     connectedDeferred.completeExceptionally(
                         BluetoothException.ConnectionFailed("OBD2 service not found")
                     )

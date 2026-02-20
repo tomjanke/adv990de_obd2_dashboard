@@ -22,7 +22,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
-        Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db").build()
+        Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides @Singleton
     fun provideBluetoothAdapter(@ApplicationContext ctx: Context): BluetoothAdapter =

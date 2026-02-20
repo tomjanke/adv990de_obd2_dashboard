@@ -23,10 +23,11 @@ class BluetoothDeviceScanner(
     /** Scans for BLE OBD2 adapters */
     fun scanBle(): Flow<ScannedDevice> = callbackFlow {
         val scanner = bluetoothAdapter.bluetoothLeScanner
+        val seen = mutableSetOf<String>()
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
-                if (device.isObdLike()) {
+                if (device.isObdLike() && seen.add(device.address)) {
                     trySend(ScannedDevice(device, BtType.BLE, device.name ?: "BLE OBD2"))
                 }
             }
