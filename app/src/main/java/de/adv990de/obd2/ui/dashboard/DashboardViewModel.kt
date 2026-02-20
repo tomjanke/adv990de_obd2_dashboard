@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -135,8 +136,18 @@ class DashboardViewModel @Inject constructor(
                         reconnectTotal = delays.size
                     )
                     delay(delayMs)
+                    // Second guard: user may have connected manually while we were waiting
+                    if (obdRepository.isConnectedFlow.value) return@collect
                     try {
-                        obdRepository.reconnect()
+                        try {
+                            obdRepository.reconnect()
+                        } catch (_: IllegalStateException) {
+                            // Cold launch: in-memory lastDevice not set yet.
+                            // Fall back to the address persisted in DataStore.
+                            val persisted = appPreferences.lastDevice.first()
+                                ?: throw IllegalStateException("No persisted device to reconnect to")
+                            obdRepository.connect(persisted)
+                        }
                         // Clear reconnecting state immediately so the spinner stops as soon as
                         // the connection is confirmed. The session loop will overwrite with real
                         // readings once the first livePids emission arrives.

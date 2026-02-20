@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -212,6 +213,38 @@ class DashboardViewModelTest {
         assertTrue(vm.uiState.value.isReconnecting)
         assertEquals(1, vm.uiState.value.reconnectAttempt)
         assertEquals(5, vm.uiState.value.reconnectTotal)
+    }
+
+    @Test
+    fun `cold-launch reconnect falls back to persisted device when reconnect throws ISE`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val persistedDevice = mockk<ScannedDevice>()
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } throws IllegalStateException("No previous device")
+            coEvery { connect(persistedDevice) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = mockk<AppPreferences> {
+            every { selectedPidIds } returns flowOf(AppPreferences.DEFAULT_PIDS)
+            every { lastDevice } returns flowOf(persistedDevice)
+        }
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs)
+        isConnectedFlow.value = true
+        // Advance past the first 3-second delay; cold-launch fallback should kick in
+        advanceTimeBy(3_001)
+
+        coVerify { obdRepo.connect(persistedDevice) }
     }
 
     @Test
