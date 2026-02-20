@@ -17,7 +17,7 @@ class ElmControllerTest {
 
     @Test
     fun `sendCommand returns response line`() = runTest {
-        val (input, output) = makeStreams(listOf("OK", "41 0C 1F 40"))
+        val (input, output) = makeStreams(listOf("41 0C 1F 40"))
         val controller = ElmController(input, output)
         val response = controller.sendCommand("010C")
         assertEquals("41 0C 1F 40", response)

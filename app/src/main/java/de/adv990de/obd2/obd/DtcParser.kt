@@ -12,11 +12,8 @@ class DtcParser {
         val tokens = raw.trim().uppercase().split("\\s+".toRegex())
         if (tokens.size < 2) return emptyList()
 
-        // tokens[0] = "43"/"47", tokens[1] = count byte, rest = DTC bytes in pairs
-        val count = tokens[1].toIntOrNull(16) ?: return emptyList()
-        if (count == 0) return emptyList()
-
-        val dtcBytes = tokens.drop(2)
+        // tokens[0] = "43"/"47", rest = DTC bytes in pairs (no count byte in ELM327 responses)
+        val dtcBytes = tokens.drop(1)
         val dtcs = mutableListOf<DtcEntry>()
 
         var i = 0
