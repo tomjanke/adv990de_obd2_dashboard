@@ -34,12 +34,22 @@ class ObdRepository @Inject constructor(
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
 
     suspend fun connect(device: ScannedDevice) {
+        // Close any existing connection before replacing it
+        connection?.close()
+        connection = null
+        elm = null
+
         val conn = connectionFactory.create(device)
-        val controller = conn.connect()
-        controller.initialize()
-        connection = conn
-        elm = controller
-        _isConnected.value = true
+        try {
+            val controller = conn.connect()
+            controller.initialize()
+            connection = conn
+            elm = controller
+            _isConnected.value = true
+        } catch (e: Exception) {
+            conn.close()   // prevent leak if connect() or initialize() throws
+            throw e
+        }
     }
 
     fun disconnect() {

@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -62,5 +63,49 @@ class ObdRepositoryTest {
         repo.disconnect()
 
         assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `connect closes previous connection before opening new one`() = runTest {
+        val device1 = mockk<ScannedDevice>()
+        val device2 = mockk<ScannedDevice>()
+        val conn1 = mockk<ObdConnection>()
+        val conn2 = mockk<ObdConnection>()
+        val elm1 = mockk<ElmController>()
+        val elm2 = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory>()
+
+        coEvery { factory.create(device1) } returns conn1
+        coEvery { factory.create(device2) } returns conn2
+        coEvery { conn1.connect() } returns elm1
+        coEvery { conn2.connect() } returns elm2
+        coEvery { elm1.initialize() } just Runs
+        coEvery { elm2.initialize() } just Runs
+        every { conn1.close() } just Runs
+        every { conn1.isConnected } returns true
+
+        val repo = makeRepo(factory)
+        repo.connect(device1)
+        repo.connect(device2)
+
+        verify { conn1.close() }
+    }
+
+    @Test
+    fun `connect closes new connection when initialize throws`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection>()
+        val elm = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory>()
+
+        coEvery { factory.create(device) } returns conn
+        coEvery { conn.connect() } returns elm
+        coEvery { elm.initialize() } throws Exception("init failed")
+        every { conn.close() } just Runs
+
+        val repo = makeRepo(factory)
+        try { repo.connect(device) } catch (_: Exception) {}
+
+        verify { conn.close() }
     }
 }
