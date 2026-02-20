@@ -42,8 +42,9 @@ class DashboardViewModel @Inject constructor(
                     } else {
                         flow {
                             val vin = runCatching { obdRepository.readVin() }.getOrNull()
-                            val sessionId = sessionRepository.startSession(vin)
+                            var sessionId = -1L
                             try {
+                                sessionId = sessionRepository.startSession(vin)
                                 emitAll(
                                     obdRepository.livePids()
                                         .onEach { sessionRepository.writeReadings(sessionId, it) }
@@ -58,7 +59,7 @@ class DashboardViewModel @Inject constructor(
                                     error = e.message ?: e.javaClass.simpleName
                                 )
                             } finally {
-                                try { sessionRepository.endSession(sessionId) } catch (_: Exception) { /* DB-Fehler soll Session-Cleanup nicht verhindern */ }
+                                try { if (sessionId != -1L) sessionRepository.endSession(sessionId) } catch (_: Exception) { /* DB-Fehler soll Session-Cleanup nicht verhindern */ }
                             }
                         }
                     }

@@ -11,7 +11,7 @@ private val SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
 
 class ClassicBtConnection(private val device: BluetoothDevice) : ObdConnection {
 
-    private var socket: BluetoothSocket? = null
+    @Volatile private var socket: BluetoothSocket? = null
 
     override val isConnected: Boolean get() = socket?.isConnected == true
 

@@ -66,7 +66,13 @@ class BleConnection(
                     return
                 }
 
-                val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID)
+                val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID) ?: run {
+                    g.close()
+                    connectedDeferred.completeExceptionally(
+                        BluetoothException.ConnectionFailed("Notify characteristic not found")
+                    )
+                    return
+                }
                 g.setCharacteristicNotification(notifyChar, true)
                 val cccd = notifyChar.getDescriptor(CCCD_UUID)
 

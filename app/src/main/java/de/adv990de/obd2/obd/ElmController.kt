@@ -6,6 +6,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -54,10 +55,14 @@ class ElmController(
         val sb = StringBuilder()
         var ch: Int
         var gotAny = false
-        while (inputStream.read().also { ch = it } != -1) {
-            gotAny = true
-            if (ch == '>'.code) break
-            sb.append(ch.toChar())
+        try {
+            while (inputStream.read().also { ch = it } != -1) {
+                gotAny = true
+                if (ch == '>'.code) break
+                sb.append(ch.toChar())
+            }
+        } catch (e: IOException) {
+            throw ObdException.ConnectionLost()
         }
         if (!gotAny) throw ObdException.ConnectionLost()
         return sb.toString()
