@@ -38,7 +38,11 @@ class PidParser {
             throw ObdException.UnknownResponse(raw)
         }
 
-        val value = pid.formula(dataBytes)
+        val value = try {
+            pid.formula(dataBytes)
+        } catch (e: ArrayIndexOutOfBoundsException) {
+            throw ObdException.UnknownResponse(raw)
+        }
         return SensorValue(pid = pid, value = value)
     }
 }

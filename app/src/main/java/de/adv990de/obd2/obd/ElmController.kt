@@ -2,6 +2,7 @@ package de.adv990de.obd2.obd
 
 import de.adv990de.obd2.obd.model.ObdException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -36,22 +37,29 @@ class ElmController(
      * Returns the last non-empty line of the response.
      */
     suspend fun sendCommand(command: String): String = withContext(Dispatchers.IO) {
-        withTimeout(READ_TIMEOUT_MS) {
-            runInterruptible {
-                outputStream.write("$command\r".toByteArray())
-                outputStream.flush()
-                readResponse()
+        try {
+            withTimeout(READ_TIMEOUT_MS) {
+                runInterruptible {
+                    outputStream.write("$command\r".toByteArray())
+                    outputStream.flush()
+                    readResponse()
+                }
             }
+        } catch (e: TimeoutCancellationException) {
+            throw ObdException.Timeout(command)
         }
     }
 
     private fun readResponse(): String {
         val sb = StringBuilder()
         var ch: Int
+        var gotAny = false
         while (inputStream.read().also { ch = it } != -1) {
+            gotAny = true
             if (ch == '>'.code) break
             sb.append(ch.toChar())
         }
+        if (!gotAny) throw ObdException.ConnectionLost()
         return sb.toString()
             .split("\r", "\n")
             .map { it.trim() }
