@@ -2,9 +2,13 @@ package de.adv990de.obd2.obd
 
 import de.adv990de.obd2.obd.model.ObdException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.InputStream
 import java.io.OutputStream
+
+private const val READ_TIMEOUT_MS = 5_000L
 
 class ElmController(
     private val inputStream: InputStream,
@@ -32,9 +36,13 @@ class ElmController(
      * Returns the last non-empty line of the response.
      */
     suspend fun sendCommand(command: String): String = withContext(Dispatchers.IO) {
-        outputStream.write("$command\r".toByteArray())
-        outputStream.flush()
-        readResponse()
+        withTimeout(READ_TIMEOUT_MS) {
+            runInterruptible {
+                outputStream.write("$command\r".toByteArray())
+                outputStream.flush()
+                readResponse()
+            }
+        }
     }
 
     private fun readResponse(): String {
