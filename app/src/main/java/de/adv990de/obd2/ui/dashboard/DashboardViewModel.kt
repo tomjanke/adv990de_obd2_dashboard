@@ -124,6 +124,12 @@ class DashboardViewModel @Inject constructor(
         }
 
         // ── Reconnect loop ───────────────────────────────────────────────────
+        // Known TOCTOU residual: two isConnectedFlow guards (pre- and post-delay) narrow the
+        // race window to microseconds, but do not fully eliminate it. A manual connect from
+        // Settings that completes between guard 2 and reconnect() acquiring connectMutex
+        // will have its connection closed and replaced by the auto-reconnect attempt.
+        // Eliminating this would require holding a mutex across the guard-plus-reconnect
+        // sequence, which is out of scope for the current implementation.
         viewModelScope.launch {
             _reconnectTrigger.collect {
                 val delays = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)

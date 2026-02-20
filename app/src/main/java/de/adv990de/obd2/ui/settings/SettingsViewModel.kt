@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +21,8 @@ data class SettingsUiState(
     val lastDeviceAddress: String? = null,
     val error: String? = null
 )
+
+private const val TAG = "SettingsViewModel"
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -54,7 +57,9 @@ class SettingsViewModel @Inject constructor(
             try {
                 obdRepository.connect(device)
                 // Best-effort: DataStore I/O failure must not poison the connected state.
-                try { appPreferences.persistDevice(device) } catch (_: Exception) {}
+                try { appPreferences.persistDevice(device) } catch (e: Exception) {
+                    Log.w(TAG, "persistDevice failed — last-device highlight and auto-reconnect will not work", e)
+                }
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
                     connectedDevice = device.name,
