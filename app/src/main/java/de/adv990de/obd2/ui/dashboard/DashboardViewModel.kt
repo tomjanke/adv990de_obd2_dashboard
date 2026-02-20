@@ -33,6 +33,8 @@ data class DashboardUiState(
     val isConnected: Boolean = false,
     val isReconnecting: Boolean = false,
     val reconnectAttempt: Int = 0,
+    // Only meaningful when isReconnecting=true; the reconnect loop always overwrites this
+    // with delays.size. The default 5 matches that list length for a coherent initial state.
     val reconnectTotal: Int = 5,
     val error: String? = null
 ) {
@@ -128,6 +130,20 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _reconnectTrigger.collect {
                 val delays = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+
+                // On cold launch, in-memory lastDevice is unset; fall back to DataStore.
+                // Read once before the loop — the persisted address does not change between
+                // attempts, and re-reading on every iteration would repeat the I/O on each
+                // attempt if DataStore is slow or flaky.
+                val coldLaunchDevice = if (obdRepository.hasLastDevice) null
+                                       else appPreferences.lastDevice.first()
+                if (!obdRepository.hasLastDevice && coldLaunchDevice == null) {
+                    // No device anywhere — abort immediately instead of burning
+                    // all 5 delayed attempts (93 seconds of pointless waiting).
+                    _uiState.value = DashboardUiState.disconnected("Kein bekanntes Gerät für die Wiederverbindung.")
+                    return@collect
+                }
+
                 for ((attempt, delayMs) in delays.withIndex()) {
                     // User may have reconnected manually in Settings while we waited
                     if (obdRepository.isConnectedFlow.value) return@collect
@@ -143,16 +159,7 @@ class DashboardViewModel @Inject constructor(
                         if (obdRepository.hasLastDevice) {
                             obdRepository.reconnect()
                         } else {
-                            // Cold launch: in-memory lastDevice not set yet.
-                            // Fall back to the address persisted in DataStore.
-                            val persisted = appPreferences.lastDevice.first()
-                            if (persisted == null) {
-                                // No device anywhere — abort immediately instead of burning
-                                // all 5 delayed attempts (93 seconds of pointless waiting).
-                                _uiState.value = DashboardUiState.disconnected("Kein bekanntes Gerät für die Wiederverbindung.")
-                                return@collect
-                            }
-                            obdRepository.connect(persisted)
+                            obdRepository.connect(coldLaunchDevice!!)  // non-null verified above
                         }
                         // Clear reconnecting state immediately so the spinner stops as soon as
                         // the connection is confirmed. The session loop will overwrite with real

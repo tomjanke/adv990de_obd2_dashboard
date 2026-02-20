@@ -65,8 +65,6 @@ class ObdRepository @Inject constructor(
     /** True if a device has successfully connected at least once in this process lifetime. */
     val hasLastDevice: Boolean get() = lastDevice != null
 
-    val isConnected: Boolean get() = connection?.isConnected == true
-
     /** Must only be called while [connectMutex] is held. */
     private suspend fun connectLocked(device: ScannedDevice) {
         // Close any existing connection before replacing it
@@ -118,6 +116,10 @@ class ObdRepository @Inject constructor(
                     busInitOccurred = true
                     break  // bus re-initializing; skip rest of this poll cycle
                 } catch (e: ObdException.ConnectionLost) {
+                    // disconnect() acquires connectMutex. If reconnect() is currently holding
+                    // that mutex (i.e., is mid-BT-connect), this NonCancellable block will
+                    // suspend until reconnect() releases the lock. Self-resolving, not a true
+                    // deadlock, but the NonCancellable section may run longer than expected.
                     withContext(NonCancellable) { disconnect() }
                     throw e  // fatal — propagate to ViewModel
                 }

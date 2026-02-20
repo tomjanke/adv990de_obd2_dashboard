@@ -56,7 +56,9 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
             Text("Gekoppelte Geräte", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             if (state.isConnecting) LinearProgressIndicator(Modifier.fillMaxWidth())
-            LazyColumn {
+            // weight(1f) lets the device list grow to fill available space while keeping
+            // the "Dashboard konfigurieren" button visible below without scrolling.
+            LazyColumn(Modifier.weight(1f)) {
                 items(state.bondedDevices, key = { it.device.address }) { device ->
                     DeviceRow(
                         device = device,
@@ -75,17 +77,12 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                         )
                     }
                 }
-                item {
-                    Column {
-                        Spacer(Modifier.height(8.dp))
-                        HorizontalDivider()
-                        TextButton(
-                            onClick = { navController.navigate(Screen.DashboardConfig.route) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                        ) { Text("Dashboard konfigurieren") }
-                    }
-                }
             }
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.DashboardConfig.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Dashboard konfigurieren") }
         }
     }
 }

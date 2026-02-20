@@ -11,7 +11,6 @@ import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,6 +19,9 @@ data class SettingsUiState(
     val isConnecting: Boolean = false,
     val connectedDevice: String? = null,
     val lastDeviceAddress: String? = null,
+    // Kept in sync with lastDevice flow so the auto-reconnect path can read the device name
+    // from state without an extra DataStore I/O round-trip.
+    val lastDeviceName: String? = null,
     val error: String? = null
 )
 
@@ -37,23 +39,28 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            appPreferences.lastDevice.collect { device ->
+                // Keep lastDeviceName in sync so the isConnectedFlow collector (below) can
+                // read the device name from state without a DataStore first() round-trip.
+                _uiState.value = _uiState.value.copy(
+                    lastDeviceAddress = device?.device?.address,
+                    lastDeviceName = device?.name
+                )
+            }
+        }
+        viewModelScope.launch {
             obdRepository.isConnectedFlow.collect { connected ->
                 if (connected) {
                     if (!_uiState.value.isConnecting) {
                         // Auto-reconnect path: connect() in this VM did not run, so connectedDevice
-                        // was not set directly. Read the persisted device name from DataStore.
-                        val deviceName = appPreferences.lastDevice.first()?.name
-                        _uiState.value = _uiState.value.copy(connectedDevice = deviceName)
+                        // was not set directly. Use the name already in state (populated by the
+                        // lastDevice collector above) to avoid an extra DataStore I/O call.
+                        _uiState.value = _uiState.value.copy(connectedDevice = _uiState.value.lastDeviceName)
                     }
                     // Manual connect path: connect() sets connectedDevice directly after returning.
                 } else {
                     _uiState.value = _uiState.value.copy(connectedDevice = null)
                 }
-            }
-        }
-        viewModelScope.launch {
-            appPreferences.lastDevice.collect { device ->
-                _uiState.value = _uiState.value.copy(lastDeviceAddress = device?.device?.address)
             }
         }
     }

@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboardconfig
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,13 +34,15 @@ fun DashboardConfigScreen(
         LazyColumn(Modifier.padding(padding)) {
             items(vm.allPids, key = { it.id }) { pid ->
                 ListItem(
+                    modifier = Modifier.clickable { vm.togglePid(pid.id) },
                     headlineContent = { Text("${pid.name} (${pid.unit})") },
                     leadingContent = {
+                        // onCheckedChange=null: the row-level click handler owns the toggle.
+                        // Setting it non-null would create two separate tap targets on the
+                        // same logical action and could fire togglePid twice.
                         Checkbox(
                             checked = pid.id in selectedPids,
-                            // The incoming Boolean is unused: DataStore is the single source of
-                            // truth for the checked state; togglePid derives the new value from it.
-                            onCheckedChange = { vm.togglePid(pid.id) }
+                            onCheckedChange = null
                         )
                     }
                 )

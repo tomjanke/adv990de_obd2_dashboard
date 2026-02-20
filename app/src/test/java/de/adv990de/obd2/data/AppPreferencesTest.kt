@@ -70,6 +70,18 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `togglePid twice returns to original state`() = runTest {
+        val prefs = makePreferences()
+        val defaultId = PidRegistry.defaults.first().id
+
+        prefs.togglePid(defaultId)  // remove
+        prefs.togglePid(defaultId)  // add back
+
+        val ids = prefs.selectedPidIds.first()
+        assertTrue(defaultId in ids)
+    }
+
+    @Test
     fun `lastDevice is null when nothing is persisted`() = runTest {
         val prefs = makePreferences()
         assertNull(prefs.lastDevice.first())
