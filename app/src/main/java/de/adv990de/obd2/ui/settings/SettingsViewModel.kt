@@ -38,7 +38,8 @@ class SettingsViewModel @Inject constructor(
                 obdRepository.connect(device)
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
-                    connectedDevice = device.name
+                    connectedDevice = device.name,
+                    error = null
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isConnecting = false, error = e.message)

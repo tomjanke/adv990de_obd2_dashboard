@@ -58,7 +58,7 @@ class DashboardViewModel @Inject constructor(
                                     error = e.message ?: e.javaClass.simpleName
                                 )
                             } finally {
-                                sessionRepository.endSession(sessionId)
+                                try { sessionRepository.endSession(sessionId) } catch (_: Exception) { /* DB-Fehler soll Session-Cleanup nicht verhindern */ }
                             }
                         }
                     }

@@ -15,31 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
-import dagger.hilt.android.lifecycle.HiltViewModel
-import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.ui.components.BottomNav
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class VehicleInfoViewModel @Inject constructor(private val repo: ObdRepository) : ViewModel() {
-    private val _vin = MutableStateFlow("")
-    val vin: StateFlow<String> = _vin
-
-    fun load() {
-        viewModelScope.launch { _vin.value = repo.readVin() ?: "" }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = hiltViewModel()) {
     val vin by vm.vin.collectAsState()
+    val error by vm.error.collectAsState()
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
@@ -52,6 +35,7 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
         ) {
             Text("FIN (VIN)", style = MaterialTheme.typography.labelLarge)
             Text(vin.ifEmpty { "Wird gelesen…" })
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 }
