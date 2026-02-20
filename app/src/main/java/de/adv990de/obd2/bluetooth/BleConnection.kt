@@ -46,10 +46,12 @@ class BleConnection(
             }
 
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
-                val service = g.getService(SERVICE_UUID)
-                    ?: return connectedDeferred.completeExceptionally(
+                val service = g.getService(SERVICE_UUID) ?: run {
+                    connectedDeferred.completeExceptionally(
                         BluetoothException.ConnectionFailed("OBD2 service not found")
                     )
+                    return
+                }
 
                 val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID)
                 g.setCharacteristicNotification(notifyChar, true)
