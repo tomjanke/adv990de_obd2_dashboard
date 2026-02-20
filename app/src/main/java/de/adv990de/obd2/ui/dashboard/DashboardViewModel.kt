@@ -39,6 +39,9 @@ class DashboardViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // NOTE: combining selectedPidIds means a PID toggle while connected ends the current
+            // session and starts a new one. This is intentional: the DashboardConfig screen is
+            // under Settings, so changes are expected to be made before/between drives.
             combine(
                 obdRepository.isConnectedFlow,
                 appPreferences.selectedPidIds
@@ -48,6 +51,8 @@ class DashboardViewModel @Inject constructor(
                         flowOf(emptyList<SensorValue>() to false)
                     } else {
                         flow {
+                            // Fall back to defaults if none of the stored IDs exist in PidRegistry
+                            // (e.g. after a downgrade or manual DataStore wipe).
                             val selectedPids = selectedIds
                                 .mapNotNull { PidRegistry.all[it] }
                                 .ifEmpty { PidRegistry.defaults }
@@ -65,13 +70,16 @@ class DashboardViewModel @Inject constructor(
                                         .map { it to true }
                                 )
                             } catch (e: CancellationException) {
-                                throw e
+                                throw e  // never swallow coroutine cancellation
                             } catch (e: Exception) {
+                                // Set error state directly; inner flow completes cleanly so
+                                // flatMapLatest outer collector survives and can recover.
                                 _uiState.value = DashboardUiState(
                                     isConnected = false,
                                     error = e.message ?: e.javaClass.simpleName
                                 )
                             } finally {
+                                // DB errors must not prevent session cleanup.
                                 try {
                                     if (sessionId != -1L) sessionRepository.endSession(sessionId)
                                 } catch (_: Exception) {}
@@ -81,6 +89,7 @@ class DashboardViewModel @Inject constructor(
                 }
                 .collect { (values, connected) ->
                     if (!connected && _uiState.value.error != null) {
+                        // Disconnected cleanly after an error — preserve error, just clear readings.
                         _uiState.value = _uiState.value.copy(isConnected = false, readings = emptyList())
                     } else {
                         _uiState.value = DashboardUiState(readings = values, isConnected = connected)
