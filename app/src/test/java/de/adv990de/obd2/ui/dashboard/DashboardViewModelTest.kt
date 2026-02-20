@@ -156,5 +156,6 @@ class DashboardViewModelTest {
 
         assertNotNull(vm.uiState.value.error)
         assertEquals("BT disconnected", vm.uiState.value.error)
+        coVerify { sessionRepo.endSession(1L) }
     }
 }

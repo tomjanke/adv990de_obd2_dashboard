@@ -8,7 +8,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -49,17 +49,19 @@ class DashboardViewModel @Inject constructor(
                                         .onEach { sessionRepository.writeReadings(sessionId, it) }
                                         .map { it to true }
                                 )
+                            } catch (e: CancellationException) {
+                                throw e  // never swallow coroutine cancellation
+                            } catch (e: Exception) {
+                                // Set error state directly; inner flow completes cleanly so flatMapLatest survives
+                                _uiState.value = DashboardUiState(
+                                    isConnected = false,
+                                    error = e.message ?: e.javaClass.simpleName
+                                )
                             } finally {
                                 sessionRepository.endSession(sessionId)
                             }
                         }
                     }
-                }
-                .catch { e ->
-                    _uiState.value = DashboardUiState(
-                        isConnected = false,
-                        error = e.message ?: e.javaClass.simpleName
-                    )
                 }
                 .collect { (values, connected) ->
                     _uiState.value = DashboardUiState(
