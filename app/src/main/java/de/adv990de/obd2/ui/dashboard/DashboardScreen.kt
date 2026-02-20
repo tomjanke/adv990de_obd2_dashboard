@@ -52,7 +52,21 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
     ) { padding ->
         if (!state.isConnected) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (state.error != null) {
+                        Text(
+                            "Verbindungsfehler: ${state.error}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                    } else {
+                        Text("Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.")
+                    }
+                }
             }
         } else {
             LazyVerticalGrid(

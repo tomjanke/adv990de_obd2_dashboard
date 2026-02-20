@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -66,7 +67,7 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionRow(session: SessionEntity, onExport: () -> Unit) {
-    val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+    val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     ListItem(
         headlineContent = { Text(fmt.format(Date(session.startTime))) },
         supportingContent = { Text(session.vehicleVin ?: "FIN unbekannt") },
