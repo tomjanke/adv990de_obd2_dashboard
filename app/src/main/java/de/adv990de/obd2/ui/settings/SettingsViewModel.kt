@@ -53,7 +53,8 @@ class SettingsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isConnecting = true, error = null)
             try {
                 obdRepository.connect(device)
-                appPreferences.persistDevice(device)
+                // Best-effort: DataStore I/O failure must not poison the connected state.
+                try { appPreferences.persistDevice(device) } catch (_: Exception) {}
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
                     connectedDevice = device.name,
