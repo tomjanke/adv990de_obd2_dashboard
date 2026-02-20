@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
@@ -9,6 +10,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,21 +34,16 @@ class DashboardViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before
-    fun setup() {
-        Dispatchers.setMain(testDispatcher)
-    }
+    @Before fun setup() { Dispatchers.setMain(testDispatcher) }
+    @After  fun teardown() { Dispatchers.resetMain() }
 
-    @After
-    fun teardown() {
-        Dispatchers.resetMain()
-    }
+    private fun makeSensorValue() = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
 
-    private fun makeSensorValue() = SensorValue(
-        pid = PidRegistry.RPM,
-        value = 1500f,
-        timestamp = 1000L
-    )
+    private fun makePrefs(
+        selectedIds: Set<String> = AppPreferences.DEFAULT_PIDS
+    ): AppPreferences = mockk {
+        every { selectedPidIds } returns flowOf(selectedIds)
+    }
 
     @Test
     fun `session starts when connected and readings are written`() = runTest {
@@ -54,7 +51,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } returns "TESTVIN123"
-            every { livePids() } returns flowOf(listOf(makeSensorValue()))
+            every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 42L
@@ -62,7 +59,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo)
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -76,7 +73,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } returns null
-            every { livePids() } returns flowOf(listOf(makeSensorValue()))
+            every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -84,7 +81,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo)
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
         advanceUntilIdle()
         isConnectedFlow.value = false
         advanceUntilIdle()
@@ -99,7 +96,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } returns null
-            every { livePids() } returns flowOf(listOf(reading))
+            every { livePids(any()) } returns flowOf(listOf(reading))
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -107,7 +104,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo)
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -121,7 +118,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } throws Exception("VIN not supported")
-            every { livePids() } returns flowOf(emptyList())
+            every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(null) } returns 1L
@@ -129,7 +126,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo)
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -142,7 +139,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } returns null
-            every { livePids() } returns flow { throw Exception("BT disconnected") }
+            every { livePids(any()) } returns flow { throw Exception("BT disconnected") }
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -150,12 +147,35 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo)
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
         assertNotNull(vm.uiState.value.error)
         assertEquals("BT disconnected", vm.uiState.value.error)
         coVerify { sessionRepo.endSession(1L) }
+    }
+
+    @Test
+    fun `livePids is called with PIDs from AppPreferences`() = runTest {
+        val customIds = setOf(PidRegistry.MAF.id)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flowOf(emptyList())
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(selectedIds = customIds)
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.livePids(match { it.map { p -> p.id }.toSet() == customIds }) }
     }
 }
