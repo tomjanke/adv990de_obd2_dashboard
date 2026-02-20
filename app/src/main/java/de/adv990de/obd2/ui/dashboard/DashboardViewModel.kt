@@ -8,6 +8,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -53,6 +54,12 @@ class DashboardViewModel @Inject constructor(
                             }
                         }
                     }
+                }
+                .catch { e ->
+                    _uiState.value = DashboardUiState(
+                        isConnected = false,
+                        error = e.message ?: e.javaClass.simpleName
+                    )
                 }
                 .collect { (values, connected) ->
                     _uiState.value = DashboardUiState(

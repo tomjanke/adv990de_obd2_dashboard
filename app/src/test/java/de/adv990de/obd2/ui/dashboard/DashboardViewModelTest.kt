@@ -13,6 +13,7 @@ import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -132,5 +134,27 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         coVerify { sessionRepo.startSession(null) }
+    }
+
+    @Test
+    fun `ui state shows error when livePids throws`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids() } returns flow { throw Exception("BT disconnected") }
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertNotNull(vm.uiState.value.error)
+        assertEquals("BT disconnected", vm.uiState.value.error)
     }
 }
