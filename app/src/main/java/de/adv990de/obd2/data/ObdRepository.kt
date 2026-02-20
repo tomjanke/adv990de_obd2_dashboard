@@ -13,6 +13,9 @@ import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,15 +30,20 @@ class ObdRepository @Inject constructor(
     private var connection: ObdConnection? = null
     private var elm: ElmController? = null
 
+    private val _isConnected = MutableStateFlow(false)
+    val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
+
     suspend fun connect(device: ScannedDevice) {
         val conn = connectionFactory.create(device)
         val controller = conn.connect()
         controller.initialize()
         connection = conn
         elm = controller
+        _isConnected.value = true
     }
 
     fun disconnect() {
+        _isConnected.value = false
         connection?.close()
         connection = null
         elm = null
