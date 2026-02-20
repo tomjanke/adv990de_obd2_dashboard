@@ -98,6 +98,8 @@ class ObdRepository @Inject constructor(
         pollIntervalMs: Long = 500L
     ): Flow<List<SensorValue>> = flow {
         while (true) {
+            // elm is @Volatile; capture into a local so the reference stays alive even if
+            // a concurrent disconnect() nulls elm after the null check.
             val controller = elm ?: break
             val values = mutableListOf<SensorValue>()
             for (pid in pids) {

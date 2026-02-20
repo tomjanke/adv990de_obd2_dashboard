@@ -127,9 +127,11 @@ class ObdRepositoryTest {
 
         val repo = makeRepo(factory)
         repo.connect(device)   // sets lastDevice
-        repo.reconnect()       // should call connect(device) again → factory.create(device) called twice
+        repo.reconnect()       // should close previous connection then connect(device) again
 
         coVerify(exactly = 2) { factory.create(device) }
+        // Verify the previous connection is closed before the new one is opened
+        verifyOrder { conn.close(); factory.create(device) }
     }
 
     @Test

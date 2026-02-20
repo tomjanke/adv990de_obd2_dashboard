@@ -75,6 +75,10 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                     }
                 }
             }
+        } else if (state.readings.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),

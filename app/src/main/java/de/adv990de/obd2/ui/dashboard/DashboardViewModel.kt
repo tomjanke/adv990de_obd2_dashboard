@@ -25,10 +25,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// Three sites in DashboardViewModel construct a full DashboardUiState() to reset state:
-// (1) generic Exception catch in the session loop, (2) reconnect loop terminal error,
-// (3) the else branch in the collect lambda. If you add a field with a non-trivial default,
-// update all three. Search for "DashboardUiState(" to find them.
+// DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
+// If you add a field with a non-trivial default, update disconnected() and the one remaining
+// site in the collect lambda (search "DashboardUiState(readings").
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
@@ -36,7 +35,11 @@ data class DashboardUiState(
     val reconnectAttempt: Int = 0,
     val reconnectTotal: Int = 5,
     val error: String? = null
-)
+) {
+    companion object {
+        fun disconnected(error: String? = null) = DashboardUiState(isConnected = false, error = error)
+    }
+}
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -101,10 +104,7 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
-                                _uiState.value = DashboardUiState(
-                                    isConnected = false,
-                                    error = e.message ?: e.javaClass.simpleName
-                                )
+                                _uiState.value = DashboardUiState.disconnected(e.message ?: e.javaClass.simpleName)
                             } finally {
                                 // DB errors must not prevent session cleanup.
                                 try {
@@ -167,10 +167,7 @@ class DashboardViewModel @Inject constructor(
                         // try next attempt
                     }
                 }
-                _uiState.value = DashboardUiState(
-                    isConnected = false,
-                    error = "Verbindung dauerhaft unterbrochen."
-                )
+                _uiState.value = DashboardUiState.disconnected("Verbindung dauerhaft unterbrochen.")
             }
         }
     }

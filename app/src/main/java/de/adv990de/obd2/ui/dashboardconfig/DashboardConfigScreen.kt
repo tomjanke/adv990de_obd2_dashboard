@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,7 +31,7 @@ fun DashboardConfigScreen(
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
-            items(PidRegistry.all.values.toList(), key = { it.id }) { pid ->
+            items(vm.allPids, key = { it.id }) { pid ->
                 ListItem(
                     headlineContent = { Text("${pid.name} (${pid.unit})") },
                     leadingContent = {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -56,6 +57,9 @@ class DashboardConfigViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        assertEquals(customIds, collected.lastOrNull())
+        // stateIn emits the initial default value before the upstream value, so collected
+        // has at least 2 entries; verify there was at least one emission and the last is correct.
+        assertTrue(collected.isNotEmpty())
+        assertEquals(customIds, collected.last())
     }
 }

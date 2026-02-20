@@ -11,6 +11,7 @@ import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,7 +38,13 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             obdRepository.isConnectedFlow.collect { connected ->
-                if (!connected) _uiState.value = _uiState.value.copy(connectedDevice = null)
+                if (connected) {
+                    // Also covers the auto-reconnect path, which bypasses connect() in this VM.
+                    val deviceName = appPreferences.lastDevice.first()?.name
+                    _uiState.value = _uiState.value.copy(connectedDevice = deviceName)
+                } else {
+                    _uiState.value = _uiState.value.copy(connectedDevice = null)
+                }
             }
         }
         viewModelScope.launch {

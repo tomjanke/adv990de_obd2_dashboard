@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.PidDefinition
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -14,6 +16,9 @@ import javax.inject.Inject
 class DashboardConfigViewModel @Inject constructor(
     private val appPreferences: AppPreferences
 ) : ViewModel() {
+
+    /** Stable list — computed once so the Screen doesn't allocate on every recomposition. */
+    val allPids: List<PidDefinition> = PidRegistry.all.values.toList()
 
     val selectedPidIds: StateFlow<Set<String>> = appPreferences.selectedPidIds
         .stateIn(
