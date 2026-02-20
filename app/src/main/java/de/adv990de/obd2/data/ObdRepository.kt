@@ -103,10 +103,27 @@ class ObdRepository @Inject constructor(
                 dtcParser.parse(pending, isPending = true)
     }
 
+    /**
+     * Reads freeze frame data (mode 02) for all known PIDs.
+     * Mode 02 uses the same PID bytes as mode 01; responses carry "42" prefix.
+     * Returns a map of PID name → formatted value, or empty map if no freeze frame is stored.
+     */
     suspend fun readFreezeFrame(): Map<String, String> {
         val controller = elm ?: return emptyMap()
-        val raw = controller.sendCommand("0202")
-        return mapOf("raw" to raw)
+        val result = mutableMapOf<String, String>()
+        for (pid in PidRegistry.all.values) {
+            val pidByte = pid.id.takeLast(2)
+            val raw = runCatching { controller.sendCommand("02$pidByte 00") }.getOrNull() ?: continue
+            val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+            // Mode 02 response format: "42 <PID> [data bytes...]"
+            if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) continue
+            val dataBytes = runCatching {
+                tokens.drop(2).map { it.toInt(16).toByte() }.toByteArray()
+            }.getOrNull() ?: continue
+            val value = runCatching { pid.formula(dataBytes) }.getOrNull() ?: continue
+            result[pid.name] = "${value.toInt()} ${pid.unit}"
+        }
+        return result
     }
 
     suspend fun readVin(): String? {

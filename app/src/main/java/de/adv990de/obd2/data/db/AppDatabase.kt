@@ -8,7 +8,7 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 @Database(
     entities = [SessionEntity::class, SensorReadingEntity::class],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
