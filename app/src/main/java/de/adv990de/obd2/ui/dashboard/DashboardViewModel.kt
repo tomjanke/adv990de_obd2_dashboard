@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,7 +37,7 @@ class DashboardViewModel @Inject constructor(
             obdRepository.isConnectedFlow
                 .flatMapLatest { connected ->
                     if (!connected) {
-                        flowOf(emptyList())
+                        flowOf(emptyList<SensorValue>() to false)
                     } else {
                         flow {
                             val vin = runCatching { obdRepository.readVin() }.getOrNull()
@@ -45,6 +46,7 @@ class DashboardViewModel @Inject constructor(
                                 emitAll(
                                     obdRepository.livePids()
                                         .onEach { sessionRepository.writeReadings(sessionId, it) }
+                                        .map { it to true }
                                 )
                             } finally {
                                 sessionRepository.endSession(sessionId)
@@ -52,10 +54,10 @@ class DashboardViewModel @Inject constructor(
                         }
                     }
                 }
-                .collect { values ->
+                .collect { (values, connected) ->
                     _uiState.value = DashboardUiState(
                         readings = values,
-                        isConnected = obdRepository.isConnected
+                        isConnected = connected
                     )
                 }
         }
