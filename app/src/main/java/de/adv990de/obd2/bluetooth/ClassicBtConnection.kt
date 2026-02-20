@@ -18,6 +18,8 @@ class ClassicBtConnection(private val device: BluetoothDevice) : ObdConnection {
     override suspend fun connect(): ElmController = withContext(Dispatchers.IO) {
         try {
             val s = device.createRfcommSocketToServiceRecord(SPP_UUID)
+            // BluetoothSocket has no soTimeout API; read timeout is enforced by
+            // withTimeout + runInterruptible in ElmController.sendCommand instead.
             s.connect()
             socket = s
             ElmController(s.inputStream, s.outputStream)
