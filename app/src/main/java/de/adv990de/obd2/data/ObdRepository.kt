@@ -36,6 +36,7 @@ class ObdRepository @Inject constructor(
     suspend fun connect(device: ScannedDevice) {
         // Close any existing connection before replacing it
         connection?.close()
+        _isConnected.value = false
         connection = null
         elm = null
 

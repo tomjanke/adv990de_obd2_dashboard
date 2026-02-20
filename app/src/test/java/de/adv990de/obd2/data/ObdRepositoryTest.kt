@@ -12,6 +12,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -82,13 +83,13 @@ class ObdRepositoryTest {
         coEvery { elm1.initialize() } just Runs
         coEvery { elm2.initialize() } just Runs
         every { conn1.close() } just Runs
-        every { conn1.isConnected } returns true
 
         val repo = makeRepo(factory)
         repo.connect(device1)
         repo.connect(device2)
 
-        verify { conn1.close() }
+        verifyOrder { conn1.close(); factory.create(device2) }
+        assertEquals(true, repo.isConnectedFlow.value)
     }
 
     @Test
