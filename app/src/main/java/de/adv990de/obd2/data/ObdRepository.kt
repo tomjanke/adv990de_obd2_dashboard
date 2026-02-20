@@ -33,6 +33,7 @@ class ObdRepository @Inject constructor(
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
+    @Volatile private var lastDevice: ScannedDevice? = null
     private val connectMutex = Mutex()
 
     private val _isConnected = MutableStateFlow(false)
@@ -52,6 +53,7 @@ class ObdRepository @Inject constructor(
             connection = conn
             elm = controller
             _isConnected.value = true
+            lastDevice = device
         } catch (e: Exception) {
             conn.close()   // prevent leak if connect() or initialize() throws
             throw e
@@ -63,6 +65,16 @@ class ObdRepository @Inject constructor(
         connection?.close()
         connection = null
         elm = null
+    }
+
+    /**
+     * Reconnects to the last successfully connected device.
+     * Throws [IllegalStateException] if no device has ever connected in this session.
+     */
+    suspend fun reconnect() {
+        val dev = lastDevice
+            ?: throw IllegalStateException("No previous device to reconnect to")
+        connect(dev)
     }
 
     val isConnected: Boolean get() = connection?.isConnected == true

@@ -7,6 +7,7 @@ import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -15,6 +16,7 @@ import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ObdRepositoryTest {
@@ -108,5 +110,33 @@ class ObdRepositoryTest {
         try { repo.connect(device) } catch (_: Exception) {}
 
         verify { conn.close() }
+    }
+
+    @Test
+    fun `reconnect uses last connected device`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection>()
+        val elm = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory>()
+
+        coEvery { factory.create(device) } returns conn
+        coEvery { conn.connect() } returns elm
+        coEvery { elm.initialize() } just Runs
+        every { conn.isConnected } returns true
+        every { conn.close() } just Runs
+
+        val repo = makeRepo(factory)
+        repo.connect(device)   // sets lastDevice
+        repo.reconnect()       // should call connect(device) again → factory.create(device) called twice
+
+        coVerify(exactly = 2) { factory.create(device) }
+    }
+
+    @Test
+    fun `reconnect throws IllegalStateException when no previous device`() = runTest {
+        val repo = makeRepo()
+        var threw = false
+        try { repo.reconnect() } catch (_: IllegalStateException) { threw = true }
+        assertTrue(threw)
     }
 }

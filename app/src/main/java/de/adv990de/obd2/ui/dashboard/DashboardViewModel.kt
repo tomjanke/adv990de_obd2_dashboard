@@ -7,8 +7,11 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,6 +27,9 @@ import javax.inject.Inject
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
+    val isReconnecting: Boolean = false,
+    val reconnectAttempt: Int = 0,
+    val reconnectTotal: Int = 5,
     val error: String? = null
 )
 
@@ -37,7 +43,14 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
 
+    // Fired when ConnectionLost is caught in the session loop.
+    // Separated from flatMapLatest inner flow because flatMapLatest would cancel the inner
+    // flow the moment isConnectedFlow emits false — which happens immediately when livePids()
+    // calls disconnect() on ConnectionLost, killing any retry loop inside it.
+    private val _reconnectTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
     init {
+        // ── Session loop ─────────────────────────────────────────────────────
         viewModelScope.launch {
             // NOTE: combining selectedPidIds means a PID toggle while connected ends the current
             // session and starts a new one. This is intentional: the DashboardConfig screen is
@@ -71,6 +84,10 @@ class DashboardViewModel @Inject constructor(
                                 )
                             } catch (e: CancellationException) {
                                 throw e  // never swallow coroutine cancellation
+                            } catch (e: ObdException.ConnectionLost) {
+                                // Signal the reconnect coroutine. Do NOT set error state here —
+                                // the reconnect coroutine manages isReconnecting and error.
+                                _reconnectTrigger.tryEmit(Unit)
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
@@ -88,13 +105,43 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
                 .collect { (values, connected) ->
-                    if (!connected && _uiState.value.error != null) {
-                        // Disconnected cleanly after an error — preserve error, just clear readings.
+                    if (!connected && (_uiState.value.error != null || _uiState.value.isReconnecting)) {
+                        // Disconnected cleanly after an error or during reconnect — preserve state,
+                        // just clear stale readings.
                         _uiState.value = _uiState.value.copy(isConnected = false, readings = emptyList())
                     } else {
                         _uiState.value = DashboardUiState(readings = values, isConnected = connected)
                     }
                 }
+        }
+
+        // ── Reconnect loop ───────────────────────────────────────────────────
+        viewModelScope.launch {
+            _reconnectTrigger.collect {
+                val delays = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+                for ((attempt, delayMs) in delays.withIndex()) {
+                    // User may have reconnected manually in Settings while we waited
+                    if (obdRepository.isConnectedFlow.value) return@collect
+                    _uiState.value = DashboardUiState(
+                        isReconnecting = true,
+                        reconnectAttempt = attempt + 1,
+                        reconnectTotal = delays.size
+                    )
+                    delay(delayMs)
+                    try {
+                        obdRepository.reconnect()
+                        return@collect  // success — isConnectedFlow emits true → flatMapLatest restarts
+                    } catch (ce: CancellationException) {
+                        throw ce
+                    } catch (_: Exception) {
+                        // try next attempt
+                    }
+                }
+                _uiState.value = DashboardUiState(
+                    isConnected = false,
+                    error = "Verbindung dauerhaft unterbrochen."
+                )
+            }
         }
     }
 }

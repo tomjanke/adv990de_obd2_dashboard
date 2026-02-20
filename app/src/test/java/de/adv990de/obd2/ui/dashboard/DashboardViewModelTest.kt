@@ -4,6 +4,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -177,5 +178,34 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         verify { obdRepo.livePids(match { it.map { p -> p.id }.toSet() == customIds }) }
+    }
+
+    @Test
+    fun `reconnect loop starts when ConnectionLost is thrown`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flow {
+                // Simulate what livePids' internal disconnect() does:
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs()
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertEquals(1, vm.uiState.value.reconnectAttempt)
+        assertEquals(5, vm.uiState.value.reconnectTotal)
     }
 }

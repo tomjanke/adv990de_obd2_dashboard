@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,15 +57,21 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (state.error != null) {
-                        Text(
+                    when {
+                        state.isReconnecting -> {
+                            CircularProgressIndicator()
+                            Text(
+                                "Verbindung unterbrochen – Versuch ${state.reconnectAttempt}/${state.reconnectTotal}…",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        state.error != null -> Text(
                             "Verbindungsfehler: ${state.error}",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 24.dp)
                         )
-                    } else {
-                        Text("Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.")
+                        else -> Text("Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.")
                     }
                 }
             }
