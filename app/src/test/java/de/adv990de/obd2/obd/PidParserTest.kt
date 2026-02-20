@@ -45,4 +45,10 @@ class PidParserTest {
     fun `parse BUS INIT error throws BusInit exception`() {
         parser.parse(PidRegistry.RPM, "BUS INIT... ERROR")
     }
+
+    @Test(expected = ObdException.UnknownResponse::class)
+    fun `parse throws UnknownResponse when response PID does not match requested PID`() {
+        // RPM requested (010C) but response contains Speed (0D)
+        parser.parse(PidRegistry.RPM, "41 0D 57")
+    }
 }
