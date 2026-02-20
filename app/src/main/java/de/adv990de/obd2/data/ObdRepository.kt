@@ -89,8 +89,8 @@ class ObdRepository @Inject constructor(
         return mapOf("raw" to raw)
     }
 
-    suspend fun readVin(): String {
-        val controller = elm ?: return ""
+    suspend fun readVin(): String? {
+        val controller = elm ?: return null
         return controller.sendCommand("0902")
     }
 }

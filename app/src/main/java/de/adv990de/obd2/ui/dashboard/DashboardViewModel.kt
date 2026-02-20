@@ -4,9 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,7 +24,8 @@ data class DashboardUiState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val obdRepository: ObdRepository
+    private val obdRepository: ObdRepository,
+    private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -26,12 +33,31 @@ class DashboardViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            obdRepository.livePids().collect { values ->
-                _uiState.value = _uiState.value.copy(
-                    readings = values,
-                    isConnected = obdRepository.isConnected
-                )
-            }
+            obdRepository.isConnectedFlow
+                .flatMapLatest { connected ->
+                    if (!connected) {
+                        flowOf(emptyList())
+                    } else {
+                        flow {
+                            val vin = runCatching { obdRepository.readVin() }.getOrNull()
+                            val sessionId = sessionRepository.startSession(vin)
+                            try {
+                                emitAll(
+                                    obdRepository.livePids()
+                                        .onEach { sessionRepository.writeReadings(sessionId, it) }
+                                )
+                            } finally {
+                                sessionRepository.endSession(sessionId)
+                            }
+                        }
+                    }
+                }
+                .collect { values ->
+                    _uiState.value = DashboardUiState(
+                        readings = values,
+                        isConnected = obdRepository.isConnected
+                    )
+                }
         }
     }
 }

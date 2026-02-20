@@ -32,7 +32,7 @@ class VehicleInfoViewModel @Inject constructor(private val repo: ObdRepository) 
     val vin: StateFlow<String> = _vin
 
     fun load() {
-        viewModelScope.launch { _vin.value = repo.readVin() }
+        viewModelScope.launch { _vin.value = repo.readVin() ?: "" }
     }
 }
 

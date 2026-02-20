@@ -1,0 +1,140 @@
+package de.adv990de.obd2.ui.dashboard
+
+import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.SensorValue
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.Runs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class DashboardViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @After
+    fun teardown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun makeSensorValue() = SensorValue(
+        pid = PidRegistry.RPM,
+        value = 1500f,
+        timestamp = 1000L
+    )
+
+    @Test
+    fun `session starts when connected and readings are written`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { isConnected } returns true
+            coEvery { readVin() } returns "TESTVIN123"
+            every { livePids() } returns flowOf(listOf(makeSensorValue()))
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 42L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        DashboardViewModel(obdRepo, sessionRepo)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        coVerify { sessionRepo.startSession("TESTVIN123") }
+        coVerify { sessionRepo.writeReadings(42L, any()) }
+    }
+
+    @Test
+    fun `session ends when disconnected`() = runTest {
+        val isConnectedFlow = MutableStateFlow(true)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { isConnected } returns false
+            coEvery { readVin() } returns null
+            every { livePids() } returns flowOf(listOf(makeSensorValue()))
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        DashboardViewModel(obdRepo, sessionRepo)
+        advanceUntilIdle()
+        isConnectedFlow.value = false
+        advanceUntilIdle()
+
+        coVerify { sessionRepo.endSession(1L) }
+    }
+
+    @Test
+    fun `ui state shows readings when connected`() = runTest {
+        val reading = makeSensorValue()
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { isConnected } returns true
+            coEvery { readVin() } returns null
+            every { livePids() } returns flowOf(listOf(reading))
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isConnected)
+        assertEquals(listOf(reading), vm.uiState.value.readings)
+    }
+
+    @Test
+    fun `session starts with null vin when readVin throws`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { isConnected } returns true
+            coEvery { readVin() } throws Exception("VIN not supported")
+            every { livePids() } returns flowOf(emptyList())
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(null) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        DashboardViewModel(obdRepo, sessionRepo)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        coVerify { sessionRepo.startSession(null) }
+    }
+}
