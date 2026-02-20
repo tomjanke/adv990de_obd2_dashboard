@@ -38,6 +38,8 @@ fun DashboardConfigScreen(
                     leadingContent = {
                         Checkbox(
                             checked = pid.id in selectedPids,
+                            // Ignore requested Boolean: togglePid derives the new state
+                            // from the persisted DataStore set to stay single-source-of-truth.
                             onCheckedChange = { vm.togglePid(pid.id) }
                         )
                     }

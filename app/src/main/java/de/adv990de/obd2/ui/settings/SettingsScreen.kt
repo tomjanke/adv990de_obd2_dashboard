@@ -76,12 +76,14 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                     }
                 }
                 item {
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    TextButton(
-                        onClick = { navController.navigate(Screen.DashboardConfig.route) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                    ) { Text("Dashboard konfigurieren") }
+                    Column {
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider()
+                        TextButton(
+                            onClick = { navController.navigate(Screen.DashboardConfig.route) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) { Text("Dashboard konfigurieren") }
+                    }
                 }
             }
         }
