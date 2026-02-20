@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.history
 
 import android.content.Intent
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
