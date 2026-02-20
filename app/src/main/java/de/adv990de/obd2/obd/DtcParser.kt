@@ -13,7 +13,11 @@ class DtcParser {
         val tokens = raw.trim().uppercase().split("\\s+".toRegex())
         if (tokens.size < 2) return emptyList()
 
-        // tokens[0] = "43"/"47", rest = DTC bytes in pairs (no count byte in ELM327 responses)
+        // Validate mode byte: "43" for confirmed DTCs (mode 03), "47" for pending (mode 07)
+        val expectedPrefix = if (isPending) "47" else "43"
+        if (tokens[0] != expectedPrefix) return emptyList()
+
+        // Rest = DTC bytes in pairs (no count byte in ELM327 responses)
         val dtcBytes = tokens.drop(1)
         val dtcs = mutableListOf<DtcEntry>()
 

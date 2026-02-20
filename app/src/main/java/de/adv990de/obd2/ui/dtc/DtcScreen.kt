@@ -37,13 +37,19 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
     ) { padding ->
         Column(Modifier.padding(padding)) {
             if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
-            }
-            LazyColumn {
-                items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
-                if (state.dtcs.isEmpty() && !state.isLoading && state.error == null) {
-                    item { Text("Keine Fehlercodes vorhanden.", modifier = Modifier.padding(16.dp)) }
+            val currentError = state.error
+            when {
+                currentError != null -> Text(
+                    currentError,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp)
+                )
+                state.dtcs.isEmpty() && !state.isLoading -> Text(
+                    "Keine Fehlercodes vorhanden.",
+                    modifier = Modifier.padding(16.dp)
+                )
+                else -> LazyColumn {
+                    items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
                 }
             }
         }

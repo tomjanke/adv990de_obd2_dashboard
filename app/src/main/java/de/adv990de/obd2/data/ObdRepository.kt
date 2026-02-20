@@ -11,6 +11,7 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,7 +58,7 @@ class ObdRepository @Inject constructor(
         }
     }
 
-    fun disconnect() {
+    suspend fun disconnect() = connectMutex.withLock {
         _isConnected.value = false
         connection?.close()
         connection = null
@@ -89,7 +91,7 @@ class ObdRepository @Inject constructor(
                 } catch (_: ObdException.BusInit) {
                     break  // bus re-initializing; skip rest of this poll cycle
                 } catch (e: ObdException.ConnectionLost) {
-                    disconnect()
+                    withContext(NonCancellable) { disconnect() }
                     throw e  // fatal — propagate to ViewModel
                 }
             }
@@ -120,10 +122,12 @@ class ObdRepository @Inject constructor(
             val tokens = raw.trim().uppercase().split("\\s+".toRegex())
             // Mode 02 response format: "42 <PID> [data bytes...]"
             if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) continue
-            val dataBytes = runCatching {
+            val dataBytes = try {
                 tokens.drop(2).map { it.toInt(16).toByte() }.toByteArray()
-            }.getOrNull() ?: continue
-            val value = runCatching { pid.formula(dataBytes) }.getOrNull() ?: continue
+            } catch (_: NumberFormatException) { null } ?: continue
+            val value = try {
+                pid.formula(dataBytes)
+            } catch (_: ArrayIndexOutOfBoundsException) { null } ?: continue
             result[pid.name] = "${value.toInt()} ${pid.unit}"
         }
         return result

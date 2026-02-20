@@ -24,7 +24,14 @@ class ElmController(
 
     /**
      * Initializes the ELM327 adapter with standard AT commands.
-     * Must be called once after BT connection is established.
+     * Must be called once after BT connection is established, before any PID queries.
+     *
+     * Each AT command acquires [commandMutex] individually. In principle a concurrent
+     * caller could interleave commands between init steps. In practice this cannot
+     * happen: [initialize] is called inside [de.adv990de.obd2.data.ObdRepository.connect],
+     * which holds [de.adv990de.obd2.data.ObdRepository.connectMutex], and callers only
+     * obtain a reference to [ElmController] after [connect] returns — i.e., after
+     * initialization is complete.
      */
     suspend fun initialize() {
         // ATZ = reset, ATE0 = echo off, ATL0 = linefeed off,

@@ -23,6 +23,7 @@ import de.adv990de.obd2.ui.components.BottomNav
 fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = hiltViewModel()) {
     val vin by vm.vin.collectAsState()
     val error by vm.error.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
@@ -37,8 +38,9 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
             val currentError = error
             when {
                 currentError != null -> Text(currentError, color = MaterialTheme.colorScheme.error)
+                isLoading -> Text("Wird gelesen…")
                 vin.isNotEmpty() -> Text(vin)
-                else -> Text("Wird gelesen…")
+                else -> Text("Kein VIN verfügbar.")
             }
         }
     }

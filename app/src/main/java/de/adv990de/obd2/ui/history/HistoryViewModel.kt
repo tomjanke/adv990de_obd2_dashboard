@@ -44,4 +44,8 @@ class HistoryViewModel @Inject constructor(
     fun consumeShareUri() {
         _shareUri.value = null
     }
+
+    fun consumeExportError() {
+        _exportError.value = null
+    }
 }

@@ -30,6 +30,8 @@ class BleConnection(
 
     // @Volatile ensures the GATT callback thread's write is visible to the coroutine thread
     @Volatile private var gatt: BluetoothGatt? = null
+    // PipedInputStream/PipedOutputStream are single-use: once closed they cannot be
+    // reconnected. Reconnection requires creating a new BleConnection instance.
     private val pipedOutput = PipedOutputStream()
     private val pipedInput = PipedInputStream(pipedOutput)
 

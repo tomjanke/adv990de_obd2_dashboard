@@ -1,10 +1,12 @@
 package de.adv990de.obd2.bluetooth
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
+import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -15,6 +17,7 @@ class BluetoothDeviceScanner(
 ) {
 
     /** Returns already-bonded (paired) Classic BT devices that look like OBD2 adapters */
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun bondedDevices(): List<ScannedDevice> =
         bluetoothAdapter.bondedDevices
             .filter { it.isObdLike() }

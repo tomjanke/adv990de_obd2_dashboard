@@ -90,7 +90,7 @@ fun SensorCard(value: SensorValue) {
         ) {
             Text(value.pid.name, style = MaterialTheme.typography.labelMedium)
             val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
-                               else value.value.toInt().toString()
+                               else "%.1f".format(value.value)
             Text(
                 "$displayValue ${value.pid.unit}",
                 style = MaterialTheme.typography.headlineMedium

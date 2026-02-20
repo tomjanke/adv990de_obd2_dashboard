@@ -44,6 +44,12 @@ class SessionRepository @Inject constructor(
         db.sensorReadingDao().insertAll(entities)
     }
 
+    /**
+     * Exports a session to a CSV file and returns a shareable [Uri].
+     * Note: all readings for the session are loaded into memory at once.
+     * For typical sessions this is acceptable; very long sessions may need
+     * a streaming/cursor-based approach if memory becomes a concern.
+     */
     suspend fun exportToCsv(sessionId: Long): Uri = withContext(Dispatchers.IO) {
         val readings = db.sensorReadingDao().getBySession(sessionId)
         val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }

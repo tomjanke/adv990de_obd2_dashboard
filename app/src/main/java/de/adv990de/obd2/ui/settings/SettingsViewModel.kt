@@ -28,6 +28,16 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
 
+    init {
+        viewModelScope.launch {
+            obdRepository.isConnectedFlow.collect { connected ->
+                if (!connected) {
+                    _uiState.value = _uiState.value.copy(connectedDevice = null)
+                }
+            }
+        }
+    }
+
     fun loadDevices() {
         _uiState.value = _uiState.value.copy(bondedDevices = scanner.bondedDevices())
     }

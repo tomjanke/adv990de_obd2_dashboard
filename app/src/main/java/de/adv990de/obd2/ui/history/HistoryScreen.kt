@@ -58,7 +58,10 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     }
 
     LaunchedEffect(exportError) {
-        exportError?.let { snackbarHostState.showSnackbar("Export fehlgeschlagen: $it") }
+        exportError?.let {
+            snackbarHostState.showSnackbar("Export fehlgeschlagen: $it")
+            vm.consumeExportError()
+        }
     }
 
     Scaffold(
