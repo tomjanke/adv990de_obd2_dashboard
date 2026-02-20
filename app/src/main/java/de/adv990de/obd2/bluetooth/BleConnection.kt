@@ -7,10 +7,12 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.os.Build
 import de.adv990de.obd2.obd.ElmController
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.util.UUID
@@ -26,14 +28,17 @@ class BleConnection(
     private val device: BluetoothDevice
 ) : ObdConnection {
 
-    private var gatt: BluetoothGatt? = null
+    // @Volatile ensures the GATT callback thread's write is visible to the coroutine thread
+    @Volatile private var gatt: BluetoothGatt? = null
     private val pipedOutput = PipedOutputStream()
     private val pipedInput = PipedInputStream(pipedOutput)
-    private val connectedDeferred = CompletableDeferred<Unit>()
 
     override val isConnected: Boolean get() = gatt != null
 
     override suspend fun connect(): ElmController = withContext(Dispatchers.IO) {
+        // Local deferred so connect() can be called again after close() without reuse issues
+        val connectedDeferred = CompletableDeferred<Unit>()
+
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -56,35 +61,72 @@ class BleConnection(
                 val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID)
                 g.setCharacteristicNotification(notifyChar, true)
                 val cccd = notifyChar.getDescriptor(CCCD_UUID)
-                cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                g.writeDescriptor(cccd)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                    @Suppress("DEPRECATION")
+                    g.writeDescriptor(cccd)
+                }
+
                 gatt = g
                 connectedDeferred.complete(Unit)
             }
 
+            // API 33+ signature — called on Android 13 and above
+            override fun onCharacteristicChanged(
+                g: BluetoothGatt,
+                char: BluetoothGattCharacteristic,
+                value: ByteArray
+            ) {
+                try {
+                    pipedOutput.write(value)
+                    pipedOutput.flush()
+                } catch (_: IOException) { /* pipe closed on disconnect */ }
+            }
+
+            // Pre-API 33 signature — called on Android 12 and below
             @Suppress("DEPRECATION")
             override fun onCharacteristicChanged(
                 g: BluetoothGatt,
                 char: BluetoothGattCharacteristic
             ) {
-                // Write incoming BLE data into the pipe so ElmController can read it
-                pipedOutput.write(char.value)
-                pipedOutput.flush()
+                try {
+                    pipedOutput.write(char.value)
+                    pipedOutput.flush()
+                } catch (_: IOException) { /* pipe closed on disconnect */ }
             }
         }
 
-        gatt = device.connectGatt(context, false, callback)
-        connectedDeferred.await()
+        val rawGatt = device.connectGatt(context, false, callback)
+        try {
+            connectedDeferred.await()
+        } catch (e: Exception) {
+            rawGatt.close()
+            throw e
+        }
 
-        // OutputStream that writes via GATT write characteristic
+        // OutputStream that writes commands to the adapter via GATT write characteristic
         val bleOutputStream = object : java.io.OutputStream() {
             override fun write(b: Int) = write(byteArrayOf(b.toByte()))
             override fun write(b: ByteArray) {
-                val service = gatt?.getService(SERVICE_UUID) ?: return
-                @Suppress("DEPRECATION")
+                val currentGatt = gatt ?: return
+                val service = currentGatt.getService(SERVICE_UUID) ?: return
                 val writeChar = service.getCharacteristic(WRITE_CHAR_UUID) ?: return
-                writeChar.value = b
-                gatt?.writeCharacteristic(writeChar)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    currentGatt.writeCharacteristic(
+                        writeChar,
+                        b,
+                        BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    writeChar.value = b
+                    @Suppress("DEPRECATION")
+                    currentGatt.writeCharacteristic(writeChar)
+                }
             }
         }
 
@@ -94,6 +136,7 @@ class BleConnection(
     override fun close() {
         gatt?.close()
         gatt = null
-        pipedOutput.close()
+        try { pipedOutput.close() } catch (_: IOException) {}
+        try { pipedInput.close() } catch (_: IOException) {}
     }
 }
