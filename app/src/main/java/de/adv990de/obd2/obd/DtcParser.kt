@@ -19,10 +19,12 @@ class DtcParser {
 
         var i = 0
         while (i + 1 < dtcBytes.size) {
-            val high = dtcBytes[i].toIntOrNull(16)?.takeIf { it in 0..255 } ?: break
-            val low = dtcBytes[i + 1].toIntOrNull(16)?.takeIf { it in 0..255 } ?: break
+            val high = dtcBytes[i].toIntOrNull(16)?.takeIf { it in 0..255 }
+            val low = dtcBytes[i + 1].toIntOrNull(16)?.takeIf { it in 0..255 }
+            i += 2  // always advance; invalid pairs are skipped via continue below
 
-            if (high == 0 && low == 0) { i += 2; continue }
+            if (high == null || low == null) continue
+            if (high == 0 && low == 0) continue
 
             val typeChar = when (high and 0xC0) {
                 0x00 -> 'P'
@@ -35,7 +37,6 @@ class DtcParser {
             val code = "$typeChar$numericPart"
 
             dtcs.add(DtcEntry(code = code, description = descriptionFor(code), isPending = isPending))
-            i += 2
         }
         return dtcs
     }

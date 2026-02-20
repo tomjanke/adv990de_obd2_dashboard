@@ -4,6 +4,8 @@ import de.adv990de.obd2.obd.model.ObdException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
@@ -16,6 +18,9 @@ class ElmController(
     private val inputStream: InputStream,
     private val outputStream: OutputStream
 ) {
+    // Serialises all command/response exchanges; prevents concurrent callers from
+    // interleaving writes and reads on the same stream pair.
+    private val commandMutex = Mutex()
 
     /**
      * Initializes the ELM327 adapter with standard AT commands.
@@ -37,17 +42,19 @@ class ElmController(
      * Sends a command and reads the response up to the '>' prompt.
      * Returns the last non-empty line of the response.
      */
-    suspend fun sendCommand(command: String): String = withContext(Dispatchers.IO) {
-        try {
-            withTimeout(READ_TIMEOUT_MS) {
-                runInterruptible {
-                    outputStream.write("$command\r".toByteArray())
-                    outputStream.flush()
-                    readResponse()
+    suspend fun sendCommand(command: String): String = commandMutex.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                withTimeout(READ_TIMEOUT_MS) {
+                    runInterruptible {
+                        outputStream.write("$command\r".toByteArray())
+                        outputStream.flush()
+                        readResponse()
+                    }
                 }
+            } catch (e: TimeoutCancellationException) {
+                throw ObdException.Timeout(command)
             }
-        } catch (e: TimeoutCancellationException) {
-            throw ObdException.Timeout(command)
         }
     }
 

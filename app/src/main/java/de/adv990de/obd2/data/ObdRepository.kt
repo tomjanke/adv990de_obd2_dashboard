@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,11 +31,12 @@ class ObdRepository @Inject constructor(
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
+    private val connectMutex = Mutex()
 
     private val _isConnected = MutableStateFlow(false)
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
 
-    suspend fun connect(device: ScannedDevice) {
+    suspend fun connect(device: ScannedDevice) = connectMutex.withLock {
         // Close any existing connection before replacing it
         connection?.close()
         _isConnected.value = false
@@ -113,7 +116,7 @@ class ObdRepository @Inject constructor(
         val result = mutableMapOf<String, String>()
         for (pid in PidRegistry.all.values) {
             val pidByte = pid.id.takeLast(2)
-            val raw = runCatching { controller.sendCommand("02$pidByte 00") }.getOrNull() ?: continue
+            val raw = try { controller.sendCommand("02$pidByte 00") } catch (_: ObdException) { null } ?: continue
             val tokens = raw.trim().uppercase().split("\\s+".toRegex())
             // Mode 02 response format: "42 <PID> [data bytes...]"
             if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) continue

@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class SessionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: AppDatabase

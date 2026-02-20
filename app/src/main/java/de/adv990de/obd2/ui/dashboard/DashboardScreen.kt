@@ -75,7 +75,7 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(state.readings) { reading -> SensorCard(reading) }
+                items(state.readings, key = { it.pid.id }) { reading -> SensorCard(reading) }
             }
         }
     }

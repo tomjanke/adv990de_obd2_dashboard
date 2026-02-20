@@ -41,7 +41,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
             }
             LazyColumn {
-                items(state.dtcs) { dtc -> DtcRow(dtc) }
+                items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
                 if (state.dtcs.isEmpty() && !state.isLoading && state.error == null) {
                     item { Text("Keine Fehlercodes vorhanden.", modifier = Modifier.padding(16.dp)) }
                 }

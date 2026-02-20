@@ -48,7 +48,11 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Session exportieren"))
+            try {
+                context.startActivity(Intent.createChooser(intent, "Session exportieren"))
+            } catch (_: android.content.ActivityNotFoundException) {
+                snackbarHostState.showSnackbar("Keine App zum Teilen von CSV-Dateien gefunden")
+            }
             vm.consumeShareUri()
         }
     }

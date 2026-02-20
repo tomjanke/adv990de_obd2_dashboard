@@ -34,8 +34,12 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("FIN (VIN)", style = MaterialTheme.typography.labelLarge)
-            Text(vin.ifEmpty { "Wird gelesen…" })
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            val currentError = error
+            when {
+                currentError != null -> Text(currentError, color = MaterialTheme.colorScheme.error)
+                vin.isNotEmpty() -> Text(vin)
+                else -> Text("Wird gelesen…")
+            }
         }
     }
 }

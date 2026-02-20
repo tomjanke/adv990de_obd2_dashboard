@@ -33,12 +33,11 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
             Modifier.padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (data.isEmpty()) {
-                Text("Keine Freeze Frame Daten verfügbar.")
-            } else {
-                data.forEach { (k, v) -> Text("$k: $v") }
+            when {
+                error != null -> Text("Fehler: $error", color = MaterialTheme.colorScheme.error)
+                data.isEmpty() -> Text("Keine Freeze Frame Daten verfügbar.")
+                else -> data.forEach { (k, v) -> Text("$k: $v") }
             }
-            error?.let { Text("Fehler: $it", color = MaterialTheme.colorScheme.error) }
         }
     }
 }

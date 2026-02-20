@@ -41,7 +41,8 @@ class DashboardViewModel @Inject constructor(
                         flowOf(emptyList<SensorValue>() to false)
                     } else {
                         flow {
-                            val vin = runCatching { obdRepository.readVin() }.getOrNull()
+                            val vin = try { obdRepository.readVin() }
+                                      catch (e: Exception) { if (e is CancellationException) throw e; null }
                             var sessionId = -1L
                             try {
                                 sessionId = sessionRepository.startSession(vin)

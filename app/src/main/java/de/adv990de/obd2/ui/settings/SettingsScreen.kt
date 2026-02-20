@@ -50,8 +50,8 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
             Spacer(Modifier.height(8.dp))
             if (state.isConnecting) LinearProgressIndicator(Modifier.fillMaxWidth())
             LazyColumn {
-                items(state.bondedDevices) { device ->
-                    DeviceRow(device, onClick = { vm.connect(device) })
+                items(state.bondedDevices, key = { it.device.address }) { device ->
+                    DeviceRow(device, onClick = { vm.connect(device) }, enabled = !state.isConnecting)
                     HorizontalDivider()
                 }
                 if (state.bondedDevices.isEmpty()) {
@@ -69,10 +69,10 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeviceRow(device: ScannedDevice, onClick: () -> Unit) {
+fun DeviceRow(device: ScannedDevice, onClick: () -> Unit, enabled: Boolean = true) {
     ListItem(
         headlineContent = { Text(device.name) },
         supportingContent = { Text(device.type.name) },
-        trailingContent = { Button(onClick = onClick) { Text("Verbinden") } }
+        trailingContent = { Button(onClick = onClick, enabled = enabled) { Text("Verbinden") } }
     )
 }

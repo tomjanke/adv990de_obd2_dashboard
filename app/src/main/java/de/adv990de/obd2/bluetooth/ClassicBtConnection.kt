@@ -3,6 +3,7 @@ package de.adv990de.obd2.bluetooth
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import de.adv990de.obd2.obd.ElmController
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -24,6 +25,7 @@ class ClassicBtConnection(private val device: BluetoothDevice) : ObdConnection {
             socket = s
             ElmController(s.inputStream, s.outputStream)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             throw BluetoothException.ConnectionFailed(e.message ?: "unknown")
         }
     }
