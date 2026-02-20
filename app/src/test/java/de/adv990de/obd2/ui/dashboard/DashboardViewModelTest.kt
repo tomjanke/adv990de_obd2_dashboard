@@ -188,6 +188,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { hasLastDevice } returns true
             coEvery { readVin() } returns null
             every { livePids(any()) } returns flow {
                 // Simulate what livePids' internal disconnect() does:
@@ -216,17 +217,18 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `cold-launch reconnect falls back to persisted device when reconnect throws ISE`() = runTest {
+    fun `cold-launch reconnect falls back to persisted device via hasLastDevice`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val persistedDevice = mockk<ScannedDevice>()
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            // Cold launch: no prior connect in this session
+            every { hasLastDevice } returns false
             coEvery { readVin() } returns null
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            coEvery { reconnect() } throws IllegalStateException("No previous device")
             coEvery { connect(persistedDevice) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
@@ -252,6 +254,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { hasLastDevice } returns true
             coEvery { readVin() } returns null
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false

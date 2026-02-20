@@ -23,6 +23,9 @@ class DashboardConfigViewModel @Inject constructor(
         )
 
     fun togglePid(id: String) {
+        // DataStore.edit retries its lambda optimistically on write conflicts, so rapid
+        // concurrent togglePid calls are safe: each retry sees the committed state of the
+        // previous write, preserving correct toggle semantics without explicit deduplication.
         viewModelScope.launch { appPreferences.togglePid(id) }
     }
 }

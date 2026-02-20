@@ -40,6 +40,35 @@ class ObdRepository @Inject constructor(
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
 
     suspend fun connect(device: ScannedDevice) = connectMutex.withLock {
+        connectLocked(device)
+    }
+
+    suspend fun disconnect() = connectMutex.withLock {
+        _isConnected.value = false
+        connection?.close()
+        connection = null
+        elm = null
+    }
+
+    /**
+     * Reconnects to the last successfully connected device.
+     * Acquires [connectMutex] to protect the lastDevice read-then-connect sequence against
+     * a concurrent [connect] call that could close the newly established connection.
+     * Throws [IllegalStateException] if no device has ever connected in this session.
+     */
+    suspend fun reconnect() = connectMutex.withLock {
+        val dev = lastDevice
+            ?: throw IllegalStateException("No previous device to reconnect to")
+        connectLocked(dev)
+    }
+
+    /** True if a device has successfully connected at least once in this process lifetime. */
+    val hasLastDevice: Boolean get() = lastDevice != null
+
+    val isConnected: Boolean get() = connection?.isConnected == true
+
+    /** Must only be called while [connectMutex] is held. */
+    private suspend fun connectLocked(device: ScannedDevice) {
         // Close any existing connection before replacing it
         connection?.close()
         _isConnected.value = false
@@ -59,25 +88,6 @@ class ObdRepository @Inject constructor(
             throw e
         }
     }
-
-    suspend fun disconnect() = connectMutex.withLock {
-        _isConnected.value = false
-        connection?.close()
-        connection = null
-        elm = null
-    }
-
-    /**
-     * Reconnects to the last successfully connected device.
-     * Throws [IllegalStateException] if no device has ever connected in this session.
-     */
-    suspend fun reconnect() {
-        val dev = lastDevice
-            ?: throw IllegalStateException("No previous device to reconnect to")
-        connect(dev)
-    }
-
-    val isConnected: Boolean get() = connection?.isConnected == true
 
     /**
      * Continuously polls the given PIDs and emits the latest values.

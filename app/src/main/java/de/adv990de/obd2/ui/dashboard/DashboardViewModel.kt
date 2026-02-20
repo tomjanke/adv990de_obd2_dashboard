@@ -90,11 +90,13 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: CancellationException) {
                                 throw e  // never swallow coroutine cancellation
                             } catch (e: ObdException.ConnectionLost) {
-                                // Signal the reconnect coroutine. Do NOT set error state here —
-                                // the reconnect coroutine manages isReconnecting and error.
-                                // If the loop is already active, tryEmit() drops silently —
-                                // that is intentional: the running loop will attempt up to 5
-                                // reconnects regardless of how many ConnectionLost events fired.
+                                // Set isReconnecting synchronously BEFORE tryEmit so that the
+                                // collect lambda below — which sees connected=false from flatMapLatest
+                                // moments later — takes the preserve-state branch instead of
+                                // resetting to a clean disconnected state (UI flash prevention).
+                                // If tryEmit drops silently (loop already active), isReconnecting
+                                // is already true from the running loop — this copy is a no-op.
+                                _uiState.value = _uiState.value.copy(isReconnecting = true)
                                 _reconnectTrigger.tryEmit(Unit)
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
@@ -145,9 +147,9 @@ class DashboardViewModel @Inject constructor(
                     // Second guard: user may have connected manually while we were waiting
                     if (obdRepository.isConnectedFlow.value) return@collect
                     try {
-                        try {
+                        if (obdRepository.hasLastDevice) {
                             obdRepository.reconnect()
-                        } catch (_: IllegalStateException) {
+                        } else {
                             // Cold launch: in-memory lastDevice not set yet.
                             // Fall back to the address persisted in DataStore.
                             val persisted = appPreferences.lastDevice.first()
