@@ -2,6 +2,7 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.core.content.FileProvider
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
@@ -14,7 +15,7 @@ import java.io.File
 import javax.inject.Inject
 
 class SessionRepository @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val db: AppDatabase
 ) {
 

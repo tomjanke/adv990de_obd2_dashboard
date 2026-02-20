@@ -52,7 +52,7 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             if (sessions.isEmpty()) {
-                item { Text("Keine gespeicherten Fahrten.", modifier = Modifier.padding(androidx.compose.foundation.layout.PaddingValues(16.dp))) }
+                item { Text("Keine gespeicherten Fahrten.", modifier = Modifier.padding(16.dp)) }
             }
             items(sessions) { session ->
                 SessionRow(session, onExport = { vm.export(session.id) })
