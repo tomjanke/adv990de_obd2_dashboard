@@ -39,9 +39,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             obdRepository.isConnectedFlow.collect { connected ->
                 if (connected) {
-                    // Also covers the auto-reconnect path, which bypasses connect() in this VM.
-                    val deviceName = appPreferences.lastDevice.first()?.name
-                    _uiState.value = _uiState.value.copy(connectedDevice = deviceName)
+                    if (!_uiState.value.isConnecting) {
+                        // Auto-reconnect path: connect() in this VM did not run, so connectedDevice
+                        // was not set directly. Read the persisted device name from DataStore.
+                        val deviceName = appPreferences.lastDevice.first()?.name
+                        _uiState.value = _uiState.value.copy(connectedDevice = deviceName)
+                    }
+                    // Manual connect path: connect() sets connectedDevice directly after returning.
                 } else {
                     _uiState.value = _uiState.value.copy(connectedDevice = null)
                 }

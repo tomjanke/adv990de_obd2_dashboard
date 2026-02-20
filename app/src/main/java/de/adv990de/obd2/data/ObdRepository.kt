@@ -97,11 +97,13 @@ class ObdRepository @Inject constructor(
         pids: List<PidDefinition> = PidRegistry.defaults,
         pollIntervalMs: Long = 500L
     ): Flow<List<SensorValue>> = flow {
+        var consecutiveBusInitErrors = 0
         while (true) {
             // elm is @Volatile; capture into a local so the reference stays alive even if
             // a concurrent disconnect() nulls elm after the null check.
             val controller = elm ?: break
             val values = mutableListOf<SensorValue>()
+            var busInitOccurred = false
             for (pid in pids) {
                 try {
                     val raw = controller.sendCommand(pid.id)
@@ -113,11 +115,23 @@ class ObdRepository @Inject constructor(
                 } catch (_: ObdException.Timeout) {
                     // skip this PID this cycle — adapter may be slow
                 } catch (_: ObdException.BusInit) {
+                    busInitOccurred = true
                     break  // bus re-initializing; skip rest of this poll cycle
                 } catch (e: ObdException.ConnectionLost) {
                     withContext(NonCancellable) { disconnect() }
                     throw e  // fatal — propagate to ViewModel
                 }
+            }
+            if (busInitOccurred) {
+                consecutiveBusInitErrors++
+                // After 5 consecutive BusInit errors the bus is stuck — escalate to ConnectionLost
+                // so the ViewModel triggers auto-reconnect instead of polling silently forever.
+                if (consecutiveBusInitErrors >= 5) {
+                    withContext(NonCancellable) { disconnect() }
+                    throw ObdException.ConnectionLost()
+                }
+            } else {
+                consecutiveBusInitErrors = 0
             }
             if (values.isNotEmpty()) emit(values)
             delay(pollIntervalMs)

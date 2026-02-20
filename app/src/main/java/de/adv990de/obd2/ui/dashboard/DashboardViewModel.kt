@@ -93,14 +93,7 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: CancellationException) {
                                 throw e  // never swallow coroutine cancellation
                             } catch (e: ObdException.ConnectionLost) {
-                                // Set isReconnecting synchronously BEFORE tryEmit so that the
-                                // collect lambda below — which sees connected=false from flatMapLatest
-                                // moments later — takes the preserve-state branch instead of
-                                // resetting to a clean disconnected state (UI flash prevention).
-                                // If tryEmit drops silently (loop already active), isReconnecting
-                                // is already true from the running loop — this copy is a no-op.
-                                _uiState.value = _uiState.value.copy(isReconnecting = true)
-                                _reconnectTrigger.tryEmit(Unit)
+                                startReconnecting()
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
@@ -153,7 +146,12 @@ class DashboardViewModel @Inject constructor(
                             // Cold launch: in-memory lastDevice not set yet.
                             // Fall back to the address persisted in DataStore.
                             val persisted = appPreferences.lastDevice.first()
-                                ?: throw IllegalStateException("No persisted device to reconnect to")
+                            if (persisted == null) {
+                                // No device anywhere — abort immediately instead of burning
+                                // all 5 delayed attempts (93 seconds of pointless waiting).
+                                _uiState.value = DashboardUiState.disconnected("Kein bekanntes Gerät für die Wiederverbindung.")
+                                return@collect
+                            }
                             obdRepository.connect(persisted)
                         }
                         // Clear reconnecting state immediately so the spinner stops as soon as
@@ -170,5 +168,17 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = DashboardUiState.disconnected("Verbindung dauerhaft unterbrochen.")
             }
         }
+    }
+
+    /**
+     * Sets isReconnecting synchronously then fires the reconnect trigger.
+     * isReconnecting is set BEFORE tryEmit so the collect lambda — which will see
+     * connected=false as soon as livePids() calls disconnect() — takes the
+     * preserve-state branch instead of resetting to a clean disconnected state.
+     * If tryEmit drops silently (loop already active), isReconnecting is already true — no-op.
+     */
+    private fun startReconnecting() {
+        _uiState.value = _uiState.value.copy(isReconnecting = true)
+        _reconnectTrigger.tryEmit(Unit)
     }
 }

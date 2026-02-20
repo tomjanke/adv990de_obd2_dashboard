@@ -130,6 +130,37 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `connectedDevice set directly by connect(), DataStore read skipped while isConnecting`() = runTest {
+        // Verifies the !isConnecting guard: when connect() is in progress (isConnecting=true),
+        // the isConnectedFlow collector must NOT overwrite connectedDevice with the DataStore value.
+        val isConnectedFlow = MutableStateFlow(false)
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { connect(any()) } coAnswers {
+                // Emit true while isConnecting is still true (connect hasn't returned yet).
+                isConnectedFlow.value = true
+                // yield() lets the collector coroutine run before connect() returns, so it sees
+                // isConnecting=true and skips the DataStore read. Without this, connect() would
+                // complete and set isConnecting=false before the collector fires.
+                kotlinx.coroutines.yield()
+            }
+        }
+        // DataStore returns null — without the guard this would clear connectedDevice
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+        }
+        val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        // connectedDevice must be "ELM327" (set directly in connect()), not null (from DataStore)
+        assertEquals("ELM327", vm.uiState.value.connectedDevice)
+    }
+
+    @Test
     fun `lastDeviceAddress populated from AppPreferences`() = runTest {
         val btDevice = mockk<android.bluetooth.BluetoothDevice> {
             every { address } returns "AA:BB:CC:DD:EE:FF"
