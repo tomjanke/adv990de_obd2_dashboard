@@ -27,8 +27,8 @@ class PidParser {
 
         // Validate the echoed PID byte matches what we requested (e.g. "010C" -> expect "0C")
         val expectedPid = pid.id.takeLast(2)
-        val responsePid = tokens.getOrNull(1) ?: throw ObdException.UnknownResponse(raw)
-        if (!responsePid.equals(expectedPid, ignoreCase = true)) {
+        val responsePid = tokens[1]  // safe: size guard above ensures tokens.size >= 3
+        if (responsePid != expectedPid) {
             throw ObdException.UnknownResponse(raw)
         }
 
