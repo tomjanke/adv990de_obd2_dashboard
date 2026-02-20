@@ -51,7 +51,6 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { isConnected } returns true
             coEvery { readVin() } returns "TESTVIN123"
             every { livePids() } returns flowOf(listOf(makeSensorValue()))
         }
@@ -74,7 +73,6 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(true)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { isConnected } returns false
             coEvery { readVin() } returns null
             every { livePids() } returns flowOf(listOf(makeSensorValue()))
         }
@@ -98,7 +96,6 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { isConnected } returns true
             coEvery { readVin() } returns null
             every { livePids() } returns flowOf(listOf(reading))
         }
@@ -121,7 +118,6 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { isConnected } returns true
             coEvery { readVin() } throws Exception("VIN not supported")
             every { livePids() } returns flowOf(emptyList())
         }
