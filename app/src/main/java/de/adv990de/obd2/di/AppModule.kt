@@ -3,6 +3,8 @@ package de.adv990de.obd2.di
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
 import dagger.Module
 import dagger.Provides
@@ -11,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ConnectionFactory
+import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
@@ -41,4 +44,7 @@ object AppModule {
 
     @Provides @Singleton fun providePidParser() = PidParser()
     @Provides @Singleton fun provideDtcParser() = DtcParser()
+
+    @Provides @Singleton
+    fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> = ctx.dataStore
 }
