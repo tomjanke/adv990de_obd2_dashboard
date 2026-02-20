@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.model.DtcEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ class DtcViewModel @Inject constructor(private val obdRepository: ObdRepository)
                 val dtcs = obdRepository.readDtcs()
                 _uiState.value = DtcUiState(dtcs = dtcs)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 _uiState.value = DtcUiState(error = e.message)
             }
         }

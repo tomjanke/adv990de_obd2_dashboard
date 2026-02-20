@@ -65,10 +65,12 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
                 .collect { (values, connected) ->
-                    _uiState.value = DashboardUiState(
-                        readings = values,
-                        isConnected = connected
-                    )
+                    if (!connected && _uiState.value.error != null) {
+                        // Disconnected cleanly after an error — preserve error, just clear readings
+                        _uiState.value = _uiState.value.copy(isConnected = false, readings = emptyList())
+                    } else {
+                        _uiState.value = DashboardUiState(readings = values, isConnected = connected)
+                    }
                 }
         }
     }

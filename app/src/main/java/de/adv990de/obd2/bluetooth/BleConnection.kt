@@ -74,7 +74,13 @@ class BleConnection(
                     return
                 }
                 g.setCharacteristicNotification(notifyChar, true)
-                val cccd = notifyChar.getDescriptor(CCCD_UUID)
+                val cccd = notifyChar.getDescriptor(CCCD_UUID) ?: run {
+                    g.close()
+                    connectedDeferred.completeExceptionally(
+                        BluetoothException.ConnectionFailed("CCCD descriptor not found")
+                    )
+                    return
+                }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
@@ -84,9 +90,24 @@ class BleConnection(
                     @Suppress("DEPRECATION")
                     g.writeDescriptor(cccd)
                 }
+                // gatt assignment and deferred completion happen in onDescriptorWrite
+                // to ensure notifications are active before the caller gets ElmController
+            }
 
-                gatt = g
-                connectedDeferred.complete(Unit)
+            override fun onDescriptorWrite(
+                g: BluetoothGatt,
+                descriptor: BluetoothGattDescriptor,
+                status: Int
+            ) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    g.close()
+                    connectedDeferred.completeExceptionally(
+                        BluetoothException.ConnectionFailed("CCCD write failed, status=$status")
+                    )
+                } else {
+                    gatt = g
+                    connectedDeferred.complete(Unit)
+                }
             }
 
             // API 33+ signature — called on Android 13 and above

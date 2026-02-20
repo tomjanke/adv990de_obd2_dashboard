@@ -6,7 +6,8 @@ class DtcParser {
 
     /**
      * Parses a raw mode 03 (confirmed) or mode 07 (pending) DTC response.
-     * Format: "43 NN BB BB BB..." where NN = count, BB BB = one DTC each.
+     * ELM327 format: "43 BB BB BB..." where BB BB = one DTC each.
+     * The ELM327 firmware omits the OBD count byte from its formatted output.
      */
     fun parse(raw: String, isPending: Boolean): List<DtcEntry> {
         val tokens = raw.trim().uppercase().split("\\s+".toRegex())

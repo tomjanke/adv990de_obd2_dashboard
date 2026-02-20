@@ -39,6 +39,6 @@ object AppModule {
         adapter: BluetoothAdapter
     ) = BluetoothDeviceScanner(ctx, adapter)
 
-    @Provides fun providePidParser() = PidParser()
-    @Provides fun provideDtcParser() = DtcParser()
+    @Provides @Singleton fun providePidParser() = PidParser()
+    @Provides @Singleton fun provideDtcParser() = DtcParser()
 }

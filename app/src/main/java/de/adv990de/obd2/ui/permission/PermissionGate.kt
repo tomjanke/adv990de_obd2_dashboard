@@ -30,10 +30,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 val requiredPermissions: Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
     arrayOf(
         Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.ACCESS_FINE_LOCATION
+        Manifest.permission.BLUETOOTH_CONNECT
     )
 } else {
     arrayOf(

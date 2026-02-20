@@ -22,7 +22,10 @@ class BluetoothDeviceScanner(
 
     /** Scans for BLE OBD2 adapters */
     fun scanBle(): Flow<ScannedDevice> = callbackFlow {
-        val scanner = bluetoothAdapter.bluetoothLeScanner
+        val scanner = bluetoothAdapter.bluetoothLeScanner ?: run {
+            close(BluetoothException.ConnectionFailed("Bluetooth is off or BLE not supported"))
+            return@callbackFlow
+        }
         val seen = mutableSetOf<String>()
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {

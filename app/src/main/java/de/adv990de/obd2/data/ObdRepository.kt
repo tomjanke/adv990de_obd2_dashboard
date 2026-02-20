@@ -79,6 +79,15 @@ class ObdRepository @Inject constructor(
                     values.add(pidParser.parse(pid, raw))
                 } catch (_: ObdException.NoData) {
                     // skip this PID this cycle
+                } catch (_: ObdException.UnknownResponse) {
+                    // skip this PID this cycle (transient parse error)
+                } catch (_: ObdException.Timeout) {
+                    // skip this PID this cycle — adapter may be slow
+                } catch (_: ObdException.BusInit) {
+                    break  // bus re-initializing; skip rest of this poll cycle
+                } catch (e: ObdException.ConnectionLost) {
+                    disconnect()
+                    throw e  // fatal — propagate to ViewModel
                 }
             }
             if (values.isNotEmpty()) emit(values)

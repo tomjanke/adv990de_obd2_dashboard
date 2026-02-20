@@ -13,6 +13,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -35,7 +37,9 @@ import java.util.Locale
 fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewModel()) {
     val sessions by vm.sessions.collectAsState()
     val shareUri by vm.shareUri.collectAsState()
+    val exportError by vm.exportError.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
@@ -45,12 +49,18 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Session exportieren"))
+            vm.consumeShareUri()
         }
+    }
+
+    LaunchedEffect(exportError) {
+        exportError?.let { snackbarHostState.showSnackbar("Export fehlgeschlagen: $it") }
     }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Fahrtenverlauf") }) },
-        bottomBar = { BottomNav(navController) }
+        bottomBar = { BottomNav(navController) },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             if (sessions.isEmpty()) {

@@ -27,8 +27,8 @@ class ElmController(
         val initSequence = listOf("ATZ", "ATE0", "ATL0", "ATS0", "ATSP0")
         for (cmd in initSequence) {
             val response = sendCommand(cmd)
-            if (response.contains("ERROR", ignoreCase = true) && cmd == "ATZ") {
-                throw ObdException.InitializationFailed("ATZ returned: $response")
+            if (response.contains("ERROR", ignoreCase = true) || response == "?") {
+                throw ObdException.InitializationFailed("$cmd returned: $response")
             }
         }
     }
