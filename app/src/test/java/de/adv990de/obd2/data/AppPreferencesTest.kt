@@ -27,6 +27,9 @@ class AppPreferencesTest {
 
     @get:Rule val tempFolder = TemporaryFolder()
 
+    // UnconfinedTestDispatcher is required here: DataStore launches internal coroutines tied to its
+    // own TestScope. Using StandardTestDispatcher would cause a scheduler deadlock because DataStore's
+    // scope and runTest's scheduler are separate — DataStore's work never gets a chance to run.
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private fun makePreferences(): AppPreferences {
