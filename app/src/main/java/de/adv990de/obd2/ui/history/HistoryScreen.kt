@@ -1,16 +1,17 @@
 package de.adv990de.obd2.ui.history
 
 import android.content.Intent
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -27,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.ui.components.BottomNav
@@ -37,7 +40,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewModel()) {
-    val sessions by vm.sessions.collectAsState()
+    val sessions = vm.sessions.collectAsLazyPagingItems()
     val shareUri by vm.shareUri.collectAsState()
     val exportError by vm.exportError.collectAsState()
     val context = LocalContext.current
@@ -72,12 +75,17 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
-            if (sessions.isEmpty()) {
+            if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
                 item { Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp)) }
             }
-            items(sessions) { session ->
-                SessionRow(session, onExport = { vm.export(session.id) })
-                HorizontalDivider()
+            items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
+                sessions[i]?.let { session ->
+                    SessionRow(session, onExport = { vm.export(session.id) })
+                    HorizontalDivider()
+                }
+            }
+            if (sessions.loadState.append is LoadState.Loading) {
+                item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(8.dp)) }
             }
         }
     }

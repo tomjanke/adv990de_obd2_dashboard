@@ -3,14 +3,17 @@ package de.adv990de.obd2.ui.history
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,8 +22,11 @@ class HistoryViewModel @Inject constructor(
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
-    val sessions: StateFlow<List<SessionEntity>> = sessionRepository.allSessions
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val sessions: Flow<PagingData<SessionEntity>> = Pager(
+        config = PagingConfig(pageSize = 20, enablePlaceholders = false)
+    ) { sessionRepository.pagingSource() }
+        .flow
+        .cachedIn(viewModelScope)
 
     private val _shareUri = MutableStateFlow<Uri?>(null)
     val shareUri: StateFlow<Uri?> = _shareUri

@@ -2,6 +2,7 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.paging.PagingSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.core.content.FileProvider
 import de.adv990de.obd2.data.db.AppDatabase
@@ -22,6 +23,8 @@ class SessionRepository @Inject constructor(
 ) {
 
     val allSessions: Flow<List<SessionEntity>> = db.sessionDao().getAll()
+
+    fun pagingSource(): PagingSource<Int, SessionEntity> = db.sessionDao().pagingSource()
 
     suspend fun startSession(vin: String? = null): Long = withContext(Dispatchers.IO) {
         db.sessionDao().insert(SessionEntity(startTime = System.currentTimeMillis(), vehicleVin = vin))
