@@ -44,10 +44,10 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("OBD2 Monitor") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings))
                     }
                 }
             )

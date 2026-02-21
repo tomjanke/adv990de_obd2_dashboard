@@ -144,7 +144,9 @@ class ObdRepository @Inject constructor(
             }
             // Silent drop: when all PIDs return NoData/Timeout in a cycle, nothing is emitted.
             // The collector sees no update for this cycle; the UI retains the last values.
-            if (values.isNotEmpty()) emit(values)
+            // Also suppress partial-cycle values collected before a BusInit interrupted the loop —
+            // emitting them would show a stale mix of fresh and un-refreshed PID readings.
+            if (!busInitOccurred && values.isNotEmpty()) emit(values)
             delay(pollIntervalMs)
         }
     }

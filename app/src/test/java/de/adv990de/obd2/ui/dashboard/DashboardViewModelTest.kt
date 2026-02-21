@@ -164,6 +164,30 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `startSession failure sets error state and skips endSession`() = runTest {
+        // Verifies: when startSession throws, the generic catch(Exception) handler fires —
+        // not the ConnectionLost handler (isReconnecting stays false) — and endSession is
+        // never called because sessionId was never assigned (guard: if (sessionId != -1L)).
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flowOf(emptyList())
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } throws Exception("DB failure")
+            coEvery { endSession(any()) } just Runs
+        }
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertEquals(UiText.DynamicString("DB failure"), vm.uiState.value.error)
+        assertFalse(vm.uiState.value.isReconnecting)
+        coVerify(exactly = 0) { sessionRepo.endSession(any()) }
+    }
+
+    @Test
     fun `livePids is called with PIDs from AppPreferences`() = runTest {
         val customIds = setOf(PidRegistry.MAF.id)
         val isConnectedFlow = MutableStateFlow(false)

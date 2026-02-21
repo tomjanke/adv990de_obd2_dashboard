@@ -20,9 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,10 +39,10 @@ fun DashboardConfigScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Dashboard konfigurieren") },
+                title = { Text(stringResource(R.string.dashboard_config_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.dashboard_config_back_desc))
                     }
                 }
             )
@@ -51,7 +53,7 @@ fun DashboardConfigScreen(
             if (isConnected) {
                 item {
                     Text(
-                        "Verbindung aktiv – Änderungen starten die laufende Session neu.",
+                        stringResource(R.string.dashboard_config_connected_banner),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

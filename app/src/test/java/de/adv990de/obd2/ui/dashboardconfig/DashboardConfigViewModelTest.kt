@@ -78,6 +78,26 @@ class DashboardConfigViewModelTest {
     }
 
     @Test
+    fun `selectedPidIds falls back to DEFAULT_PIDS when upstream emits empty set`() = runTest {
+        // Verifies the ifEmpty guard: a DataStore wipe leaving emptySet() must not propagate
+        // to the UI — DashboardViewModel uses ifEmpty { defaults } too, but both layers should
+        // be independently robust.
+        val prefs = mockk<AppPreferences> {
+            coEvery { togglePid(any()) } just Runs
+            every { selectedPidIds } returns flowOf(emptySet())
+        }
+        val vm = makeVm(prefs = prefs)
+
+        val job = launch { vm.selectedPidIds.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        // Upstream emits emptySet() → ifEmpty substitutes DEFAULT_PIDS → never empty
+        assertEquals(AppPreferences.DEFAULT_PIDS, vm.selectedPidIds.value)
+        assertTrue("selectedPidIds must never expose empty set to UI", vm.selectedPidIds.value.isNotEmpty())
+    }
+
+    @Test
     fun `allPids is sorted alphabetically by name`() = runTest {
         val vm = makeVm()
         val names = vm.allPids.map { it.name }

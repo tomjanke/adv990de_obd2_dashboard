@@ -21,6 +21,9 @@ class ElmControllerTest {
         val controller = ElmController(input, output)
         val response = controller.sendCommand("010C")
         assertEquals("41 0C 1F 40", response)
+        // Verify the command was actually written to the stream with the required CR terminator.
+        // ELM327 ignores commands without \r — a missing terminator would cause a read timeout.
+        assertEquals("010C\r", output.toString())
     }
 
     @Test
@@ -33,6 +36,7 @@ class ElmControllerTest {
         assertTrue(sent.contains("ATZ"))
         assertTrue(sent.contains("ATE0"))
         assertTrue(sent.contains("ATL0"))
+        assertTrue(sent.contains("ATS0"))   // spaces off — required for consistent token-based parsing
         assertTrue(sent.contains("ATSP0"))
     }
 

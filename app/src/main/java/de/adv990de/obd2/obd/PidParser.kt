@@ -27,6 +27,9 @@ class PidParser {
         // Response starts with "41" (mode 01 response) + PID byte, then data bytes
         val dataStart = 2
         if (tokens.size <= dataStart) throw ObdException.UnknownResponse(raw)
+        // Reject mode-02/09/etc. responses that slipped through (e.g. "42 0C …" received when
+        // mode-01 was requested). parseFreezeFrame validates its own "42" header the same way.
+        if (tokens[0] != "41") throw ObdException.UnknownResponse(raw)
 
         // Validate the echoed PID byte matches what we requested (e.g. "010C" -> expect "0C")
         val expectedPid = pid.id.takeLast(2)

@@ -207,6 +207,31 @@ class ObdRepositoryTest {
     }
 
     @Test
+    fun `livePids does not emit partial values when BusInit interrupts a cycle`() = runTest {
+        // Scenario: first PID in each cycle succeeds, second throws BusInit.
+        // Without the !busInitOccurred guard, the first PID's stale value would be emitted,
+        // mixing fresh and un-refreshed data in the same update. The fix suppresses the cycle.
+        val pidList = PidRegistry.defaults.take(2)
+        val pid1 = pidList[0]
+        val pid2 = pidList[1]
+        val elmCtrl = mockk<ElmController>()
+        val pidParser = mockk<PidParser> {
+            every { parse(pid1, any()) } returns mockk()
+        }
+        coEvery { elmCtrl.sendCommand(pid1.id) } returns "41 00 00 00 00"
+        coEvery { elmCtrl.sendCommand(pid2.id) } throws ObdException.BusInit()
+        val repo = makeConnectedRepo(elmCtrl, pidParser)
+
+        var emissionCount = 0
+        try {
+            repo.livePids(pidList, pollIntervalMs = 0).collect { emissionCount++ }
+        } catch (_: ObdException.ConnectionLost) {}
+
+        // 5 BusInit cycles → ConnectionLost, but zero emissions because every cycle is partial
+        assertEquals(0, emissionCount)
+    }
+
+    @Test
     fun `livePids escalates to ConnectionLost after 5 consecutive BusInit cycles`() = runTest {
         val elmCtrl = mockk<ElmController>()
         coEvery { elmCtrl.sendCommand(any()) } throws ObdException.BusInit()

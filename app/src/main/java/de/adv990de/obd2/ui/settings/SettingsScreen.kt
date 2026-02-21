@@ -28,9 +28,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
@@ -42,7 +44,7 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
     LaunchedEffect(Unit) { vm.loadDevices() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Einstellungen") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp)) {
@@ -52,8 +54,8 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Verbunden: $it", color = MaterialTheme.colorScheme.primary)
-                    TextButton(onClick = { vm.disconnect() }) { Text("Trennen") }
+                    Text(stringResource(R.string.settings_connected_prefix, it), color = MaterialTheme.colorScheme.primary)
+                    TextButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.settings_disconnect)) }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -61,7 +63,7 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                 Text(it, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
             }
-            Text("Gekoppelte Geräte", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_paired_devices), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             if (state.isConnecting) LinearProgressIndicator(Modifier.fillMaxWidth())
             // weight(1f) lets the device list grow to fill available space while keeping
@@ -79,8 +81,7 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                 if (state.bondedDevices.isEmpty()) {
                     item {
                         Text(
-                            "Keine gekoppelten OBD2-Geräte gefunden.\n" +
-                            "Bitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.",
+                            stringResource(R.string.settings_no_paired_devices),
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
@@ -90,7 +91,7 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
             TextButton(
                 onClick = { navController.navigate(Screen.DashboardConfig.route) },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Dashboard konfigurieren") }
+            ) { Text(stringResource(R.string.settings_configure_dashboard)) }
         }
     }
 }
@@ -111,12 +112,12 @@ fun DeviceRow(
                 if (isLastConnected) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = "Zuletzt verbunden",
+                        contentDescription = stringResource(R.string.settings_last_connected_desc),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }
-                Button(onClick = onClick, enabled = enabled) { Text("Verbinden") }
+                Button(onClick = onClick, enabled = enabled) { Text(stringResource(R.string.settings_connect)) }
             }
         }
     )

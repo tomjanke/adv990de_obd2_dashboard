@@ -59,6 +59,14 @@ class PidParserTest {
         parser.parse(PidRegistry.RPM, "41 0D 57")
     }
 
+    @Test(expected = ObdException.UnknownResponse::class)
+    fun `parse throws UnknownResponse when response header is not 41`() {
+        // Mode-02 (freeze frame) response received instead of mode-01 — header "42" must be rejected.
+        // Without the header check, parse() would treat "42" as a valid mode byte and attempt to
+        // read PID + data starting at the wrong offset, silently returning garbage values.
+        parser.parse(PidRegistry.RPM, "42 0C 1F 40")
+    }
+
     // ── parseFreezeFrame ─────────────────────────────────────────────────────
 
     @Test
