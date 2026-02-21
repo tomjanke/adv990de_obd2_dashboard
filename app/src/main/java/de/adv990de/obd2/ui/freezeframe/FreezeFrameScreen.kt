@@ -3,7 +3,11 @@ package de.adv990de.obd2.ui.freezeframe
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,7 +32,16 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.freeze_frame_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.freeze_frame_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.dashboard_config_back_desc))
+                    }
+                }
+            )
+        },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(
