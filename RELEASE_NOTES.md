@@ -1,5 +1,37 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.0.1 (versionCode 2)
+
+Produktionsreife-Fixes nach dem Post-Release-Audit.
+
+---
+
+### Änderungen
+
+#### App-Icon
+- Adaptives Tachometer-Icon (Material Design „speed") auf Teal-Hintergrund (`#006874`) ersetzt das generische Android-Icon. Unterstützt runde und eckige Launcher (minSdk 26 → Adaptive Icons vollständig).
+
+#### Fahrthistorie
+- **Session-Löschung:** Jede Session kann über einen Löschen-Button mit Bestätigungs-Dialog entfernt werden. Readings werden via `ForeignKey ON DELETE CASCADE` automatisch mitgelöscht.
+- **90-Tage-Cleanup:** Sessions älter als 90 Tage werden beim App-Start automatisch bereinigt.
+
+#### Bluetooth-Verbindung
+- Der Reconnect-Loop bricht sofort ab, wenn Bluetooth deaktiviert ist, statt alle fünf Versuche zu durchlaufen (bisher bis zu 93 Sekunden Wartezeit).
+
+#### Crash-Reporting
+- Sentry SDK (`sentry-android:8.29.0`) ersetzt das reine Logcat-Logging. Exceptions werden via `Sentry.captureException`, Breadcrumbs via `Sentry.addBreadcrumb` erfasst.
+- Sentry ist inaktiv, solange `SENTRY_DSN` nicht gesetzt ist — kein Pflicht-Setup für Dev-Builds.
+- **Konfiguration:** `SENTRY_DSN=https://...@sentry.io/...` in `local.properties` oder als Umgebungsvariable.
+
+---
+
+### Technische Hinweise
+
+- **versionCode** muss vor dem nächsten Release-Build in `app/build.gradle.kts` auf `2` erhöht werden.
+- Kein Datenbankschema-Bump — nur neue DAO-Queries, keine Schema-Änderung.
+
+---
+
 ## Version 1.0 (versionCode 1)
 
 Erste Veröffentlichung.
