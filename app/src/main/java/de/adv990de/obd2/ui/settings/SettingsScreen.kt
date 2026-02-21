@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,8 +47,15 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp)) {
             state.connectedDevice?.let {
-                Text("Verbunden: $it", color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Verbunden: $it", color = MaterialTheme.colorScheme.primary)
+                    TextButton(onClick = { vm.disconnect() }) { Text("Trennen") }
+                }
+                Spacer(Modifier.height(8.dp))
             }
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)

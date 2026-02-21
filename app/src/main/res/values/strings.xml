@@ -3,4 +3,7 @@
     <string name="app_name">OBD2 Monitor</string>
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
     <string name="err_reconnect_fail">Verbindung dauerhaft unterbrochen.</string>
+    <string name="reconnecting_progress">Verbindung unterbrochen – Versuch %1$d/%2$d…</string>
+    <string name="connection_error_prefix">Verbindungsfehler: %1$s</string>
+    <string name="not_connected">Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.</string>
 </resources>

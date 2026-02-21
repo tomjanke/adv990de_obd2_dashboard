@@ -51,7 +51,9 @@ class ElmController(
 
     /**
      * Sends a command and reads the response up to the '>' prompt.
-     * Returns the last non-empty line of the response.
+     * Returns all non-empty lines joined by a single space. Single-line responses are
+     * unaffected; multi-frame responses (e.g. VIN mode 09) are returned as a complete string
+     * rather than only the last frame.
      */
     suspend fun sendCommand(command: String): String = commandMutex.withLock {
         withContext(Dispatchers.IO) {
@@ -87,6 +89,6 @@ class ElmController(
             .split("\r", "\n")
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .lastOrNull() ?: ""
+            .joinToString(" ")
     }
 }

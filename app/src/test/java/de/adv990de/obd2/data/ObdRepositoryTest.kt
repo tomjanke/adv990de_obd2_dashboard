@@ -116,25 +116,32 @@ class ObdRepositoryTest {
     }
 
     @Test
-    fun `reconnect uses last connected device`() = runTest {
+    fun `reconnect closes first connection before opening second`() = runTest {
         val device = mockk<ScannedDevice>()
-        val conn = mockk<ObdConnection>()
-        val elm = mockk<ElmController>()
+        // Separate mocks so verifyOrder unambiguously checks conn1.close() before the
+        // second factory.create() call — using a single mock would make the ordering
+        // assertion pass even if close() ran after the second create().
+        val conn1 = mockk<ObdConnection>()
+        val conn2 = mockk<ObdConnection>()
+        val elm1  = mockk<ElmController>()
+        val elm2  = mockk<ElmController>()
         val factory = mockk<ConnectionFactory>()
 
-        coEvery { factory.create(device) } returns conn
-        coEvery { conn.connect() } returns elm
-        coEvery { elm.initialize() } just Runs
-        every { conn.isConnected } returns true
-        every { conn.close() } just Runs
+        coEvery { factory.create(device) } returnsMany listOf(conn1, conn2)
+        coEvery { conn1.connect() } returns elm1
+        coEvery { conn2.connect() } returns elm2
+        coEvery { elm1.initialize() } just Runs
+        coEvery { elm2.initialize() } just Runs
+        every { conn1.isConnected } returns true
+        every { conn1.close() } just Runs
 
         val repo = makeRepo(factory)
-        repo.connect(device)   // sets lastDevice
-        repo.reconnect()       // should close previous connection then connect(device) again
+        repo.connect(device)   // sets lastConnectedDevice, uses conn1
+        repo.reconnect()       // must close conn1, then call factory.create() → conn2
 
         coVerify(exactly = 2) { factory.create(device) }
-        // Verify the previous connection is closed before the new one is opened
-        verifyOrder { conn.close(); factory.create(device) }
+        verifyOrder { conn1.close(); factory.create(device) }
+        assertEquals(true, repo.isConnectedFlow.value)
     }
 
     @Test
@@ -143,6 +150,23 @@ class ObdRepositoryTest {
         var threw = false
         try { repo.reconnect() } catch (_: IllegalStateException) { threw = true }
         assertTrue(threw)
+    }
+
+    // ── DTC read ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `readDtcs disconnects when sendCommand times out to prevent stream desync`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        // "03" times out — stale response may arrive during the "07" command if we continue
+        coEvery { elmCtrl.sendCommand("03") } throws ObdException.Timeout("03")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try { repo.readDtcs() } catch (_: ObdException.Timeout) { threw = true }
+
+        assertTrue(threw)
+        // Repository must have disconnected to flush the stream
+        assertEquals(false, repo.isConnectedFlow.value)
     }
 
     // ── Freeze frame ─────────────────────────────────────────────────────────

@@ -151,10 +151,18 @@ class ObdRepository @Inject constructor(
 
     suspend fun readDtcs(): List<DtcEntry> {
         val controller = elm ?: return emptyList()
-        val confirmed = controller.sendCommand("03")
-        val pending = controller.sendCommand("07")
-        return dtcParser.parse(confirmed, isPending = false) +
-                dtcParser.parse(pending, isPending = true)
+        return try {
+            val confirmed = controller.sendCommand("03")
+            val pending   = controller.sendCommand("07")
+            dtcParser.parse(confirmed, isPending = false) +
+                    dtcParser.parse(pending, isPending = true)
+        } catch (e: ObdException.Timeout) {
+            // A timeout leaves the serial stream in an unknown state: the stale response may
+            // arrive during the next sendCommand and corrupt it. Disconnect now so the stream
+            // is fully reset before the next caller sends anything.
+            withContext(NonCancellable) { disconnect() }
+            throw e
+        }
     }
 
     /**

@@ -42,4 +42,22 @@ class ElmControllerTest {
         val controller = ElmController(input, output)
         controller.initialize()
     }
+
+    @Test
+    fun `sendCommand joins all lines for multi-frame response`() = runTest {
+        // Simulate a two-frame VIN response separated by \r inside the same prompt block.
+        // makeStreams appends "\r>" after the response, so the stream is:
+        //   "49 02 01 57 41\r49 02 02 5A 5A 5A\r>"
+        val (input, output) = makeStreams(listOf("49 02 01 57 41\r49 02 02 5A 5A 5A"))
+        val controller = ElmController(input, output)
+        val response = controller.sendCommand("0902")
+        assertEquals("49 02 01 57 41 49 02 02 5A 5A 5A", response)
+    }
+
+    @Test(expected = ObdException.InitializationFailed::class)
+    fun `initialize throws when ATZ returns STOPPED`() = runTest {
+        val (input, output) = makeStreams(listOf("STOPPED"))
+        val controller = ElmController(input, output)
+        controller.initialize()
+    }
 }

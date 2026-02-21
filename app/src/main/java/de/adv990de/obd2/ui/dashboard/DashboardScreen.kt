@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.res.stringResource
+import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.BottomNav
@@ -62,17 +64,21 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                         state.isReconnecting -> {
                             CircularProgressIndicator()
                             Text(
-                                "Verbindung unterbrochen – Versuch ${state.reconnectAttempt}/${state.reconnectTotal}…",
+                                stringResource(
+                                    R.string.reconnecting_progress,
+                                    state.reconnectAttempt,
+                                    state.reconnectTotal
+                                ),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
                         state.error != null -> Text(
-                            "Verbindungsfehler: ${state.error!!.asString()}",
+                            stringResource(R.string.connection_error_prefix, state.error!!.asString()),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 24.dp)
                         )
-                        else -> Text("Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.")
+                        else -> Text(stringResource(R.string.not_connected))
                     }
                 }
             }

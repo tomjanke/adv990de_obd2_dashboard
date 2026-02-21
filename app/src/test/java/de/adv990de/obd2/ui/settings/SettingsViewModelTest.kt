@@ -10,6 +10,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -239,6 +240,22 @@ class SettingsViewModelTest {
 
         // Backfill runs: device is null → connectedDevice stays null
         assertNull(vm.uiState.value.connectedDevice)
+    }
+
+    @Test
+    fun `disconnect delegates to ObdRepository`() = runTest {
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+            coEvery { connect(any()) } just Runs
+            coEvery { disconnect() } just Runs
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+
+        vm.disconnect()
+        advanceUntilIdle()
+
+        coVerify { obdRepo.disconnect() }
     }
 
     @Test

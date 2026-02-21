@@ -81,6 +81,10 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(bondedDevices = scanner.bondedDevices())
     }
 
+    fun disconnect() {
+        viewModelScope.launch { obdRepository.disconnect() }
+    }
+
     fun connect(device: ScannedDevice) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isConnecting = true, error = null)

@@ -16,6 +16,9 @@ class PidParser {
         when {
             trimmed.contains("NO DATA") -> throw ObdException.NoData(pid.id)
             trimmed.contains("BUS INIT") -> throw ObdException.BusInit()
+            // "STOPPED" is returned by some clone adapters when the bus gets stuck — treat
+            // it as BusInit so the escalation counter in livePids increments correctly.
+            trimmed.contains("STOPPED") -> throw ObdException.BusInit()
             trimmed.isBlank() -> throw ObdException.UnknownResponse(raw)
         }
 

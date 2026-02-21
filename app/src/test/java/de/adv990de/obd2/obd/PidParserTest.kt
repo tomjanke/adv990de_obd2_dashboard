@@ -46,6 +46,13 @@ class PidParserTest {
         parser.parse(PidRegistry.RPM, "BUS INIT... ERROR")
     }
 
+    @Test(expected = ObdException.BusInit::class)
+    fun `parse STOPPED response throws BusInit so escalation counter increments`() {
+        // "STOPPED" from stuck clone adapters must increment livePids' BusInit counter,
+        // not be swallowed as UnknownResponse (which would never trigger ConnectionLost).
+        parser.parse(PidRegistry.RPM, "STOPPED")
+    }
+
     @Test(expected = ObdException.UnknownResponse::class)
     fun `parse throws UnknownResponse when response PID does not match requested PID`() {
         // RPM requested (010C) but response contains Speed (0D)
