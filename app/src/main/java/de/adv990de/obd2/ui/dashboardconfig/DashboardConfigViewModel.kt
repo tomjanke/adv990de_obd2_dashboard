@@ -9,6 +9,7 @@ import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,7 +23,10 @@ class DashboardConfigViewModel @Inject constructor(
     /** Stable alphabetically-sorted list — computed once so the Screen doesn't allocate on every recomposition. */
     val allPids: List<PidDefinition> = PidRegistry.all.values.sortedBy { it.name }
 
+    // ifEmpty guards against a DataStore wipe leaving an empty set, which would let the user
+    // appear to have no PIDs selected while DashboardViewModel silently shows the defaults.
     val selectedPidIds: StateFlow<Set<String>> = appPreferences.selectedPidIds
+        .map { ids -> ids.ifEmpty { AppPreferences.DEFAULT_PIDS } }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),

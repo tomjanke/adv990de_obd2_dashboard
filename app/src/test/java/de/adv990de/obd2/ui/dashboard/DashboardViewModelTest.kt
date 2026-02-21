@@ -29,6 +29,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -181,6 +182,35 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         verify { obdRepo.livePids(match { it.map { p -> p.id }.toSet() == customIds }) }
+    }
+
+    @Test
+    fun `ConnectionLost from livePids triggers reconnect state not generic error`() = runTest {
+        // Verifies that ObdException.ConnectionLost (thrown e.g. when BusInit escalates after
+        // 5 cycles in livePids) routes to startReconnecting() — isReconnecting=true, error=null —
+        // rather than the catch(Exception) handler which would set error=".." instead.
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
+            coEvery { readVin() } returns null
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } throws Exception("reconnect failed")
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        isConnectedFlow.value = true
+        advanceTimeBy(1)
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertNull(vm.uiState.value.error)
     }
 
     @Test

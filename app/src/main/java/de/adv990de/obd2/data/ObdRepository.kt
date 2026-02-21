@@ -167,16 +167,8 @@ class ObdRepository @Inject constructor(
             val pidByte = pid.id.takeLast(2)
             // ELM327 mode-02 command format: "02<PID><FF>" — no space, no delimiter.
             val raw = try { controller.sendCommand("02${pidByte}00") } catch (_: ObdException) { null } ?: continue
-            val tokens = raw.trim().uppercase().split("\\s+".toRegex())
-            // Mode 02 response format: "42 <PID> [data bytes...]"
-            if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) continue
-            val dataBytes = try {
-                tokens.drop(2).map { it.toInt(16).toByte() }.toByteArray()
-            } catch (_: NumberFormatException) { null } ?: continue
-            val value = try {
-                pid.formula(dataBytes)
-            } catch (_: ArrayIndexOutOfBoundsException) { null } ?: continue
-            result[pid.name] = "${value.toInt()} ${pid.unit}"
+            val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
+            result[pid.name] = "%.1f ${pid.unit}".format(value)
         }
         return result
     }

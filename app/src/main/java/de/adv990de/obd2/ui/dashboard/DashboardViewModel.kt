@@ -29,14 +29,17 @@ import javax.inject.Inject
 // If you add a field with a non-trivial default, update disconnected() and the one remaining
 // site in the collect lambda (search "DashboardUiState(readings").
 private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+
+private const val ERR_NO_DEVICE      = "Kein bekanntes Gerät für die Wiederverbindung."
+private const val ERR_RECONNECT_FAIL = "Verbindung dauerhaft unterbrochen."
+
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
     val isReconnecting: Boolean = false,
     val reconnectAttempt: Int = 0,
-    // Only meaningful when isReconnecting=true; the reconnect loop always overwrites this
-    // with delays.size. The default 5 matches that list length for a coherent initial state.
-    val reconnectTotal: Int = 5,
+    // References RECONNECT_DELAYS.size so the default stays in sync if the list ever changes.
+    val reconnectTotal: Int = RECONNECT_DELAYS.size,
     val error: String? = null
 ) {
     companion object {
@@ -83,7 +86,8 @@ class DashboardViewModel @Inject constructor(
 
                             val vin = try { obdRepository.readVin() }
                                       catch (e: Exception) {
-                                          if (e is CancellationException) throw e; null
+                                          if (e is CancellationException) throw e
+                                          null
                                       }
                             var sessionId = -1L
                             try {
@@ -139,7 +143,7 @@ class DashboardViewModel @Inject constructor(
                 if (inMemoryDevice == null && coldLaunchDevice == null) {
                     // No device anywhere — abort immediately instead of burning
                     // all 5 delayed attempts (93 seconds of pointless waiting).
-                    _uiState.value = DashboardUiState.disconnected("Kein bekanntes Gerät für die Wiederverbindung.")
+                    _uiState.value = DashboardUiState.disconnected(ERR_NO_DEVICE)
                     return@collect
                 }
 
@@ -171,7 +175,7 @@ class DashboardViewModel @Inject constructor(
                         // try next attempt
                     }
                 }
-                _uiState.value = DashboardUiState.disconnected("Verbindung dauerhaft unterbrochen.")
+                _uiState.value = DashboardUiState.disconnected(ERR_RECONNECT_FAIL)
             }
         }
     }

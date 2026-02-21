@@ -69,9 +69,9 @@ class DashboardConfigViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        // stateIn emits the initial default value before the upstream value, so collected
-        // has at least 2 entries; verify there was at least one emission and the last is correct.
-        assertTrue(collected.isNotEmpty())
+        // stateIn emits the initial default value before the upstream value.
+        // Assert both the size (proves the default was emitted first) and the final value.
+        assertTrue("expected ≥ 2 emissions (default + upstream), got ${collected.size}", collected.size >= 2)
         assertEquals(customIds, collected.last())
     }
 }

@@ -181,6 +181,41 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `connectedDevice backfilled when lastDevice loads after auto-reconnect`() = runTest {
+        // Verifies the backfill path: auto-reconnect establishes connection (isConnectedFlow=true)
+        // before lastDevice.collect has populated lastDeviceName. When lastDevice emits later,
+        // connectedDevice must be set retroactively.
+        val isConnectedFlow = MutableStateFlow(false)
+        val btDevice = mockk<android.bluetooth.BluetoothDevice> { every { address } returns "AA:BB:CC:DD:EE:FF" }
+        val device = mockk<ScannedDevice> {
+            every { name } returns "ELM327"
+            every { this@mockk.device } returns btDevice
+        }
+        val lastDeviceFlow = MutableStateFlow<ScannedDevice?>(null)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+            coEvery { connect(any()) } just Runs
+        }
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns lastDeviceFlow
+        }
+        val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
+
+        // Auto-reconnect fires: connected=true but lastDevice still null
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.connectedDevice)
+
+        // DataStore finishes loading the last device
+        lastDeviceFlow.value = device
+        advanceUntilIdle()
+
+        assertEquals("ELM327", vm.uiState.value.connectedDevice)
+    }
+
+    @Test
     fun `lastDeviceAddress populated from AppPreferences`() = runTest {
         val btDevice = mockk<android.bluetooth.BluetoothDevice> {
             every { address } returns "AA:BB:CC:DD:EE:FF"

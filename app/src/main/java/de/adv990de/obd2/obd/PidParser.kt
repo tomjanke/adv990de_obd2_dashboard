@@ -45,4 +45,19 @@ class PidParser {
         }
         return SensorValue(pid = pid, value = value)
     }
+
+    /**
+     * Parses a raw ELM327 mode-02 (freeze frame) response for a given PID.
+     * Expected format: "42 XX [data bytes...]"
+     * Returns null if the response is missing, malformed, or the formula throws.
+     */
+    fun parseFreezeFrame(pid: PidDefinition, raw: String): Float? {
+        val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+        val pidByte = pid.id.takeLast(2)
+        if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) return null
+        val dataBytes = try {
+            tokens.drop(2).map { it.toInt(16).toByte() }.toByteArray()
+        } catch (_: NumberFormatException) { return null }
+        return try { pid.formula(dataBytes) } catch (_: ArrayIndexOutOfBoundsException) { null }
+    }
 }

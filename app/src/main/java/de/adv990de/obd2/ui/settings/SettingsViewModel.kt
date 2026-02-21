@@ -46,6 +46,14 @@ class SettingsViewModel @Inject constructor(
                     lastDeviceAddress = device?.device?.address,
                     lastDeviceName = device?.name
                 )
+                // Backfill: if the auto-reconnect path already established a connection while
+                // DataStore was still loading (isConnectedFlow emitted true before this collector
+                // had its first emission), connectedDevice is null. Set it now.
+                if (obdRepository.isConnectedFlow.value
+                        && !_uiState.value.isConnecting
+                        && _uiState.value.connectedDevice == null) {
+                    _uiState.value = _uiState.value.copy(connectedDevice = device?.name)
+                }
             }
         }
         viewModelScope.launch {

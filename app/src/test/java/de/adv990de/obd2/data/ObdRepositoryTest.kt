@@ -153,12 +153,16 @@ class ObdRepositoryTest {
         // Throw NoData for every PID except RPM (id "010C" → pidByte "0C" → command "020C00")
         coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
         coEvery { elmCtrl.sendCommand("020C00") } returns "42 0C 1A F8"
-        val repo = makeConnectedRepo(elmCtrl)
+        // Use a real PidParser so parseFreezeFrame actually processes the response.
+        val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
 
         val result = repo.readFreezeFrame()
 
         coVerify { elmCtrl.sendCommand("020C00") }  // no space between pidByte and frame number
         assertTrue("RPM" in result)
+        // Value should use decimal precision (%.1f), not integer truncation.
+        // RPM formula: (26*256 + 248) / 4 = 1726.0 → "1726.0 rpm"
+        assertTrue("RPM value should contain decimal point: ${result["RPM"]}", result["RPM"]!!.contains("."))
     }
 
     // ── BusInit escalation ────────────────────────────────────────────────────
