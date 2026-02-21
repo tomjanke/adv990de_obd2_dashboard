@@ -10,12 +10,27 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 35
 
+    val appVersionCode = 1
+    val appVersionName = "1.0"
+
+    val keystoreFile = rootProject.file("keystore.jks")
+    fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()
+
+    signingConfigs {
+        create("release") {
+            storeFile     = keystoreFile
+            storePassword = prop("KEYSTORE_PASSWORD")
+            keyAlias      = prop("KEY_ALIAS")
+            keyPassword   = prop("KEY_PASSWORD")
+        }
+    }
+
     defaultConfig {
         applicationId = "de.adv990de.obd2"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -23,6 +38,9 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Only sign if keystore.jks exists — CI/dev builds without the keystore produce
+            // an unsigned APK rather than failing the build.
+            signingConfig = if (keystoreFile.exists()) signingConfigs["release"] else null
         }
     }
 
