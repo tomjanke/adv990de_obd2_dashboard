@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -106,14 +108,19 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
 
 @Composable
 fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
-    Card(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+    val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
+                       else "%.1f".format(value.value)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp)
+            .semantics { contentDescription = "${value.pid.name}: $displayValue ${value.pid.unit}" }
+    ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(12.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(value.pid.name, style = MaterialTheme.typography.labelMedium)
-            val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
-                               else "%.1f".format(value.value)
             Text(
                 "$displayValue ${value.pid.unit}",
                 style = MaterialTheme.typography.headlineMedium
