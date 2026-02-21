@@ -49,6 +49,7 @@
     <string name="obd_err_timeout">Adapter antwortet nicht.</string>
     <string name="obd_err_init_failed">Adapter-Initialisierung fehlgeschlagen.</string>
     <string name="obd_err_bluetooth">Bluetooth-Fehler.</string>
+    <string name="obd_err_bluetooth_disabled">Bluetooth ist deaktiviert.</string>
 
     <!-- PermissionGate -->
     <string name="permission_bt_title">Bluetooth-Berechtigung erforderlich</string>

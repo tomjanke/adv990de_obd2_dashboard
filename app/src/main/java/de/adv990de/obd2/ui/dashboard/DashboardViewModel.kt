@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.bluetooth.BluetoothAdapter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -56,7 +57,8 @@ class DashboardViewModel @Inject constructor(
     private val obdRepository: ObdRepository,
     private val sessionRepository: SessionRepository,
     private val appPreferences: AppPreferences,
-    private val crashReporter: CrashReporter
+    private val crashReporter: CrashReporter,
+    private val bluetoothAdapter: BluetoothAdapter
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -178,6 +180,12 @@ class DashboardViewModel @Inject constructor(
                         reconnectTotal = RECONNECT_DELAYS.size
                     )
                     delay(delayMs)
+                    if (!bluetoothAdapter.isEnabled) {
+                        _uiState.value = DashboardUiState.disconnected(
+                            UiText.StringResource(R.string.obd_err_bluetooth_disabled)
+                        )
+                        return@collect
+                    }
                     // Second guard: user may have connected manually while we were waiting
                     if (obdRepository.isConnectedFlow.value) return@collect
                     try {
