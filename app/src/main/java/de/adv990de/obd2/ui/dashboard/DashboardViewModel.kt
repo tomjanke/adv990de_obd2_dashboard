@@ -28,6 +28,7 @@ import javax.inject.Inject
 // DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
 // If you add a field with a non-trivial default, update disconnected() and the one remaining
 // site in the collect lambda (search "DashboardUiState(readings").
+private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
@@ -129,34 +130,32 @@ class DashboardViewModel @Inject constructor(
         // sequence, which is out of scope for the current implementation.
         viewModelScope.launch {
             _reconnectTrigger.collect {
-                val delays = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
-
-                // On cold launch, in-memory lastDevice is unset; fall back to DataStore.
-                // Read once before the loop — the persisted address does not change between
-                // attempts, and re-reading on every iteration would repeat the I/O on each
-                // attempt if DataStore is slow or flaky.
-                val coldLaunchDevice = if (obdRepository.hasLastDevice) null
+                // On cold launch, in-memory lastConnectedDevice is null; fall back to DataStore.
+                // Captured once before the loop — the persisted address does not change between
+                // attempts, and re-reading on every iteration would repeat the I/O.
+                val inMemoryDevice = obdRepository.lastConnectedDevice.value
+                val coldLaunchDevice = if (inMemoryDevice != null) null
                                        else appPreferences.lastDevice.first()
-                if (!obdRepository.hasLastDevice && coldLaunchDevice == null) {
+                if (inMemoryDevice == null && coldLaunchDevice == null) {
                     // No device anywhere — abort immediately instead of burning
                     // all 5 delayed attempts (93 seconds of pointless waiting).
                     _uiState.value = DashboardUiState.disconnected("Kein bekanntes Gerät für die Wiederverbindung.")
                     return@collect
                 }
 
-                for ((attempt, delayMs) in delays.withIndex()) {
+                for ((attempt, delayMs) in RECONNECT_DELAYS.withIndex()) {
                     // User may have reconnected manually in Settings while we waited
                     if (obdRepository.isConnectedFlow.value) return@collect
                     _uiState.value = DashboardUiState(
                         isReconnecting = true,
                         reconnectAttempt = attempt + 1,
-                        reconnectTotal = delays.size
+                        reconnectTotal = RECONNECT_DELAYS.size
                     )
                     delay(delayMs)
                     // Second guard: user may have connected manually while we were waiting
                     if (obdRepository.isConnectedFlow.value) return@collect
                     try {
-                        if (obdRepository.hasLastDevice) {
+                        if (inMemoryDevice != null) {
                             obdRepository.reconnect()
                         } else {
                             obdRepository.connect(coldLaunchDevice!!)  // non-null verified above
@@ -183,9 +182,15 @@ class DashboardViewModel @Inject constructor(
      * connected=false as soon as livePids() calls disconnect() — takes the
      * preserve-state branch instead of resetting to a clean disconnected state.
      * If tryEmit drops silently (loop already active), isReconnecting is already true — no-op.
+     * reconnectAttempt is reset to 0 here so the UI never shows a stale attempt count from
+     * a previous reconnect cycle between startReconnecting() and the first loop iteration.
      */
     private fun startReconnecting() {
-        _uiState.value = _uiState.value.copy(isReconnecting = true)
+        _uiState.value = _uiState.value.copy(
+            isReconnecting = true,
+            reconnectAttempt = 0,
+            reconnectTotal = RECONNECT_DELAYS.size
+        )
         _reconnectTrigger.tryEmit(Unit)
     }
 }

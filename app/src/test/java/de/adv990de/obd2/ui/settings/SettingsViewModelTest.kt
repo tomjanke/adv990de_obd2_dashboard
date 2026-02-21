@@ -40,6 +40,7 @@ class SettingsViewModelTest {
     private fun makeVm(
         obdRepo: ObdRepository = mockk {
             every { isConnectedFlow } returns MutableStateFlow(false)
+            every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
         },
         prefs: AppPreferences = mockk {

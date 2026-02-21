@@ -33,11 +33,18 @@ class ObdRepository @Inject constructor(
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
-    @Volatile private var lastDevice: ScannedDevice? = null
     private val connectMutex = Mutex()
 
     private val _isConnected = MutableStateFlow(false)
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
+
+    /**
+     * The last device that successfully connected in this process lifetime.
+     * Null on cold launch until the first successful connect() call.
+     * Not cleared by disconnect() — the reconnect path relies on this value being retained.
+     */
+    private val _lastConnectedDevice = MutableStateFlow<ScannedDevice?>(null)
+    val lastConnectedDevice: StateFlow<ScannedDevice?> = _lastConnectedDevice.asStateFlow()
 
     suspend fun connect(device: ScannedDevice) = connectMutex.withLock {
         connectLocked(device)
@@ -48,9 +55,9 @@ class ObdRepository @Inject constructor(
         connection?.close()
         connection = null
         elm = null
-        // lastDevice is intentionally NOT cleared: the reconnect path in DashboardViewModel
-        // calls reconnect() after a connection drop and relies on lastDevice being retained.
-        // Clearing it here would silently break auto-reconnect for the warm-launch path.
+        // _lastConnectedDevice is intentionally NOT cleared: the reconnect path in
+        // DashboardViewModel calls reconnect() after a connection drop and relies on this
+        // value being retained. Clearing it here would silently break warm-launch auto-reconnect.
     }
 
     /**
@@ -60,13 +67,10 @@ class ObdRepository @Inject constructor(
      * Throws [IllegalStateException] if no device has ever connected in this session.
      */
     suspend fun reconnect() = connectMutex.withLock {
-        val dev = lastDevice
+        val dev = _lastConnectedDevice.value
             ?: throw IllegalStateException("No previous device to reconnect to")
         connectLocked(dev)
     }
-
-    /** True if a device has successfully connected at least once in this process lifetime. */
-    internal val hasLastDevice: Boolean get() = lastDevice != null
 
     /** Must only be called while [connectMutex] is held. */
     private suspend fun connectLocked(device: ScannedDevice) {
@@ -83,7 +87,7 @@ class ObdRepository @Inject constructor(
             connection = conn
             elm = controller
             _isConnected.value = true
-            lastDevice = device
+            _lastConnectedDevice.value = device
         } catch (e: Exception) {
             conn.close()   // prevent leak if connect() or initialize() throws
             throw e
@@ -161,7 +165,8 @@ class ObdRepository @Inject constructor(
         val result = mutableMapOf<String, String>()
         for (pid in PidRegistry.all.values) {
             val pidByte = pid.id.takeLast(2)
-            val raw = try { controller.sendCommand("02$pidByte 00") } catch (_: ObdException) { null } ?: continue
+            // ELM327 mode-02 command format: "02<PID><FF>" — no space, no delimiter.
+            val raw = try { controller.sendCommand("02${pidByte}00") } catch (_: ObdException) { null } ?: continue
             val tokens = raw.trim().uppercase().split("\\s+".toRegex())
             // Mode 02 response format: "42 <PID> [data bytes...]"
             if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) continue

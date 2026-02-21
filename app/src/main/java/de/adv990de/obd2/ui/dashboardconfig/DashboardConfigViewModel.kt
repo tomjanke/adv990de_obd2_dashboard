@@ -19,8 +19,8 @@ class DashboardConfigViewModel @Inject constructor(
     private val obdRepository: ObdRepository
 ) : ViewModel() {
 
-    /** Stable list — computed once so the Screen doesn't allocate on every recomposition. */
-    val allPids: List<PidDefinition> = PidRegistry.all.values.toList()
+    /** Stable alphabetically-sorted list — computed once so the Screen doesn't allocate on every recomposition. */
+    val allPids: List<PidDefinition> = PidRegistry.all.values.sortedBy { it.name }
 
     val selectedPidIds: StateFlow<Set<String>> = appPreferences.selectedPidIds
         .stateIn(

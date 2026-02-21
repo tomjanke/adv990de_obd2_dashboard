@@ -26,6 +26,8 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
+            // TODO: replace with a real Migration before the first schema version bump —
+            // fallbackToDestructiveMigration() silently wipes all user data on upgrade.
             .fallbackToDestructiveMigration()
             .build()
 

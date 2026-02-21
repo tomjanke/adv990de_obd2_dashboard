@@ -145,6 +145,22 @@ class ObdRepositoryTest {
         assertTrue(threw)
     }
 
+    // ── Freeze frame ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `readFreezeFrame sends correct mode-02 command format and parses response`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        // Throw NoData for every PID except RPM (id "010C" → pidByte "0C" → command "020C00")
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
+        coEvery { elmCtrl.sendCommand("020C00") } returns "42 0C 1A F8"
+        val repo = makeConnectedRepo(elmCtrl)
+
+        val result = repo.readFreezeFrame()
+
+        coVerify { elmCtrl.sendCommand("020C00") }  // no space between pidByte and frame number
+        assertTrue("RPM" in result)
+    }
+
     // ── BusInit escalation ────────────────────────────────────────────────────
 
     private suspend fun makeConnectedRepo(

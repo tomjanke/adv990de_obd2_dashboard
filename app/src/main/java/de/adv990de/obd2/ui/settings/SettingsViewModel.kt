@@ -57,7 +57,11 @@ class SettingsViewModel @Inject constructor(
                         // lastDevice collector above) to avoid an extra DataStore I/O call.
                         _uiState.value = _uiState.value.copy(connectedDevice = _uiState.value.lastDeviceName)
                     }
-                    // Manual connect path: connect() sets connectedDevice directly after returning.
+                    // Manual connect path: isConnecting=true is set synchronously before
+                    // obdRepository.connect() is called (same coroutine), so this collector
+                    // observes isConnecting=true and skips the DataStore read. connect() then
+                    // sets connectedDevice directly after returning. The SettingsViewModelTest
+                    // verifies this ordering assumption via yield() inside the mock.
                 } else {
                     _uiState.value = _uiState.value.copy(connectedDevice = null)
                 }

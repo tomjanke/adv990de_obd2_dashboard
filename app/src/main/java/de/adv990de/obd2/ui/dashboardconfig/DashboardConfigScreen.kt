@@ -60,8 +60,11 @@ fun DashboardConfigScreen(
                 }
             }
             items(vm.allPids, key = { it.id }) { pid ->
+                // Prevent deselecting the last PID — an empty selection would cause a silent
+                // fallback to defaults in DashboardViewModel, confusing the user.
+                val isLastSelected = pid.id in selectedPids && selectedPids.size == 1
                 ListItem(
-                    modifier = Modifier.clickable { vm.togglePid(pid.id) },
+                    modifier = Modifier.clickable(enabled = !isLastSelected) { vm.togglePid(pid.id) },
                     headlineContent = { Text("${pid.name} (${pid.unit})") },
                     leadingContent = {
                         // onCheckedChange=null: the row-level click handler owns the toggle.
@@ -69,7 +72,8 @@ fun DashboardConfigScreen(
                         // same logical action and could fire togglePid twice.
                         Checkbox(
                             checked = pid.id in selectedPids,
-                            onCheckedChange = null
+                            onCheckedChange = null,
+                            enabled = !isLastSelected
                         )
                     }
                 )
