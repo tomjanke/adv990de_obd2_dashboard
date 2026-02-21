@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -93,15 +96,17 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(state.readings, key = { it.pid.id }) { reading -> SensorCard(reading) }
+                items(state.readings, key = { it.pid.id }) { reading ->
+                    SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList())
+                }
             }
         }
     }
 }
 
 @Composable
-fun SensorCard(value: SensorValue) {
-    Card(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
+    Card(modifier = Modifier.fillMaxWidth().height(120.dp)) {
         Column(
             modifier = Modifier.fillMaxSize().padding(12.dp),
             verticalArrangement = Arrangement.SpaceBetween
@@ -113,6 +118,25 @@ fun SensorCard(value: SensorValue) {
                 "$displayValue ${value.pid.unit}",
                 style = MaterialTheme.typography.headlineMedium
             )
+            Sparkline(sparkline, Modifier.fillMaxWidth().height(32.dp))
         }
+    }
+}
+
+@Composable
+private fun Sparkline(points: List<Float>, modifier: Modifier = Modifier) {
+    if (points.size < 2) return
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(modifier) {
+        val min = points.min()
+        val max = points.max()
+        val range = (max - min).coerceAtLeast(0.001f)
+        val path = Path()
+        points.forEachIndexed { i, v ->
+            val x = i / (points.size - 1f) * size.width
+            val y = size.height - (v - min) / range * size.height
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color, style = Stroke(width = 2.dp.toPx()))
     }
 }

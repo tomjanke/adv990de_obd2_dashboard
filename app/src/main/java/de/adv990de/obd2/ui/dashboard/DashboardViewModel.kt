@@ -41,7 +41,8 @@ data class DashboardUiState(
     val reconnectTotal: Int = RECONNECT_DELAYS.size,
     // UiText: static messages use StringResource (localizable), dynamic messages (e.g. exception
     // messages from the BT stack) use DynamicString.
-    val error: UiText? = null
+    val error: UiText? = null,
+    val sparklines: Map<String, List<Float>> = emptyMap()
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -57,6 +58,8 @@ class DashboardViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
+
+    private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
     // Fired when ConnectionLost is caught in the session loop.
     // Separated from flatMapLatest inner flow because flatMapLatest would cancel the inner
@@ -122,8 +125,21 @@ class DashboardViewModel @Inject constructor(
                         // Disconnected cleanly after an error or during reconnect — preserve state,
                         // just clear stale readings.
                         _uiState.value = _uiState.value.copy(isConnected = false, readings = emptyList())
+                    } else if (connected) {
+                        values.forEach { sv ->
+                            val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(60) }
+                            if (deque.size >= 60) deque.removeFirst()
+                            deque.addLast(sv.value)
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            readings = values,
+                            isConnected = true,
+                            isReconnecting = false,
+                            error = null,
+                            sparklines = sparklineBuffer.mapValues { (_, deque) -> deque.toList() }
+                        )
                     } else {
-                        _uiState.value = DashboardUiState(readings = values, isConnected = connected)
+                        _uiState.value = DashboardUiState(readings = emptyList(), isConnected = false)
                     }
                 }
         }
