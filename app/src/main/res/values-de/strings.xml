@@ -43,6 +43,13 @@
     <string name="vehicle_info_loading">Wird gelesen…</string>
     <string name="vehicle_info_empty">Kein VIN verfügbar.</string>
 
+    <!-- OBD error messages -->
+    <string name="obd_err_connection_lost">Verbindung zum Adapter unterbrochen.</string>
+    <string name="obd_err_bus_init">Fahrzeugbus nicht erreichbar.</string>
+    <string name="obd_err_timeout">Adapter antwortet nicht.</string>
+    <string name="obd_err_init_failed">Adapter-Initialisierung fehlgeschlagen.</string>
+    <string name="obd_err_bluetooth">Bluetooth-Fehler.</string>
+
     <!-- PermissionGate -->
     <string name="permission_bt_title">Bluetooth-Berechtigung erforderlich</string>
     <string name="permission_bt_rationale">Die App benötigt Bluetooth-Zugriff, um mit dem OBD2-Adapter zu kommunizieren.</string>

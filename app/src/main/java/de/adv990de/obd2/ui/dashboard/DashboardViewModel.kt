@@ -8,6 +8,7 @@ import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
@@ -111,9 +112,7 @@ class DashboardViewModel @Inject constructor(
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
                                 crashReporter.recordException(e)
-                                _uiState.value = DashboardUiState.disconnected(
-                                    UiText.DynamicString(e.message ?: e.javaClass.simpleName)
-                                )
+                                _uiState.value = DashboardUiState.disconnected(ObdErrorMapper.toUiText(e))
                             } finally {
                                 // DB errors must not prevent session cleanup.
                                 try {
