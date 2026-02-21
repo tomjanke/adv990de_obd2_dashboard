@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.R
+import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -53,7 +54,8 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val obdRepository: ObdRepository,
     private val sessionRepository: SessionRepository,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val crashReporter: CrashReporter
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -108,6 +110,7 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
+                                crashReporter.recordException(e)
                                 _uiState.value = DashboardUiState.disconnected(
                                     UiText.DynamicString(e.message ?: e.javaClass.simpleName)
                                 )
