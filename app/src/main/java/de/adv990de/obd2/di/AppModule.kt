@@ -26,10 +26,9 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
-            // TODO: Write a named Migration(1, 2) before shipping any schema change.
-            // fallbackToDestructiveMigration() will silently delete all user drive history on
-            // upgrade if the schema version in AppDatabase is ever bumped — no warning to the user.
-            .fallbackToDestructiveMigration()
+            // TODO: Write a named Migration(from, to) before any schema version bump.
+            // Do NOT restore fallbackToDestructiveMigration() — it would silently wipe all user
+            // drive history without warning when the schema version in AppDatabase is incremented.
             .build()
 
     @Provides @Singleton
