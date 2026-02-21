@@ -43,6 +43,9 @@
     <string name="vehicle_info_loading">Wird gelesen…</string>
     <string name="vehicle_info_empty">Kein VIN verfügbar.</string>
 
+    <!-- Shared actions -->
+    <string name="retry">Erneut versuchen</string>
+
     <!-- History screen -->
     <string name="history_title">Fahrtenverlauf</string>
     <string name="history_empty">Keine gespeicherten Fahrten.</string>

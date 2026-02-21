@@ -2,9 +2,12 @@ package de.adv990de.obd2.ui.vehicleinfo
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,7 +55,11 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
             Text(stringResource(R.string.vehicle_info_label_vin), style = MaterialTheme.typography.labelLarge)
             val currentError = error
             when {
-                currentError != null -> Text(currentError, color = MaterialTheme.colorScheme.error)
+                currentError != null -> {
+                    Text(currentError, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
+                }
                 isLoading -> Text(stringResource(R.string.vehicle_info_loading))
                 vin.isNotEmpty() -> Text(vin)
                 else -> Text(stringResource(R.string.vehicle_info_empty))
