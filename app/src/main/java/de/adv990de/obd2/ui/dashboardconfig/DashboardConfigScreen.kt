@@ -4,10 +4,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -15,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.ui.components.BottomNav
@@ -26,12 +32,33 @@ fun DashboardConfigScreen(
     vm: DashboardConfigViewModel = hiltViewModel()
 ) {
     val selectedPids by vm.selectedPidIds.collectAsState()
+    val isConnected by vm.isConnected.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Dashboard konfigurieren") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Dashboard konfigurieren") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                    }
+                }
+            )
+        },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
+            if (isConnected) {
+                item {
+                    Text(
+                        "Verbindung aktiv – Änderungen starten die laufende Session neu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                    HorizontalDivider()
+                }
+            }
             items(vm.allPids, key = { it.id }) { pid ->
                 ListItem(
                     modifier = Modifier.clickable { vm.togglePid(pid.id) },

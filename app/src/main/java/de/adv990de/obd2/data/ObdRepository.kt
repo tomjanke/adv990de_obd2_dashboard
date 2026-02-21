@@ -48,6 +48,9 @@ class ObdRepository @Inject constructor(
         connection?.close()
         connection = null
         elm = null
+        // lastDevice is intentionally NOT cleared: the reconnect path in DashboardViewModel
+        // calls reconnect() after a connection drop and relies on lastDevice being retained.
+        // Clearing it here would silently break auto-reconnect for the warm-launch path.
     }
 
     /**
@@ -63,7 +66,7 @@ class ObdRepository @Inject constructor(
     }
 
     /** True if a device has successfully connected at least once in this process lifetime. */
-    val hasLastDevice: Boolean get() = lastDevice != null
+    internal val hasLastDevice: Boolean get() = lastDevice != null
 
     /** Must only be called while [connectMutex] is held. */
     private suspend fun connectLocked(device: ScannedDevice) {

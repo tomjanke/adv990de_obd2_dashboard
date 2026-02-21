@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.dashboardconfig
 
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.ObdRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -9,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -30,13 +32,23 @@ class DashboardConfigViewModelTest {
     @Before fun setup() { Dispatchers.setMain(testDispatcher) }
     @After  fun teardown() { Dispatchers.resetMain() }
 
+    private fun makeVm(
+        prefs: AppPreferences = mockk {
+            coEvery { togglePid(any()) } just Runs
+            every { selectedPidIds } returns flowOf(AppPreferences.DEFAULT_PIDS)
+        },
+        obdRepo: ObdRepository = mockk {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+        }
+    ) = DashboardConfigViewModel(prefs, obdRepo)
+
     @Test
     fun `togglePid delegates to AppPreferences`() = runTest {
         val prefs = mockk<AppPreferences> {
             coEvery { togglePid(any()) } just Runs
             every { selectedPidIds } returns flowOf(AppPreferences.DEFAULT_PIDS)
         }
-        val vm = DashboardConfigViewModel(prefs)
+        val vm = makeVm(prefs = prefs)
         vm.togglePid("010C")
         advanceUntilIdle()
 
@@ -49,7 +61,7 @@ class DashboardConfigViewModelTest {
         val prefs = mockk<AppPreferences> {
             every { selectedPidIds } returns flowOf(customIds)
         }
-        val vm = DashboardConfigViewModel(prefs)
+        val vm = makeVm(prefs = prefs)
 
         // Subscribe to trigger WhileSubscribed collection, then drain
         val collected = mutableListOf<Set<String>>()

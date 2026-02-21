@@ -161,6 +161,25 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `connectedDevice set and isConnecting cleared even when persistDevice fails`() = runTest {
+        // Verifies best-effort semantics: a DataStore write failure must not block the
+        // connected state — connectedDevice and isConnecting should reflect the successful connect.
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } throws Exception("disk full")
+            every { lastDevice } returns flowOf(null)
+        }
+        val vm = makeVm(prefs = prefs)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isConnecting)
+        assertEquals("ELM327", vm.uiState.value.connectedDevice)
+        assertNull(vm.uiState.value.error)
+    }
+
+    @Test
     fun `lastDeviceAddress populated from AppPreferences`() = runTest {
         val btDevice = mockk<android.bluetooth.BluetoothDevice> {
             every { address } returns "AA:BB:CC:DD:EE:FF"
