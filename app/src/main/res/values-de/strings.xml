@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OBD2 Monitor</string>
+
+    <!-- Dashboard screen — error / status messages -->
+    <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
+    <string name="err_reconnect_fail">Verbindung dauerhaft unterbrochen.</string>
+    <string name="reconnecting_progress">Verbindung unterbrochen – Versuch %1$d/%2$d…</string>
+    <string name="connection_error_prefix">Verbindungsfehler: %1$s</string>
+    <string name="not_connected">Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.</string>
+    <string name="cd_settings">Einstellungen</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_connected_prefix">Verbunden: %1$s</string>
+    <string name="settings_disconnect">Trennen</string>
+    <string name="settings_paired_devices">Gekoppelte Geräte</string>
+    <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
+    <string name="settings_configure_dashboard">Dashboard konfigurieren</string>
+    <string name="settings_vehicle_info">Fahrzeuginfo</string>
+    <string name="settings_last_connected_desc">Zuletzt verbunden</string>
+    <string name="settings_connect">Verbinden</string>
+
+    <!-- Dashboard config screen -->
+    <string name="dashboard_config_title">Dashboard konfigurieren</string>
+    <string name="dashboard_config_back_desc">Zurück</string>
+    <string name="dashboard_config_connected_banner">Verbindung aktiv – Änderungen starten die laufende Session neu.</string>
+
+    <!-- DTC screen -->
+    <string name="dtc_title">Fehlercodes (DTCs)</string>
+    <string name="dtc_empty">Keine Fehlercodes vorhanden.</string>
+    <string name="dtc_badge_pending">Ausstehend</string>
+    <string name="dtc_freeze_frame_link">Freeze Frame anzeigen</string>
+
+    <!-- Freeze Frame screen -->
+    <string name="freeze_frame_title">Freeze Frame</string>
+    <string name="freeze_frame_empty">Keine Freeze Frame Daten verfügbar.</string>
+    <string name="freeze_frame_error_prefix">Fehler: %1$s</string>
+
+    <!-- Vehicle Info screen -->
+    <string name="vehicle_info_title">Fahrzeuginfo</string>
+    <string name="vehicle_info_label_vin">FIN (VIN)</string>
+    <string name="vehicle_info_loading">Wird gelesen…</string>
+    <string name="vehicle_info_empty">Kein VIN verfügbar.</string>
+
+    <!-- Shared actions -->
+    <string name="retry">Erneut versuchen</string>
+
+    <!-- History screen -->
+    <string name="history_title">Fahrtenverlauf</string>
+    <string name="history_empty">Keine gespeicherten Fahrten.</string>
+    <string name="history_vin_unknown">FIN unbekannt</string>
+    <string name="history_share_chooser">Session exportieren</string>
+    <string name="history_share_no_app">Keine App zum Teilen von CSV-Dateien gefunden</string>
+    <string name="history_export_error_prefix">Export fehlgeschlagen: %1$s</string>
+    <string name="history_cd_export">CSV exportieren</string>
+</resources>
