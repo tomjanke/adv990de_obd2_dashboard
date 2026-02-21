@@ -71,4 +71,9 @@
     <string name="history_share_no_app">Keine App zum Teilen von CSV-Dateien gefunden</string>
     <string name="history_export_error_prefix">Export fehlgeschlagen: %1$s</string>
     <string name="history_cd_export">CSV exportieren</string>
+    <string name="history_cd_delete">Fahrt löschen</string>
+    <string name="history_delete_title">Fahrt löschen</string>
+    <string name="history_delete_confirm">Fahrt vom %1$s löschen? Alle Daten gehen verloren.</string>
+    <string name="history_delete_action">Löschen</string>
+    <string name="cancel">Abbrechen</string>
 </resources>

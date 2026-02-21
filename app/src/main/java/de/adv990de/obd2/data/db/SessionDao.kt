@@ -13,4 +13,6 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY startTime DESC") fun pagingSource(): PagingSource<Int, SessionEntity>
     @Query("SELECT * FROM sessions WHERE id = :id") suspend fun getById(id: Long): SessionEntity?
     @Delete suspend fun delete(session: SessionEntity)
+    @Query("DELETE FROM sessions WHERE startTime < :cutoffMs")
+    suspend fun deleteOlderThan(cutoffMs: Long)
 }

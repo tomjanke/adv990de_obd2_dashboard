@@ -34,6 +34,27 @@ class HistoryViewModel @Inject constructor(
     private val _exportError = MutableStateFlow<String?>(null)
     val exportError: StateFlow<String?> = _exportError
 
+    private val _deleteConfirmation = MutableStateFlow<SessionEntity?>(null)
+    val deleteConfirmation: StateFlow<SessionEntity?> = _deleteConfirmation
+
+    init {
+        viewModelScope.launch { sessionRepository.deleteOldSessions() }
+    }
+
+    fun requestDelete(session: SessionEntity) {
+        _deleteConfirmation.value = session
+    }
+
+    fun cancelDelete() {
+        _deleteConfirmation.value = null
+    }
+
+    fun confirmDelete() {
+        val session = _deleteConfirmation.value ?: return
+        _deleteConfirmation.value = null
+        viewModelScope.launch { sessionRepository.deleteSession(session.id) }
+    }
+
     fun export(sessionId: Long) {
         viewModelScope.launch {
             _exportError.value = null

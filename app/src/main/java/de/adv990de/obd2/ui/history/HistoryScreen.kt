@@ -1,12 +1,15 @@
 package de.adv990de.obd2.ui.history
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -17,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +47,7 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     val sessions = vm.sessions.collectAsLazyPagingItems()
     val shareUri by vm.shareUri.collectAsState()
     val exportError by vm.exportError.collectAsState()
+    val deleteConfirmation by vm.deleteConfirmation.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -69,6 +74,25 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         }
     }
 
+    deleteConfirmation?.let { session ->
+        val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+        AlertDialog(
+            onDismissRequest = { vm.cancelDelete() },
+            title = { Text(stringResource(R.string.history_delete_title)) },
+            text = { Text(stringResource(R.string.history_delete_confirm, fmt.format(Date(session.startTime)))) },
+            confirmButton = {
+                TextButton(onClick = { vm.confirmDelete() }) {
+                    Text(stringResource(R.string.history_delete_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.cancelDelete() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }) },
         bottomBar = { BottomNav(navController) },
@@ -80,7 +104,11 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
             }
             items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
                 sessions[i]?.let { session ->
-                    SessionRow(session, onExport = { vm.export(session.id) })
+                    SessionRow(
+                        session,
+                        onExport = { vm.export(session.id) },
+                        onDelete = { vm.requestDelete(session) }
+                    )
                     HorizontalDivider()
                 }
             }
@@ -93,14 +121,19 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SessionRow(session: SessionEntity, onExport: () -> Unit) {
+fun SessionRow(session: SessionEntity, onExport: () -> Unit, onDelete: () -> Unit) {
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     ListItem(
         headlineContent = { Text(fmt.format(Date(session.startTime))) },
         supportingContent = { Text(session.vehicleVin ?: stringResource(R.string.history_vin_unknown)) },
         trailingContent = {
-            IconButton(onClick = onExport) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.history_cd_export))
+            Row {
+                IconButton(onClick = onExport) {
+                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.history_cd_export))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.history_cd_delete))
+                }
             }
         }
     )

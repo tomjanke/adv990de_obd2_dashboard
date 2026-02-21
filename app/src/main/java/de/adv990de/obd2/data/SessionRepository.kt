@@ -47,6 +47,16 @@ class SessionRepository @Inject constructor(
         db.sensorReadingDao().insertAll(entities)
     }
 
+    suspend fun deleteSession(sessionId: Long) = withContext(Dispatchers.IO) {
+        db.sessionDao().getById(sessionId)?.let { db.sessionDao().delete(it) }
+    }
+
+    suspend fun deleteOldSessions(
+        maxAgeMs: Long = 90L * 24 * 60 * 60 * 1000
+    ) = withContext(Dispatchers.IO) {
+        db.sessionDao().deleteOlderThan(System.currentTimeMillis() - maxAgeMs)
+    }
+
     /**
      * Exports a session to a CSV file and returns a shareable [Uri].
      * Note: all readings for the session are loaded into memory at once.
