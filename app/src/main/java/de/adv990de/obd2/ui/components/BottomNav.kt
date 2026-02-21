@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -11,15 +12,18 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.navigation.Screen
 
-private val navItems = listOf(
-    Triple(Screen.Dashboard, Icons.Default.Home, "Live"),
-    Triple(Screen.Dtc, Icons.Default.Info, "DTCs"),
-    Triple(Screen.History, Icons.Default.List, "Verlauf"),
-    Triple(Screen.Settings, Icons.Default.Settings, "Einstellungen"),
+private val navItems: List<Triple<Screen, ImageVector, @StringRes Int>> = listOf(
+    Triple(Screen.Dashboard, Icons.Default.Home,     R.string.nav_live),
+    Triple(Screen.Dtc,       Icons.Default.Info,     R.string.nav_dtcs),
+    Triple(Screen.History,   Icons.Default.List,     R.string.nav_history),
+    Triple(Screen.Settings,  Icons.Default.Settings, R.string.settings_title),
 )
 
 @Composable
@@ -28,7 +32,8 @@ fun BottomNav(navController: NavController) {
     val currentRoute = backStack?.destination?.route
 
     NavigationBar {
-        navItems.forEach { (screen, icon, label) ->
+        navItems.forEach { (screen, icon, labelRes) ->
+            val label = stringResource(labelRes)
             NavigationBarItem(
                 selected = currentRoute == screen.route,
                 onClick = {

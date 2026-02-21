@@ -22,12 +22,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import de.adv990de.obd2.R
 
 val requiredPermissions: Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
     // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
@@ -87,15 +89,15 @@ fun PermissionGate(content: @Composable () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    "Bluetooth-Berechtigungen erforderlich",
+                    stringResource(R.string.permission_bt_title),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    "Die App benötigt Bluetooth-Zugriff, um mit dem OBD2-Adapter zu kommunizieren.",
+                    stringResource(R.string.permission_bt_rationale),
                     modifier = Modifier.padding(horizontal = 32.dp)
                 )
                 Button(onClick = { launcher.launch(requiredPermissions) }) {
-                    Text("Berechtigungen erteilen")
+                    Text(stringResource(R.string.permission_grant))
                 }
             }
         }

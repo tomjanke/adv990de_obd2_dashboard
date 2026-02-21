@@ -43,6 +43,16 @@
     <string name="vehicle_info_loading">Wird gelesen…</string>
     <string name="vehicle_info_empty">Kein VIN verfügbar.</string>
 
+    <!-- PermissionGate -->
+    <string name="permission_bt_title">Bluetooth-Berechtigung erforderlich</string>
+    <string name="permission_bt_rationale">Die App benötigt Bluetooth-Zugriff, um mit dem OBD2-Adapter zu kommunizieren.</string>
+    <string name="permission_grant">Berechtigung erteilen</string>
+
+    <!-- BottomNav labels -->
+    <string name="nav_live">Live</string>
+    <string name="nav_dtcs">DTCs</string>
+    <string name="nav_history">Verlauf</string>
+
     <!-- Shared actions -->
     <string name="retry">Erneut versuchen</string>
 

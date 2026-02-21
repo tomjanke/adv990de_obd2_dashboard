@@ -43,6 +43,16 @@
     <string name="vehicle_info_loading">Reading…</string>
     <string name="vehicle_info_empty">No VIN available.</string>
 
+    <!-- PermissionGate -->
+    <string name="permission_bt_title">Bluetooth Permission Required</string>
+    <string name="permission_bt_rationale">The app needs Bluetooth access to communicate with the OBD2 adapter.</string>
+    <string name="permission_grant">Grant Permission</string>
+
+    <!-- BottomNav labels -->
+    <string name="nav_live">Live</string>
+    <string name="nav_dtcs">DTCs</string>
+    <string name="nav_history">History</string>
+
     <!-- Shared actions -->
     <string name="retry">Retry</string>
 
