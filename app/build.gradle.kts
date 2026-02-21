@@ -35,12 +35,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
+            manifestPlaceholders["buildEnvironment"] = "debug"
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Only sign if keystore.jks exists — CI/dev builds without the keystore produce
             // an unsigned APK rather than failing the build.
             signingConfig = if (keystoreFile.exists()) signingConfigs["release"] else null
+            manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
+            manifestPlaceholders["buildEnvironment"] = "production"
         }
     }
 
@@ -50,7 +56,7 @@ android {
     }
 
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 
     testOptions {
         unitTests { isReturnDefaultValues = true }
@@ -84,6 +90,7 @@ dependencies {
     implementation(libs.paging.runtime)
     implementation(libs.paging.compose)
     implementation(libs.room.paging)
+    implementation(libs.sentry.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

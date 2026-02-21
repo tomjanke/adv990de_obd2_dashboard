@@ -5,7 +5,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import de.adv990de.obd2.crash.CrashReporter
-import de.adv990de.obd2.crash.LogCrashReporter
+import de.adv990de.obd2.crash.SentryCrashReporter
 import javax.inject.Singleton
 
 @Module
@@ -14,5 +14,5 @@ abstract class CrashReporterModule {
 
     @Binds
     @Singleton
-    abstract fun bindCrashReporter(impl: LogCrashReporter): CrashReporter
+    abstract fun bindCrashReporter(impl: SentryCrashReporter): CrashReporter
 }

@@ -22,8 +22,14 @@
     <application
         android:name=".Obd2Application"
         android:label="OBD2 Monitor"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.OBD2Monitor"
         android:allowBackup="false">
+
+        <meta-data android:name="io.sentry.dsn"         android:value="${sentryDsn}" />
+        <meta-data android:name="io.sentry.environment"  android:value="${buildEnvironment}" />
+        <meta-data android:name="io.sentry.auto-init"    android:value="true" />
 
         <activity
             android:name=".MainActivity"
