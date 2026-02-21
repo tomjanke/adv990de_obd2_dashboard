@@ -34,7 +34,8 @@ fun DashboardConfigScreen(
     vm: DashboardConfigViewModel = hiltViewModel()
 ) {
     val selectedPids by vm.selectedPidIds.collectAsState()
-    val isConnected by vm.isConnected.collectAsState()
+    val isConnected  by vm.isConnected.collectAsState()
+    val allPids      by vm.allPids.collectAsState()
 
     Scaffold(
         topBar = {
@@ -61,7 +62,7 @@ fun DashboardConfigScreen(
                     HorizontalDivider()
                 }
             }
-            items(vm.allPids, key = { it.id }) { pid ->
+            items(allPids, key = { it.id }) { pid ->
                 // Prevent deselecting the last PID — an empty selection would cause a silent
                 // fallback to defaults in DashboardViewModel, confusing the user.
                 val isLastSelected = pid.id in selectedPids && selectedPids.size == 1

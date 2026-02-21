@@ -19,6 +19,8 @@ import io.mockk.verifyOrder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -203,6 +205,13 @@ class ObdRepositoryTest {
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
         coEvery { elmCtrl.initialize() } just Runs
+        // Discovery stubs: thrown NoData is caught silently → discovery returns null.
+        // Registered after test-local stubs so these specific matchers win for the
+        // three range commands while test's own coEvery { sendCommand(any()) } still
+        // handles all other commands (MockK LIFO: last-registered wins).
+        coEvery { elmCtrl.sendCommand("0100") } throws ObdException.NoData("0100")
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
         return ObdRepository(factory, pidParser, mockk<DtcParser>()).also { it.connect(device) }
     }
 
@@ -287,5 +296,116 @@ class ObdRepositoryTest {
 
         assertEquals(1, emissionCount)  // one emission on cycle 5
         assertTrue(threw)               // ConnectionLost after 5 more BusInit cycles (6-10)
+    }
+
+    // ── PID Discovery ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `supportedPidIds is null before connect`() = runTest {
+        val repo = makeRepo()
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    @Test
+    fun `supportedPidIds is null after disconnect`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        // 0100 returns two known PIDs; 0120/0140 return NoData
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+        assertNotNull(repo.supportedPidIds.value)
+
+        repo.disconnect()
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    @Test
+    fun `supportedPidIds is null when all ranges return NO DATA`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        val repo = makeConnectedRepo(elmCtrl)
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    @Test
+    fun `discoverSupportedPids decodes bitmap correctly for range 0100`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        // 0x00180000: bit 20 → PID 0x0C (RPM), bit 19 → PID 0x0D (Speed)
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull(supported)
+        assertTrue("010C (RPM) should be in supported", "010C" in supported!!)
+        assertTrue("010D (Speed) should be in supported", "010D" in supported)
+    }
+
+    @Test
+    fun `discoverSupportedPids returns null when bitmap matches no known PIDs`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        // Only bit 0 set → PID 0x60, which is the continuation flag and not in PidRegistry
+        coEvery { elmCtrl.sendCommand("0100") } throws ObdException.NoData("0100")
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elmCtrl.sendCommand("0140") } returns "41 40 00 00 00 01"
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    @Test
+    fun `discoverSupportedPids is resilient when one range throws Timeout`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        // 0100 returns RPM + Speed; 0120 times out; 0140 returns NoData
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.Timeout("0120")
+        coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull("partial discovery result should not be null", supported)
+        assertTrue("010C should be discovered", "010C" in supported!!)
+        assertTrue("010D should be discovered", "010D" in supported)
     }
 }

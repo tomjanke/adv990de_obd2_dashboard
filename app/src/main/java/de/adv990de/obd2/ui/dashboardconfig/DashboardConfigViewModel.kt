@@ -20,8 +20,25 @@ class DashboardConfigViewModel @Inject constructor(
     private val obdRepository: ObdRepository
 ) : ViewModel() {
 
-    /** Stable alphabetically-sorted list — computed once so the Screen doesn't allocate on every recomposition. */
-    val allPids: List<PidDefinition> = PidRegistry.all.values.sortedBy { it.name }
+    // Pre-sorted once; the StateFlow below filters without re-sorting on each emission.
+    private val _allPidsSorted: List<PidDefinition> = PidRegistry.all.values.sortedBy { it.name }
+
+    /**
+     * Alphabetically-sorted list of PIDs available for selection.
+     * Null [supportedPidIds] (no connection / discovery failed) → full registry shown
+     * so the user can pre-configure before connecting. After discovery, filtered to
+     * only ECU-supported PIDs.
+     *
+     * Note: [selectedPidIds] in DataStore may contain IDs absent from the current
+     * [allPids] (selected while disconnected, not supported by this ECU). Those PIDs
+     * remain in DataStore but are invisible in the UI and silently skipped in livePids.
+     */
+    val allPids: StateFlow<List<PidDefinition>> = obdRepository.supportedPidIds
+        .map { supported ->
+            if (supported.isNullOrEmpty()) _allPidsSorted
+            else _allPidsSorted.filter { it.id in supported }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _allPidsSorted)
 
     // ifEmpty guards against a DataStore wipe leaving an empty set, which would let the user
     // appear to have no PIDs selected while DashboardViewModel silently shows the defaults.

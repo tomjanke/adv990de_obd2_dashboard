@@ -38,6 +38,9 @@ class ObdRepository @Inject constructor(
     private val _isConnected = MutableStateFlow(false)
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
 
+    private val _supportedPidIds = MutableStateFlow<Set<String>?>(null)
+    val supportedPidIds: StateFlow<Set<String>?> = _supportedPidIds.asStateFlow()
+
     /**
      * The last device that successfully connected in this process lifetime.
      * Null on cold launch until the first successful connect() call.
@@ -52,6 +55,7 @@ class ObdRepository @Inject constructor(
 
     suspend fun disconnect() = connectMutex.withLock {
         _isConnected.value = false
+        _supportedPidIds.value = null
         connection?.close()
         connection = null
         elm = null
@@ -84,6 +88,10 @@ class ObdRepository @Inject constructor(
         try {
             val controller = conn.connect()
             controller.initialize()
+            // Best-effort: discovery errors must never abort the connection.
+            _supportedPidIds.value = try {
+                discoverSupportedPids(controller)
+            } catch (_: Exception) { null }
             connection = conn
             elm = controller
             _isConnected.value = true
@@ -92,6 +100,48 @@ class ObdRepository @Inject constructor(
             conn.close()   // prevent leak if connect() or initialize() throws
             throw e
         }
+    }
+
+    /**
+     * Queries OBD2 PID support ranges (0100/0120/0140) and returns the subset of
+     * [PidRegistry.all] keys that the ECU reports as supported.
+     *
+     * Returns null when discovery fails entirely or yields no known PIDs — the caller
+     * treats null as "show all PIDs" to avoid presenting an empty config screen.
+     *
+     * Bitmap encoding (SAE J1979): each 4-byte response encodes 32 PIDs as a
+     * big-endian mask. Bit 31 (MSB of byte 0) → PID base+1; bit 0 (LSB of byte 3)
+     * → PID base+32 (the continuation flag for the next range — not a real sensor
+     * PID and therefore not present in PidRegistry.all).
+     *
+     * Note: ATS0 (spaces off) is sent during initialize(). Most adapters still
+     * include spaces in mode-01 responses; the whitespace split handles both forms.
+     */
+    private suspend fun discoverSupportedPids(controller: ElmController): Set<String>? {
+        val ranges = listOf("0100" to 0x00, "0120" to 0x20, "0140" to 0x40)
+        val discovered = mutableSetOf<String>()
+        for ((command, base) in ranges) {
+            val raw = try {
+                controller.sendCommand(command)
+            } catch (_: ObdException.NoData)          { continue }
+              catch (_: ObdException.Timeout)         { continue }
+              catch (_: ObdException.UnknownResponse) { continue }
+              catch (_: ObdException.BusInit)         { continue }
+            val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+            // "41 XX B1 B2 B3 B4" → at least 6 tokens
+            if (tokens.size < 6 || tokens[0] != "41") continue
+            val bitmap = try {
+                tokens.drop(2).take(4).fold(0L) { acc, t -> (acc shl 8) or t.toLong(16) }
+            } catch (_: NumberFormatException) { continue }
+            for (i in 31 downTo 0) {
+                if ((bitmap shr i) and 1L == 1L) {
+                    val pidNum = base + (31 - i) + 1
+                    val pidId = "01%02X".format(pidNum)
+                    if (pidId in PidRegistry.all) discovered.add(pidId)
+                }
+            }
+        }
+        return discovered.takeIf { it.isNotEmpty() }
     }
 
     /**

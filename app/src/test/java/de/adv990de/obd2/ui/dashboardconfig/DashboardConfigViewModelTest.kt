@@ -41,6 +41,7 @@ class DashboardConfigViewModelTest {
         },
         obdRepo: ObdRepository = mockk {
             every { isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(null)
         }
     ) = DashboardConfigViewModel(prefs, obdRepo)
 
@@ -100,7 +101,7 @@ class DashboardConfigViewModelTest {
     @Test
     fun `allPids is sorted alphabetically by name`() = runTest {
         val vm = makeVm()
-        val names = vm.allPids.map { it.name }
+        val names = vm.allPids.value.map { it.name }
         assertEquals(names.sorted(), names)
     }
 
@@ -109,6 +110,7 @@ class DashboardConfigViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
         }
         val vm = makeVm(obdRepo = obdRepo)
 
@@ -120,6 +122,37 @@ class DashboardConfigViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
         assertTrue(vm.isConnected.value)
+
+        job.cancel()
+    }
+
+    @Test
+    fun `allPids filters to supported PIDs when discovery reports them`() = runTest {
+        val supportedFlow = MutableStateFlow<Set<String>?>(null)
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns supportedFlow
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+
+        // Subscribe to activate WhileSubscribed sharing
+        val job = launch { vm.allPids.collect {} }
+        advanceUntilIdle()
+
+        // null → full registry shown
+        assertEquals(19, vm.allPids.value.size)
+
+        // Emit a 2-PID discovery result → list is filtered
+        supportedFlow.value = setOf("0104", "0105")
+        advanceUntilIdle()
+        assertEquals(2, vm.allPids.value.size)
+        assertTrue(vm.allPids.value.any { it.id == "0104" })
+        assertTrue(vm.allPids.value.any { it.id == "0105" })
+
+        // null again → full registry shown
+        supportedFlow.value = null
+        advanceUntilIdle()
+        assertEquals(19, vm.allPids.value.size)
 
         job.cancel()
     }
