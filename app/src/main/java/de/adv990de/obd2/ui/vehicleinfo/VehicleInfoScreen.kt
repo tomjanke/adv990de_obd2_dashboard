@@ -13,9 +13,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,20 +29,20 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Fahrzeuginfo") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.vehicle_info_title)) }) },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(
             Modifier.padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("FIN (VIN)", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.vehicle_info_label_vin), style = MaterialTheme.typography.labelLarge)
             val currentError = error
             when {
                 currentError != null -> Text(currentError, color = MaterialTheme.colorScheme.error)
-                isLoading -> Text("Wird gelesen…")
+                isLoading -> Text(stringResource(R.string.vehicle_info_loading))
                 vin.isNotEmpty() -> Text(vin)
-                else -> Text("Kein VIN verfügbar.")
+                else -> Text(stringResource(R.string.vehicle_info_empty))
             }
         }
     }

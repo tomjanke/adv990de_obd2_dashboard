@@ -13,9 +13,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,7 +28,7 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Freeze Frame") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.freeze_frame_title)) }) },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(
@@ -34,8 +36,8 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             when {
-                error != null -> Text("Fehler: $error", color = MaterialTheme.colorScheme.error)
-                data.isEmpty() -> Text("Keine Freeze Frame Daten verfügbar.")
+                error != null -> Text(stringResource(R.string.freeze_frame_error_prefix, error!!), color = MaterialTheme.colorScheme.error)
+                data.isEmpty() -> Text(stringResource(R.string.freeze_frame_empty))
                 else -> data.forEach { (k, v) -> Text("$k: $v") }
             }
         }

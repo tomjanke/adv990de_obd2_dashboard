@@ -24,8 +24,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.ui.components.BottomNav
 import java.text.SimpleDateFormat
@@ -49,9 +51,9 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             try {
-                context.startActivity(Intent.createChooser(intent, "Session exportieren"))
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.history_share_chooser)))
             } catch (_: android.content.ActivityNotFoundException) {
-                snackbarHostState.showSnackbar("Keine App zum Teilen von CSV-Dateien gefunden")
+                snackbarHostState.showSnackbar(context.getString(R.string.history_share_no_app))
             }
             vm.consumeShareUri()
         }
@@ -59,19 +61,19 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
 
     LaunchedEffect(exportError) {
         exportError?.let {
-            snackbarHostState.showSnackbar("Export fehlgeschlagen: $it")
+            snackbarHostState.showSnackbar(context.getString(R.string.history_export_error_prefix, it))
             vm.consumeExportError()
         }
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Fahrtenverlauf") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }) },
         bottomBar = { BottomNav(navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             if (sessions.isEmpty()) {
-                item { Text("Keine gespeicherten Fahrten.", modifier = Modifier.padding(16.dp)) }
+                item { Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp)) }
             }
             items(sessions) { session ->
                 SessionRow(session, onExport = { vm.export(session.id) })
@@ -87,10 +89,10 @@ fun SessionRow(session: SessionEntity, onExport: () -> Unit) {
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     ListItem(
         headlineContent = { Text(fmt.format(Date(session.startTime))) },
-        supportingContent = { Text(session.vehicleVin ?: "FIN unbekannt") },
+        supportingContent = { Text(session.vehicleVin ?: stringResource(R.string.history_vin_unknown)) },
         trailingContent = {
             IconButton(onClick = onExport) {
-                Icon(Icons.Default.Share, contentDescription = "CSV exportieren")
+                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.history_cd_export))
             }
         }
     )
