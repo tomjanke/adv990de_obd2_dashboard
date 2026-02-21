@@ -17,6 +17,7 @@
     <string name="settings_paired_devices">Gekoppelte Geräte</string>
     <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
     <string name="settings_configure_dashboard">Dashboard konfigurieren</string>
+    <string name="settings_vehicle_info">Fahrzeuginfo</string>
     <string name="settings_last_connected_desc">Zuletzt verbunden</string>
     <string name="settings_connect">Verbinden</string>
 
@@ -29,6 +30,7 @@
     <string name="dtc_title">Fehlercodes (DTCs)</string>
     <string name="dtc_empty">Keine Fehlercodes vorhanden.</string>
     <string name="dtc_badge_pending">Ausstehend</string>
+    <string name="dtc_freeze_frame_link">Freeze Frame anzeigen</string>
 
     <!-- Freeze Frame screen -->
     <string name="freeze_frame_title">Freeze Frame</string>

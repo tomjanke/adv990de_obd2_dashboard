@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dtc
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +14,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.components.BottomNav
+import de.adv990de.obd2.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,20 +43,27 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
         Column(Modifier.padding(padding)) {
             if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             val currentError = state.error
-            when {
-                currentError != null -> Text(
-                    currentError,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp)
-                )
-                state.dtcs.isEmpty() && !state.isLoading -> Text(
-                    stringResource(R.string.dtc_empty),
-                    modifier = Modifier.padding(16.dp)
-                )
-                else -> LazyColumn {
-                    items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
+            Box(Modifier.weight(1f)) {
+                when {
+                    currentError != null -> Text(
+                        currentError,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                    state.dtcs.isEmpty() && !state.isLoading -> Text(
+                        stringResource(R.string.dtc_empty),
+                        modifier = Modifier.padding(16.dp)
+                    )
+                    else -> LazyColumn {
+                        items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
+                    }
                 }
             }
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.FreezeFrame.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.dtc_freeze_frame_link)) }
         }
     }
 }

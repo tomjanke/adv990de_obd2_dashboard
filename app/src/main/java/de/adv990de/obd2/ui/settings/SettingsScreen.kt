@@ -92,6 +92,11 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                 onClick = { navController.navigate(Screen.DashboardConfig.route) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.settings_configure_dashboard)) }
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.VehicleInfo.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.settings_vehicle_info)) }
         }
     }
 }
