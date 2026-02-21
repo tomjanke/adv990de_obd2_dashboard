@@ -23,7 +23,7 @@
         android:name=".Obd2Application"
         android:label="OBD2 Monitor"
         android:theme="@style/Theme.OBD2Monitor"
-        android:allowBackup="true">
+        android:allowBackup="false">
 
         <activity
             android:name=".MainActivity"
