@@ -142,6 +142,8 @@ class ObdRepository @Inject constructor(
             } else {
                 consecutiveBusInitErrors = 0
             }
+            // Silent drop: when all PIDs return NoData/Timeout in a cycle, nothing is emitted.
+            // The collector sees no update for this cycle; the UI retains the last values.
             if (values.isNotEmpty()) emit(values)
             delay(pollIntervalMs)
         }
@@ -165,8 +167,12 @@ class ObdRepository @Inject constructor(
         val result = mutableMapOf<String, String>()
         for (pid in PidRegistry.all.values) {
             val pidByte = pid.id.takeLast(2)
-            // ELM327 mode-02 command format: "02<PID><FF>" — no space, no delimiter.
-            val raw = try { controller.sendCommand("02${pidByte}00") } catch (_: ObdException) { null } ?: continue
+            // ELM327 mode-02 command: space-separated "02 <PID> <FF>" for widest clone
+            // compatibility — many clones reject packed form "02<PID><FF>" without spaces.
+            // BUS INIT / NO DATA responses are not thrown here; sendCommand returns the raw
+            // string which parseFreezeFrame will reject (returning null). This is intentional:
+            // a one-shot diagnostic read does not escalate transient bus errors to ConnectionLost.
+            val raw = try { controller.sendCommand("02 ${pidByte} 00") } catch (_: ObdException) { null } ?: continue
             val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
             result[pid.name] = "%.1f ${pid.unit}".format(value)
         }

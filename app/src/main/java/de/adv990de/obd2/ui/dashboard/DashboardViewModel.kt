@@ -3,12 +3,14 @@ package de.adv990de.obd2.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,9 +32,6 @@ import javax.inject.Inject
 // site in the collect lambda (search "DashboardUiState(readings").
 private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
 
-private const val ERR_NO_DEVICE      = "Kein bekanntes Gerät für die Wiederverbindung."
-private const val ERR_RECONNECT_FAIL = "Verbindung dauerhaft unterbrochen."
-
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
@@ -40,10 +39,12 @@ data class DashboardUiState(
     val reconnectAttempt: Int = 0,
     // References RECONNECT_DELAYS.size so the default stays in sync if the list ever changes.
     val reconnectTotal: Int = RECONNECT_DELAYS.size,
-    val error: String? = null
+    // UiText: static messages use StringResource (localizable), dynamic messages (e.g. exception
+    // messages from the BT stack) use DynamicString.
+    val error: UiText? = null
 ) {
     companion object {
-        fun disconnected(error: String? = null) = DashboardUiState(isConnected = false, error = error)
+        fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
     }
 }
 
@@ -104,7 +105,9 @@ class DashboardViewModel @Inject constructor(
                             } catch (e: Exception) {
                                 // Set error state directly; inner flow completes cleanly so
                                 // flatMapLatest outer collector survives and can recover.
-                                _uiState.value = DashboardUiState.disconnected(e.message ?: e.javaClass.simpleName)
+                                _uiState.value = DashboardUiState.disconnected(
+                                    UiText.DynamicString(e.message ?: e.javaClass.simpleName)
+                                )
                             } finally {
                                 // DB errors must not prevent session cleanup.
                                 try {
@@ -126,12 +129,13 @@ class DashboardViewModel @Inject constructor(
         }
 
         // ── Reconnect loop ───────────────────────────────────────────────────
-        // Known TOCTOU residual: two isConnectedFlow guards (pre- and post-delay) narrow the
-        // race window to microseconds, but do not fully eliminate it. A manual connect from
-        // Settings that completes between guard 2 and reconnect() acquiring connectMutex
-        // will have its connection closed and replaced by the auto-reconnect attempt.
-        // Eliminating this would require holding a mutex across the guard-plus-reconnect
-        // sequence, which is out of scope for the current implementation.
+        // Known TOCTOU residual: guard 2 (post-delay) and reconnect() acquiring connectMutex
+        // are separated by nanoseconds of function-call overhead — a manual connect from Settings
+        // completing exactly in that instant would have its connection closed by the auto-reconnect.
+        // The delay() before guard 2 is up to 48 s, but the race window is between guard 2 and
+        // mutex acquisition, not between guard 1 and delay(). In practice this is extremely
+        // unlikely; eliminating it would require a single mutex scope across guard + reconnect,
+        // which is out of scope for the current implementation.
         viewModelScope.launch {
             _reconnectTrigger.collect {
                 // On cold launch, in-memory lastConnectedDevice is null; fall back to DataStore.
@@ -143,7 +147,7 @@ class DashboardViewModel @Inject constructor(
                 if (inMemoryDevice == null && coldLaunchDevice == null) {
                     // No device anywhere — abort immediately instead of burning
                     // all 5 delayed attempts (93 seconds of pointless waiting).
-                    _uiState.value = DashboardUiState.disconnected(ERR_NO_DEVICE)
+                    _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_no_device))
                     return@collect
                 }
 
@@ -175,7 +179,7 @@ class DashboardViewModel @Inject constructor(
                         // try next attempt
                     }
                 }
-                _uiState.value = DashboardUiState.disconnected(ERR_RECONNECT_FAIL)
+                _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_reconnect_fail))
             }
         }
     }

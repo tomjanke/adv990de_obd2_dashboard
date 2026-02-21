@@ -50,6 +50,10 @@ class PidParser {
      * Parses a raw ELM327 mode-02 (freeze frame) response for a given PID.
      * Expected format: "42 XX [data bytes...]"
      * Returns null if the response is missing, malformed, or the formula throws.
+     *
+     * Adapter error strings like "NO DATA", "BUS INIT..." and "STOPPED" do not start with "42"
+     * so they fail the header check and return null. This is intentional: readFreezeFrame is a
+     * one-shot diagnostic read that does not escalate transient bus errors to ConnectionLost.
      */
     fun parseFreezeFrame(pid: PidDefinition, raw: String): Float? {
         val tokens = raw.trim().uppercase().split("\\s+".toRegex())

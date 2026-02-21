@@ -216,6 +216,32 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `connectedDevice stays null on auto-reconnect when DataStore is empty after persistDevice failure`() = runTest {
+        // Verifies the backfill path when persistDevice previously failed: DataStore has nothing,
+        // so lastDevice emits null. The backfill must set connectedDevice to null (not crash),
+        // documenting that the UI will show no device name in this edge case.
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+            coEvery { connect(any()) } just Runs
+        }
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            // Empty DataStore — simulates state when persistDevice previously threw
+            every { lastDevice } returns flowOf(null)
+        }
+        val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
+
+        // Auto-reconnect fires: isConnecting=false, no manual connect was initiated
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        // Backfill runs: device is null → connectedDevice stays null
+        assertNull(vm.uiState.value.connectedDevice)
+    }
+
+    @Test
     fun `lastDeviceAddress populated from AppPreferences`() = runTest {
         val btDevice = mockk<android.bluetooth.BluetoothDevice> {
             every { address } returns "AA:BB:CC:DD:EE:FF"

@@ -45,7 +45,7 @@ class AppPreferences @Inject constructor(
         val address = prefs[KEY_DEVICE_ADDRESS] ?: return@map null
         val name    = prefs[KEY_DEVICE_NAME]    ?: return@map null
         val type    = prefs[KEY_DEVICE_TYPE]
-            ?.let { runCatching { BtType.valueOf(it) }.getOrNull() }
+            ?.let { try { BtType.valueOf(it) } catch (_: IllegalArgumentException) { null } }
             ?: return@map null
         val btDevice = try {
             bluetoothAdapter.getRemoteDevice(address)
@@ -56,6 +56,9 @@ class AppPreferences @Inject constructor(
     suspend fun togglePid(id: String) {
         dataStore.edit { prefs ->
             val current = prefs[KEY_SELECTED_PIDS] ?: DEFAULT_PIDS
+            // Guard: never allow an empty selection. The UI enforces this too, but the
+            // persistence layer is the canonical safeguard against direct or future call sites.
+            if (id in current && current.size == 1) return@edit
             prefs[KEY_SELECTED_PIDS] = if (id in current) current - id else current + id
         }
     }

@@ -39,7 +39,11 @@ class ElmController(
         val initSequence = listOf("ATZ", "ATE0", "ATL0", "ATS0", "ATSP0")
         for (cmd in initSequence) {
             val response = sendCommand(cmd)
-            if (response.contains("ERROR", ignoreCase = true) || response == "?") {
+            // "STOPPED" is returned by some clone adapters after ATZ when the hardware reset
+            // gets stuck; treat it as an init failure like "ERROR" and "?".
+            if (response.contains("ERROR", ignoreCase = true)
+                    || response.contains("STOPPED", ignoreCase = true)
+                    || response == "?") {
                 throw ObdException.InitializationFailed("$cmd returned: $response")
             }
         }

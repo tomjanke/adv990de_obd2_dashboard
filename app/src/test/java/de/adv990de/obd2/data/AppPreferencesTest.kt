@@ -88,6 +88,21 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `togglePid does not remove the last remaining PID`() = runTest {
+        val prefs = makePreferences()
+        // Remove all default PIDs except one
+        val defaultIds = PidRegistry.defaults.map { it.id }
+        defaultIds.dropLast(1).forEach { prefs.togglePid(it) }
+        val beforeIds = prefs.selectedPidIds.first()
+        assertEquals(1, beforeIds.size)
+
+        // Attempting to remove the last PID must be a no-op
+        prefs.togglePid(beforeIds.first())
+        val afterIds = prefs.selectedPidIds.first()
+        assertEquals(beforeIds, afterIds)
+    }
+
+    @Test
     fun `persistDevice then lastDevice round-trips name and type`() = runTest {
         val btDevice = mockk<BluetoothDevice> { every { address } returns "AA:BB:CC:DD:EE:FF" }
         val scanned = ScannedDevice(btDevice, BtType.CLASSIC, "ELM327-Classic")

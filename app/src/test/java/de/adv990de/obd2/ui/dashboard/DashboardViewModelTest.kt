@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
@@ -7,6 +8,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -157,7 +159,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(vm.uiState.value.error)
-        assertEquals("BT disconnected", vm.uiState.value.error)
+        assertEquals(UiText.DynamicString("BT disconnected"), vm.uiState.value.error)
         coVerify { sessionRepo.endSession(1L) }
     }
 
@@ -305,6 +307,6 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertFalse(vm.uiState.value.isReconnecting)
-        assertEquals("Verbindung dauerhaft unterbrochen.", vm.uiState.value.error)
+        assertEquals(UiText.StringResource(R.string.err_reconnect_fail), vm.uiState.value.error)
     }
 }

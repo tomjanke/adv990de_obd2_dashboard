@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
 
@@ -66,7 +67,7 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                             )
                         }
                         state.error != null -> Text(
-                            "Verbindungsfehler: ${state.error}",
+                            "Verbindungsfehler: ${state.error!!.asString()}",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 24.dp)

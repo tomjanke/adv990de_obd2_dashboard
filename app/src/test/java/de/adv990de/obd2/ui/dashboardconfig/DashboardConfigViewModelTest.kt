@@ -16,10 +16,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,5 +75,32 @@ class DashboardConfigViewModelTest {
         // Assert both the size (proves the default was emitted first) and the final value.
         assertTrue("expected ≥ 2 emissions (default + upstream), got ${collected.size}", collected.size >= 2)
         assertEquals(customIds, collected.last())
+    }
+
+    @Test
+    fun `allPids is sorted alphabetically by name`() = runTest {
+        val vm = makeVm()
+        val names = vm.allPids.map { it.name }
+        assertEquals(names.sorted(), names)
+    }
+
+    @Test
+    fun `isConnected reflects ObdRepository isConnectedFlow`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+
+        // Subscribe to activate WhileSubscribed sharing
+        val job = launch { vm.isConnected.collect {} }
+        runCurrent()
+        assertFalse(vm.isConnected.value)
+
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        assertTrue(vm.isConnected.value)
+
+        job.cancel()
     }
 }
