@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -52,6 +53,8 @@ class DashboardViewModelTest {
         every { selectedPidIds } returns flowOf(selectedIds)
     }
 
+    private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
+
     @Test
     fun `session starts when connected and readings are written`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
@@ -66,7 +69,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -88,7 +91,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         advanceUntilIdle()
         isConnectedFlow.value = false
         advanceUntilIdle()
@@ -111,7 +114,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -133,7 +136,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -154,7 +157,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -178,7 +181,7 @@ class DashboardViewModelTest {
             coEvery { startSession(any()) } throws Exception("DB failure")
             coEvery { endSession(any()) } just Runs
         }
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -203,7 +206,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs(selectedIds = customIds)
 
-        DashboardViewModel(obdRepo, sessionRepo, prefs)
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -231,7 +234,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter())
         isConnectedFlow.value = true
         advanceTimeBy(1)
 
@@ -261,7 +264,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs()
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs)
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter())
         isConnectedFlow.value = true
         // Advance 1ms: runs pending work and starts the reconnect loop up to the first
         // delay(3_000L), but does not advance past it.
@@ -297,7 +300,7 @@ class DashboardViewModelTest {
             every { lastDevice } returns flowOf(persistedDevice)
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, prefs)
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter())
         isConnectedFlow.value = true
         // Advance past the first 3-second delay; cold-launch fallback should kick in
         advanceTimeBy(3_001)
@@ -325,7 +328,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs()
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs)
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter())
         isConnectedFlow.value = true
         // Advances through all 5 delays (3+6+12+24+48 = 93 seconds virtual time)
         advanceUntilIdle()

@@ -19,7 +19,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.navigation.Screen
 
-private val navItems: List<Triple<Screen, ImageVector, @StringRes Int>> = listOf(
+private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
     Triple(Screen.Dashboard, Icons.Default.Home,     R.string.nav_live),
     Triple(Screen.Dtc,       Icons.Default.Info,     R.string.nav_dtcs),
     Triple(Screen.History,   Icons.Default.List,     R.string.nav_history),

@@ -9,8 +9,9 @@ interface CrashReporter {
 }
 
 class LogCrashReporter @Inject constructor() : CrashReporter {
-    override fun recordException(t: Throwable) =
+    override fun recordException(t: Throwable) {
         Log.e("CrashReporter", t.message ?: t.javaClass.simpleName, t)
+    }
 
     override fun log(tag: String, message: String) {
         Log.d(tag, message)
