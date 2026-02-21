@@ -24,4 +24,9 @@
     <string name="dashboard_config_title">Dashboard konfigurieren</string>
     <string name="dashboard_config_back_desc">Zurück</string>
     <string name="dashboard_config_connected_banner">Verbindung aktiv – Änderungen starten die laufende Session neu.</string>
+
+    <!-- DTC screen -->
+    <string name="dtc_title">Fehlercodes (DTCs)</string>
+    <string name="dtc_empty">Keine Fehlercodes vorhanden.</string>
+    <string name="dtc_badge_pending">Ausstehend</string>
 </resources>

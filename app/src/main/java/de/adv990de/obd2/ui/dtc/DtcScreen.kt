@@ -19,9 +19,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.components.BottomNav
 
@@ -32,7 +34,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
     LaunchedEffect(Unit) { vm.refresh() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Fehlercodes (DTCs)") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.dtc_title)) }) },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(Modifier.padding(padding)) {
@@ -45,7 +47,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                     modifier = Modifier.padding(16.dp)
                 )
                 state.dtcs.isEmpty() && !state.isLoading -> Text(
-                    "Keine Fehlercodes vorhanden.",
+                    stringResource(R.string.dtc_empty),
                     modifier = Modifier.padding(16.dp)
                 )
                 else -> LazyColumn {
@@ -63,7 +65,7 @@ fun DtcRow(dtc: DtcEntry) {
         headlineContent = { Text(dtc.code) },
         supportingContent = { Text(dtc.description) },
         trailingContent = {
-            if (dtc.isPending) Badge { Text("Ausstehend") }
+            if (dtc.isPending) Badge { Text(stringResource(R.string.dtc_badge_pending)) }
         }
     )
     HorizontalDivider()
