@@ -164,13 +164,11 @@ fun DashboardScreen(
                 }
 
                 // ── RPM bar ───────────────────────────────────────────────
-                if (state.isConnected || state.readings.isNotEmpty()) {
-                    RpmBar(
-                        rpm = state.rpmValue,
-                        threshold = rpmBlinkThreshold,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                RpmBar(
+                    rpm = state.rpmValue,
+                    threshold = rpmBlinkThreshold,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 // ── Sensor grid ───────────────────────────────────────────
                 if (isLandscape) {

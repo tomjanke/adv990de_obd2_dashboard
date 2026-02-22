@@ -54,6 +54,27 @@ fun DashboardConfigScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
+            // ── RPM blink threshold ──────────────────────────────────────────
+            item {
+                var localThreshold by remember(rpmBlinkThreshold) { mutableIntStateOf(rpmBlinkThreshold) }
+                val thresholdLabel = if (localThreshold == 0)
+                    stringResource(R.string.dashboard_rpm_threshold_disabled)
+                else
+                    "$localThreshold rpm"
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.dashboard_rpm_threshold_label)) },
+                    supportingContent = { Text(thresholdLabel) }
+                )
+                Slider(
+                    value = localThreshold.toFloat(),
+                    onValueChange = { localThreshold = it.toInt() },
+                    onValueChangeFinished = { vm.setRpmBlinkThreshold(localThreshold) },
+                    valueRange = 0f..10000f,
+                    steps = 19,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                HorizontalDivider()
+            }
             if (isConnected) {
                 item {
                     Text(
@@ -84,27 +105,6 @@ fun DashboardConfigScreen(
                     }
                 )
                 HorizontalDivider()
-            }
-            // ── RPM blink threshold ──────────────────────────────────────────
-            item {
-                HorizontalDivider()
-                var localThreshold by remember(rpmBlinkThreshold) { mutableIntStateOf(rpmBlinkThreshold) }
-                val thresholdLabel = if (localThreshold == 0)
-                    stringResource(R.string.dashboard_rpm_threshold_disabled)
-                else
-                    "$localThreshold rpm"
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.dashboard_rpm_threshold_label)) },
-                    supportingContent = { Text(thresholdLabel) }
-                )
-                Slider(
-                    value = localThreshold.toFloat(),
-                    onValueChange = { localThreshold = it.toInt() },
-                    onValueChangeFinished = { vm.setRpmBlinkThreshold(localThreshold) },
-                    valueRange = 0f..10000f,
-                    steps = 19,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
             }
         }
     }
