@@ -49,12 +49,20 @@ class ObdRepository @Inject constructor(
     private val _lastConnectedDevice = MutableStateFlow<ScannedDevice?>(null)
     val lastConnectedDevice: StateFlow<ScannedDevice?> = _lastConnectedDevice.asStateFlow()
 
+    private val _isMoving = MutableStateFlow(false)
+    val isMovingFlow: StateFlow<Boolean> = _isMoving.asStateFlow()
+
+    fun setMoving(moving: Boolean) {
+        _isMoving.value = moving
+    }
+
     suspend fun connect(device: ScannedDevice) = connectMutex.withLock {
         connectLocked(device)
     }
 
     suspend fun disconnect() = connectMutex.withLock {
         _isConnected.value = false
+        _isMoving.value = false
         _supportedPidIds.value = null
         connection?.close()
         connection = null
