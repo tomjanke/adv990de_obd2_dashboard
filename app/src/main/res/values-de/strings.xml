@@ -20,8 +20,15 @@
     <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
     <string name="settings_configure_dashboard">Dashboard konfigurieren</string>
     <string name="settings_vehicle_info">Fahrzeuginfo</string>
+    <string name="settings_app_info">App-Info</string>
     <string name="settings_last_connected_desc">Zuletzt verbunden</string>
     <string name="settings_connect">Verbinden</string>
+
+    <!-- App Info screen -->
+    <string name="app_info_title">App-Info</string>
+    <string name="app_info_name_label">App</string>
+    <string name="app_info_version_label">Version</string>
+    <string name="app_info_build_label">Build</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Dashboard konfigurieren</string>

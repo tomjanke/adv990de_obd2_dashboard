@@ -20,8 +20,15 @@
     <string name="settings_no_paired_devices">No paired OBD2 devices found.\nPlease pair the adapter in system Bluetooth settings first.</string>
     <string name="settings_configure_dashboard">Configure Dashboard</string>
     <string name="settings_vehicle_info">Vehicle Info</string>
+    <string name="settings_app_info">App Info</string>
     <string name="settings_last_connected_desc">Last connected</string>
     <string name="settings_connect">Connect</string>
+
+    <!-- App Info screen -->
+    <string name="app_info_title">App Info</string>
+    <string name="app_info_name_label">App</string>
+    <string name="app_info_version_label">Version</string>
+    <string name="app_info_build_label">Build</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Configure Dashboard</string>
