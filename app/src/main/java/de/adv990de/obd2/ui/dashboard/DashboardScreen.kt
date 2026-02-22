@@ -1,30 +1,29 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,19 +32,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.compose.ui.res.stringResource
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.SensorValue
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.width
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 
@@ -74,6 +71,7 @@ fun DashboardScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
@@ -99,88 +97,116 @@ fun DashboardScreen(
                 CircularProgressIndicator()
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = padding.calculateTopPadding() + 8.dp,
-                    bottom = padding.calculateBottomPadding() + 8.dp,
-                    start = 8.dp,
-                    end = 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            // Exactly 4 slots; pad with null if fewer PIDs are selected
+            val slots: List<SensorValue?> = displayReadings.take(4).let { it + List(maxOf(0, 4 - it.size)) { null } }
+            val gap = 8.dp
+
+            Column(Modifier.fillMaxSize().padding(padding)) {
                 // ── Status banner (disconnected) ──────────────────────────
                 if (!state.isConnected) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            when {
-                                state.isReconnecting -> Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .width(20.dp)
-                                            .height(20.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                    Text(
-                                        stringResource(
-                                            R.string.reconnecting_progress,
-                                            state.reconnectAttempt,
-                                            state.reconnectTotal
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                state.error != null -> Text(
-                                    stringResource(R.string.connection_error_prefix, state.error!!.asString()),
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        when {
+                            state.isReconnecting -> Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.width(20.dp).height(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
-                                else -> Text(
-                                    stringResource(R.string.not_connected),
+                                Text(
+                                    stringResource(R.string.reconnecting_progress, state.reconnectAttempt, state.reconnectTotal),
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
-                        }
-                    }
-                }
-
-                // ── DTC warning ───────────────────────────────────────────
-                if (state.hasDtcs) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Surface(
-                            onClick = { navController.navigate(Screen.Dtc.route) },
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                stringResource(R.string.dashboard_dtc_warning),
-                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            state.error != null -> Text(
+                                stringResource(R.string.connection_error_prefix, state.error!!.asString()),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            )
+                            else -> Text(
+                                stringResource(R.string.not_connected),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                             )
                         }
                     }
                 }
 
-                // ── Sensor cards ──────────────────────────────────────────
-                items(displayReadings, key = { it.pid.id }) { reading ->
-                    SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList(), useImperial)
+                // ── DTC warning ───────────────────────────────────────────
+                if (state.hasDtcs) {
+                    Surface(
+                        onClick = { navController.navigate(Screen.Dtc.route) },
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            stringResource(R.string.dashboard_dtc_warning),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+
+                // ── Sensor grid ───────────────────────────────────────────
+                if (isLandscape) {
+                    // Landscape: 3 columns — col 3 has 2 stacked cards
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
+                        horizontalArrangement = Arrangement.spacedBy(gap)
+                    ) {
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.spacedBy(gap)
+                        ) {
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                        }
+                    }
+                } else {
+                    // Portrait: 3 rows — row 3 has 2 cards side by side
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
+                        verticalArrangement = Arrangement.spacedBy(gap)
+                    ) {
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(gap)
+                        ) {
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SensorCardSlot(
+    reading: SensorValue?,
+    sparklines: Map<String, List<Float>>,
+    useImperial: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (reading != null) {
+        SensorCard(reading, sparklines[reading.pid.id] ?: emptyList(), useImperial, modifier.fillMaxSize())
+    } else {
+        Card(modifier = modifier.fillMaxSize()) {}
     }
 }
 
