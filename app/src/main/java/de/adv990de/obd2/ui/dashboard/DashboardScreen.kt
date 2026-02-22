@@ -247,22 +247,22 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
             ) {
                 Text(
                     value.pid.name,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         displayValue,
-                        style = MaterialTheme.typography.displaySmall
+                        style = MaterialTheme.typography.displayMedium
                     )
                     Text(
                         " $displayUnit",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
-                Sparkline(sparkline, Modifier.fillMaxWidth().height(32.dp))
+                Sparkline(sparkline, Modifier.fillMaxWidth().height(24.dp))
             }
         }
     }
