@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -87,16 +88,22 @@ fun DashboardScreen(
                 scrollBehavior = scrollBehavior,
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
-                    Icon(
-                        painterResource(R.drawable.ic_bluetooth),
-                        contentDescription = stringResource(
-                            if (state.isConnected) R.string.dashboard_bt_connected_desc
-                            else R.string.dashboard_bt_disconnected_desc
-                        ),
-                        tint = if (state.isConnected) MaterialTheme.colorScheme.primary
-                               else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
+                    if (state.isConnected) {
+                        Icon(
+                            painterResource(R.drawable.ic_bluetooth),
+                            contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    } else {
+                        IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
+                            Icon(
+                                painterResource(R.drawable.ic_bluetooth),
+                                contentDescription = stringResource(R.string.dashboard_bt_disconnected_desc),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             )
         },
@@ -132,8 +139,8 @@ fun DashboardScreen(
             val gap = 8.dp
 
             Column(Modifier.fillMaxSize().padding(padding)) {
-                // ── Status banner (disconnected) ──────────────────────────
-                if (!state.isConnected) {
+                // ── Status banner (reconnecting / error only) ─────────────
+                if (!state.isConnected && (state.isReconnecting || state.error != null)) {
                     Surface(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                         modifier = Modifier.fillMaxWidth()
@@ -158,12 +165,6 @@ fun DashboardScreen(
                             state.error != null -> Text(
                                 stringResource(R.string.connection_error_prefix, state.error!!.asString()),
                                 color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                            else -> Text(
-                                stringResource(R.string.not_connected),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                             )
