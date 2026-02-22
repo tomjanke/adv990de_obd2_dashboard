@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,11 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
-import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -42,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -79,41 +76,8 @@ fun DashboardScreen(
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
 
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                scrollBehavior = scrollBehavior,
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    if (state.isConnected) {
-                        Icon(
-                            painterResource(R.drawable.ic_bluetooth),
-                            contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-                    } else {
-                        IconButton(onClick = {
-                            navController.navigate(Screen.Settings.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }) {
-                            Icon(
-                                painterResource(R.drawable.ic_bluetooth),
-                                contentDescription = stringResource(R.string.dashboard_bt_disconnected_desc),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            )
-        },
     ) { padding ->
         // ── RPM demo animation ────────────────────────────────────────────
         // Runs once per navigation to this screen when rpmValue is 0 (engine off / no data).
@@ -150,7 +114,7 @@ fun DashboardScreen(
             }
             val gap = 8.dp
 
-            Column(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
                 // ── Status banner (reconnecting / error only) ─────────────
                 if (!state.isConnected && (state.isReconnecting || state.error != null)) {
                     Surface(
@@ -203,7 +167,30 @@ fun DashboardScreen(
                 RpmBar(
                     rpm = displayRpm,
                     threshold = displayThreshold,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingContent = {
+                        if (state.isConnected) {
+                            Icon(
+                                painterResource(R.drawable.ic_bluetooth),
+                                contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            IconButton(onClick = {
+                                navController.navigate(Screen.Settings.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }) {
+                                Icon(
+                                    painterResource(R.drawable.ic_bluetooth),
+                                    contentDescription = stringResource(R.string.dashboard_bt_disconnected_desc),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 )
 
                 // ── Sensor grid ───────────────────────────────────────────
@@ -249,7 +236,8 @@ fun DashboardScreen(
 private fun RpmBar(
     rpm: Float,
     threshold: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trailingContent: @Composable (() -> Unit)? = null
 ) {
     val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
         val f = if (threshold >= 10000) 1f
@@ -308,6 +296,7 @@ private fun RpmBar(
                 .padding(start = 8.dp)
                 .width(80.dp)
         )
+        trailingContent?.invoke()
     }
 }
 
