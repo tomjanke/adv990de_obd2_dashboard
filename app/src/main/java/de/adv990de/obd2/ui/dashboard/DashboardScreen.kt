@@ -96,7 +96,13 @@ fun DashboardScreen(
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
                     } else {
-                        IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
+                        IconButton(onClick = {
+                            navController.navigate(Screen.Settings.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
                             Icon(
                                 painterResource(R.drawable.ic_bluetooth),
                                 contentDescription = stringResource(R.string.dashboard_bt_disconnected_desc),
