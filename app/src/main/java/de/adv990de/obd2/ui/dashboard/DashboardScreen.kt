@@ -122,9 +122,9 @@ fun DashboardScreen(
         LaunchedEffect(Unit) {
             delay(400) // allow first ECU readings to arrive before deciding to demo
             if (rpmValueRef.value < 1f) {
-                rpmDemo.animateTo(10000f, tween(durationMillis = 2500, easing = EaseInOut))
-                delay(300)
-                rpmDemo.animateTo(0f, tween(durationMillis = 800, easing = EaseIn))
+                rpmDemo.animateTo(10000f, tween(durationMillis = 4000, easing = EaseInOut))
+                delay(800)
+                rpmDemo.animateTo(0f, tween(durationMillis = 1000, easing = EaseIn))
             }
         }
         // During demo (real rpm still 0): show animated value. Once engine delivers real
@@ -248,15 +248,22 @@ private fun RpmBar(
     val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
         val f = if (threshold >= 10000) 1f
                 else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
-        (1000f - 900f * f).toLong()
+        (1200f - 1100f * f).toLong()
     } else 0L
 
-    val visible by produceState(initialValue = true, key1 = blinkPeriodMs) {
-        value = true
-        if (blinkPeriodMs > 0L) {
-            while (true) {
-                delay(blinkPeriodMs)
+    // rememberUpdatedState lets the coroutine read the latest period on each iteration
+    // without restarting the effect — crucial during animated RPM sweeps where blinkPeriodMs
+    // changes every frame and a key-based restart would prevent the delay from ever firing.
+    val blinkPeriodRef = rememberUpdatedState(blinkPeriodMs)
+    val visible by produceState(initialValue = true) {
+        while (true) {
+            val period = blinkPeriodRef.value
+            if (period > 0L) {
+                delay(period)
                 value = !value
+            } else {
+                value = true
+                delay(50) // idle poll — keeps loop alive without busy-spinning
             }
         }
     }
