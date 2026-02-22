@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 
 fun convertUnit(value: Float, unit: String, imperial: Boolean): Pair<Float, String> =
     when {
@@ -58,8 +59,13 @@ fun convertUnit(value: Float, unit: String, imperial: Boolean): Pair<Float, Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltViewModel()) {
+fun DashboardScreen(
+    navController: NavController,
+    vm: DashboardViewModel = hiltViewModel(),
+    displayVm: DisplaySettingsViewModel = hiltViewModel()
+) {
     val state by vm.uiState.collectAsState()
+    val useImperial by displayVm.useImperial.collectAsState()
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
@@ -146,7 +152,7 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                     }
                 }
                 items(state.readings, key = { it.pid.id }) { reading ->
-                    SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList())
+                    SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList(), useImperial)
                 }
             }
         }
