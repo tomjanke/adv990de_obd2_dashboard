@@ -34,6 +34,7 @@ class AppPreferences @Inject constructor(
         private val KEY_LOG_ONLY_DTC   = booleanPreferencesKey("log_only_dtc_sessions")
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
+        private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
     }
@@ -103,5 +104,15 @@ class AppPreferences @Inject constructor(
 
     suspend fun setLoggedPids(ids: Set<String>) {
         dataStore.edit { it[KEY_LOGGED_PIDS] = ids }
+    }
+
+    // ── Drive state preferences ───────────────────────────────────────────────
+
+    val hideNavOnDrive: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_HIDE_NAV_ON_DRIVE] ?: false
+    }
+
+    suspend fun setHideNavOnDrive(enabled: Boolean) {
+        dataStore.edit { it[KEY_HIDE_NAV_ON_DRIVE] = enabled }
     }
 }
