@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dtc
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,7 +49,8 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.dtc_title)) }, scrollBehavior = scrollBehavior) },
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(Modifier.padding(padding)) {
             val currentError = state.error
@@ -86,11 +88,13 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                     }
                 }
             }
-            HorizontalDivider()
-            TextButton(
-                onClick = { navController.navigate(Screen.FreezeFrame.route) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.dtc_freeze_frame_link)) }
+            if (state.dtcs.isNotEmpty()) {
+                HorizontalDivider()
+                TextButton(
+                    onClick = { navController.navigate(Screen.FreezeFrame.route) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.dtc_freeze_frame_link)) }
+            }
         }
     }
 }
