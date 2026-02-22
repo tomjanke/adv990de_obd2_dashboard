@@ -35,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
 
@@ -43,11 +44,13 @@ import de.adv990de.obd2.ui.navigation.Screen
 fun SettingsScreen(
     navController: NavController,
     vm: SettingsViewModel = hiltViewModel(),
-    recordingVm: RecordingSettingsViewModel = hiltViewModel()
+    recordingVm: RecordingSettingsViewModel = hiltViewModel(),
+    driveVm: DriveStateViewModel = hiltViewModel()
 ) {
     val state by vm.uiState.collectAsState()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
     val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
+    val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
     LaunchedEffect(Unit) { vm.loadDevices() }
 
     Scaffold(
@@ -139,6 +142,25 @@ fun SettingsScreen(
                 onClick = { navController.navigate(Screen.LoggingConfig.route) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.settings_logging_pids)) }
+            HorizontalDivider()
+
+            // ── Display section ───────────────────────────────────────────
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.settings_display_section),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_hide_nav_on_drive)) },
+                supportingContent = { Text(stringResource(R.string.settings_hide_nav_on_drive_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = hideNavOnDrive,
+                        onCheckedChange = { driveVm.toggleHideNavOnDrive() }
+                    )
+                }
+            )
         }
     }
 }
