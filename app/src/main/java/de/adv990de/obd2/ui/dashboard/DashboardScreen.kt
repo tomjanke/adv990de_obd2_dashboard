@@ -99,7 +99,9 @@ fun DashboardScreen(
         } else {
             val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
             // Exactly 4 slots; pad with null if fewer PIDs are selected
-            val slots: List<SensorValue?> = displayReadings.take(4).let { it + List(maxOf(0, 4 - it.size)) { null } }
+            val slots: List<SensorValue?> = remember(displayReadings) {
+                displayReadings.take(4).let { it + List(maxOf(0, 4 - it.size)) { null } }
+            }
             val gap = 8.dp
 
             Column(Modifier.fillMaxSize().padding(padding)) {
@@ -164,14 +166,14 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         horizontalArrangement = Arrangement.spacedBy(gap)
                     ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f))
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f))
                         Column(
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             verticalArrangement = Arrangement.spacedBy(gap)
                         ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f))
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f))
                         }
                     }
                 } else {
@@ -180,14 +182,14 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         verticalArrangement = Arrangement.spacedBy(gap)
                     ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.fillMaxWidth().weight(1f))
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f))
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f))
                         Row(
                             modifier = Modifier.fillMaxWidth().weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(gap)
                         ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f).fillMaxHeight())
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f))
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f))
                         }
                     }
                 }
