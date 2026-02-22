@@ -264,6 +264,8 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
                         " $displayUnit",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
