@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -122,14 +123,19 @@ fun DashboardScreen(
         LaunchedEffect(Unit) {
             delay(400) // allow first ECU readings to arrive before deciding to demo
             if (rpmValueRef.value < 1f) {
-                rpmDemo.animateTo(10000f, tween(durationMillis = 4000, easing = EaseInOut))
-                delay(800)
-                rpmDemo.animateTo(0f, tween(durationMillis = 1000, easing = EaseIn))
+                // EaseOut: bar rises quickly at first, then slows near max — spends more
+                // time above the blink threshold, making the gradual speed-up clearly visible.
+                rpmDemo.animateTo(10000f, tween(durationMillis = 4000, easing = EaseOut))
+                delay(1500) // hold at max so rapid blinking is clearly visible
+                rpmDemo.animateTo(0f, tween(durationMillis = 1200, easing = EaseIn))
             }
         }
         // During demo (real rpm still 0): show animated value. Once engine delivers real
         // RPM, switch immediately to the live value regardless of demo state.
         val displayRpm = if (state.rpmValue < 1f) rpmDemo.value else state.rpmValue
+        // Demo fallback: if no threshold is configured (=0), show blinking above 7000 during
+        // the demo so the feature is visible even before the user has set a threshold.
+        val displayThreshold = if (rpmBlinkThreshold == 0 && rpmDemo.value > 0f) 7000 else rpmBlinkThreshold
 
         // While connected but waiting for first readings: brief full-screen spinner.
         if (state.isConnected && state.readings.isEmpty()) {
@@ -196,7 +202,7 @@ fun DashboardScreen(
                 // ── RPM bar ───────────────────────────────────────────────
                 RpmBar(
                     rpm = displayRpm,
-                    threshold = rpmBlinkThreshold,
+                    threshold = displayThreshold,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -248,7 +254,7 @@ private fun RpmBar(
     val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
         val f = if (threshold >= 10000) 1f
                 else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
-        (1200f - 1100f * f).toLong()
+        (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
     } else 0L
 
     // rememberUpdatedState lets the coroutine read the latest period on each iteration
