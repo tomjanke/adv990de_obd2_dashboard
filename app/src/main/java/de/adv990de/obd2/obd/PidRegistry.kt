@@ -9,7 +9,7 @@ object PidRegistry {
         name = "RPM",
         unit = "rpm",
         minValue = 0f,
-        maxValue = 8000f,
+        maxValue = 10000f,
         formula = { bytes -> ((bytes[0].toInt() and 0xFF) * 256f + (bytes[1].toInt() and 0xFF)) / 4f }
     )
 
