@@ -91,35 +91,8 @@ fun DashboardScreen(
         },
         bottomBar = { BottomNav(navController) }
     ) { padding ->
-        if (!state.isConnected) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    when {
-                        state.isReconnecting -> {
-                            CircularProgressIndicator()
-                            Text(
-                                stringResource(
-                                    R.string.reconnecting_progress,
-                                    state.reconnectAttempt,
-                                    state.reconnectTotal
-                                ),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        state.error != null -> Text(
-                            stringResource(R.string.connection_error_prefix, state.error!!.asString()),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        else -> Text(stringResource(R.string.not_connected))
-                    }
-                }
-            }
-        } else if (state.readings.isEmpty()) {
+        // While connected but waiting for first readings: brief full-screen spinner.
+        if (state.isConnected && state.readings.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -132,10 +105,57 @@ fun DashboardScreen(
                     start = 8.dp,
                     end = 8.dp
                 ),
-                modifier = Modifier,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // ── Status banner (disconnected) ──────────────────────────
+                if (!state.isConnected) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            when {
+                                state.isReconnecting -> Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .width(20.dp)
+                                            .height(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        stringResource(
+                                            R.string.reconnecting_progress,
+                                            state.reconnectAttempt,
+                                            state.reconnectTotal
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                state.error != null -> Text(
+                                    stringResource(R.string.connection_error_prefix, state.error!!.asString()),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                                )
+                                else -> Text(
+                                    stringResource(R.string.not_connected),
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── DTC warning ───────────────────────────────────────────
                 if (state.hasDtcs) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Surface(
@@ -151,6 +171,8 @@ fun DashboardScreen(
                         }
                     }
                 }
+
+                // ── Sensor cards ──────────────────────────────────────────
                 items(state.readings, key = { it.pid.id }) { reading ->
                     SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList(), useImperial)
                 }
