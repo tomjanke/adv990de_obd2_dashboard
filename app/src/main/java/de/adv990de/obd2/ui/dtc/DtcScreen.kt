@@ -23,11 +23,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -43,7 +45,12 @@ import de.adv990de.obd2.ui.navigation.Screen
 @Composable
 fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsState()
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    // Use remember (not rememberSaveable) so the AppBar state is NOT restored when navigating
+    // back to this screen. The AppBar always starts fully expanded, preventing the empty-state
+    // icon from jumping on the first frame due to a stale saved heightOffset.
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
+        state = remember { TopAppBarState(-Float.MAX_VALUE, 0f, 0f) }
+    )
     LaunchedEffect(Unit) { vm.refresh() }
 
     Scaffold(
