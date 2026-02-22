@@ -21,6 +21,9 @@ class DriveStateViewModel @Inject constructor(
     val hideNavOnDrive: StateFlow<Boolean> = appPreferences.hideNavOnDrive
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // Eagerly (not WhileSubscribed): BottomNav is always present and must react to isMoving
+    // instantly on recomposition — WhileSubscribed would replay the stale initial false after
+    // a brief unsubscribe gap, causing the nav to flash visible while the vehicle is moving.
     val isNavHidden: StateFlow<Boolean> = combine(
         obdRepository.isMovingFlow,
         appPreferences.hideNavOnDrive
