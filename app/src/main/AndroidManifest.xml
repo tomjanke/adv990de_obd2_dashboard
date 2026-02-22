@@ -21,7 +21,7 @@
 
     <application
         android:name=".Obd2Application"
-        android:label="OBD2 Monitor"
+        android:label="BOM"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.OBD2Monitor"
