@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.sp
 import de.adv990de.obd2.R
 
 /** Global scale applied to every M3 typography size. Increase to improve motorcycle readability. */
-private const val BIKE_SCALE = 1.2f
+private const val BIKE_SCALE = 1.18f
 
 private val SpaceGroteskFamily = FontFamily(
     Font(R.font.space_grotesk_regular, FontWeight.Normal),
