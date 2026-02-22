@@ -98,6 +98,7 @@ fun DashboardScreen(
             }
         } else {
             val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            // Exactly 4 slots; pad with null if fewer PIDs are selected
             val slots: List<SensorValue?> = displayReadings.take(4).let { it + List(maxOf(0, 4 - it.size)) { null } }
             val gap = 8.dp
 
@@ -158,6 +159,7 @@ fun DashboardScreen(
 
                 // ── Sensor grid ───────────────────────────────────────────
                 if (isLandscape) {
+                    // Landscape: 3 columns — col 3 has 2 stacked cards
                     Row(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         horizontalArrangement = Arrangement.spacedBy(gap)
@@ -173,6 +175,7 @@ fun DashboardScreen(
                         }
                     }
                 } else {
+                    // Portrait: 3 rows — row 3 has 2 cards side by side
                     Column(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         verticalArrangement = Arrangement.spacedBy(gap)
