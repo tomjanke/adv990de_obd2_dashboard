@@ -165,6 +165,8 @@ class DashboardViewModel @Inject constructor(
                             if (deque.size >= 60) deque.removeFirst()
                             deque.addLast(sv.value)
                         }
+                        values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
+                            ?.let { obdRepository.setMoving(it.value > 0f) }
                         _uiState.value = _uiState.value.copy(
                             readings = values,
                             isConnected = true,

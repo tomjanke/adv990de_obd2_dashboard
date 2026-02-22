@@ -420,6 +420,30 @@ class DashboardViewModelTest {
         assertTrue(vm.uiState.value.hasDtcs)
     }
 
+    @Test
+    fun `setMoving true called when Speed PID reading is above zero`() = runTest {
+        val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 50f, timestamp = 1000L)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(listOf(speedReading))
+            every { setMoving(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.setMoving(true) }
+    }
+
     // ── New recording settings tests ──────────────────────────────────────────
 
     @Test
@@ -492,6 +516,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(allowedReading, blockedReading))
+            every { setMoving(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 55L
