@@ -48,6 +48,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import de.adv990de.obd2.ui.navigation.Screen
 
+fun convertUnit(value: Float, unit: String, imperial: Boolean): Pair<Float, String> =
+    when {
+        !imperial      -> value to unit
+        unit == "km/h" -> value * 0.621371f to "mph"
+        unit == "°C"   -> value * 9f / 5f + 32f to "°F"
+        else           -> value to unit
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltViewModel()) {
@@ -146,9 +154,14 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
 }
 
 @Composable
-fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
+fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImperial: Boolean = false) {
+    val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
+        value.value to value.pid.unit
+    } else {
+        convertUnit(value.value, value.pid.unit, useImperial)
+    }
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
-                       else "%.1f".format(value.value)
+                       else "%.1f".format(convertedValue)
     val scheme = MaterialTheme.colorScheme
     val accentColor = remember(value.pid.id, scheme) {
         val colors = listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.error, scheme.outline)
@@ -158,7 +171,7 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
         modifier = Modifier
             .fillMaxWidth()
             .height(140.dp)
-            .semantics { contentDescription = "${value.pid.name}: $displayValue ${value.pid.unit}" }
+            .semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" }
     ) {
         Row(Modifier.fillMaxSize()) {
             Box(
@@ -185,7 +198,7 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
                         style = MaterialTheme.typography.displaySmall
                     )
                     Text(
-                        " ${value.pid.unit}",
+                        " $displayUnit",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
