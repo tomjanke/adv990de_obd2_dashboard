@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import de.adv990de.obd2.bluetooth.BtType
@@ -37,6 +38,7 @@ class AppPreferences @Inject constructor(
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
+        private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
         val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
@@ -137,5 +139,15 @@ class AppPreferences @Inject constructor(
 
     suspend fun setTheme(value: String) {
         dataStore.edit { it[KEY_THEME] = value }
+    }
+
+    // ── Dashboard preferences ─────────────────────────────────────────────────
+
+    val rpmBlinkThreshold: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_RPM_BLINK_THRESHOLD] ?: 0
+    }
+
+    suspend fun setRpmBlinkThreshold(value: Int) {
+        dataStore.edit { it[KEY_RPM_BLINK_THRESHOLD] = value }
     }
 }
