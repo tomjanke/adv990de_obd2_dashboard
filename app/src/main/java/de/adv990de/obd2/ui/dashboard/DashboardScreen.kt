@@ -24,11 +24,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseIn
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,6 +101,23 @@ fun DashboardScreen(
             )
         },
     ) { padding ->
+        // ── RPM demo animation ────────────────────────────────────────────
+        // Runs once per navigation to this screen when rpmValue is 0 (engine off / no data).
+        // Sweeps 0 → 10 000 → 0 to demonstrate bar fill and threshold blinking.
+        val rpmDemo = remember { Animatable(0f) }
+        val rpmValueRef = rememberUpdatedState(state.rpmValue)
+        LaunchedEffect(Unit) {
+            delay(400) // allow first ECU readings to arrive before deciding to demo
+            if (rpmValueRef.value < 1f) {
+                rpmDemo.animateTo(10000f, tween(durationMillis = 2500, easing = EaseInOut))
+                delay(300)
+                rpmDemo.animateTo(0f, tween(durationMillis = 800, easing = EaseIn))
+            }
+        }
+        // During demo (real rpm still 0): show animated value. Once engine delivers real
+        // RPM, switch immediately to the live value regardless of demo state.
+        val displayRpm = if (state.rpmValue < 1f) rpmDemo.value else state.rpmValue
+
         // While connected but waiting for first readings: brief full-screen spinner.
         if (state.isConnected && state.readings.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -165,7 +188,7 @@ fun DashboardScreen(
 
                 // ── RPM bar ───────────────────────────────────────────────
                 RpmBar(
-                    rpm = state.rpmValue,
+                    rpm = displayRpm,
                     threshold = rpmBlinkThreshold,
                     modifier = Modifier.fillMaxWidth()
                 )
