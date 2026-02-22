@@ -395,6 +395,31 @@ class DashboardViewModelTest {
         assertEquals(UiText.StringResource(R.string.obd_err_bluetooth_disabled), vm.uiState.value.error)
     }
 
+    // ── DTC UI state ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `hasDtcs is true in ui state when readDtcs returns entries`() = runTest {
+        val dtc = mockk<DtcEntry>()
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns listOf(dtc)
+            every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.hasDtcs)
+    }
+
     // ── New recording settings tests ──────────────────────────────────────────
 
     @Test

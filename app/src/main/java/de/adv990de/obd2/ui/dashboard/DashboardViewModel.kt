@@ -45,7 +45,8 @@ data class DashboardUiState(
     // UiText: static messages use StringResource (localizable), dynamic messages (e.g. exception
     // messages from the BT stack) use DynamicString.
     val error: UiText? = null,
-    val sparklines: Map<String, List<Float>> = emptyMap()
+    val sparklines: Map<String, List<Float>> = emptyMap(),
+    val hasDtcs: Boolean = false
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -104,15 +105,16 @@ class DashboardViewModel @Inject constructor(
                                           null
                                       }
 
-                            // DTC check: only performed when logOnlyDtc is enabled.
-                            // On failure we default to true (keep session) to avoid silent data loss.
-                            val hasDtc = if (logOnlyDtc) {
-                                try { obdRepository.readDtcs().isNotEmpty() }
-                                catch (e: Exception) {
-                                    if (e is CancellationException) throw e
-                                    true
-                                }
-                            } else false
+                            // DTC check: always performed to populate hasDtcs UI state.
+                            // On failure, null signals "unknown" — UI shows no banner,
+                            // recording keeps the session to avoid silent data loss.
+                            val dtcList = try { obdRepository.readDtcs() }
+                                          catch (e: Exception) {
+                                              if (e is CancellationException) throw e
+                                              null
+                                          }
+                            _uiState.value = _uiState.value.copy(hasDtcs = dtcList?.isNotEmpty() == true)
+                            val hasDtcForRecording: Boolean = dtcList?.isNotEmpty() ?: true
 
                             var sessionId = -1L
                             try {
@@ -142,7 +144,7 @@ class DashboardViewModel @Inject constructor(
                             } finally {
                                 // DB errors must not prevent session cleanup.
                                 if (sessionId != -1L) {
-                                    if (logOnlyDtc && !hasDtc) {
+                                    if (logOnlyDtc && !hasDtcForRecording) {
                                         try { sessionRepository.deleteSession(sessionId) } catch (_: Exception) {}
                                     } else {
                                         try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}

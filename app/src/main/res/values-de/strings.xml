@@ -9,6 +9,9 @@
     <string name="connection_error_prefix">Verbindungsfehler: %1$s</string>
     <string name="not_connected">Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.</string>
     <string name="cd_settings">Einstellungen</string>
+    <string name="dashboard_dtc_warning">Fehlercodes erkannt – tippen zum Anzeigen</string>
+    <string name="dashboard_bt_connected_desc">Bluetooth verbunden</string>
+    <string name="dashboard_bt_disconnected_desc">Bluetooth getrennt</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Einstellungen</string>

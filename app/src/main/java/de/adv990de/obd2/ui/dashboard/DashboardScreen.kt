@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +54,16 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    Icon(
+                        painterResource(R.drawable.ic_bluetooth),
+                        contentDescription = stringResource(
+                            if (state.isConnected) R.string.dashboard_bt_connected_desc
+                            else R.string.dashboard_bt_disconnected_desc
+                        ),
+                        tint = if (state.isConnected) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
                     IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
                         Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings))
                     }
@@ -98,6 +111,21 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (state.hasDtcs) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Surface(
+                            onClick = { navController.navigate(Screen.Dtc.route) },
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                stringResource(R.string.dashboard_dtc_warning),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+                }
                 items(state.readings, key = { it.pid.id }) { reading ->
                     SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList())
                 }
