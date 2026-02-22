@@ -92,4 +92,9 @@
     <string name="logging_config_select_all">Alle auswählen</string>
     <string name="logging_config_deselect_all">Alle abwählen</string>
     <string name="logging_config_back_desc">Zurück</string>
+
+    <!-- Display settings section -->
+    <string name="settings_display_section">Anzeige</string>
+    <string name="settings_hide_nav_on_drive">Navigationsleiste beim Fahren ausblenden</string>
+    <string name="settings_hide_nav_on_drive_desc">Wird bei Stillstand automatisch wieder eingeblendet</string>
 </resources>

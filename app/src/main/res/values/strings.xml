@@ -92,4 +92,9 @@
     <string name="logging_config_select_all">Select all</string>
     <string name="logging_config_deselect_all">Deselect all</string>
     <string name="logging_config_back_desc">Back</string>
+
+    <!-- Display settings section -->
+    <string name="settings_display_section">Display</string>
+    <string name="settings_hide_nav_on_drive">Hide navigation bar while driving</string>
+    <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary</string>
 </resources>
