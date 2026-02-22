@@ -19,6 +19,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +40,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.components.BottomNav
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,12 +49,15 @@ fun SettingsScreen(
     navController: NavController,
     vm: SettingsViewModel = hiltViewModel(),
     recordingVm: RecordingSettingsViewModel = hiltViewModel(),
-    driveVm: DriveStateViewModel = hiltViewModel()
+    driveVm: DriveStateViewModel = hiltViewModel(),
+    displayVm: DisplaySettingsViewModel = hiltViewModel()
 ) {
     val state by vm.uiState.collectAsState()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
     val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
+    val useImperial by displayVm.useImperial.collectAsState()
+    val theme by displayVm.theme.collectAsState()
     LaunchedEffect(Unit) { vm.loadDevices() }
 
     Scaffold(
@@ -146,6 +153,39 @@ fun SettingsScreen(
                         checked = hideNavOnDrive,
                         onCheckedChange = { driveVm.toggleHideNavOnDrive() }
                     )
+                }
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_imperial_units)) },
+                supportingContent = { Text(stringResource(R.string.settings_imperial_units_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = useImperial,
+                        onCheckedChange = { displayVm.toggleUseImperial() }
+                    )
+                }
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_theme)) },
+                trailingContent = {
+                    val themeOptions = listOf("system", "light", "dark")
+                    val themeLabels = listOf(
+                        stringResource(R.string.settings_theme_system),
+                        stringResource(R.string.settings_theme_light),
+                        stringResource(R.string.settings_theme_dark)
+                    )
+                    SingleChoiceSegmentedButtonRow {
+                        themeOptions.forEachIndexed { index, option ->
+                            SegmentedButton(
+                                selected = theme == option,
+                                onClick = { displayVm.setTheme(option) },
+                                shape = SegmentedButtonDefaults.itemShape(index, themeOptions.size),
+                                label = { Text(themeLabels[index]) }
+                            )
+                        }
+                    }
                 }
             )
             HorizontalDivider()
