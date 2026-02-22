@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -19,6 +20,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -32,9 +36,10 @@ fun DashboardConfigScreen(
     navController: NavController,
     vm: DashboardConfigViewModel = hiltViewModel()
 ) {
-    val selectedPids by vm.selectedPidIds.collectAsState()
-    val isConnected  by vm.isConnected.collectAsState()
-    val allPids      by vm.allPids.collectAsState()
+    val selectedPids      by vm.selectedPidIds.collectAsState()
+    val isConnected       by vm.isConnected.collectAsState()
+    val allPids           by vm.allPids.collectAsState()
+    val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
 
     Scaffold(
         topBar = {
@@ -79,6 +84,27 @@ fun DashboardConfigScreen(
                     }
                 )
                 HorizontalDivider()
+            }
+            // ── RPM blink threshold ──────────────────────────────────────────
+            item {
+                HorizontalDivider()
+                var localThreshold by remember(rpmBlinkThreshold) { mutableIntStateOf(rpmBlinkThreshold) }
+                val thresholdLabel = if (localThreshold == 0)
+                    stringResource(R.string.dashboard_rpm_threshold_disabled)
+                else
+                    "$localThreshold rpm"
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.dashboard_rpm_threshold_label)) },
+                    supportingContent = { Text(thresholdLabel) }
+                )
+                Slider(
+                    value = localThreshold.toFloat(),
+                    onValueChange = { localThreshold = it.toInt() },
+                    onValueChangeFinished = { vm.setRpmBlinkThreshold(localThreshold) },
+                    valueRange = 0f..10000f,
+                    steps = 19,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
         }
     }
