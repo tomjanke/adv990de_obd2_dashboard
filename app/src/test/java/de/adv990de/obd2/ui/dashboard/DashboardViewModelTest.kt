@@ -59,6 +59,7 @@ class DashboardViewModelTest {
         every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
         every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
         every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
+        every { rpmBlinkThreshold }     returns flowOf(0)
     }
 
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
@@ -229,7 +230,11 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        verify { obdRepo.livePids(match { it.map { p -> p.id }.toSet() == customIds }) }
+        // RPM is always force-included in the polled set even when not selected for display
+        verify { obdRepo.livePids(match { pids ->
+            val ids = pids.map { p -> p.id }.toSet()
+            customIds.all { it in ids } && PidRegistry.RPM.id in ids
+        }) }
     }
 
     @Test
@@ -323,6 +328,7 @@ class DashboardViewModelTest {
             every { logOnlyDtcSessions }    returns flowOf(false)
             every { logOnlyDiscoveredPids } returns flowOf(false)
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
+            every { rpmBlinkThreshold }     returns flowOf(0)
         }
 
         DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
@@ -525,6 +531,35 @@ class DashboardViewModelTest {
 
         coVerify { sessionRepo.endSession(77L) }
         coVerify(exactly = 0) { sessionRepo.deleteSession(any()) }
+    }
+
+    @Test
+    fun `rpm is always polled even when not in selected pids`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        // Select only SPEED — RPM explicitly excluded
+        val prefs = makePrefs(selectedIds = setOf(PidRegistry.SPEED.id))
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        // livePids must have been called with a set that includes RPM
+        verify {
+            obdRepo.livePids(match { pids -> pids.any { it.id == PidRegistry.RPM.id } })
+        }
     }
 
     @Test

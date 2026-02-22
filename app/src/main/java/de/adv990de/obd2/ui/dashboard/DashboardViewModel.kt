@@ -48,7 +48,8 @@ data class DashboardUiState(
     // messages from the BT stack) use DynamicString.
     val error: UiText? = null,
     val sparklines: Map<String, List<Float>> = emptyMap(),
-    val hasDtcs: Boolean = false
+    val hasDtcs: Boolean = false,
+    val rpmValue: Float = 0f
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -76,6 +77,15 @@ class DashboardViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // Cached selected IDs — used in the collect lambda to filter display readings
+    // so that RPM (always polled) does not appear as an extra tile when not selected.
+    private val _selectedIdsCache: StateFlow<Set<String>> = appPreferences.selectedPidIds
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_PIDS)
+
+    /** RPM blink threshold in rpm. 0 = blinking disabled. */
+    val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
     // Fired when ConnectionLost is caught in the session loop.
@@ -101,7 +111,7 @@ class DashboardViewModel @Inject constructor(
                         flow {
                             // Fall back to defaults if none of the stored IDs exist in PidRegistry
                             // (e.g. after a downgrade or manual DataStore wipe).
-                            val selectedPids = selectedIds
+                            val selectedPids = (selectedIds + PidRegistry.RPM.id)
                                 .mapNotNull { PidRegistry.all[it] }
                                 .ifEmpty { PidRegistry.defaults }
 
@@ -181,8 +191,11 @@ class DashboardViewModel @Inject constructor(
                         // and the auto-hide feature effectively does nothing.
                         values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
                             ?.let { obdRepository.setMoving(it.value > 0f) }
+                        val displayIds = _selectedIdsCache.value
                         _uiState.value = _uiState.value.copy(
-                            readings = values,
+                            readings = values.filter { sv -> sv.pid.id in displayIds },
+                            rpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
+                                           ?.value ?: _uiState.value.rpmValue,
                             isConnected = true,
                             isReconnecting = false,
                             error = null,
