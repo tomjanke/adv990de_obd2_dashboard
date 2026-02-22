@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.history
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -108,7 +109,12 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         bottomBar = { BottomNav(navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        LazyColumn(Modifier.padding(padding)) {
+        LazyColumn(
+            contentPadding = PaddingValues(
+                top = padding.calculateTopPadding(),
+                bottom = padding.calculateBottomPadding()
+            )
+        ) {
             if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
                 item {
                     Column(
