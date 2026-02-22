@@ -2,8 +2,12 @@ package de.adv990de.obd2.ui
 
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,5 +60,21 @@ class DriveStateViewModelTest {
         val vm = makeVm(isMoving = false, hideNavOnDrive = true)
         advanceUntilIdle()
         assertFalse(vm.isNavHidden.value)
+    }
+
+    @Test
+    fun `toggleHideNavOnDrive calls setHideNavOnDrive with inverted value`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            every { hideNavOnDrive } returns flowOf(false)
+            coEvery { setHideNavOnDrive(any()) } just Runs
+        }
+        val obdRepo = mockk<ObdRepository> {
+            every { isMovingFlow } returns MutableStateFlow(false)
+        }
+        val vm = DriveStateViewModel(obdRepo, prefs)
+        advanceUntilIdle()
+        vm.toggleHideNavOnDrive()
+        advanceUntilIdle()
+        coVerify { prefs.setHideNavOnDrive(true) }
     }
 }
