@@ -164,11 +164,13 @@ fun DashboardScreen(
                 }
 
                 // ── RPM bar ───────────────────────────────────────────────
-                RpmBar(
-                    rpm = state.rpmValue,
-                    threshold = rpmBlinkThreshold,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (state.isConnected || state.readings.isNotEmpty()) {
+                    RpmBar(
+                        rpm = state.rpmValue,
+                        threshold = rpmBlinkThreshold,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 // ── Sensor grid ───────────────────────────────────────────
                 if (isLandscape) {
@@ -216,7 +218,8 @@ private fun RpmBar(
     modifier: Modifier = Modifier
 ) {
     val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
-        val f = ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
+        val f = if (threshold >= 10000) 1f
+                else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
         (1000f - 900f * f).toLong()
     } else 0L
 
