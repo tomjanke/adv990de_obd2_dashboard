@@ -35,6 +35,8 @@ class AppPreferences @Inject constructor(
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
+        private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
+        private val KEY_THEME             = stringPreferencesKey("theme")
         val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
     }
@@ -114,5 +116,23 @@ class AppPreferences @Inject constructor(
 
     suspend fun setHideNavOnDrive(enabled: Boolean) {
         dataStore.edit { it[KEY_HIDE_NAV_ON_DRIVE] = enabled }
+    }
+
+    // ── Display preferences ───────────────────────────────────────────────────
+
+    val useImperial: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_USE_IMPERIAL] ?: false
+    }
+
+    suspend fun setUseImperial(enabled: Boolean) {
+        dataStore.edit { it[KEY_USE_IMPERIAL] = enabled }
+    }
+
+    val theme: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_THEME] ?: "system"
+    }
+
+    suspend fun setTheme(value: String) {
+        dataStore.edit { it[KEY_THEME] = value }
     }
 }
