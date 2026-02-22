@@ -165,6 +165,9 @@ class DashboardViewModel @Inject constructor(
                             if (deque.size >= 60) deque.removeFirst()
                             deque.addLast(sv.value)
                         }
+                        // Only updates moving state when SPEED is in the selected PID set.
+                        // If the user has deselected SPEED, isMovingFlow retains its last value
+                        // and the auto-hide feature effectively does nothing.
                         values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
                             ?.let { obdRepository.setMoving(it.value > 0f) }
                         _uiState.value = _uiState.value.copy(
