@@ -103,7 +103,8 @@ fun SettingsScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 stringResource(R.string.settings_recording_section),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(4.dp))
             ListItem(
@@ -133,7 +134,8 @@ fun SettingsScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 stringResource(R.string.settings_display_section),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(4.dp))
             ListItem(
