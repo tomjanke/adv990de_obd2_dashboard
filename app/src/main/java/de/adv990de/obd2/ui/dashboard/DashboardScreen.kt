@@ -27,7 +27,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
@@ -65,6 +67,7 @@ fun DashboardScreen(
     val state by vm.uiState.collectAsState()
     val placeholderReadings by vm.placeholderReadings.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
+    val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
 
@@ -160,6 +163,13 @@ fun DashboardScreen(
                     }
                 }
 
+                // ── RPM bar ───────────────────────────────────────────────
+                RpmBar(
+                    rpm = state.rpmValue,
+                    threshold = rpmBlinkThreshold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 // ── Sensor grid ───────────────────────────────────────────
                 if (isLandscape) {
                     // Landscape: 3 columns — col 3 has 2 stacked cards
@@ -196,6 +206,64 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RpmBar(
+    rpm: Float,
+    threshold: Int,
+    modifier: Modifier = Modifier
+) {
+    val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
+        val f = ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
+        (1000f - 900f * f).toLong()
+    } else 0L
+
+    val visible by produceState(initialValue = true, key1 = blinkPeriodMs) {
+        value = true
+        if (blinkPeriodMs > 0L) {
+            while (true) {
+                delay(blinkPeriodMs)
+                value = !value
+            }
+        }
+    }
+
+    val isAlert = threshold > 0 && rpm > threshold
+    val fillColor = if (isAlert) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary
+    val fraction = (rpm / 10000f).coerceIn(0f, 1f)
+
+    Row(
+        modifier = modifier
+            .height(48.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+            if (visible) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .background(fillColor)
+                )
+            }
+        }
+        Text(
+            text = "%.0f rpm".format(rpm),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .width(80.dp)
+        )
     }
 }
 

@@ -38,6 +38,7 @@ class DashboardConfigViewModelTest {
         prefs: AppPreferences = mockk {
             coEvery { togglePid(any()) } just Runs
             every { selectedPidIds } returns flowOf(AppPreferences.DEFAULT_PIDS)
+            every { rpmBlinkThreshold } returns flowOf(0)
         },
         obdRepo: ObdRepository = mockk {
             every { isConnectedFlow } returns MutableStateFlow(false)
@@ -50,6 +51,7 @@ class DashboardConfigViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { togglePid(any()) } just Runs
             every { selectedPidIds } returns flowOf(AppPreferences.DEFAULT_PIDS)
+            every { rpmBlinkThreshold } returns flowOf(0)
         }
         val vm = makeVm(prefs = prefs)
         vm.togglePid("010C")
@@ -63,6 +65,7 @@ class DashboardConfigViewModelTest {
         val customIds = setOf("010C", "010D")
         val prefs = mockk<AppPreferences> {
             every { selectedPidIds } returns flowOf(customIds)
+            every { rpmBlinkThreshold } returns flowOf(0)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -86,6 +89,7 @@ class DashboardConfigViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { togglePid(any()) } just Runs
             every { selectedPidIds } returns flowOf(emptySet())
+            every { rpmBlinkThreshold } returns flowOf(0)
         }
         val vm = makeVm(prefs = prefs)
 
