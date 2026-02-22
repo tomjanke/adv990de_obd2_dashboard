@@ -32,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,11 +62,7 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     val deleteConfirmation by vm.deleteConfirmation.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    // Use remember (not rememberSaveable) so the AppBar state resets on each navigation,
-    // preventing the empty-state icon from jumping due to a restored stale heightOffset.
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
-        state = remember { TopAppBarState(-Float.MAX_VALUE, 0f, 0f) }
-    )
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
