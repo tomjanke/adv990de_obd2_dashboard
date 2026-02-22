@@ -16,6 +16,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.theme.AppTypography
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -31,7 +32,8 @@ class MainActivity : ComponentActivity() {
                 else                       -> systemDark
             }
             MaterialTheme(
-                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()
+                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+                typography = AppTypography
             ) {
                 PermissionGate {
                     AppNavHost(rememberNavController())
