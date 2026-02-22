@@ -98,16 +98,6 @@ fun SettingsScreen(
                 }
             }
             HorizontalDivider()
-            TextButton(
-                onClick = { navController.navigate(Screen.DashboardConfig.route) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.settings_configure_dashboard)) }
-            HorizontalDivider()
-            TextButton(
-                onClick = { navController.navigate(Screen.VehicleInfo.route) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.settings_vehicle_info)) }
-            HorizontalDivider()
 
             // ── Recording section ─────────────────────────────────────────
             Spacer(Modifier.height(12.dp))
@@ -138,11 +128,6 @@ fun SettingsScreen(
                 }
             )
             HorizontalDivider()
-            TextButton(
-                onClick = { navController.navigate(Screen.LoggingConfig.route) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.settings_logging_pids)) }
-            HorizontalDivider()
 
             // ── Display section ───────────────────────────────────────────
             Spacer(Modifier.height(12.dp))
@@ -161,6 +146,21 @@ fun SettingsScreen(
                     )
                 }
             )
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.DashboardConfig.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.settings_configure_dashboard)) }
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.VehicleInfo.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.settings_vehicle_info)) }
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.LoggingConfig.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.settings_logging_pids)) }
         }
     }
 }
