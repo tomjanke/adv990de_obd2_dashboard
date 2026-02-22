@@ -18,6 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -64,6 +66,15 @@ class DashboardViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
+
+    // Placeholder readings shown when not connected: selected PIDs with value 0.
+    // Keeps the dashboard tiles visible at all times so the user always sees the layout.
+    val placeholderReadings: StateFlow<List<SensorValue>> = appPreferences.selectedPidIds
+        .map { ids ->
+            val pids = ids.mapNotNull { PidRegistry.all[it] }.ifEmpty { PidRegistry.defaults }
+            pids.map { pid -> SensorValue(pid, 0f) }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 

@@ -2,10 +2,12 @@ package de.adv990de.obd2.ui.history
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -109,50 +111,43 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }, scrollBehavior = scrollBehavior) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding(),
-                start = 8.dp,
-                end = 8.dp
-            )
-        ) {
-            if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillParentMaxHeight()
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_history),
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 8.dp, end = 8.dp)
+            ) {
+                items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
+                    sessions[i]?.let { session ->
+                        SessionRow(
+                            session,
+                            onExport = { vm.export(session.id) },
+                            onDelete = { vm.requestDelete(session) }
                         )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.history_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        HorizontalDivider()
                     }
                 }
-            }
-            items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
-                sessions[i]?.let { session ->
-                    SessionRow(
-                        session,
-                        onExport = { vm.export(session.id) },
-                        onDelete = { vm.requestDelete(session) }
-                    )
-                    HorizontalDivider()
+                if (sessions.loadState.append is LoadState.Loading) {
+                    item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(8.dp)) }
                 }
             }
-            if (sessions.loadState.append is LoadState.Loading) {
-                item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(8.dp)) }
+            if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_history),
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.history_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

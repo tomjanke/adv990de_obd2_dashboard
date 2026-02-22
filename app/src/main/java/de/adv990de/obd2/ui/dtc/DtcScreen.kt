@@ -2,7 +2,6 @@ package de.adv990de.obd2.ui.dtc
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,7 +50,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
         topBar = { TopAppBar(title = { Text(stringResource(R.string.dtc_title)) }, scrollBehavior = scrollBehavior) },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
     ) { padding ->
-        Column(Modifier.padding(bottom = padding.calculateBottomPadding())) {
+        Column(Modifier.padding(padding)) {
             val currentError = state.error
             PullToRefreshBox(
                 isRefreshing = state.isLoading,
@@ -62,16 +61,10 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                     currentError != null -> Text(
                         currentError,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(
-                            top = padding.calculateTopPadding() + 16.dp,
-                            start = 16.dp,
-                            end = 16.dp
-                        )
+                        modifier = Modifier.padding(16.dp)
                     )
                     state.dtcs.isEmpty() && !state.isLoading -> Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = padding.calculateTopPadding()),
+                        modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -88,10 +81,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    else -> LazyColumn(
-                        contentPadding = PaddingValues(top = padding.calculateTopPadding()),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
+                    else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
                     }
                 }

@@ -65,7 +65,10 @@ fun DashboardScreen(
     displayVm: DisplaySettingsViewModel = hiltViewModel()
 ) {
     val state by vm.uiState.collectAsState()
+    val placeholderReadings by vm.placeholderReadings.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
+    // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
+    val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
@@ -173,7 +176,7 @@ fun DashboardScreen(
                 }
 
                 // ── Sensor cards ──────────────────────────────────────────
-                items(state.readings, key = { it.pid.id }) { reading ->
+                items(displayReadings, key = { it.pid.id }) { reading ->
                     SensorCard(reading, state.sparklines[reading.pid.id] ?: emptyList(), useImperial)
                 }
             }
