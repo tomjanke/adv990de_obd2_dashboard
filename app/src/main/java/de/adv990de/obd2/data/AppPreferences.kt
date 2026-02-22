@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -30,7 +31,11 @@ class AppPreferences @Inject constructor(
         private val KEY_DEVICE_NAME    = stringPreferencesKey("device_name")
         private val KEY_DEVICE_TYPE    = stringPreferencesKey("device_type")
         private val KEY_SELECTED_PIDS  = stringSetPreferencesKey("selected_pid_ids")
+        private val KEY_LOG_ONLY_DTC   = booleanPreferencesKey("log_only_dtc_sessions")
+        private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
+        private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
         val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
+        val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -65,5 +70,38 @@ class AppPreferences @Inject constructor(
 
     val selectedPidIds: Flow<Set<String>> = dataStore.data.map { prefs ->
         prefs[KEY_SELECTED_PIDS] ?: DEFAULT_PIDS
+    }
+
+    // ── Recording preferences ─────────────────────────────────────────────────
+
+    val logOnlyDtcSessions: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_LOG_ONLY_DTC] ?: false
+    }
+
+    val logOnlyDiscoveredPids: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_LOG_ONLY_DISC] ?: false
+    }
+
+    val loggedPidIds: Flow<Set<String>> = dataStore.data.map { prefs ->
+        prefs[KEY_LOGGED_PIDS] ?: ALL_PID_IDS
+    }
+
+    suspend fun setLogOnlyDtcSessions(enabled: Boolean) {
+        dataStore.edit { it[KEY_LOG_ONLY_DTC] = enabled }
+    }
+
+    suspend fun setLogOnlyDiscoveredPids(enabled: Boolean) {
+        dataStore.edit { it[KEY_LOG_ONLY_DISC] = enabled }
+    }
+
+    suspend fun toggleLoggedPid(id: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_LOGGED_PIDS] ?: ALL_PID_IDS
+            prefs[KEY_LOGGED_PIDS] = if (id in current) current - id else current + id
+        }
+    }
+
+    suspend fun setLoggedPids(ids: Set<String>) {
+        dataStore.edit { it[KEY_LOGGED_PIDS] = ids }
     }
 }
