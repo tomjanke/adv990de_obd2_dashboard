@@ -340,21 +340,28 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
                     .fillMaxHeight()
                     .background(accentColor)
             )
-            Column(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                    .padding(12.dp)
             ) {
+                // Sparkline as subtle background line at the bottom
+                Sparkline(sparkline, Modifier.fillMaxWidth().height(24.dp).align(Alignment.BottomStart))
+                // Label top-left
                 Text(
                     value.pid.name,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.TopStart)
                 )
-                Row(verticalAlignment = Alignment.Bottom) {
+                // Value + unit bottom-right
+                Row(
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     Text(
                         displayValue,
                         style = MaterialTheme.typography.displayMedium,
@@ -370,7 +377,6 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
-                Sparkline(sparkline, Modifier.fillMaxWidth().height(24.dp))
             }
         }
     }
