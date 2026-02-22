@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
@@ -43,7 +44,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import de.adv990de.obd2.ui.navigation.Screen
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,14 +136,11 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
 fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else "%.1f".format(value.value)
-    val accentColors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.error,
-        MaterialTheme.colorScheme.outline
-    )
-    val accentColor = accentColors[abs(value.pid.id.hashCode()) % accentColors.size]
+    val scheme = MaterialTheme.colorScheme
+    val accentColor = remember(value.pid.id, scheme) {
+        val colors = listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.error, scheme.outline)
+        colors[(value.pid.id.hashCode() and Int.MAX_VALUE) % colors.size]
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
