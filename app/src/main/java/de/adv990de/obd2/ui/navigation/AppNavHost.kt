@@ -9,6 +9,7 @@ import de.adv990de.obd2.ui.dashboardconfig.DashboardConfigScreen
 import de.adv990de.obd2.ui.dtc.DtcScreen
 import de.adv990de.obd2.ui.freezeframe.FreezeFrameScreen
 import de.adv990de.obd2.ui.history.HistoryScreen
+import de.adv990de.obd2.ui.loggingconfig.LoggingConfigScreen
 import de.adv990de.obd2.ui.settings.SettingsScreen
 import de.adv990de.obd2.ui.vehicleinfo.VehicleInfoScreen
 
@@ -22,5 +23,6 @@ fun AppNavHost(navController: NavHostController) {
         composable(Screen.History.route) { HistoryScreen(navController) }
         composable(Screen.Settings.route) { SettingsScreen(navController) }
         composable(Screen.DashboardConfig.route) { DashboardConfigScreen(navController) }
+        composable(Screen.LoggingConfig.route) { LoggingConfigScreen(navController) }
     }
 }

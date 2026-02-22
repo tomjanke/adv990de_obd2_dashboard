@@ -77,4 +77,16 @@
     <string name="history_delete_confirm">Delete the session from %1$s? All recorded data will be lost.</string>
     <string name="history_delete_action">Delete</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Recording settings section -->
+    <string name="settings_recording_section">Recording</string>
+    <string name="settings_log_only_dtc">Only save sessions with DTCs</string>
+    <string name="settings_log_only_dtc_desc">Sessions without vehicle fault codes are discarded</string>
+    <string name="settings_log_only_discovered">Only record ECU-confirmed PIDs</string>
+    <string name="settings_log_only_discovered_desc">Skips PIDs not confirmed by PID discovery</string>
+    <string name="settings_logging_pids">Recorded PIDs</string>
+    <string name="logging_config_title">Recorded PIDs</string>
+    <string name="logging_config_select_all">Select all</string>
+    <string name="logging_config_deselect_all">Deselect all</string>
+    <string name="logging_config_back_desc">Back</string>
 </resources>

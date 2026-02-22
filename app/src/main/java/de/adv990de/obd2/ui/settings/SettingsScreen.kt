@@ -19,6 +19,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -39,8 +40,14 @@ import de.adv990de.obd2.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    navController: NavController,
+    vm: SettingsViewModel = hiltViewModel(),
+    recordingVm: RecordingSettingsViewModel = hiltViewModel()
+) {
     val state by vm.uiState.collectAsState()
+    val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
+    val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
     LaunchedEffect(Unit) { vm.loadDevices() }
 
     Scaffold(
@@ -97,6 +104,41 @@ fun SettingsScreen(navController: NavController, vm: SettingsViewModel = hiltVie
                 onClick = { navController.navigate(Screen.VehicleInfo.route) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.settings_vehicle_info)) }
+            HorizontalDivider()
+
+            // ── Recording section ─────────────────────────────────────────
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.settings_recording_section),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_log_only_dtc)) },
+                supportingContent = { Text(stringResource(R.string.settings_log_only_dtc_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = logOnlyDtc,
+                        onCheckedChange = { recordingVm.toggleLogOnlyDtc() }
+                    )
+                }
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_log_only_discovered)) },
+                supportingContent = { Text(stringResource(R.string.settings_log_only_discovered_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = logOnlyDiscovered,
+                        onCheckedChange = { recordingVm.toggleLogOnlyDiscovered() }
+                    )
+                }
+            )
+            HorizontalDivider()
+            TextButton(
+                onClick = { navController.navigate(Screen.LoggingConfig.route) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.settings_logging_pids)) }
         }
     }
 }

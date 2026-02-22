@@ -77,4 +77,16 @@
     <string name="history_delete_confirm">Fahrt vom %1$s löschen? Alle Daten gehen verloren.</string>
     <string name="history_delete_action">Löschen</string>
     <string name="cancel">Abbrechen</string>
+
+    <!-- Recording settings section -->
+    <string name="settings_recording_section">Protokollierung</string>
+    <string name="settings_log_only_dtc">Nur Fahrten mit DTCs speichern</string>
+    <string name="settings_log_only_dtc_desc">Fahrten ohne Fahrzeug-Fehlercodes werden verworfen</string>
+    <string name="settings_log_only_discovered">Nur ECU-bestätigte PIDs aufzeichnen</string>
+    <string name="settings_log_only_discovered_desc">PIDs ohne ECU-Discovery-Bestätigung werden nicht gespeichert</string>
+    <string name="settings_logging_pids">Aufgezeichnete PIDs</string>
+    <string name="logging_config_title">Aufgezeichnete PIDs</string>
+    <string name="logging_config_select_all">Alle auswählen</string>
+    <string name="logging_config_deselect_all">Alle abwählen</string>
+    <string name="logging_config_back_desc">Zurück</string>
 </resources>
