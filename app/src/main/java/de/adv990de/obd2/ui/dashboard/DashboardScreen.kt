@@ -38,7 +38,12 @@ import androidx.compose.ui.res.stringResource
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.BottomNav
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import de.adv990de.obd2.ui.navigation.Screen
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,22 +136,53 @@ fun DashboardScreen(navController: NavController, vm: DashboardViewModel = hiltV
 fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList()) {
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else "%.1f".format(value.value)
+    val accentColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.error,
+        MaterialTheme.colorScheme.outline
+    )
+    val accentColor = accentColors[abs(value.pid.id.hashCode()) % accentColors.size]
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(120.dp)
+            .height(140.dp)
             .semantics { contentDescription = "${value.pid.name}: $displayValue ${value.pid.unit}" }
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(value.pid.name, style = MaterialTheme.typography.labelMedium)
-            Text(
-                "$displayValue ${value.pid.unit}",
-                style = MaterialTheme.typography.headlineMedium
+        Row(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor)
             )
-            Sparkline(sparkline, Modifier.fillMaxWidth().height(32.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    value.pid.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        displayValue,
+                        style = MaterialTheme.typography.displaySmall
+                    )
+                    Text(
+                        " ${value.pid.unit}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                Sparkline(sparkline, Modifier.fillMaxWidth().height(32.dp))
+            }
         }
     }
 }
