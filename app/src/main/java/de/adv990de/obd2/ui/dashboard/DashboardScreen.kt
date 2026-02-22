@@ -37,7 +37,6 @@ import androidx.navigation.NavController
 import androidx.compose.ui.res.stringResource
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.SensorValue
-import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
 
