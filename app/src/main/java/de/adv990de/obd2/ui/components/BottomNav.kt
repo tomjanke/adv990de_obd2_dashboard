@@ -58,7 +58,8 @@ fun BottomNav(
                         }
                     },
                     icon = { Icon(icon, contentDescription = label) },
-                    label = { Text(label) }
+                    label = { Text(label) },
+                    alwaysShowLabel = false
                 )
             }
         }
