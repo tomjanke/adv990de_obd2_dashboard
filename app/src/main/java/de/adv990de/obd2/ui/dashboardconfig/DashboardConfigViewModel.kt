@@ -60,4 +60,11 @@ class DashboardConfigViewModel @Inject constructor(
         // previous write, preserving correct toggle semantics without explicit deduplication.
         viewModelScope.launch { appPreferences.togglePid(id) }
     }
+
+    val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun setRpmBlinkThreshold(value: Int) {
+        viewModelScope.launch { appPreferences.setRpmBlinkThreshold(value) }
+    }
 }
