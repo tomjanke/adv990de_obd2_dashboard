@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
@@ -25,9 +26,9 @@ class MainActivity : ComponentActivity() {
             val theme by displayVm.theme.collectAsState()
             val systemDark = isSystemInDarkTheme()
             val darkTheme = when (theme) {
-                "dark"  -> true
-                "light" -> false
-                else    -> systemDark
+                AppPreferences.THEME_DARK  -> true
+                AppPreferences.THEME_LIGHT -> false
+                else                       -> systemDark
             }
             MaterialTheme(
                 colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()

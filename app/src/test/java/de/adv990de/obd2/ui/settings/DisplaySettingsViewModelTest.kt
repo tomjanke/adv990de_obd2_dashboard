@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.settings
 
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
+import de.adv990de.obd2.data.AppPreferences.Companion.THEME_DARK
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -33,7 +35,7 @@ class DisplaySettingsViewModelTest {
 
     private fun makePrefs(
         useImperial: Boolean = false,
-        theme: String = "system"
+        theme: String = THEME_SYSTEM
     ): AppPreferences = mockk {
         every { this@mockk.useImperial } returns flowOf(useImperial)
         every { this@mockk.theme }       returns flowOf(theme)
@@ -76,26 +78,41 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `theme defaults to system`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(theme = "system"))
+        val vm = DisplaySettingsViewModel(makePrefs(theme = THEME_SYSTEM))
         // Subscribe to trigger WhileSubscribed collection
         val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
         job.cancel()
-        assertEquals("system", vm.theme.value)
+        assertEquals(THEME_SYSTEM, vm.theme.value)
     }
 
     @Test
     fun `setTheme calls appPreferences setTheme with given value`() = runTest {
-        val prefs = makePrefs(theme = "system")
+        val prefs = makePrefs(theme = THEME_SYSTEM)
         coEvery { prefs.setTheme(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
 
-        vm.setTheme("dark")
+        vm.setTheme(THEME_DARK)
         advanceUntilIdle()
         job.cancel()
 
-        coVerify { prefs.setTheme("dark") }
+        coVerify { prefs.setTheme(THEME_DARK) }
+    }
+
+    @Test
+    fun `toggleUseImperial from true calls setUseImperial with false`() = runTest {
+        val prefs = makePrefs(useImperial = true)
+        coEvery { prefs.setUseImperial(any()) } just Runs
+        val vm = DisplaySettingsViewModel(prefs)
+        val job = launch { vm.useImperial.collect {} }
+        advanceUntilIdle()
+
+        vm.toggleUseImperial()
+        advanceUntilIdle()
+        job.cancel()
+
+        coVerify { prefs.setUseImperial(false) }
     }
 }

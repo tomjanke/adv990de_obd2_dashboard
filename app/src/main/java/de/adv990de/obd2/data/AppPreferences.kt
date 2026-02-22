@@ -39,6 +39,9 @@ class AppPreferences @Inject constructor(
         private val KEY_THEME             = stringPreferencesKey("theme")
         val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
+        const val THEME_SYSTEM = "system"
+        const val THEME_LIGHT  = "light"
+        const val THEME_DARK   = "dark"
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -129,7 +132,7 @@ class AppPreferences @Inject constructor(
     }
 
     val theme: Flow<String> = dataStore.data.map { prefs ->
-        prefs[KEY_THEME] ?: "system"
+        prefs[KEY_THEME] ?: THEME_SYSTEM
     }
 
     suspend fun setTheme(value: String) {

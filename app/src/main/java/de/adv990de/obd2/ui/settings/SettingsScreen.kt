@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
@@ -169,7 +170,7 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_theme)) },
                 trailingContent = {
-                    val themeOptions = listOf("system", "light", "dark")
+                    val themeOptions = listOf(AppPreferences.THEME_SYSTEM, AppPreferences.THEME_LIGHT, AppPreferences.THEME_DARK)
                     val themeLabels = listOf(
                         stringResource(R.string.settings_theme_system),
                         stringResource(R.string.settings_theme_light),

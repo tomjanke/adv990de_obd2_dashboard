@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -19,7 +20,7 @@ class DisplaySettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val theme: StateFlow<String> = appPreferences.theme
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "system")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), THEME_SYSTEM)
 
     fun toggleUseImperial() {
         viewModelScope.launch { appPreferences.setUseImperial(!useImperial.value) }
