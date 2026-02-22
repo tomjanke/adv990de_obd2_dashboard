@@ -93,17 +93,41 @@ class DashboardViewModel @Inject constructor(
                                 .mapNotNull { PidRegistry.all[it] }
                                 .ifEmpty { PidRegistry.defaults }
 
+                            // Snapshot recording preferences once per session, not per cycle.
+                            val logOnlyDtc        = appPreferences.logOnlyDtcSessions.first()
+                            val logOnlyDiscovered = appPreferences.logOnlyDiscoveredPids.first()
+                            val loggedPidIds      = appPreferences.loggedPidIds.first()
+
                             val vin = try { obdRepository.readVin() }
                                       catch (e: Exception) {
                                           if (e is CancellationException) throw e
                                           null
                                       }
+
+                            // DTC check: only performed when logOnlyDtc is enabled.
+                            // On failure we default to true (keep session) to avoid silent data loss.
+                            val hasDtc = if (logOnlyDtc) {
+                                try { obdRepository.readDtcs().isNotEmpty() }
+                                catch (e: Exception) {
+                                    if (e is CancellationException) throw e
+                                    true
+                                }
+                            } else false
+
                             var sessionId = -1L
                             try {
                                 sessionId = sessionRepository.startSession(vin)
                                 emitAll(
                                     obdRepository.livePids(selectedPids)
-                                        .onEach { sessionRepository.writeReadings(sessionId, it) }
+                                        .onEach { values ->
+                                            val filtered = values
+                                                .filter { sv ->
+                                                    !logOnlyDiscovered ||
+                                                    (obdRepository.supportedPidIds.value?.contains(sv.pid.id) ?: true)
+                                                }
+                                                .filter { sv -> sv.pid.id in loggedPidIds }
+                                            sessionRepository.writeReadings(sessionId, filtered)
+                                        }
                                         .map { it to true }
                                 )
                             } catch (e: CancellationException) {
@@ -117,9 +141,13 @@ class DashboardViewModel @Inject constructor(
                                 _uiState.value = DashboardUiState.disconnected(ObdErrorMapper.toUiText(e))
                             } finally {
                                 // DB errors must not prevent session cleanup.
-                                try {
-                                    if (sessionId != -1L) sessionRepository.endSession(sessionId)
-                                } catch (_: Exception) {}
+                                if (sessionId != -1L) {
+                                    if (logOnlyDtc && !hasDtc) {
+                                        try { sessionRepository.deleteSession(sessionId) } catch (_: Exception) {}
+                                    } else {
+                                        try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
+                                    }
+                                }
                             }
                         }
                     }
