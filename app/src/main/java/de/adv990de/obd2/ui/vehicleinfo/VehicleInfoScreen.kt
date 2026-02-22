@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
-import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +45,6 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
                 }
             )
         },
-        bottomBar = { BottomNav(navController) }
     ) { padding ->
         Column(
             Modifier.padding(padding).padding(16.dp),

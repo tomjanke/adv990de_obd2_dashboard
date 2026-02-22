@@ -38,7 +38,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.DtcEntry
-import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,7 +49,6 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.dtc_title)) }, scrollBehavior = scrollBehavior) },
-        bottomBar = { BottomNav(navController) },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
     ) { padding ->
         Column(Modifier.padding(bottom = padding.calculateBottomPadding())) {

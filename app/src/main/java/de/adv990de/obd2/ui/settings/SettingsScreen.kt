@@ -41,7 +41,6 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.DriveStateViewModel
-import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,7 +62,6 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
-        bottomBar = { BottomNav(navController) }
     ) { padding ->
         LazyColumn(
             contentPadding = PaddingValues(

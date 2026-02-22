@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
-import de.adv990de.obd2.ui.components.BottomNav
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +51,6 @@ fun LoggingConfigScreen(
                 }
             )
         },
-        bottomBar = { BottomNav(navController) }
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             item {

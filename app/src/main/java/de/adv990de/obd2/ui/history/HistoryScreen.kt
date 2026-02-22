@@ -47,7 +47,6 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.db.entity.SessionEntity
-import de.adv990de.obd2.ui.components.BottomNav
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -108,7 +107,6 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }, scrollBehavior = scrollBehavior) },
-        bottomBar = { BottomNav(navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(

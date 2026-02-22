@@ -41,7 +41,7 @@ import androidx.navigation.NavController
 import androidx.compose.ui.res.stringResource
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.model.SensorValue
-import de.adv990de.obd2.ui.components.BottomNav
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -89,7 +89,6 @@ fun DashboardScreen(
                 }
             )
         },
-        bottomBar = { BottomNav(navController) }
     ) { padding ->
         // While connected but waiting for first readings: brief full-screen spinner.
         if (state.isConnected && state.readings.isEmpty()) {
