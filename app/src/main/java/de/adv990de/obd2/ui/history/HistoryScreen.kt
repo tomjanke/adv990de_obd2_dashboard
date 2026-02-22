@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
@@ -112,17 +114,19 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         LazyColumn(
             contentPadding = PaddingValues(
                 top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding()
+                bottom = padding.calculateBottomPadding(),
+                start = 8.dp,
+                end = 8.dp
             )
         ) {
             if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
                 item {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 64.dp),
+                            .fillParentMaxHeight()
+                            .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
                             painterResource(R.drawable.ic_history),
@@ -130,6 +134,7 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(Modifier.height(12.dp))
                         Text(
                             stringResource(R.string.history_empty),
                             style = MaterialTheme.typography.bodyMedium,
