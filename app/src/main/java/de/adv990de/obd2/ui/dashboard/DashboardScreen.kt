@@ -185,7 +185,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImperial: Boolean = false) {
+fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImperial: Boolean = false, modifier: Modifier = Modifier) {
     val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
         value.value to value.pid.unit
     } else {
@@ -200,9 +200,7 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
         colors[(value.pid.id.hashCode() and Int.MAX_VALUE) % colors.size]
     }
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(140.dp)
+        modifier = modifier
             .semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" }
     ) {
         Row(Modifier.fillMaxSize()) {
