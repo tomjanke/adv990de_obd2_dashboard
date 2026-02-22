@@ -116,4 +116,28 @@ class AppPreferencesTest {
         assertEquals(BtType.CLASSIC, last.type)
         assertEquals("AA:BB:CC:DD:EE:FF", last.device.address)
     }
+
+    @Test
+    fun `useImperial defaults to false`() = runTest {
+        assertEquals(false, makePreferences().useImperial.first())
+    }
+
+    @Test
+    fun `setUseImperial persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setUseImperial(true)
+        assertEquals(true, prefs.useImperial.first())
+    }
+
+    @Test
+    fun `theme defaults to system`() = runTest {
+        assertEquals("system", makePreferences().theme.first())
+    }
+
+    @Test
+    fun `setTheme persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setTheme("dark")
+        assertEquals("dark", prefs.theme.first())
+    }
 }
