@@ -30,6 +30,21 @@ class ObdRepositoryTest {
         ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
 
     @Test
+    fun `isMovingFlow starts as false`() = runTest {
+        val repo = makeRepo()
+        assertEquals(false, repo.isMovingFlow.value)
+    }
+
+    @Test
+    fun `isMovingFlow resets to false on disconnect`() = runTest {
+        val repo = makeRepo()
+        repo.setMoving(true)
+        assertEquals(true, repo.isMovingFlow.value)
+        repo.disconnect()
+        assertEquals(false, repo.isMovingFlow.value)
+    }
+
+    @Test
     fun `isConnectedFlow starts as false`() = runTest {
         val repo = makeRepo()
         assertEquals(false, repo.isConnectedFlow.value)
