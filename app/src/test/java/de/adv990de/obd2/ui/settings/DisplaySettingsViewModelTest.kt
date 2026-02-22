@@ -10,6 +10,7 @@ import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -41,14 +42,20 @@ class DisplaySettingsViewModelTest {
     @Test
     fun `useImperial defaults to false`() = runTest {
         val vm = DisplaySettingsViewModel(makePrefs(useImperial = false))
+        // Subscribe to trigger WhileSubscribed collection
+        val job = launch { vm.useImperial.collect {} }
         advanceUntilIdle()
+        job.cancel()
         assertFalse(vm.useImperial.value)
     }
 
     @Test
     fun `useImperial reflects persisted true value`() = runTest {
         val vm = DisplaySettingsViewModel(makePrefs(useImperial = true))
+        // Subscribe to trigger WhileSubscribed collection
+        val job = launch { vm.useImperial.collect {} }
         advanceUntilIdle()
+        job.cancel()
         assertTrue(vm.useImperial.value)
     }
 
@@ -57,10 +64,12 @@ class DisplaySettingsViewModelTest {
         val prefs = makePrefs(useImperial = false)
         coEvery { prefs.setUseImperial(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
+        val job = launch { vm.useImperial.collect {} }
         advanceUntilIdle()
 
         vm.toggleUseImperial()
         advanceUntilIdle()
+        job.cancel()
 
         coVerify { prefs.setUseImperial(true) }
     }
@@ -68,7 +77,10 @@ class DisplaySettingsViewModelTest {
     @Test
     fun `theme defaults to system`() = runTest {
         val vm = DisplaySettingsViewModel(makePrefs(theme = "system"))
+        // Subscribe to trigger WhileSubscribed collection
+        val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
+        job.cancel()
         assertEquals("system", vm.theme.value)
     }
 
@@ -77,10 +89,12 @@ class DisplaySettingsViewModelTest {
         val prefs = makePrefs(theme = "system")
         coEvery { prefs.setTheme(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
+        val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
 
         vm.setTheme("dark")
         advanceUntilIdle()
+        job.cancel()
 
         coVerify { prefs.setTheme("dark") }
     }
