@@ -192,6 +192,7 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
         convertUnit(value.value, value.pid.unit, useImperial)
     }
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
+                       else if (value.pid.unit == "V") "%.1f".format(convertedValue)
                        else "%.0f".format(convertedValue)
     val scheme = MaterialTheme.colorScheme
     val accentColor = remember(value.pid.id, scheme) {
