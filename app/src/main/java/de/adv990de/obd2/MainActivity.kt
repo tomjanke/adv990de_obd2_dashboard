@@ -23,6 +23,8 @@ import de.adv990de.obd2.ui.theme.AppTypography
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep screen on for the entire app session (all screens, not just while connected).
+        // Android clears this automatically when the app goes to the background.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val displayVm: DisplaySettingsViewModel = hiltViewModel()
