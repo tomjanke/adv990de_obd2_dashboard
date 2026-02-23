@@ -220,7 +220,13 @@ fun SettingsScreen(
                             selected = !isColorTheme,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
                             shape = SegmentedButtonDefaults.itemShape(0, 4),
-                            label = { Text(stringResource(R.string.settings_theme_default), softWrap = false) }
+                            icon = {},
+                            label = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Box(Modifier.width(16.dp).height(3.dp).background(MaterialTheme.colorScheme.onSurface, RoundedCornerShape(1.dp)))
+                                    Text(stringResource(R.string.settings_theme_default), softWrap = false)
+                                }
+                            }
                         )
                         SegmentedButton(
                             selected = theme == AppPreferences.THEME_BLUE,
