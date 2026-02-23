@@ -309,7 +309,7 @@ private fun RpmBar(
 
     Row(
         modifier = modifier
-            .height(48.dp)
+            .height(72.dp)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
