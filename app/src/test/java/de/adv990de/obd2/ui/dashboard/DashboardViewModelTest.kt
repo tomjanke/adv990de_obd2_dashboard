@@ -678,7 +678,10 @@ class DashboardViewModelTest {
         }
 
         val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
-        advanceUntilIdle()
+        // advanceTimeBy(1) runs all pending coroutines up to the first delay.
+        // advanceUntilIdle() would exhaust the entire reconnect backoff (93 s virtual),
+        // ending with DashboardUiState.disconnected() → isReconnecting = false.
+        advanceTimeBy(1)
 
         assertTrue("isReconnecting should be true after failed auto-connect", vm.uiState.value.isReconnecting)
         coVerify { obdRepo.connect(savedDevice) }

@@ -285,6 +285,25 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_reconnect_fail))
             }
         }
+
+        // ── Auto-connect on startup ─────────────────────────────────────────────
+        // Fires once on cold launch: if a device was previously saved and no
+        // connection is active, attempt to connect immediately (no delay).
+        // On success: isConnectedFlow goes true → session loop takes over.
+        // On failure: delegate to startReconnecting() → backoff loop handles retries.
+        viewModelScope.launch {
+            if (obdRepository.isConnectedFlow.value) return@launch
+            val savedDevice = appPreferences.lastDevice.first() ?: return@launch
+            _uiState.value = _uiState.value.copy(isReconnecting = true, reconnectAttempt = 0)
+            try {
+                obdRepository.connect(savedDevice)
+                // Session loop resets isReconnecting when first readings arrive.
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                startReconnecting()
+            }
+        }
     }
 
     /**
