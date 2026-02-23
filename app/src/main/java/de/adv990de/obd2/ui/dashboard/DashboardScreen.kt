@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -52,6 +51,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -132,7 +132,6 @@ fun DashboardScreen(
                     displayReadings.firstOrNull { it.pid.id == pidId }
                 }
             }
-            val gap = 8.dp
 
             Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
                 // ── DTC warning ───────────────────────────────────────────
@@ -184,16 +183,18 @@ fun DashboardScreen(
                 if (isLandscape) {
                     // Landscape: 3 columns — col 3 has 2 stacked cards
                     Row(
-                        modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
-                        horizontalArrangement = Arrangement.spacedBy(gap)
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                        horizontalArrangement = Arrangement.spacedBy(1.dp)
                     ) {
                         SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
                             onLongPress = { pickerSlot = 0 })
                         SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
                             onLongPress = { pickerSlot = 1 })
                         Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                            verticalArrangement = Arrangement.spacedBy(gap)
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
                             SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
                                 onLongPress = { pickerSlot = 2 })
@@ -204,16 +205,18 @@ fun DashboardScreen(
                 } else {
                     // Portrait: 3 rows — row 3 has 2 cards side by side
                     Column(
-                        modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
-                        verticalArrangement = Arrangement.spacedBy(gap)
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
                     ) {
                         SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
                             onLongPress = { pickerSlot = 0 })
                         SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
                             onLongPress = { pickerSlot = 1 })
                         Row(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(gap)
+                            modifier = Modifier.fillMaxWidth().weight(1f)
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                            horizontalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
                             SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
                                 onLongPress = { pickerSlot = 2 })
@@ -284,7 +287,7 @@ private fun RpmBar(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surface)
             )
             if (visible) {
                 Box(
@@ -319,10 +322,14 @@ private fun SensorCardSlot(
     if (reading != null) {
         SensorCard(reading, sparklines[reading.pid.id] ?: emptyList(), useImperial, onLongPress, modifier.fillMaxSize())
     } else {
-        Card(
+        Surface(
             modifier = modifier
                 .fillMaxSize()
-                .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() })
+                .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() }),
+            shape = RectangleShape,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            color = MaterialTheme.colorScheme.surface
         ) {}
     }
 }
@@ -344,22 +351,21 @@ fun SensorCard(
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else if (value.pid.unit == "V") "%.1f".format(convertedValue)
                        else "%.0f".format(convertedValue)
-    val scheme = MaterialTheme.colorScheme
-    val accentColor = remember(value.pid.id, scheme) {
-        val colors = listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.error, scheme.outline)
-        colors[(value.pid.id.hashCode() and Int.MAX_VALUE) % colors.size]
-    }
-    Card(
+    Surface(
         modifier = modifier
             .semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" }
-            .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() })
+            .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() }),
+        shape = RectangleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(Modifier.fillMaxSize()) {
             Box(
                 Modifier
                     .width(4.dp)
                     .fillMaxHeight()
-                    .background(accentColor)
+                    .background(MaterialTheme.colorScheme.primary)
             )
             Box(
                 modifier = Modifier
