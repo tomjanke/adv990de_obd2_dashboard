@@ -234,6 +234,8 @@ fun DashboardScreen(
                 SlotPickerSheet(
                     currentPidId = slotPids.getOrElse(slot) { "" },
                     availablePids = availablePids,
+                    readings = state.readings,
+                    useImperial = useImperial,
                     onSelect = { pidId ->
                         vm.setSlotPid(slot, pidId)
                         pickerSlot = null
@@ -436,6 +438,8 @@ private fun Sparkline(points: List<Float>, modifier: Modifier = Modifier) {
 private fun SlotPickerSheet(
     currentPidId: String,
     availablePids: List<PidDefinition>,
+    readings: List<SensorValue>,
+    useImperial: Boolean,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -446,9 +450,18 @@ private fun SlotPickerSheet(
     ) {
         LazyColumn {
             items(availablePids, key = { it.id }) { pid ->
+                val reading = readings.firstOrNull { it.pid.id == pid.id }
+                val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
+                    "${pid.name}: -- (${pid.unit})"
+                } else {
+                    val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
+                    val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
+                                    else "%.0f".format(convertedValue)
+                    "${pid.name}: $formatted ($displayUnit)"
+                }
                 ListItem(
                     modifier = Modifier.clickable { onSelect(pid.id) },
-                    headlineContent = { Text("${pid.name} (${pid.unit})") },
+                    headlineContent = { Text(label) },
                     trailingContent = if (pid.id == currentPidId) {
                         {
                             Icon(
