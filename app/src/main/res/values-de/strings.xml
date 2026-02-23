@@ -116,4 +116,11 @@
     <string name="app_logs_title">App-Logs</string>
     <string name="app_logs_empty">Keine Logs vorhanden</string>
     <string name="app_logs_clear">Logs löschen</string>
+    <!-- Theme picker (color scheme + brightness) -->
+    <string name="settings_color_scheme">Farbschema</string>
+    <string name="settings_brightness">Helligkeit</string>
+    <string name="settings_theme_default">Standard</string>
+    <string name="settings_theme_blue">Blau</string>
+    <string name="settings_theme_amber">Orange</string>
+    <string name="settings_theme_green">Grün</string>
 </resources>
