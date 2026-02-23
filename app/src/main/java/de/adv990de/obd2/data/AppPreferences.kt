@@ -39,7 +39,7 @@ class AppPreferences @Inject constructor(
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
-        val DEFAULT_SLOT_PIDS: List<String> = PidRegistry.defaults.take(4).map { it.id }
+        val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT  = "light"

@@ -125,9 +125,12 @@ fun DashboardScreen(
             }
         } else {
             val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-            // Slot order is driven by slotPids; each slot shows the reading for its assigned PID
+            // Slot order is driven by slotPids; always exactly 4 entries.
             val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
-                slotPids.map { pidId -> displayReadings.firstOrNull { it.pid.id == pidId } }
+                List(4) { i ->
+                    val pidId = slotPids.getOrElse(i) { "" }
+                    displayReadings.firstOrNull { it.pid.id == pidId }
+                }
             }
             val gap = 8.dp
 
