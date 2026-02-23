@@ -35,6 +35,8 @@
     <string name="dashboard_config_connected_banner">Verbindung aktiv – Änderungen starten die laufende Session neu.</string>
     <string name="dashboard_rpm_threshold_label">Drehzahl-Blinkgrenze</string>
     <string name="dashboard_rpm_threshold_disabled">Deaktiviert</string>
+    <string name="dashboard_rpm_dynamic_label">Dynamische Schwellenskalierung</string>
+    <string name="dashboard_rpm_dynamic_desc">Passt Blinkgrenze an Motortemperatur an</string>
 
     <!-- DTC screen -->
     <string name="dtc_title">Fehlercodes (DTCs)</string>

@@ -62,6 +62,7 @@ class DashboardViewModelTest {
         every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
         every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
         every { rpmBlinkThreshold }     returns flowOf(0)
+        every { rpmDynamicThreshold }   returns flowOf(false)
         every { lastDevice }            returns flowOf(null)
     }
 
@@ -344,6 +345,7 @@ class DashboardViewModelTest {
             every { logOnlyDiscoveredPids } returns flowOf(false)
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
+            every { rpmDynamicThreshold }   returns flowOf(false)
         }
 
         DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
@@ -640,6 +642,7 @@ class DashboardViewModelTest {
             every { logOnlyDiscoveredPids } returns flowOf(false)
             every { this@mockk.loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
+            every { rpmDynamicThreshold }   returns flowOf(false)
             every { lastDevice }            returns flowOf(null)
             coEvery { setSlotPid(any(), any()) } just Runs
         }
@@ -680,6 +683,7 @@ class DashboardViewModelTest {
             every { logOnlyDiscoveredPids } returns flowOf(false)
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
+            every { rpmDynamicThreshold }   returns flowOf(false)
         }
 
         val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())

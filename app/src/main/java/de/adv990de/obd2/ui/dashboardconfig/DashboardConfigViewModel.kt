@@ -27,4 +27,11 @@ class DashboardConfigViewModel @Inject constructor(
     fun setRpmBlinkThreshold(value: Int) {
         viewModelScope.launch { appPreferences.setRpmBlinkThreshold(value) }
     }
+
+    val rpmDynamicThreshold: StateFlow<Boolean> = appPreferences.rpmDynamicThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setRpmDynamicThreshold(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setRpmDynamicThreshold(enabled) }
+    }
 }
