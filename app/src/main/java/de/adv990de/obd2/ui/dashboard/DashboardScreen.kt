@@ -135,39 +135,6 @@ fun DashboardScreen(
             val gap = 8.dp
 
             Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
-                // ── Status banner (reconnecting / error only) ─────────────
-                if (!state.isConnected && (state.isReconnecting || state.error != null)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        when {
-                            state.isReconnecting -> Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.width(20.dp).height(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    stringResource(R.string.reconnecting_progress, state.reconnectAttempt, state.reconnectTotal),
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            state.error != null -> Text(
-                                stringResource(R.string.connection_error_prefix, state.error!!.asString()),
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                        }
-                    }
-                }
-
                 // ── DTC warning ───────────────────────────────────────────
                 if (state.hasDtcs) {
                     Surface(
