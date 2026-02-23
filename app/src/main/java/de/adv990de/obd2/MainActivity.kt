@@ -8,9 +8,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import de.adv990de.obd2.ui.theme.amberColorScheme
-import de.adv990de.obd2.ui.theme.blueColorScheme
-import de.adv990de.obd2.ui.theme.greenColorScheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,7 +17,10 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.blueColorScheme
+import de.adv990de.obd2.ui.theme.greenColorScheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
