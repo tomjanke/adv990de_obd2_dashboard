@@ -60,6 +60,7 @@ class DashboardViewModelTest {
         every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
         every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
         every { rpmBlinkThreshold }     returns flowOf(0)
+        every { lastDevice }            returns flowOf(null)
     }
 
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
@@ -634,6 +635,7 @@ class DashboardViewModelTest {
             every { logOnlyDiscoveredPids } returns flowOf(false)
             every { this@mockk.loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
+            every { lastDevice }            returns flowOf(null)
             coEvery { setSlotPid(any(), any()) } just Runs
         }
         val vm = DashboardViewModel(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter())
@@ -643,5 +645,42 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         coVerify { prefs.setSlotPid(2, PidRegistry.MAF.id) }
+    }
+
+    // ── Auto-connect on startup ───────────────────────────────────────────────
+
+    @Test
+    fun `auto-connect on startup triggers reconnect loop when connect fails`() = runTest {
+        val savedDevice = mockk<ScannedDevice>()
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
+            coEvery { connect(savedDevice) } throws Exception("BT unavailable")
+            // reconnect() must not be called — auto-connect uses connect(), not reconnect()
+            coEvery { reconnect() } throws Exception("should not be called")
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = mockk<AppPreferences> {
+            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
+            every { lastDevice }            returns flowOf(savedDevice)
+            every { logOnlyDtcSessions }    returns flowOf(false)
+            every { logOnlyDiscoveredPids } returns flowOf(false)
+            every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
+            every { rpmBlinkThreshold }     returns flowOf(0)
+        }
+
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        advanceUntilIdle()
+
+        assertTrue("isReconnecting should be true after failed auto-connect", vm.uiState.value.isReconnecting)
+        coVerify { obdRepo.connect(savedDevice) }
     }
 }
