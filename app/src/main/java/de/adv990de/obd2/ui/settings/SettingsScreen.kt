@@ -206,7 +206,7 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+                        .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp)
                 ) {
                     Text(
                         text = stringResource(R.string.settings_color_scheme),
@@ -275,7 +275,7 @@ fun SettingsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+                            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.settings_brightness),
