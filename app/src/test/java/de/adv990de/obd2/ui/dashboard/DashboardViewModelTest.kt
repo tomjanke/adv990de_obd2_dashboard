@@ -6,6 +6,7 @@ import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
@@ -417,10 +418,10 @@ class DashboardViewModelTest {
         assertEquals(UiText.StringResource(R.string.obd_err_bluetooth_disabled), vm.uiState.value.error)
     }
 
-    // ── DTC UI state ──────────────────────────────────────────────────────────
+    // ── DTC logging ───────────────────────────────────────────────────────────
 
     @Test
-    fun `hasDtcs is true in ui state when readDtcs returns entries`() = runTest {
+    fun `active DTCs on connect are logged as WARN`() = runTest {
         val dtc = mockk<DtcEntry>()
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
@@ -435,12 +436,13 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), logRepo)
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.hasDtcs)
+        coVerify { logRepo.log(LogLevel.WARN, match { it.contains("DTC") || it.contains("dtc", ignoreCase = true) }) }
     }
 
     @Test

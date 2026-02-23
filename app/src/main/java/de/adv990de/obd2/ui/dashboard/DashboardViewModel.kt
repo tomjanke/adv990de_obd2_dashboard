@@ -51,7 +51,6 @@ data class DashboardUiState(
     // messages from the BT stack) use DynamicString.
     val error: UiText? = null,
     val sparklines: Map<String, List<Float>> = emptyMap(),
-    val hasDtcs: Boolean = false,
     val rpmValue: Float = 0f
 ) {
     companion object {
@@ -147,15 +146,20 @@ class DashboardViewModel @Inject constructor(
                                           null
                                       }
 
-                            // DTC check: always performed to populate hasDtcs UI state.
-                            // On failure, null signals "unknown" — UI shows no banner,
-                            // recording keeps the session to avoid silent data loss.
+                            // DTC check: read on connect; log any active codes, use result
+                            // for recording filter only. No UI banner — errors are visible
+                            // in the App Logs screen.
                             val dtcList = try { obdRepository.readDtcs() }
                                           catch (e: Exception) {
                                               if (e is CancellationException) throw e
                                               null
                                           }
-                            _uiState.value = _uiState.value.copy(hasDtcs = dtcList?.isNotEmpty() == true)
+                            if (dtcList?.isNotEmpty() == true) {
+                                appLogRepository.log(
+                                    LogLevel.WARN,
+                                    "Active DTCs on connect: ${dtcList.joinToString()}"
+                                )
+                            }
                             val hasDtcForRecording: Boolean = dtcList?.isNotEmpty() ?: true
 
                             var sessionId = -1L

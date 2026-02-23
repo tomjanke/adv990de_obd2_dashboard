@@ -8,7 +8,6 @@
     <string name="reconnecting_progress">Connection lost – attempt %1$d/%2$d…</string>
     <string name="connection_error_prefix">Connection error: %1$s</string>
     <string name="not_connected">Not connected. Please select a device in Settings.</string>
-    <string name="dashboard_dtc_warning">Fault codes detected – tap to view</string>
     <string name="dashboard_bt_connected_desc">Bluetooth connected</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth disconnected</string>
 

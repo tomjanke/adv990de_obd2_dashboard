@@ -135,21 +135,6 @@ fun DashboardScreen(
             }
 
             Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
-                // ── DTC warning ───────────────────────────────────────────
-                if (state.hasDtcs) {
-                    Surface(
-                        onClick = { navController.navigate(Screen.Dtc.route) },
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            stringResource(R.string.dashboard_dtc_warning),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                        )
-                    }
-                }
-
                 // ── RPM bar ───────────────────────────────────────────────
                 RpmBar(
                     rpm = displayRpm,
