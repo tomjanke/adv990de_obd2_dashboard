@@ -31,7 +31,7 @@ class AppPreferences @Inject constructor(
         private val KEY_DEVICE_ADDRESS = stringPreferencesKey("device_address")
         private val KEY_DEVICE_NAME    = stringPreferencesKey("device_name")
         private val KEY_DEVICE_TYPE    = stringPreferencesKey("device_type")
-        private val KEY_SELECTED_PIDS  = stringSetPreferencesKey("selected_pid_ids")
+        private val KEY_SLOT_PIDS      = stringPreferencesKey("slot_pids")
         private val KEY_LOG_ONLY_DTC   = booleanPreferencesKey("log_only_dtc_sessions")
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
@@ -39,7 +39,7 @@ class AppPreferences @Inject constructor(
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
-        val DEFAULT_PIDS: Set<String>  = PidRegistry.defaults.map { it.id }.toSet()
+        val DEFAULT_SLOT_PIDS: List<String> = PidRegistry.defaults.take(4).map { it.id }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT  = "light"
@@ -64,20 +64,6 @@ class AppPreferences @Inject constructor(
             bluetoothAdapter.getRemoteDevice(address)
         } catch (_: Exception) { return@map null }
         ScannedDevice(btDevice, type, name)
-    }
-
-    suspend fun togglePid(id: String) {
-        dataStore.edit { prefs ->
-            val current = prefs[KEY_SELECTED_PIDS] ?: DEFAULT_PIDS
-            // Guard: never allow an empty selection. The UI enforces this too, but the
-            // persistence layer is the canonical safeguard against direct or future call sites.
-            if (id in current && current.size == 1) return@edit
-            prefs[KEY_SELECTED_PIDS] = if (id in current) current - id else current + id
-        }
-    }
-
-    val selectedPidIds: Flow<Set<String>> = dataStore.data.map { prefs ->
-        prefs[KEY_SELECTED_PIDS] ?: DEFAULT_PIDS
     }
 
     // ── Recording preferences ─────────────────────────────────────────────────
@@ -149,5 +135,27 @@ class AppPreferences @Inject constructor(
 
     suspend fun setRpmBlinkThreshold(value: Int) {
         dataStore.edit { it[KEY_RPM_BLINK_THRESHOLD] = value }
+    }
+
+    val slotPids: Flow<List<String>> = dataStore.data.map { prefs ->
+        val raw = prefs[KEY_SLOT_PIDS]
+        if (raw.isNullOrBlank()) DEFAULT_SLOT_PIDS
+        else {
+            val parts = raw.split(",").map { it.trim() }
+            List(4) { i -> parts.getOrElse(i) { DEFAULT_SLOT_PIDS.getOrElse(i) { "" } } }
+        }
+    }
+
+    suspend fun setSlotPid(slot: Int, pidId: String) {
+        require(slot in 0..3) { "slot must be 0..3" }
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_SLOT_PIDS]?.split(",")?.map { it.trim() }
+                ?: DEFAULT_SLOT_PIDS
+            val updated = List(4) { i ->
+                if (i == slot) pidId
+                else current.getOrElse(i) { DEFAULT_SLOT_PIDS.getOrElse(i) { "" } }
+            }
+            prefs[KEY_SLOT_PIDS] = updated.joinToString(",")
+        }
     }
 }
