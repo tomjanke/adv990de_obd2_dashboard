@@ -12,6 +12,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
@@ -85,6 +86,20 @@ class DashboardViewModel @Inject constructor(
     /** RPM blink threshold in rpm. 0 = blinking disabled. */
     val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** The 4 slot → PID-ID assignments, in slot order. */
+    val slotPids: StateFlow<List<String>> = appPreferences.slotPids
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppPreferences.DEFAULT_SLOT_PIDS)
+
+    /** All known PIDs sorted alphabetically by name, for the picker UI. */
+    val availablePids: StateFlow<List<PidDefinition>> = MutableStateFlow(
+        PidRegistry.all.values.sortedBy { it.name }
+    )
+
+    /** Persists a slot → PID assignment. */
+    fun setSlotPid(slot: Int, pidId: String) {
+        viewModelScope.launch { appPreferences.setSlotPid(slot, pidId) }
+    }
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 

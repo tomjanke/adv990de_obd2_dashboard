@@ -2,7 +2,10 @@ package de.adv990de.obd2.ui.dashboard
 
 import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,15 +18,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
@@ -32,9 +43,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
@@ -73,6 +87,9 @@ fun DashboardScreen(
     val placeholderReadings by vm.placeholderReadings.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
     val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
+    val slotPids by vm.slotPids.collectAsState()
+    val availablePids by vm.availablePids.collectAsState()
+    var pickerSlot: Int? by remember { mutableStateOf(null) }
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
 
@@ -108,9 +125,9 @@ fun DashboardScreen(
             }
         } else {
             val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-            // Exactly 4 slots; pad with null if fewer PIDs are selected
-            val slots: List<SensorValue?> = remember(displayReadings) {
-                displayReadings.take(4).let { it + List(maxOf(0, 4 - it.size)) { null } }
+            // Slot order is driven by slotPids; each slot shows the reading for its assigned PID
+            val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
+                slotPids.map { pidId -> displayReadings.firstOrNull { it.pid.id == pidId } }
             }
             val gap = 8.dp
 
@@ -200,14 +217,18 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         horizontalArrangement = Arrangement.spacedBy(gap)
                     ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f))
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f))
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
+                            onLongPress = { pickerSlot = 0 })
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
+                            onLongPress = { pickerSlot = 1 })
                         Column(
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             verticalArrangement = Arrangement.spacedBy(gap)
                         ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f))
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f))
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
+                                onLongPress = { pickerSlot = 2 })
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f),
+                                onLongPress = { pickerSlot = 3 })
                         }
                     }
                 } else {
@@ -216,17 +237,33 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(gap),
                         verticalArrangement = Arrangement.spacedBy(gap)
                     ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f))
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f))
+                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
+                            onLongPress = { pickerSlot = 0 })
+                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
+                            onLongPress = { pickerSlot = 1 })
                         Row(
                             modifier = Modifier.fillMaxWidth().weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(gap)
                         ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f))
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f))
+                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
+                                onLongPress = { pickerSlot = 2 })
+                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f),
+                                onLongPress = { pickerSlot = 3 })
                         }
                     }
                 }
+            }
+
+            pickerSlot?.let { slot ->
+                SlotPickerSheet(
+                    currentPidId = slotPids.getOrElse(slot) { "" },
+                    availablePids = availablePids,
+                    onSelect = { pidId ->
+                        vm.setSlotPid(slot, pidId)
+                        pickerSlot = null
+                    },
+                    onDismiss = { pickerSlot = null }
+                )
             }
         }
     }
@@ -300,22 +337,35 @@ private fun RpmBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SensorCardSlot(
     reading: SensorValue?,
     sparklines: Map<String, List<Float>>,
     useImperial: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
 ) {
     if (reading != null) {
-        SensorCard(reading, sparklines[reading.pid.id] ?: emptyList(), useImperial, modifier.fillMaxSize())
+        SensorCard(reading, sparklines[reading.pid.id] ?: emptyList(), useImperial, onLongPress, modifier.fillMaxSize())
     } else {
-        Card(modifier = modifier.fillMaxSize()) {}
+        Card(
+            modifier = modifier
+                .fillMaxSize()
+                .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() })
+        ) {}
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImperial: Boolean = false, modifier: Modifier = Modifier) {
+fun SensorCard(
+    value: SensorValue,
+    sparkline: List<Float> = emptyList(),
+    useImperial: Boolean = false,
+    onLongPress: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
     val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
         value.value to value.pid.unit
     } else {
@@ -332,6 +382,7 @@ fun SensorCard(value: SensorValue, sparkline: List<Float> = emptyList(), useImpe
     Card(
         modifier = modifier
             .semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" }
+            .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() })
     ) {
         Row(Modifier.fillMaxSize()) {
             Box(
@@ -397,5 +448,39 @@ private fun Sparkline(points: List<Float>, modifier: Modifier = Modifier) {
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         drawPath(path, color, style = Stroke(width = 2.dp.toPx()))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SlotPickerSheet(
+    currentPidId: String,
+    availablePids: List<PidDefinition>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        LazyColumn {
+            items(availablePids, key = { it.id }) { pid ->
+                ListItem(
+                    modifier = Modifier.clickable { onSelect(pid.id) },
+                    headlineContent = { Text("${pid.name} (${pid.unit})") },
+                    trailingContent = if (pid.id == currentPidId) {
+                        {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else null
+                )
+                HorizontalDivider()
+            }
+        }
     }
 }
