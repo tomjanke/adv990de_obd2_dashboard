@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.navigation.Screen
@@ -234,7 +235,10 @@ fun DashboardScreen(
                 SlotPickerSheet(
                     currentPidId = slotPids.getOrElse(slot) { "" },
                     availablePids = availablePids,
-                    readings = state.readings,
+                    readings = buildList {
+                        addAll(state.readings)
+                        if (state.rpmValue > 0f) add(SensorValue(PidRegistry.RPM, state.rpmValue))
+                    },
                     useImperial = useImperial,
                     onSelect = { pidId ->
                         vm.setSlotPid(slot, pidId)
