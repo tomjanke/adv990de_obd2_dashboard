@@ -34,11 +34,8 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.db.entity.AppLogEntity
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-private val timestampFormatter = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
+private val timestampFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +97,10 @@ private fun LogEntryRow(entry: AppLogEntity) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                timestampFormatter.format(Date(entry.timestamp)),
+                java.time.LocalDateTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(entry.timestamp),
+                    java.time.ZoneId.systemDefault()
+                ).format(timestampFormatter),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
