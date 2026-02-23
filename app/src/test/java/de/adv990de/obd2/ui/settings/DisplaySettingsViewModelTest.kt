@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.settings
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_DARK
+import de.adv990de.obd2.data.AppPreferences.Companion.THEME_BLUE
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -114,5 +115,14 @@ class DisplaySettingsViewModelTest {
         job.cancel()
 
         coVerify { prefs.setUseImperial(false) }
+    }
+
+    @Test
+    fun `theme emits THEME_BLUE when prefs returns blue`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(theme = THEME_BLUE))
+        val job = launch { vm.theme.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        assertEquals(THEME_BLUE, vm.theme.value)
     }
 }

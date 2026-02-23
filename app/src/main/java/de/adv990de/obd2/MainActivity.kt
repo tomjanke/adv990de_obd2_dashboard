@@ -8,6 +8,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
+import de.adv990de.obd2.ui.theme.greenColorScheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,12 +34,20 @@ class MainActivity : ComponentActivity() {
             val theme by displayVm.theme.collectAsState()
             val systemDark = isSystemInDarkTheme()
             val darkTheme = when (theme) {
-                AppPreferences.THEME_DARK  -> true
+                AppPreferences.THEME_DARK,
+                AppPreferences.THEME_BLUE,
+                AppPreferences.THEME_AMBER,
+                AppPreferences.THEME_GREEN -> true
                 AppPreferences.THEME_LIGHT -> false
                 else                       -> systemDark
             }
             MaterialTheme(
-                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+                colorScheme = when (theme) {
+                    AppPreferences.THEME_BLUE  -> blueColorScheme
+                    AppPreferences.THEME_AMBER -> amberColorScheme
+                    AppPreferences.THEME_GREEN -> greenColorScheme
+                    else                       -> if (darkTheme) darkColorScheme() else lightColorScheme()
+                },
                 typography = AppTypography
             ) {
                 PermissionGate {

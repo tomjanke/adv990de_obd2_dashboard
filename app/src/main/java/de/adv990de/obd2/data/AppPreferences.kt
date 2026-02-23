@@ -44,6 +44,9 @@ class AppPreferences @Inject constructor(
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT  = "light"
         const val THEME_DARK   = "dark"
+        const val THEME_BLUE  = "blue"
+        const val THEME_AMBER = "amber"
+        const val THEME_GREEN = "green"
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
