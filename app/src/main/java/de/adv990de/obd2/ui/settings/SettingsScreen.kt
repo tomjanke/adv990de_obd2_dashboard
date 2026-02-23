@@ -228,6 +228,11 @@ fun SettingsScreen(
                 ) { Text(stringResource(R.string.settings_logging_pids)) }
                 HorizontalDivider()
                 TextButton(
+                    onClick = { navController.navigate(Screen.AppLogs.route) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.settings_app_logs)) }
+                HorizontalDivider()
+                TextButton(
                     onClick = { navController.navigate(Screen.VehicleInfo.route) },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.settings_vehicle_info)) }
