@@ -288,9 +288,10 @@ private fun RpmBar(
             text = "%.0f rpm".format(rpm),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
+            softWrap = false,
             modifier = Modifier
                 .padding(start = 8.dp)
-                .width(80.dp)
+                .width(90.dp)
         )
         trailingContent?.invoke()
     }
