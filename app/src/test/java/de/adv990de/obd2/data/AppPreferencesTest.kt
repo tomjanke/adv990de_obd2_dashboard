@@ -17,7 +17,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,61 +44,53 @@ class AppPreferencesTest {
         return AppPreferences(dataStore, btAdapter)
     }
 
+    // ── slotPids / setSlotPid ─────────────────────────────────────────────────
+
     @Test
-    fun `selectedPidIds returns defaults when nothing is persisted`() = runTest {
+    fun `slotPids returns DEFAULT_SLOT_PIDS when nothing is stored`() = runTest {
         val prefs = makePreferences()
-        val ids = prefs.selectedPidIds.first()
-        assertEquals(PidRegistry.defaults.map { it.id }.toSet(), ids)
+        val slots = prefs.slotPids.first()
+        // slotPids always pads to exactly 4 entries; DEFAULT_SLOT_PIDS may be shorter
+        // (currently 3). Verify each default entry appears in the matching slot.
+        AppPreferences.DEFAULT_SLOT_PIDS.forEachIndexed { i, id ->
+            assertEquals("slot $i should match DEFAULT_SLOT_PIDS[$i]", id, slots[i])
+        }
     }
 
     @Test
-    fun `togglePid adds a PID that was not selected`() = runTest {
+    fun `setSlotPid updates the correct slot and leaves others unchanged`() = runTest {
         val prefs = makePreferences()
-        prefs.togglePid(PidRegistry.MAF.id)
-        val ids = prefs.selectedPidIds.first()
-        assertTrue(PidRegistry.MAF.id in ids)
+        // Use the PID at index 1 of defaults so it is a known-valid, distinct value.
+        val newPid = PidRegistry.defaults[1].id
+        prefs.setSlotPid(2, newPid)
+
+        val slots = prefs.slotPids.first()
+        assertEquals(AppPreferences.DEFAULT_SLOT_PIDS[0], slots[0])
+        assertEquals(AppPreferences.DEFAULT_SLOT_PIDS[1], slots[1])
+        assertEquals(newPid,                               slots[2])
+        // Slot 3 was never written; it falls back to DEFAULT_SLOT_PIDS[3] if it exists,
+        // otherwise to empty string (DEFAULT_SLOT_PIDS has fewer than 4 entries currently).
+        val expectedSlot3 = AppPreferences.DEFAULT_SLOT_PIDS.getOrElse(3) { "" }
+        assertEquals(expectedSlot3, slots[3])
     }
 
     @Test
-    fun `togglePid removes a PID that was already selected`() = runTest {
+    fun `slotPids always returns exactly 4 entries`() = runTest {
         val prefs = makePreferences()
-        val defaultId = PidRegistry.defaults.first().id
-        prefs.togglePid(defaultId)  // remove
-        val ids = prefs.selectedPidIds.first()
-        assertTrue(defaultId !in ids)
+        // Verify size on a fresh store.
+        assertEquals(4, prefs.slotPids.first().size)
+
+        // And after an update.
+        prefs.setSlotPid(0, PidRegistry.defaults[0].id)
+        assertEquals(4, prefs.slotPids.first().size)
     }
 
-    @Test
-    fun `togglePid twice returns to original state`() = runTest {
-        val prefs = makePreferences()
-        val defaultId = PidRegistry.defaults.first().id
-
-        prefs.togglePid(defaultId)  // remove
-        prefs.togglePid(defaultId)  // add back
-
-        val ids = prefs.selectedPidIds.first()
-        assertTrue(defaultId in ids)
-    }
+    // ── lastDevice ────────────────────────────────────────────────────────────
 
     @Test
     fun `lastDevice is null when nothing is persisted`() = runTest {
         val prefs = makePreferences()
         assertNull(prefs.lastDevice.first())
-    }
-
-    @Test
-    fun `togglePid does not remove the last remaining PID`() = runTest {
-        val prefs = makePreferences()
-        // Remove all default PIDs except one
-        val defaultIds = PidRegistry.defaults.map { it.id }
-        defaultIds.dropLast(1).forEach { prefs.togglePid(it) }
-        val beforeIds = prefs.selectedPidIds.first()
-        assertEquals(1, beforeIds.size)
-
-        // Attempting to remove the last PID must be a no-op
-        prefs.togglePid(beforeIds.first())
-        val afterIds = prefs.selectedPidIds.first()
-        assertEquals(beforeIds, afterIds)
     }
 
     @Test
@@ -116,6 +107,8 @@ class AppPreferencesTest {
         assertEquals(BtType.CLASSIC, last.type)
         assertEquals("AA:BB:CC:DD:EE:FF", last.device.address)
     }
+
+    // ── Display preferences ───────────────────────────────────────────────────
 
     @Test
     fun `useImperial defaults to false`() = runTest {

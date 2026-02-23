@@ -139,11 +139,10 @@ class AppPreferences @Inject constructor(
 
     val slotPids: Flow<List<String>> = dataStore.data.map { prefs ->
         val raw = prefs[KEY_SLOT_PIDS]
-        if (raw.isNullOrBlank()) DEFAULT_SLOT_PIDS
-        else {
-            val parts = raw.split(",").map { it.trim() }
-            List(4) { i -> parts.getOrElse(i) { DEFAULT_SLOT_PIDS.getOrElse(i) { "" } } }
-        }
+        val parts = if (raw.isNullOrBlank()) DEFAULT_SLOT_PIDS
+                    else raw.split(",").map { it.trim() }
+        // Always return exactly 4 entries, padding with empty string if parts is shorter.
+        List(4) { i -> parts.getOrElse(i) { DEFAULT_SLOT_PIDS.getOrElse(i) { "" } } }
     }
 
     suspend fun setSlotPid(slot: Int, pidId: String) {

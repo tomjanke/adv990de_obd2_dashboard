@@ -50,12 +50,12 @@ class DashboardViewModelTest {
     private fun makeSensorValue() = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
 
     private fun makePrefs(
-        selectedIds: Set<String> = AppPreferences.DEFAULT_PIDS,
+        slotIds: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
         logOnlyDtc: Boolean = false,
         logOnlyDiscovered: Boolean = false,
         loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS
     ): AppPreferences = mockk {
-        every { selectedPidIds }        returns flowOf(selectedIds)
+        every { slotPids }              returns flowOf(slotIds)
         every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
         every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
         every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
@@ -224,7 +224,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(selectedIds = customIds)
+        val prefs = makePrefs(slotIds = customIds.toList())
 
         DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
         isConnectedFlow.value = true
@@ -323,7 +323,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = mockk<AppPreferences> {
-            every { selectedPidIds }        returns flowOf(AppPreferences.DEFAULT_PIDS)
+            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
             every { lastDevice }            returns flowOf(persistedDevice)
             every { logOnlyDtcSessions }    returns flowOf(false)
             every { logOnlyDiscoveredPids } returns flowOf(false)
@@ -549,8 +549,8 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        // Select only SPEED — RPM explicitly excluded
-        val prefs = makePrefs(selectedIds = setOf(PidRegistry.SPEED.id))
+        // Slot contains only SPEED — RPM explicitly excluded
+        val prefs = makePrefs(slotIds = listOf(PidRegistry.SPEED.id))
 
         DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
         isConnectedFlow.value = true

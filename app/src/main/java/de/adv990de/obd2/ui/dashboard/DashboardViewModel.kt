@@ -68,19 +68,19 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
 
-    // Placeholder readings shown when not connected: selected PIDs with value 0.
+    // Placeholder readings shown when not connected: slot PIDs with value 0.
     // Keeps the dashboard tiles visible at all times so the user always sees the layout.
-    val placeholderReadings: StateFlow<List<SensorValue>> = appPreferences.selectedPidIds
+    val placeholderReadings: StateFlow<List<SensorValue>> = appPreferences.slotPids
         .map { ids ->
             val pids = ids.mapNotNull { PidRegistry.all[it] }.ifEmpty { PidRegistry.defaults }
             pids.map { pid -> SensorValue(pid, 0f) }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Cached selected IDs — used in the collect lambda to filter display readings
-    // so that RPM (always polled) does not appear as an extra tile when not selected.
-    private val _selectedIdsCache: StateFlow<Set<String>> = appPreferences.selectedPidIds
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_PIDS)
+    // Cached slot IDs — used in the collect lambda to filter display readings
+    // so that RPM (always polled) does not appear as an extra tile when not assigned to a slot.
+    private val _selectedIdsCache: StateFlow<List<String>> = appPreferences.slotPids
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_SLOT_PIDS)
 
     /** RPM blink threshold in rpm. 0 = blinking disabled. */
     val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
@@ -97,21 +97,21 @@ class DashboardViewModel @Inject constructor(
     init {
         // ── Session loop ─────────────────────────────────────────────────────
         viewModelScope.launch {
-            // NOTE: combining selectedPidIds means a PID toggle while connected ends the current
+            // NOTE: combining slotPids means a slot change while connected ends the current
             // session and starts a new one. This is intentional: the DashboardConfig screen is
             // under Settings, so changes are expected to be made before/between drives.
             combine(
                 obdRepository.isConnectedFlow,
-                appPreferences.selectedPidIds
-            ) { connected, selectedIds -> connected to selectedIds }
-                .flatMapLatest { (connected, selectedIds) ->
+                appPreferences.slotPids
+            ) { connected, slotIds -> connected to slotIds }
+                .flatMapLatest { (connected, slotIds) ->
                     if (!connected) {
                         flowOf(emptyList<SensorValue>() to false)
                     } else {
                         flow {
                             // Fall back to defaults if none of the stored IDs exist in PidRegistry
                             // (e.g. after a downgrade or manual DataStore wipe).
-                            val selectedPids = (selectedIds + PidRegistry.RPM.id)
+                            val selectedPids = (slotIds + PidRegistry.RPM.id)
                                 .mapNotNull { PidRegistry.all[it] }
                                 .ifEmpty { PidRegistry.defaults }
 
