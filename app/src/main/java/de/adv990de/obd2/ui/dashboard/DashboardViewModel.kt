@@ -78,23 +78,25 @@ class DashboardViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Cached slot IDs — used in the collect lambda to filter display readings
-    // so that RPM (always polled) does not appear as an extra tile when not assigned to a slot.
-    private val _selectedIdsCache: StateFlow<List<String>> = appPreferences.slotPids
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_SLOT_PIDS)
-
     /** RPM blink threshold in rpm. 0 = blinking disabled. */
     val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** The 4 slot → PID-ID assignments, in slot order. */
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppPreferences.DEFAULT_SLOT_PIDS)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_SLOT_PIDS)
 
-    /** All known PIDs sorted alphabetically by name, for the picker UI. */
-    val availablePids: StateFlow<List<PidDefinition>> = MutableStateFlow(
-        PidRegistry.all.values.sortedBy { it.name }
-    )
+    /** PIDs available in the picker: ECU-supported when connected, full registry otherwise. */
+    val availablePids: StateFlow<List<PidDefinition>> = obdRepository.supportedPidIds
+        .map { supported ->
+            val all = PidRegistry.all.values.sortedBy { it.name }
+            if (supported.isNullOrEmpty()) all else all.filter { it.id in supported }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            PidRegistry.all.values.sortedBy { it.name }
+        )
 
     /** Persists a slot → PID assignment. */
     fun setSlotPid(slot: Int, pidId: String) {
@@ -128,6 +130,7 @@ class DashboardViewModel @Inject constructor(
                             // (e.g. after a downgrade or manual DataStore wipe).
                             val selectedPids = (slotIds + PidRegistry.RPM.id)
                                 .mapNotNull { PidRegistry.all[it] }
+                                .distinctBy { it.id }
                                 .ifEmpty { PidRegistry.defaults }
 
                             // Snapshot recording preferences once per session, not per cycle.
@@ -206,7 +209,7 @@ class DashboardViewModel @Inject constructor(
                         // and the auto-hide feature effectively does nothing.
                         values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
                             ?.let { obdRepository.setMoving(it.value > 0f) }
-                        val displayIds = _selectedIdsCache.value
+                        val displayIds = slotPids.value
                         _uiState.value = _uiState.value.copy(
                             readings = values.filter { sv -> sv.pid.id in displayIds },
                             rpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
