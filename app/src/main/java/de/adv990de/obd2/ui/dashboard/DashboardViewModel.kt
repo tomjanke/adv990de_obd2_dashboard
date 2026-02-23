@@ -40,6 +40,8 @@ import javax.inject.Inject
 // site in the collect lambda (search "DashboardUiState(readings").
 private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
 
+private fun SensorValue.isPlausible() = value.isFinite() && value > -30f
+
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
     val isConnected: Boolean = false,
@@ -51,7 +53,9 @@ data class DashboardUiState(
     // messages from the BT stack) use DynamicString.
     val error: UiText? = null,
     val sparklines: Map<String, List<Float>> = emptyMap(),
-    val rpmValue: Float = 0f
+    val rpmValue: Float = 0f,
+    // Öltemp bevorzugt, Fallback Kühlmitteltemp; null = kein plausibler Wert verfügbar
+    val engineTempC: Float? = null
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -83,6 +87,10 @@ class DashboardViewModel @Inject constructor(
     /** RPM blink threshold in rpm. 0 = blinking disabled. */
     val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** When true, the blink threshold is scaled down at low engine temperatures. */
+    val rpmDynamicThreshold: StateFlow<Boolean> = appPreferences.rpmDynamicThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** The 4 slot → PID-ID assignments, in slot order. */
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
@@ -130,7 +138,15 @@ class DashboardViewModel @Inject constructor(
                         flow {
                             // Fall back to defaults if none of the stored IDs exist in PidRegistry
                             // (e.g. after a downgrade or manual DataStore wipe).
-                            val selectedPids = (slotIds + PidRegistry.RPM.id)
+                            val dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first()
+                            val selectedPids = buildList {
+                                addAll(slotIds)
+                                add(PidRegistry.RPM.id)
+                                if (dynamicThresholdEnabled) {
+                                    add(PidRegistry.ENGINE_OIL_TEMP.id)
+                                    add(PidRegistry.COOLANT_TEMP.id)
+                                }
+                            }
                                 .mapNotNull { PidRegistry.all[it] }
                                 .distinctBy { it.id }
                                 .ifEmpty { PidRegistry.defaults }
@@ -217,10 +233,15 @@ class DashboardViewModel @Inject constructor(
                         values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
                             ?.let { obdRepository.setMoving(it.value > 0f) }
                         val displayIds = slotPids.value.toSet()
+                        val engineTempC = if (rpmDynamicThreshold.value) {
+                            values.firstOrNull { it.pid.id == PidRegistry.ENGINE_OIL_TEMP.id && it.isPlausible() }?.value
+                                ?: values.firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }?.value
+                        } else null
                         _uiState.value = _uiState.value.copy(
                             readings = values.filter { sv -> sv.pid.id in displayIds },
                             rpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
                                            ?.value ?: _uiState.value.rpmValue,
+                            engineTempC = engineTempC,
                             isConnected = true,
                             isReconnecting = false,
                             error = null,

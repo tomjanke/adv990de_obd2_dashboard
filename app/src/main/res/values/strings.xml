@@ -35,6 +35,8 @@
     <string name="dashboard_config_connected_banner">Connection active – changes will restart the current session.</string>
     <string name="dashboard_rpm_threshold_label">RPM Blink Threshold</string>
     <string name="dashboard_rpm_threshold_disabled">Disabled</string>
+    <string name="dashboard_rpm_dynamic_label">Dynamic Threshold Scaling</string>
+    <string name="dashboard_rpm_dynamic_desc">Scales blink threshold with engine temperature</string>
 
     <!-- DTC screen -->
     <string name="dtc_title">Fault Codes (DTCs)</string>

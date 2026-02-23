@@ -37,6 +37,7 @@ class DashboardConfigViewModelTest {
     private fun makeVm(
         prefs: AppPreferences = mockk {
             every { rpmBlinkThreshold } returns flowOf(0)
+            every { rpmDynamicThreshold } returns flowOf(false)
         },
         obdRepo: ObdRepository = mockk {
             every { isConnectedFlow } returns MutableStateFlow(false)
@@ -47,6 +48,7 @@ class DashboardConfigViewModelTest {
     fun `rpmBlinkThreshold reflects AppPreferences flow`() = runTest {
         val prefs = mockk<AppPreferences> {
             every { rpmBlinkThreshold } returns flowOf(4000)
+            every { rpmDynamicThreshold } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -65,12 +67,44 @@ class DashboardConfigViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { setRpmBlinkThreshold(any()) } just Runs
             every { rpmBlinkThreshold } returns flowOf(0)
+            every { rpmDynamicThreshold } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
         vm.setRpmBlinkThreshold(6000)
         advanceUntilIdle()
 
         coVerify { prefs.setRpmBlinkThreshold(6000) }
+    }
+
+    @Test
+    fun `rpmDynamicThreshold reflects AppPreferences flow`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            every { rpmBlinkThreshold } returns flowOf(0)
+            every { rpmDynamicThreshold } returns flowOf(true)
+        }
+        val vm = makeVm(prefs = prefs)
+
+        val collected = mutableListOf<Boolean>()
+        val job = launch { vm.rpmDynamicThreshold.collect { collected.add(it) } }
+        advanceUntilIdle()
+        job.cancel()
+
+        // stateIn emits the initial default (false) then the upstream value (true)
+        assertTrue("expected ≥ 2 emissions, got ${collected.size}", collected.size >= 2)
+        assertEquals(true, collected.last())
+    }
+
+    @Test
+    fun `setRpmDynamicThreshold delegates to AppPreferences`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            every { rpmBlinkThreshold } returns flowOf(0)
+            every { rpmDynamicThreshold } returns flowOf(false)
+            coEvery { setRpmDynamicThreshold(any()) } just Runs
+        }
+        val vm = makeVm(prefs = prefs)
+        vm.setRpmDynamicThreshold(true)
+        advanceUntilIdle()
+        coVerify { prefs.setRpmDynamicThreshold(true) }
     }
 
     @Test

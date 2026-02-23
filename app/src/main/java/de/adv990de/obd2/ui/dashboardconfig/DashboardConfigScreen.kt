@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ fun DashboardConfigScreen(
     vm: DashboardConfigViewModel = hiltViewModel()
 ) {
     val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
+    val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsState()
 
     Scaffold(
         topBar = {
@@ -67,6 +69,19 @@ fun DashboardConfigScreen(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
                 HorizontalDivider()
+                if (localThreshold > 0) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.dashboard_rpm_dynamic_label)) },
+                        supportingContent = { Text(stringResource(R.string.dashboard_rpm_dynamic_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = rpmDynamicThreshold,
+                                onCheckedChange = { vm.setRpmDynamicThreshold(it) }
+                            )
+                        }
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }
