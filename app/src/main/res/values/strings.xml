@@ -111,4 +111,9 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <!-- App Logs screen -->
+    <string name="settings_app_logs">App Logs</string>
+    <string name="app_logs_title">App Logs</string>
+    <string name="app_logs_empty">No logs yet</string>
+    <string name="app_logs_clear">Clear logs</string>
 </resources>
