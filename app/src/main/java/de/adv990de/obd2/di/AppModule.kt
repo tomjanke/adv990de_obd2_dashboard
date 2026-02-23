@@ -15,6 +15,8 @@ import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
+import de.adv990de.obd2.data.db.AppLogDao
+import de.adv990de.obd2.data.db.MIGRATION_1_2
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
 import javax.inject.Singleton
@@ -26,9 +28,7 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
-            // TODO: Write a named Migration(from, to) before any schema version bump.
-            // Do NOT restore fallbackToDestructiveMigration() — it would silently wipe all user
-            // drive history without warning when the schema version in AppDatabase is incremented.
+            .addMigrations(MIGRATION_1_2)
             .build()
 
     @Provides @Singleton
@@ -49,4 +49,7 @@ object AppModule {
 
     @Provides @Singleton
     fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> = ctx.dataStore
+
+    @Provides @Singleton
+    fun provideAppLogDao(db: AppDatabase): AppLogDao = db.appLogDao()
 }
