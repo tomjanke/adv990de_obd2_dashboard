@@ -51,7 +51,7 @@ fun BottomNav(
         exit  = slideOutVertically { it }
     ) {
         NavigationBar(
-            modifier = Modifier.navigationBarsPadding().height(56.dp),
+            modifier = Modifier.height(56.dp).navigationBarsPadding(),
             windowInsets = WindowInsets(0)
         ) {
             navItems.forEach { (screen, icon, labelRes) ->

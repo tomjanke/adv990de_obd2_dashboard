@@ -209,7 +209,7 @@ class DashboardViewModel @Inject constructor(
                         // and the auto-hide feature effectively does nothing.
                         values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
                             ?.let { obdRepository.setMoving(it.value > 0f) }
-                        val displayIds = slotPids.value
+                        val displayIds = slotPids.value.toSet()
                         _uiState.value = _uiState.value.copy(
                             readings = values.filter { sv -> sv.pid.id in displayIds },
                             rpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
