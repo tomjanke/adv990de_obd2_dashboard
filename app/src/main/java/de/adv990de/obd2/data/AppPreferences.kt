@@ -15,6 +15,7 @@ import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.PidRegistry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -155,7 +156,7 @@ class AppPreferences @Inject constructor(
                     else raw.split(",").map { it.trim() }
         // Always return exactly 4 entries, padding with empty string if parts is shorter.
         List(4) { i -> parts.getOrElse(i) { DEFAULT_SLOT_PIDS.getOrElse(i) { "" } } }
-    }
+    }.distinctUntilChanged() // DataStore emits on every write; suppress list-equal emissions
 
     suspend fun setSlotPid(slot: Int, pidId: String) {
         require(slot in 0..3) { "slot must be 0..3" }
