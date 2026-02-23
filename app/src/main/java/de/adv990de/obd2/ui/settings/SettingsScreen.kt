@@ -1,6 +1,9 @@
 package de.adv990de.obd2.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
@@ -33,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -191,27 +197,75 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
             item {
-                val themeOptions = listOf(AppPreferences.THEME_SYSTEM, AppPreferences.THEME_LIGHT, AppPreferences.THEME_DARK)
-                val themeLabels = listOf(
-                    stringResource(R.string.settings_theme_system),
-                    stringResource(R.string.settings_theme_light),
-                    stringResource(R.string.settings_theme_dark)
+                val isColorTheme = theme in listOf(
+                    AppPreferences.THEME_BLUE, AppPreferences.THEME_AMBER, AppPreferences.THEME_GREEN
                 )
+
+                // ── Color scheme row ─────────────────────────────────────────────────
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_theme)) },
+                    headlineContent = { Text(stringResource(R.string.settings_color_scheme)) },
                     trailingContent = {
                         SingleChoiceSegmentedButtonRow {
-                            themeOptions.forEachIndexed { index, option ->
-                                SegmentedButton(
-                                    selected = theme == option,
-                                    onClick = { displayVm.setTheme(option) },
-                                    shape = SegmentedButtonDefaults.itemShape(index, themeOptions.size),
-                                    label = { Text(themeLabels[index]) }
-                                )
-                            }
+                            SegmentedButton(
+                                selected = !isColorTheme,
+                                onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
+                                shape = SegmentedButtonDefaults.itemShape(0, 4),
+                                label = { Text(stringResource(R.string.settings_theme_default)) }
+                            )
+                            SegmentedButton(
+                                selected = theme == AppPreferences.THEME_BLUE,
+                                onClick = { displayVm.setTheme(AppPreferences.THEME_BLUE) },
+                                shape = SegmentedButtonDefaults.itemShape(1, 4),
+                                icon = { Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape)) },
+                                label = { Text(stringResource(R.string.settings_theme_blue)) }
+                            )
+                            SegmentedButton(
+                                selected = theme == AppPreferences.THEME_AMBER,
+                                onClick = { displayVm.setTheme(AppPreferences.THEME_AMBER) },
+                                shape = SegmentedButtonDefaults.itemShape(2, 4),
+                                icon = { Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape)) },
+                                label = { Text(stringResource(R.string.settings_theme_amber)) }
+                            )
+                            SegmentedButton(
+                                selected = theme == AppPreferences.THEME_GREEN,
+                                onClick = { displayVm.setTheme(AppPreferences.THEME_GREEN) },
+                                shape = SegmentedButtonDefaults.itemShape(3, 4),
+                                icon = { Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape)) },
+                                label = { Text(stringResource(R.string.settings_theme_green)) }
+                            )
                         }
                     }
                 )
+
+                // ── Brightness row (only when Default is selected) ───────────────────
+                AnimatedVisibility(visible = !isColorTheme) {
+                    val brightnessOptions = listOf(
+                        AppPreferences.THEME_SYSTEM,
+                        AppPreferences.THEME_LIGHT,
+                        AppPreferences.THEME_DARK
+                    )
+                    val brightnessLabels = listOf(
+                        stringResource(R.string.settings_theme_system),
+                        stringResource(R.string.settings_theme_light),
+                        stringResource(R.string.settings_theme_dark)
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_brightness)) },
+                        trailingContent = {
+                            SingleChoiceSegmentedButtonRow {
+                                brightnessOptions.forEachIndexed { index, option ->
+                                    SegmentedButton(
+                                        selected = theme == option,
+                                        onClick = { displayVm.setTheme(option) },
+                                        shape = SegmentedButtonDefaults.itemShape(index, brightnessOptions.size),
+                                        label = { Text(brightnessLabels[index]) }
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+
                 HorizontalDivider()
             }
 
