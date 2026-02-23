@@ -51,6 +51,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
@@ -273,7 +274,7 @@ private fun RpmBar(
     }
 
     val isAlert = threshold > 0 && rpm > threshold
-    val fillColor = if (isAlert) MaterialTheme.colorScheme.error
+    val fillColor = if (isAlert) Color(0xFFD32F2F)
                     else MaterialTheme.colorScheme.primary
     val fraction = (rpm / 10000f).coerceIn(0f, 1f)
 
