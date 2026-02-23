@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.R
 import de.adv990de.obd2.crash.CrashReporter
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.ObdErrorMapper
@@ -63,7 +65,8 @@ class DashboardViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val appPreferences: AppPreferences,
     private val crashReporter: CrashReporter,
-    private val bluetoothAdapter: BluetoothAdapter
+    private val bluetoothAdapter: BluetoothAdapter,
+    private val appLogRepository: AppLogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -244,6 +247,7 @@ class DashboardViewModel @Inject constructor(
                 if (inMemoryDevice == null && coldLaunchDevice == null) {
                     // No device anywhere — abort immediately instead of burning
                     // all 5 delayed attempts (93 seconds of pointless waiting).
+                    appLogRepository.log(LogLevel.WARN, "No device configured")
                     _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_no_device))
                     return@collect
                 }
@@ -256,8 +260,10 @@ class DashboardViewModel @Inject constructor(
                         reconnectAttempt = attempt + 1,
                         reconnectTotal = RECONNECT_DELAYS.size
                     )
+                    appLogRepository.log(LogLevel.INFO, "Reconnect attempt ${attempt + 1}/${RECONNECT_DELAYS.size}")
                     delay(delayMs)
                     if (!bluetoothAdapter.isEnabled) {
+                        appLogRepository.log(LogLevel.WARN, "Bluetooth disabled")
                         _uiState.value = DashboardUiState.disconnected(
                             UiText.StringResource(R.string.obd_err_bluetooth_disabled)
                         )
@@ -274,6 +280,8 @@ class DashboardViewModel @Inject constructor(
                         // Clear reconnecting state immediately so the spinner stops as soon as
                         // the connection is confirmed. The session loop will overwrite with real
                         // readings once the first livePids emission arrives.
+                        val reconnectedName = inMemoryDevice?.name ?: coldLaunchDevice?.name ?: "device"
+                        appLogRepository.log(LogLevel.INFO, "Connected to $reconnectedName")
                         _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0)
                         return@collect  // isConnectedFlow emits true → flatMapLatest restarts
                     } catch (ce: CancellationException) {
@@ -282,6 +290,7 @@ class DashboardViewModel @Inject constructor(
                         // try next attempt
                     }
                 }
+                appLogRepository.log(LogLevel.ERROR, "Connection failed after ${RECONNECT_DELAYS.size} attempts")
                 _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_reconnect_fail))
             }
         }
@@ -295,12 +304,15 @@ class DashboardViewModel @Inject constructor(
             if (obdRepository.isConnectedFlow.value) return@launch
             val savedDevice = appPreferences.lastDevice.first() ?: return@launch
             _uiState.value = _uiState.value.copy(isReconnecting = true, reconnectAttempt = 0)
+            appLogRepository.log(LogLevel.INFO, "Connecting to ${savedDevice.name}…")
             try {
                 obdRepository.connect(savedDevice)
+                appLogRepository.log(LogLevel.INFO, "Connected to ${savedDevice.name}")
                 // Session loop resets isReconnecting when first readings arrive.
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")
                 startReconnecting()
             }
         }

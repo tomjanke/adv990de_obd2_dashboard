@@ -37,6 +37,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import de.adv990de.obd2.data.AppLogRepository
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -69,6 +70,8 @@ class DashboardViewModelTest {
         every { isEnabled } returns true
     }
 
+    private fun makeAppLogRepository(): AppLogRepository = mockk(relaxed = true)
+
     @Test
     fun `session starts when connected and readings are written`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
@@ -85,7 +88,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -109,7 +112,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         advanceUntilIdle()
         isConnectedFlow.value = false
         advanceUntilIdle()
@@ -134,7 +137,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -158,7 +161,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -181,7 +184,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -207,7 +210,7 @@ class DashboardViewModelTest {
             coEvery { startSession(any()) } throws Exception("DB failure")
             coEvery { endSession(any()) } just Runs
         }
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -234,7 +237,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs(slotIds = customIds.toList())
 
-        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -268,7 +271,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceTimeBy(1)
 
@@ -300,7 +303,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs()
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         // Advance 1ms: runs pending work and starts the reconnect loop up to the first
         // delay(3_000L), but does not advance past it.
@@ -342,7 +345,7 @@ class DashboardViewModelTest {
             every { rpmBlinkThreshold }     returns flowOf(0)
         }
 
-        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         // Advance past the first 3-second delay; cold-launch fallback should kick in
         advanceTimeBy(3_001)
@@ -372,7 +375,7 @@ class DashboardViewModelTest {
         }
         val prefs = makePrefs()
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         // Advances through all 5 delays (3+6+12+24+48 = 93 seconds virtual time)
         advanceUntilIdle()
@@ -405,7 +408,7 @@ class DashboardViewModelTest {
             every { isEnabled } returns false
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), btAdapter)
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), btAdapter, makeAppLogRepository())
         isConnectedFlow.value = true
         // Advance past the first 3-second delay so the BT-disabled check fires
         advanceTimeBy(3_001)
@@ -433,7 +436,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -458,7 +461,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -483,7 +486,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -512,7 +515,7 @@ class DashboardViewModelTest {
         DashboardViewModel(
             obdRepo, sessionRepo,
             makePrefs(logOnlyDtc = true),
-            makeCrashReporter(), makeBluetoothAdapter()
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository()
         )
         isConnectedFlow.value = true
         advanceUntilIdle()
@@ -542,7 +545,7 @@ class DashboardViewModelTest {
         DashboardViewModel(
             obdRepo, sessionRepo,
             makePrefs(logOnlyDtc = true),
-            makeCrashReporter(), makeBluetoothAdapter()
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository()
         )
         isConnectedFlow.value = true
         advanceUntilIdle()
@@ -570,7 +573,7 @@ class DashboardViewModelTest {
         // Slot contains only SPEED — RPM explicitly excluded
         val prefs = makePrefs(slotIds = listOf(PidRegistry.SPEED.id))
 
-        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -605,7 +608,7 @@ class DashboardViewModelTest {
         DashboardViewModel(
             obdRepo, sessionRepo,
             makePrefs(loggedPidIds = setOf(allowedId)),
-            makeCrashReporter(), makeBluetoothAdapter()
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository()
         )
         isConnectedFlow.value = true
         advanceUntilIdle()
@@ -638,7 +641,7 @@ class DashboardViewModelTest {
             every { lastDevice }            returns flowOf(null)
             coEvery { setSlotPid(any(), any()) } just Runs
         }
-        val vm = DashboardViewModel(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         advanceUntilIdle()
 
         vm.setSlotPid(2, PidRegistry.MAF.id)
@@ -651,7 +654,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `auto-connect on startup triggers reconnect loop when connect fails`() = runTest {
-        val savedDevice = mockk<ScannedDevice>()
+        val savedDevice = mockk<ScannedDevice> { every { name } returns "TestAdapter" }
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
             every { supportedPidIds } returns MutableStateFlow(null)
@@ -677,7 +680,7 @@ class DashboardViewModelTest {
             every { rpmBlinkThreshold }     returns flowOf(0)
         }
 
-        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter())
+        val vm = DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
         // advanceTimeBy(1) runs all pending coroutines up to the first delay.
         // advanceUntilIdle() would exhaust the entire reconnect backoff (93 s virtual),
         // ending with DashboardUiState.disconnected() → isReconnecting = false.

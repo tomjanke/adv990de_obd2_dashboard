@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +33,8 @@ private const val TAG = "SettingsViewModel"
 class SettingsViewModel @Inject constructor(
     private val scanner: BluetoothDeviceScanner,
     private val obdRepository: ObdRepository,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val appLogRepository: AppLogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -88,12 +91,13 @@ class SettingsViewModel @Inject constructor(
     fun connect(device: ScannedDevice) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isConnecting = true, error = null)
+            appLogRepository.log(LogLevel.INFO, "Connecting to ${device.name}…")
             try {
                 obdRepository.connect(device)
-                // Best-effort: DataStore I/O failure must not poison the connected state.
                 try { appPreferences.persistDevice(device) } catch (e: Exception) {
                     Log.w(TAG, "persistDevice failed — last-device highlight and auto-reconnect will not work", e)
                 }
+                appLogRepository.log(LogLevel.INFO, "Connected to ${device.name}")
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
                     connectedDevice = device.name,
@@ -101,6 +105,7 @@ class SettingsViewModel @Inject constructor(
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")
                 _uiState.value = _uiState.value.copy(isConnecting = false, error = e.message)
             }
         }

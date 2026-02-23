@@ -28,6 +28,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import de.adv990de.obd2.data.AppLogRepository
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -47,8 +48,9 @@ class SettingsViewModelTest {
         prefs: AppPreferences = mockk {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
-        }
-    ) = SettingsViewModel(mockk<BluetoothDeviceScanner>(), obdRepo, prefs)
+        },
+        appLogRepository: AppLogRepository = mockk(relaxed = true)
+    ) = SettingsViewModel(mockk<BluetoothDeviceScanner>(), obdRepo, prefs, appLogRepository)
 
     @Test
     fun `connect persists device on success`() = runTest {
