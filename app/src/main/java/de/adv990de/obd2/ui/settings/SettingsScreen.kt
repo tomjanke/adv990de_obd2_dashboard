@@ -202,40 +202,48 @@ fun SettingsScreen(
                 )
 
                 // ── Color scheme row ─────────────────────────────────────────────────
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_color_scheme)) },
-                    trailingContent = {
-                        SingleChoiceSegmentedButtonRow {
-                            SegmentedButton(
-                                selected = !isColorTheme,
-                                onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
-                                shape = SegmentedButtonDefaults.itemShape(0, 4),
-                                label = { Text(stringResource(R.string.settings_theme_default)) }
-                            )
-                            SegmentedButton(
-                                selected = theme == AppPreferences.THEME_BLUE,
-                                onClick = { displayVm.setTheme(AppPreferences.THEME_BLUE) },
-                                shape = SegmentedButtonDefaults.itemShape(1, 4),
-                                icon = { Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape)) },
-                                label = { Text(stringResource(R.string.settings_theme_blue)) }
-                            )
-                            SegmentedButton(
-                                selected = theme == AppPreferences.THEME_AMBER,
-                                onClick = { displayVm.setTheme(AppPreferences.THEME_AMBER) },
-                                shape = SegmentedButtonDefaults.itemShape(2, 4),
-                                icon = { Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape)) },
-                                label = { Text(stringResource(R.string.settings_theme_amber)) }
-                            )
-                            SegmentedButton(
-                                selected = theme == AppPreferences.THEME_GREEN,
-                                onClick = { displayVm.setTheme(AppPreferences.THEME_GREEN) },
-                                shape = SegmentedButtonDefaults.itemShape(3, 4),
-                                icon = { Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape)) },
-                                label = { Text(stringResource(R.string.settings_theme_green)) }
-                            )
-                        }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_color_scheme),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = !isColorTheme,
+                            onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
+                            shape = SegmentedButtonDefaults.itemShape(0, 4),
+                            icon = {},
+                            label = { Text(stringResource(R.string.settings_theme_default)) }
+                        )
+                        SegmentedButton(
+                            selected = theme == AppPreferences.THEME_BLUE,
+                            onClick = { displayVm.setTheme(AppPreferences.THEME_BLUE) },
+                            shape = SegmentedButtonDefaults.itemShape(1, 4),
+                            icon = { Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape)) },
+                            label = { Text(stringResource(R.string.settings_theme_blue)) }
+                        )
+                        SegmentedButton(
+                            selected = theme == AppPreferences.THEME_AMBER,
+                            onClick = { displayVm.setTheme(AppPreferences.THEME_AMBER) },
+                            shape = SegmentedButtonDefaults.itemShape(2, 4),
+                            icon = { Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape)) },
+                            label = { Text(stringResource(R.string.settings_theme_amber)) }
+                        )
+                        SegmentedButton(
+                            selected = theme == AppPreferences.THEME_GREEN,
+                            onClick = { displayVm.setTheme(AppPreferences.THEME_GREEN) },
+                            shape = SegmentedButtonDefaults.itemShape(3, 4),
+                            icon = { Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape)) },
+                            label = { Text(stringResource(R.string.settings_theme_green)) }
+                        )
                     }
-                )
+                }
 
                 // ── Brightness row (only when Default is selected) ───────────────────
                 AnimatedVisibility(visible = !isColorTheme) {
@@ -249,21 +257,29 @@ fun SettingsScreen(
                         stringResource(R.string.settings_theme_light),
                         stringResource(R.string.settings_theme_dark)
                     )
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.settings_brightness)) },
-                        trailingContent = {
-                            SingleChoiceSegmentedButtonRow {
-                                brightnessOptions.forEachIndexed { index, option ->
-                                    SegmentedButton(
-                                        selected = theme == option,
-                                        onClick = { displayVm.setTheme(option) },
-                                        shape = SegmentedButtonDefaults.itemShape(index, brightnessOptions.size),
-                                        label = { Text(brightnessLabels[index]) }
-                                    )
-                                }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_brightness),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            brightnessOptions.forEachIndexed { index, option ->
+                                SegmentedButton(
+                                    selected = theme == option,
+                                    onClick = { displayVm.setTheme(option) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, brightnessOptions.size),
+                                    icon = {},
+                                    label = { Text(brightnessLabels[index]) }
+                                )
                             }
                         }
-                    )
+                    }
                 }
 
                 HorizontalDivider()
