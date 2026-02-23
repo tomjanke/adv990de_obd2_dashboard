@@ -83,6 +83,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns "TESTVIN123"
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 42L
@@ -107,6 +108,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -132,6 +134,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(reading))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -156,6 +159,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } throws Exception("VIN not supported")
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(null) } returns 1L
@@ -207,6 +211,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } throws Exception("DB failure")
@@ -231,6 +236,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -432,6 +438,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns listOf(dtc)
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -458,6 +465,7 @@ class DashboardViewModelTest {
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(speedReading))
             every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -483,6 +491,7 @@ class DashboardViewModelTest {
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(speedReading))
             every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -508,6 +517,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()  // no DTCs
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 99L
@@ -538,6 +548,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns listOf(dtc)  // has DTCs
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 77L
@@ -568,6 +579,7 @@ class DashboardViewModelTest {
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
             every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -602,6 +614,7 @@ class DashboardViewModelTest {
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(allowedReading, blockedReading))
             every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 55L

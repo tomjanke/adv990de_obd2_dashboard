@@ -222,6 +222,7 @@ class DashboardViewModel @Inject constructor(
                         // just clear stale readings.
                         _uiState.value = _uiState.value.copy(isConnected = false, readings = emptyList())
                     } else if (connected) {
+                        obdRepository.updateLatestReadings(values)
                         values.forEach { sv ->
                             val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(60) }
                             if (deque.size >= 60) deque.removeFirst()

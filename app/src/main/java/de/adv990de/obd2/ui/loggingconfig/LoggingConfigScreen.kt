@@ -28,14 +28,19 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.dashboard.convertUnit
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoggingConfigScreen(
     navController: NavController,
-    vm: LoggingConfigViewModel = hiltViewModel()
+    vm: LoggingConfigViewModel = hiltViewModel(),
+    displayVm: DisplaySettingsViewModel = hiltViewModel()
 ) {
     val loggedPidIds by vm.loggedPidIds.collectAsState()
+    val latestReadings by vm.latestReadings.collectAsState()
+    val useImperial by displayVm.useImperial.collectAsState()
 
     Scaffold(
         topBar = {
@@ -79,9 +84,18 @@ fun LoggingConfigScreen(
                 HorizontalDivider()
             }
             items(vm.allPids, key = { it.id }) { pid ->
+                val reading = latestReadings.firstOrNull { it.pid.id == pid.id }
+                val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
+                    "${pid.name}: -- (${pid.unit})"
+                } else {
+                    val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
+                    val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
+                                    else "%.0f".format(convertedValue)
+                    "${pid.name}: $formatted ($displayUnit)"
+                }
                 ListItem(
                     modifier = Modifier.clickable { vm.togglePid(pid.id) },
-                    headlineContent = { Text("${pid.name} (${pid.unit})") },
+                    headlineContent = { Text(label) },
                     leadingContent = {
                         // onCheckedChange=null: the row-level click handler owns the toggle.
                         Checkbox(

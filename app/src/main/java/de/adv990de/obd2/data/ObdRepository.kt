@@ -56,6 +56,14 @@ class ObdRepository @Inject constructor(
         _isMoving.value = moving
     }
 
+    /** Last complete poll cycle values — updated by DashboardViewModel, cleared on disconnect. */
+    private val _latestReadings = MutableStateFlow<List<SensorValue>>(emptyList())
+    val latestReadings: StateFlow<List<SensorValue>> = _latestReadings.asStateFlow()
+
+    fun updateLatestReadings(readings: List<SensorValue>) {
+        _latestReadings.value = readings
+    }
+
     suspend fun connect(device: ScannedDevice) = connectMutex.withLock {
         connectLocked(device)
     }
@@ -64,6 +72,7 @@ class ObdRepository @Inject constructor(
         _isConnected.value = false
         _isMoving.value = false
         _supportedPidIds.value = null
+        _latestReadings.value = emptyList()
         connection?.close()
         connection = null
         elm = null
