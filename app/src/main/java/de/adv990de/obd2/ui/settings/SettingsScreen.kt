@@ -10,11 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
@@ -218,7 +219,7 @@ fun SettingsScreen(
                             selected = !isColorTheme,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
                             shape = SegmentedButtonDefaults.itemShape(0, 4),
-                            label = { Text(stringResource(R.string.settings_theme_default)) }
+                            label = { Text(stringResource(R.string.settings_theme_default), softWrap = false) }
                         )
                         SegmentedButton(
                             selected = theme == AppPreferences.THEME_BLUE,
@@ -226,9 +227,9 @@ fun SettingsScreen(
                             shape = SegmentedButtonDefaults.itemShape(1, 4),
                             icon = {},
                             label = {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape))
-                                    Text(stringResource(R.string.settings_theme_blue))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFF38BDF8), RoundedCornerShape(1.dp)))
+                                    Text(stringResource(R.string.settings_theme_blue), softWrap = false)
                                 }
                             }
                         )
@@ -238,9 +239,9 @@ fun SettingsScreen(
                             shape = SegmentedButtonDefaults.itemShape(2, 4),
                             icon = {},
                             label = {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape))
-                                    Text(stringResource(R.string.settings_theme_amber))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFFFB923C), RoundedCornerShape(1.dp)))
+                                    Text(stringResource(R.string.settings_theme_amber), softWrap = false)
                                 }
                             }
                         )
@@ -250,9 +251,9 @@ fun SettingsScreen(
                             shape = SegmentedButtonDefaults.itemShape(3, 4),
                             icon = {},
                             label = {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape))
-                                    Text(stringResource(R.string.settings_theme_green))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFF4ADE80), RoundedCornerShape(1.dp)))
+                                    Text(stringResource(R.string.settings_theme_green), softWrap = false)
                                 }
                             }
                         )
