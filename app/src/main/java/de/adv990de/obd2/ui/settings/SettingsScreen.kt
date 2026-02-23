@@ -218,29 +218,43 @@ fun SettingsScreen(
                             selected = !isColorTheme,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_SYSTEM) },
                             shape = SegmentedButtonDefaults.itemShape(0, 4),
-                            icon = {},
                             label = { Text(stringResource(R.string.settings_theme_default)) }
                         )
                         SegmentedButton(
                             selected = theme == AppPreferences.THEME_BLUE,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_BLUE) },
                             shape = SegmentedButtonDefaults.itemShape(1, 4),
-                            icon = { Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape)) },
-                            label = { Text(stringResource(R.string.settings_theme_blue)) }
+                            icon = {},
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(Modifier.size(8.dp).background(Color(0xFF38BDF8), CircleShape))
+                                    Text(stringResource(R.string.settings_theme_blue))
+                                }
+                            }
                         )
                         SegmentedButton(
                             selected = theme == AppPreferences.THEME_AMBER,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_AMBER) },
                             shape = SegmentedButtonDefaults.itemShape(2, 4),
-                            icon = { Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape)) },
-                            label = { Text(stringResource(R.string.settings_theme_amber)) }
+                            icon = {},
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(Modifier.size(8.dp).background(Color(0xFFFB923C), CircleShape))
+                                    Text(stringResource(R.string.settings_theme_amber))
+                                }
+                            }
                         )
                         SegmentedButton(
                             selected = theme == AppPreferences.THEME_GREEN,
                             onClick = { displayVm.setTheme(AppPreferences.THEME_GREEN) },
                             shape = SegmentedButtonDefaults.itemShape(3, 4),
-                            icon = { Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape)) },
-                            label = { Text(stringResource(R.string.settings_theme_green)) }
+                            icon = {},
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(Modifier.size(8.dp).background(Color(0xFF4ADE80), CircleShape))
+                                    Text(stringResource(R.string.settings_theme_green))
+                                }
+                            }
                         )
                     }
                 }
