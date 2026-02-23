@@ -107,7 +107,6 @@
     <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary</string>
     <string name="settings_imperial_units">Imperial units</string>
     <string name="settings_imperial_units_desc">Speed in mph, temperature in °F</string>
-    <string name="settings_theme">Appearance</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
