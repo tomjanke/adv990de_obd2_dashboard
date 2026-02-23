@@ -3,9 +3,11 @@ package de.adv990de.obd2.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -50,25 +52,28 @@ fun BottomNav(
         enter = slideInVertically { it },
         exit  = slideOutVertically { it }
     ) {
-        NavigationBar(
-            modifier = Modifier.navigationBarsPadding().height(56.dp),
-            windowInsets = WindowInsets(0)
-        ) {
-            navItems.forEach { (screen, icon, labelRes) ->
-                val label = stringResource(labelRes)
-                NavigationBarItem(
-                    selected = currentRoute == screen.route,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(icon, contentDescription = label) },
-                    label = { Text(label) },
-                    alwaysShowLabel = true
-                )
+        Column {
+            HorizontalDivider()
+            NavigationBar(
+                modifier = Modifier.navigationBarsPadding().height(64.dp),
+                windowInsets = WindowInsets(0)
+            ) {
+                navItems.forEach { (screen, icon, labelRes) ->
+                    val label = stringResource(labelRes)
+                    NavigationBarItem(
+                        selected = currentRoute == screen.route,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(icon, contentDescription = label) },
+                        label = { Text(label) },
+                        alwaysShowLabel = true
+                    )
+                }
             }
         }
     }
