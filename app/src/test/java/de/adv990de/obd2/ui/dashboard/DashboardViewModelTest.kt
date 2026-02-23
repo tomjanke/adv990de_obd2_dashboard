@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.crash.CrashReporter
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -37,7 +38,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import de.adv990de.obd2.data.AppLogRepository
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)

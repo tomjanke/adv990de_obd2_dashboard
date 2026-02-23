@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.coEvery
@@ -28,7 +29,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import de.adv990de.obd2.data.AppLogRepository
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
