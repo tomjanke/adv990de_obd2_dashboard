@@ -22,6 +22,11 @@ class ElmController(
     // interleaving writes and reads on the same stream pair.
     private val commandMutex = Mutex()
 
+    // Buffer for batch reading
+    private val readBuffer = ByteArray(64)
+    private var bufferPos = 0
+    private var bufferEnd = 0
+
     /**
      * Initializes the ELM327 adapter with standard AT commands.
      * Must be called once after BT connection is established, before any PID queries.
@@ -73,22 +78,35 @@ class ElmController(
 
     private fun readResponse(): String {
         val sb = StringBuilder()
-        var ch: Int
         var gotAny = false
         try {
-            while (inputStream.read().also { ch = it } != -1) {
+            while (true) {
+                // Refill buffer if needed
+                if (bufferPos >= bufferEnd) {
+                    bufferEnd = inputStream.read(readBuffer)
+                    bufferPos = 0
+                    if (bufferEnd == -1) break
+                }
                 gotAny = true
-                if (ch == '>'.code) break
-                sb.append(ch.toChar())
+                // Process one byte from the buffer
+                val b = readBuffer[bufferPos++].toInt().toChar()
+                if (b == '>') {
+                    // Found the prompt; return everything collected so far
+                    return buildResult(sb)
+                }
+                sb.append(b)
             }
         } catch (e: IOException) {
             throw ObdException.ConnectionLost()
         }
         if (!gotAny) throw ObdException.ConnectionLost()
-        return sb.toString()
+        return buildResult(sb)
+    }
+
+    private fun buildResult(sb: StringBuilder): String =
+        sb.toString()
             .split("\r", "\n")
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .joinToString(" ")
-    }
 }

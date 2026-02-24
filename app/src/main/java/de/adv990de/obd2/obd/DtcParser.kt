@@ -45,7 +45,11 @@ class DtcParser {
         return dtcs
     }
 
-    /** Returns human-readable description. Extend as needed. */
+    /**
+     * Returns a human-readable description for common DTC codes.
+     * Coverage is intentionally partial (35 SAE J2012 codes).
+     * Codes outside this set return "Unknown DTC".
+     */
     private fun descriptionFor(code: String): String = when (code) {
         "P0100" -> "Mass or Volume Air Flow Circuit Malfunction"
         "P0101" -> "Mass or Volume Air Flow Circuit Range/Performance"
