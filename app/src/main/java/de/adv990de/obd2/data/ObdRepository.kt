@@ -249,7 +249,16 @@ class ObdRepository @Inject constructor(
             // BUS INIT / NO DATA responses are not thrown here; sendCommand returns the raw
             // string which parseFreezeFrame will reject (returning null). This is intentional:
             // a one-shot diagnostic read does not escalate transient bus errors to ConnectionLost.
-            val raw = try { controller.sendCommand("02 ${pidByte} 00") } catch (_: ObdException) { null } ?: continue
+            val raw = try {
+                controller.sendCommand("02 ${pidByte} 00")
+            } catch (_: ObdException.NoData)          { null }
+              catch (_: ObdException.Timeout)         { null }
+              catch (_: ObdException.UnknownResponse) { null }
+              catch (_: ObdException.BusInit)         { null }
+              catch (e: ObdException.ConnectionLost)  {
+                  withContext(NonCancellable) { disconnect() }
+                  throw e
+              } ?: continue
             val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
             result[pid.name] = "%.1f ${pid.unit}".format(value)
         }
