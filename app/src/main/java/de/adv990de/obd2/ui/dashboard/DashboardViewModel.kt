@@ -36,11 +36,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
-// If you add a field with a non-trivial default, update disconnected() and the one remaining
-// site in the collect lambda (search "DashboardUiState(readings").
+// If you add a field with a non-trivial default, update disconnected() accordingly.
 private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
 
-private fun SensorValue.isPlausible() = value.isFinite() && value > -30f
+private fun SensorValue.isPlausible() = value.isFinite()
 
 data class DashboardUiState(
     val readings: List<SensorValue> = emptyList(),
@@ -54,7 +53,7 @@ data class DashboardUiState(
     val error: UiText? = null,
     val sparklines: Map<String, List<Float>> = emptyMap(),
     val rpmValue: Float = 0f,
-    // Öltemp bevorzugt, Fallback Kühlmitteltemp; null = kein plausibler Wert verfügbar
+    // Oil temp preferred, fallback to coolant temp; null = no plausible value available
     val engineTempC: Float? = null
 ) {
     companion object {
@@ -150,6 +149,11 @@ class DashboardViewModel @Inject constructor(
                                 .mapNotNull { PidRegistry.all[it] }
                                 .distinctBy { it.id }
                                 .ifEmpty { PidRegistry.defaults }
+
+                            // If SPEED is not being polled, ensure moving=false so nav is never locked hidden.
+                            if (selectedPids.none { it.id == PidRegistry.SPEED.id }) {
+                                obdRepository.setMoving(false)
+                            }
 
                             // Snapshot recording preferences once per session, not per cycle.
                             val logOnlyDtc        = appPreferences.logOnlyDtcSessions.first()
@@ -249,7 +253,7 @@ class DashboardViewModel @Inject constructor(
                             sparklines = sparklineBuffer.mapValues { (_, deque) -> deque.toList() }
                         )
                     } else {
-                        _uiState.value = DashboardUiState(readings = emptyList(), isConnected = false)
+                        _uiState.value = DashboardUiState.disconnected()
                     }
                 }
         }

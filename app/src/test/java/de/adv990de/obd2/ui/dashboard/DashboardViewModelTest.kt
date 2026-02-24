@@ -236,6 +236,7 @@ class DashboardViewModelTest {
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
             every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
