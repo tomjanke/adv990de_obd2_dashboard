@@ -16,6 +16,8 @@ import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.util.UUID
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 // Standard BLE OBD2 UUIDs (Viecar / generic ELM327 BLE adapters)
 private val SERVICE_UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")
@@ -35,7 +37,10 @@ class BleConnection(
     private val pipedOutput = PipedOutputStream()
     private val pipedInput = PipedInputStream(pipedOutput)
     // Serializes GATT writes: write() blocks until onCharacteristicWrite fires (or 5-second timeout).
-    private val writeAck = java.util.concurrent.Semaphore(0)
+    // Correctness relies on ElmController.commandMutex ensuring at most one write is in-flight.
+    // close() releases one permit to unblock any waiting write thread; the null-guard in write()
+    // prevents a subsequent spurious GATT write on the stale permit (BleConnection is single-use).
+    private val writeAck = Semaphore(0)
 
     override val isConnected: Boolean get() = gatt != null
 
@@ -119,6 +124,11 @@ class BleConnection(
                 characteristic: BluetoothGattCharacteristic,
                 status: Int
             ) {
+                // Release regardless of status: a failed write surfaces as a read timeout in
+                // ElmController. Log the failure to aid debugging on clone adapters.
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    android.util.Log.w("BleConnection", "onCharacteristicWrite: status=$status")
+                }
                 writeAck.release()
             }
 
@@ -174,7 +184,7 @@ class BleConnection(
                     @Suppress("DEPRECATION")
                     currentGatt.writeCharacteristic(writeChar)
                 }
-                writeAck.tryAcquire(5, java.util.concurrent.TimeUnit.SECONDS)
+                writeAck.tryAcquire(5, TimeUnit.SECONDS)
             }
         }
 
