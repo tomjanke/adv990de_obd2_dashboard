@@ -9,4 +9,6 @@ interface SensorReadingDao {
     @Insert suspend fun insertAll(readings: List<SensorReadingEntity>)
     @Query("SELECT * FROM sensor_readings WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getBySession(sessionId: Long): List<SensorReadingEntity>
+    @Query("DELETE FROM sensor_readings WHERE sessionId = :sessionId")
+    suspend fun deleteBySession(sessionId: Long)
 }

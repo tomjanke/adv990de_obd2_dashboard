@@ -48,6 +48,7 @@ class SessionRepository @Inject constructor(
     }
 
     suspend fun deleteSession(sessionId: Long) = withContext(Dispatchers.IO) {
+        db.sensorReadingDao().deleteBySession(sessionId)
         db.sessionDao().getById(sessionId)?.let { db.sessionDao().delete(it) }
     }
 
