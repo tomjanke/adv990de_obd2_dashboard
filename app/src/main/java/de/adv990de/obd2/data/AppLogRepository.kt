@@ -15,5 +15,9 @@ class AppLogRepository @Inject constructor(private val dao: AppLogDao) {
         dao.insert(AppLogEntity(timestamp = System.currentTimeMillis(), level = level.name, message = message))
     }
 
+    suspend fun pruneOlderThan(maxAgeMs: Long = 30L * 24 * 60 * 60 * 1000) {
+        dao.deleteOlderThan(System.currentTimeMillis() - maxAgeMs)
+    }
+
     suspend fun clearAll() = dao.deleteAll()
 }

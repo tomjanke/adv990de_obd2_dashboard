@@ -16,6 +16,10 @@ class AppLogsViewModel @Inject constructor(
     private val appLogRepository: AppLogRepository
 ) : ViewModel() {
 
+    init {
+        viewModelScope.launch { appLogRepository.pruneOlderThan() }
+    }
+
     val logs: StateFlow<List<AppLogEntity>> = appLogRepository.logs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

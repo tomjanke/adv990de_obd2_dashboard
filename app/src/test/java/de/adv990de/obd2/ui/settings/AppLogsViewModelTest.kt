@@ -41,6 +41,7 @@ class AppLogsViewModelTest {
         val entry = AppLogEntity(id = 1, timestamp = 1000L, level = "INFO", message = "hello")
         val repo = mockk<AppLogRepository> {
             every { logs } returns flowOf(listOf(entry))
+            coEvery { pruneOlderThan(any()) } just Runs
         }
 
         val vm = AppLogsViewModel(repo)
@@ -56,9 +57,21 @@ class AppLogsViewModelTest {
     }
 
     @Test
+    fun `init prunes old logs on startup`() = runTest {
+        val repo = mockk<AppLogRepository> {
+            every { logs } returns flowOf(emptyList())
+            coEvery { pruneOlderThan(any()) } just Runs
+        }
+        val vm = AppLogsViewModel(repo)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { repo.pruneOlderThan(any()) }
+    }
+
+    @Test
     fun `clearAll delegates to repository`() = runTest {
         val repo = mockk<AppLogRepository> {
             every { logs } returns flowOf(emptyList())
+            coEvery { pruneOlderThan(any()) } just Runs
             coEvery { clearAll() } just Runs
         }
 

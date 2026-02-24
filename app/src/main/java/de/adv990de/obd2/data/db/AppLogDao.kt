@@ -11,8 +11,11 @@ interface AppLogDao {
     @Insert
     suspend fun insert(entry: AppLogEntity)
 
-    @Query("SELECT * FROM app_log ORDER BY timestamp DESC")
+    @Query("SELECT * FROM app_log ORDER BY timestamp DESC LIMIT 1000")
     fun getAllNewestFirst(): Flow<List<AppLogEntity>>
+
+    @Query("DELETE FROM app_log WHERE timestamp < :cutoffMs")
+    suspend fun deleteOlderThan(cutoffMs: Long)
 
     @Query("DELETE FROM app_log")
     suspend fun deleteAll()
