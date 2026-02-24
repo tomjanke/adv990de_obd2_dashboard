@@ -1,7 +1,6 @@
 package de.adv990de.obd2
 
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -26,9 +25,6 @@ import de.adv990de.obd2.ui.theme.greenColorScheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Keep screen on for the entire app session (all screens, not just while connected).
-        // Android clears this automatically when the app goes to the background.
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val displayVm: DisplaySettingsViewModel = hiltViewModel()
             val theme by displayVm.theme.collectAsState()

@@ -39,6 +39,7 @@ import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +48,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +90,22 @@ fun DashboardScreen(
     var pickerSlot: Int? by remember { mutableStateOf(null) }
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
+
+    val isConnected = state.isConnected
+
+    // Keep screen on only while OBD is connected (Dashboard screen is active).
+    val context = LocalContext.current
+    DisposableEffect(isConnected) {
+        val window = (context as? android.app.Activity)?.window
+        if (isConnected) {
+            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
