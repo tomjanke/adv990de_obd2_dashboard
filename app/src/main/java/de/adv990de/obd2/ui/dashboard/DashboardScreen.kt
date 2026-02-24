@@ -67,16 +67,9 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
-
-fun convertUnit(value: Float, unit: String, imperial: Boolean): Pair<Float, String> =
-    when {
-        !imperial      -> value to unit
-        unit == "km/h" -> value * 0.621371f to "mph"
-        unit == "°C"   -> value * 9f / 5f + 32f to "°F"
-        else           -> value to unit
-    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

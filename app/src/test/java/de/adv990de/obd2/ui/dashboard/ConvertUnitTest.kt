@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.obd.convertUnit
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
