@@ -67,6 +67,9 @@ object PidRegistry {
         formula = { bytes -> ((bytes[0].toInt() and 0xFF) * 256f + (bytes[1].toInt() and 0xFF)) / 100f }
     )
 
+    // SAE J1979 formula: value = (A * 100 / 128) - 100.
+    // At byte 0xFF the formula yields 99.21875, which marginally exceeds maxValue (99.2).
+    // This is a known boundary artefact of the spec; maxValue is kept at 99.2 for display purposes.
     val SHORT_TERM_FUEL_TRIM = PidDefinition(
         id = "0106", name = "Short Term Fuel Trim", unit = "%",
         minValue = -100f, maxValue = 99.2f,
