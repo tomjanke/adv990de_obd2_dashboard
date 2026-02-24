@@ -16,11 +16,11 @@ class BluetoothDeviceScanner(
     private val bluetoothAdapter: BluetoothAdapter
 ) {
 
-    /** Returns already-bonded (paired) Classic BT devices that look like OBD2 adapters */
+    /** Returns already-bonded (paired) Classic BT devices that look like OBD2 adapters, or all bonded devices if [showAll] is true */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun bondedDevices(): List<ScannedDevice> =
+    fun bondedDevices(showAll: Boolean = false): List<ScannedDevice> =
         bluetoothAdapter.bondedDevices
-            .filter { it.isObdLike() }
+            .filter { showAll || it.isObdLike() }
             .map { ScannedDevice(it, BtType.CLASSIC, it.name ?: "Unknown") }
 
     /** Scans for BLE OBD2 adapters */
@@ -45,6 +45,7 @@ class BluetoothDeviceScanner(
     private fun BluetoothDevice.isObdLike(): Boolean {
         val n = name?.uppercase() ?: return false
         return n.contains("OBD") || n.contains("ELM") || n.contains("VIECAR")
-                || n.contains("OBDLINK") || n.contains("VEEPEAK")
+                || n.contains("OBDLINK") || n.contains("VEEPEAK") || n.contains("CARISTA")
+                || n.contains("IOBD") || n.contains("SCAN") || n.contains("CAR TOOL")
     }
 }

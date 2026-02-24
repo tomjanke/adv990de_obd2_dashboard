@@ -123,4 +123,6 @@
     <string name="settings_theme_blue">Blue</string>
     <string name="settings_theme_amber">Orange</string>
     <string name="settings_theme_green">Green</string>
+    <string name="settings_show_all_bt_devices">Show all paired devices</string>
+    <string name="settings_show_all_bt_devices_desc">Include devices not identified as OBD2 adapters</string>
 </resources>

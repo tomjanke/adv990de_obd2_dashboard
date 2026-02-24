@@ -123,4 +123,6 @@
     <string name="settings_theme_blue">Blau</string>
     <string name="settings_theme_amber">Orange</string>
     <string name="settings_theme_green">Grün</string>
+    <string name="settings_show_all_bt_devices">Alle gekoppelten Geräte</string>
+    <string name="settings_show_all_bt_devices_desc">Zeigt auch Geräte ohne OBD2-Bezeichnung</string>
 </resources>

@@ -48,9 +48,13 @@ class SettingsViewModelTest {
         prefs: AppPreferences = mockk {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
         },
-        appLogRepository: AppLogRepository = mockk(relaxed = true)
-    ) = SettingsViewModel(mockk<BluetoothDeviceScanner>(), obdRepo, prefs, appLogRepository)
+        appLogRepository: AppLogRepository = mockk(relaxed = true),
+        scanner: BluetoothDeviceScanner = mockk {
+            every { bondedDevices(any()) } returns emptyList()
+        }
+    ) = SettingsViewModel(scanner, obdRepo, prefs, appLogRepository)
 
     @Test
     fun `connect persists device on success`() = runTest {
@@ -58,6 +62,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -121,6 +126,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(device)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -154,6 +160,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -172,6 +179,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } throws Exception("disk full")
             every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -203,6 +211,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns lastDeviceFlow
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -233,6 +242,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             // Empty DataStore — simulates state when persistDevice previously threw
             every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -273,6 +283,7 @@ class SettingsViewModelTest {
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(scanned)
+            every { showAllBtDevices } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
         advanceUntilIdle()

@@ -65,7 +65,8 @@ fun SettingsScreen(
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
     val theme by displayVm.theme.collectAsState()
-    LaunchedEffect(Unit) { vm.loadDevices() }
+    val showAllBtDevices by vm.showAllBtDevices.collectAsState()
+    LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
@@ -104,6 +105,19 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_paired_devices), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 if (state.isConnecting) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_show_all_bt_devices)) },
+                    supportingContent = { Text(stringResource(R.string.settings_show_all_bt_devices_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = showAllBtDevices,
+                            onCheckedChange = { vm.toggleShowAllBtDevices() }
+                        )
+                    }
+                )
+                HorizontalDivider()
             }
             items(state.bondedDevices, key = { it.device.address }) { device ->
                 DeviceRow(

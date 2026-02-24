@@ -12,7 +12,9 @@ import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,6 +41,13 @@ class SettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
+
+    val showAllBtDevices: StateFlow<Boolean> = appPreferences.showAllBtDevices
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun toggleShowAllBtDevices() {
+        viewModelScope.launch { appPreferences.setShowAllBtDevices(!showAllBtDevices.value) }
+    }
 
     init {
         viewModelScope.launch {
@@ -81,7 +90,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun loadDevices() {
-        _uiState.value = _uiState.value.copy(bondedDevices = scanner.bondedDevices())
+        _uiState.value = _uiState.value.copy(bondedDevices = scanner.bondedDevices(showAllBtDevices.value))
     }
 
     fun disconnect() {
