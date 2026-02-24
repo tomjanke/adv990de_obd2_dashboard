@@ -34,6 +34,8 @@ class BleConnection(
     // reconnected. Reconnection requires creating a new BleConnection instance.
     private val pipedOutput = PipedOutputStream()
     private val pipedInput = PipedInputStream(pipedOutput)
+    // Serializes GATT writes: write() blocks until onCharacteristicWrite fires (or 5-second timeout).
+    private val writeAck = java.util.concurrent.Semaphore(0)
 
     override val isConnected: Boolean get() = gatt != null
 
@@ -112,6 +114,14 @@ class BleConnection(
                 }
             }
 
+            override fun onCharacteristicWrite(
+                g: BluetoothGatt,
+                characteristic: BluetoothGattCharacteristic,
+                status: Int
+            ) {
+                writeAck.release()
+            }
+
             // API 33+ signature — called on Android 13 and above
             override fun onCharacteristicChanged(
                 g: BluetoothGatt,
@@ -164,6 +174,7 @@ class BleConnection(
                     @Suppress("DEPRECATION")
                     currentGatt.writeCharacteristic(writeChar)
                 }
+                writeAck.tryAcquire(5, java.util.concurrent.TimeUnit.SECONDS)
             }
         }
 
@@ -171,6 +182,7 @@ class BleConnection(
     }
 
     override fun close() {
+        writeAck.release()
         gatt?.close()
         gatt = null
         try { pipedOutput.close() } catch (_: IOException) {}
