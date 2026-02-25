@@ -13,7 +13,7 @@ class Obd2Application : Application() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "obd2_connection", // TODO: replace with ObdForegroundService.CHANNEL_ID in Task 3
+                ObdForegroundService.CHANNEL_ID,
                 getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             )
