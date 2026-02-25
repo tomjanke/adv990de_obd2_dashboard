@@ -32,6 +32,7 @@ class AppPreferences @Inject constructor(
         private val KEY_DEVICE_ADDRESS = stringPreferencesKey("device_address")
         private val KEY_DEVICE_NAME    = stringPreferencesKey("device_name")
         private val KEY_DEVICE_TYPE    = stringPreferencesKey("device_type")
+        private val KEY_SHOW_ALL_BT_DEVICES = booleanPreferencesKey("show_all_bt_devices")
         private val KEY_SLOT_PIDS      = stringPreferencesKey("slot_pids")
         private val KEY_LOG_ONLY_DTC   = booleanPreferencesKey("log_only_dtc_sessions")
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
@@ -41,7 +42,6 @@ class AppPreferences @Inject constructor(
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
         private val KEY_RPM_DYNAMIC_THRESHOLD = booleanPreferencesKey("rpm_dynamic_threshold")
-        private val KEY_SHOW_ALL_BT_DEVICES = booleanPreferencesKey("show_all_bt_devices")
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
@@ -70,6 +70,16 @@ class AppPreferences @Inject constructor(
             bluetoothAdapter.getRemoteDevice(address)
         } catch (_: Exception) { return@map null }
         ScannedDevice(btDevice, type, name)
+    }
+
+    // ── Device / BT preferences ───────────────────────────────────────────────
+
+    val showAllBtDevices: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SHOW_ALL_BT_DEVICES] ?: false
+    }
+
+    suspend fun setShowAllBtDevices(enabled: Boolean) {
+        dataStore.edit { it[KEY_SHOW_ALL_BT_DEVICES] = enabled }
     }
 
     // ── Recording preferences ─────────────────────────────────────────────────
@@ -149,14 +159,6 @@ class AppPreferences @Inject constructor(
 
     suspend fun setRpmDynamicThreshold(enabled: Boolean) {
         dataStore.edit { it[KEY_RPM_DYNAMIC_THRESHOLD] = enabled }
-    }
-
-    val showAllBtDevices: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_SHOW_ALL_BT_DEVICES] ?: false
-    }
-
-    suspend fun setShowAllBtDevices(enabled: Boolean) {
-        dataStore.edit { it[KEY_SHOW_ALL_BT_DEVICES] = enabled }
     }
 
     val slotPids: Flow<List<String>> = dataStore.data.map { prefs ->
