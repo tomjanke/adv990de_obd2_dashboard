@@ -943,6 +943,32 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `service is stopped when no device is configured`() = runTest {
+        val ctx = mockk<Context>(relaxed = true)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            // Cold launch: no prior connect in this session → lastConnectedDevice is null
+            every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+        }
+        // makePrefs() already stubs lastDevice as flowOf(null) → no persisted device either
+        makeVm(obdRepo = obdRepo, prefs = makePrefs(), appContext = ctx)
+        isConnectedFlow.value = true
+        // advanceTimeBy(1) runs all coroutines up to the first suspension point,
+        // which is enough for the reconnect loop to check both device sources and abort.
+        advanceTimeBy(1)
+
+        verify { ctx.stopService(any()) }
+    }
+
+    @Test
     fun `service is stopped when Bluetooth is disabled during reconnect`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
