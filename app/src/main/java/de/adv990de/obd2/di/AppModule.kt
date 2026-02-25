@@ -6,6 +6,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,6 +31,13 @@ object AppModule {
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
             .addMigrations(MIGRATION_1_2)
+            .addCallback(object : RoomDatabase.Callback() {
+                // SQLite disables foreign key constraints by default. Enable them on every
+                // connection so that onDelete = CASCADE in SensorReadingEntity is enforced.
+                override fun onOpen(db: SupportSQLiteDatabase) {
+                    db.execSQL("PRAGMA foreign_keys = ON")
+                }
+            })
             .build()
 
     @Provides @Singleton
