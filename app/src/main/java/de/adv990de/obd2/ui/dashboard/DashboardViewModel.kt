@@ -139,10 +139,10 @@ class DashboardViewModel @Inject constructor(
                             // (e.g. after a downgrade or manual DataStore wipe).
                             val dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first()
                             val supported = obdRepository.supportedPidIds.value
-                            // Filter slot PIDs against ECU-supported set. RPM and temp PIDs are always included
-                            // (they drive dashboard features, not just display slots).
+                            // Filter slot PIDs against ECU-supported set.
+                            // RPM is always included; temp PIDs are added only when dynamic threshold is enabled.
                             val filteredSlotIds = if (supported.isNullOrEmpty()) slotIds
-                                                  else slotIds.filter { it in supported }
+                                else slotIds.filter { it in supported }
                             val selectedPids = buildList {
                                 addAll(filteredSlotIds)
                                 add(PidRegistry.RPM.id)

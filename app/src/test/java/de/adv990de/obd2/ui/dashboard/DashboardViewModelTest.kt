@@ -711,6 +711,40 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `livePids is called with at least RPM when all slot PIDs are filtered out`() = runTest {
+        // Edge case: supportedPidIds is non-null but contains none of the configured slot PIDs.
+        // The filtered slot list is empty, but RPM must still be present so the polling loop
+        // does not fall back to PidRegistry.defaults and skip the RPM-driven dashboard features.
+        val slotId = PidRegistry.COOLANT_TEMP.id  // "0105" — not in the supported set below
+        val supportedSet = setOf(PidRegistry.SPEED.id, PidRegistry.MAF.id)  // no overlap with slot
+
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(supportedSet)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(slotIds = listOf(slotId))
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.livePids(match { pids ->
+            pids.none { it.id == slotId } && pids.any { it.id == PidRegistry.RPM.id }
+        }) }
+    }
+
+    @Test
     fun `setSlotPid delegates to AppPreferences with correct slot and pid`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
