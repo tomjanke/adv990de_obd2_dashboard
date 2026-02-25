@@ -126,7 +126,13 @@ class DashboardViewModel @Inject constructor(
     private val _reconnectTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     init {
-        // ── Session loop ─────────────────────────────────────────────────────
+        launchSessionLoop()
+        launchReconnectLoop()
+        launchAutoConnect()
+    }
+
+    // ── Session loop ─────────────────────────────────────────────────────
+    private fun launchSessionLoop() {
         viewModelScope.launch {
             // NOTE: combining slotPids means a slot change while connected ends the current
             // session and starts a new one. This is intentional: the DashboardConfig screen is
@@ -267,15 +273,17 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
         }
+    }
 
-        // ── Reconnect loop ───────────────────────────────────────────────────
-        // Known TOCTOU residual: guard 2 (post-delay) and reconnect() acquiring connectMutex
-        // are separated by nanoseconds of function-call overhead — a manual connect from Settings
-        // completing exactly in that instant would have its connection closed by the auto-reconnect.
-        // The delay() before guard 2 is up to 48 s, but the race window is between guard 2 and
-        // mutex acquisition, not between guard 1 and delay(). In practice this is extremely
-        // unlikely; eliminating it would require a single mutex scope across guard + reconnect,
-        // which is out of scope for the current implementation.
+    // ── Reconnect loop ───────────────────────────────────────────────────
+    // Known TOCTOU residual: guard 2 (post-delay) and reconnect() acquiring connectMutex
+    // are separated by nanoseconds of function-call overhead — a manual connect from Settings
+    // completing exactly in that instant would have its connection closed by the auto-reconnect.
+    // The delay() before guard 2 is up to 48 s, but the race window is between guard 2 and
+    // mutex acquisition, not between guard 1 and delay(). In practice this is extremely
+    // unlikely; eliminating it would require a single mutex scope across guard + reconnect,
+    // which is out of scope for the current implementation.
+    private fun launchReconnectLoop() {
         viewModelScope.launch {
             _reconnectTrigger.collect {
                 // On cold launch, in-memory lastConnectedDevice is null; fall back to DataStore.
@@ -338,12 +346,14 @@ class DashboardViewModel @Inject constructor(
                 appContext.stopService(ObdForegroundService.stopIntent(appContext))
             }
         }
+    }
 
-        // ── Auto-connect on startup ─────────────────────────────────────────────
-        // Fires once on cold launch: if a device was previously saved and no
-        // connection is active, attempt to connect immediately (no delay).
-        // On success: isConnectedFlow goes true → session loop takes over.
-        // On failure: delegate to startReconnecting() → backoff loop handles retries.
+    // ── Auto-connect on startup ─────────────────────────────────────────────
+    // Fires once on cold launch: if a device was previously saved and no
+    // connection is active, attempt to connect immediately (no delay).
+    // On success: isConnectedFlow goes true → session loop takes over.
+    // On failure: delegate to startReconnecting() → backoff loop handles retries.
+    private fun launchAutoConnect() {
         viewModelScope.launch {
             if (obdRepository.isConnectedFlow.value) return@launch
             val savedDevice = appPreferences.lastDevice.first() ?: return@launch
