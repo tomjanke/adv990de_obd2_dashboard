@@ -125,4 +125,10 @@
     <string name="settings_theme_green">Grün</string>
     <string name="settings_show_all_bt_devices">Alle gekoppelten Geräte</string>
     <string name="settings_show_all_bt_devices_desc">Zeigt auch Geräte ohne OBD2-Bezeichnung</string>
+
+    <!-- Foreground service notification -->
+    <string name="notif_channel_name">OBD2-Verbindung</string>
+    <string name="notif_obd_title">OBD2 verbunden</string>
+    <string name="notif_obd_text">Fahrzeugdaten werden aufgezeichnet</string>
+    <string name="notif_obd_disconnect">Trennen</string>
 </resources>
