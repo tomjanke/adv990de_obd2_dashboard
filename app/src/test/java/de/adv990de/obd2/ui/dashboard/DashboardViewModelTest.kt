@@ -643,6 +643,73 @@ class DashboardViewModelTest {
         }
     }
 
+    // ── supportedPidIds filtering ──────────────────────────────────────────────
+
+    @Test
+    fun `livePids excludes slot PID when ECU does not support it`() = runTest {
+        // COOLANT_TEMP ("0105") is in the slot but NOT in the ECU-supported set.
+        // It must therefore be absent from the PID list passed to livePids.
+        val unsupportedSlotId = PidRegistry.COOLANT_TEMP.id  // "0105"
+        val supportedSet = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id)  // does NOT contain "0105"
+
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(supportedSet)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(slotIds = listOf(unsupportedSlotId))
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.livePids(match { pids ->
+            pids.none { it.id == unsupportedSlotId }
+        }) }
+    }
+
+    @Test
+    fun `livePids includes slot PID when supportedPidIds is null`() = runTest {
+        // When supportedPidIds is null (disconnected or discovery failed),
+        // no filtering is applied and the slot PID must be passed to livePids.
+        val slotId = PidRegistry.COOLANT_TEMP.id  // "0105"
+
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(slotIds = listOf(slotId))
+
+        DashboardViewModel(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository())
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.livePids(match { pids ->
+            pids.any { it.id == slotId }
+        }) }
+    }
+
     @Test
     fun `setSlotPid delegates to AppPreferences with correct slot and pid`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
