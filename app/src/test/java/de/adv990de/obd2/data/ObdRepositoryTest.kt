@@ -1,6 +1,7 @@
 package de.adv990de.obd2.data
 
 import de.adv990de.obd2.bluetooth.ConnectionFactory
+import de.adv990de.obd2.bluetooth.FakeObdConnection
 import de.adv990de.obd2.bluetooth.ObdConnection
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.DtcParser
@@ -19,6 +20,7 @@ import io.mockk.verifyOrder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -422,5 +424,82 @@ class ObdRepositoryTest {
         assertNotNull("partial discovery result should not be null", supported)
         assertTrue("010C should be discovered", "010C" in supported!!)
         assertTrue("010D should be discovered", "010D" in supported)
+    }
+
+    // ── Integration tests with FakeObdConnection ──────────────────────────────
+    //
+    // These tests exercise the full connect → discoverSupportedPids lifecycle using a
+    // real ElmController backed by in-process piped streams (FakeObdConnection).
+    // No mocking of the serial protocol occurs; commands flow through the same code
+    // path as on a real Bluetooth device.
+    //
+    // initialize() sends exactly 5 AT commands: ATZ, ATE0, ATL0, ATS0, ATSP0.
+    // discoverSupportedPids() sends 3 range commands: 0100, 0120, 0140.
+    // Total responses needed per connect(): 5 + 3 = 8.
+
+    /**
+     * Queues the 5 init responses + 3 discovery responses needed for one connect() call.
+     *
+     * Bitmap 0xBE3FA813 ("BE 3F A8 13") encodes PID support for 0x01–0x20:
+     *   bit 27 → PID 0x05 (Coolant Temp, "0105")
+     *   bit 20 → PID 0x0C (RPM, "010C")
+     *   bit 19 → PID 0x0D (Speed, "010D")
+     * among others. 0120 and 0140 return "NO DATA" so only the 0x01–0x20 range is decoded.
+     */
+    private fun FakeObdConnection.queueConnectResponses() {
+        // 5 init commands (ATZ returns the ELM version string; others return "OK")
+        queueResponses(
+            "ELM327 v1.5",  // ATZ
+            "OK",           // ATE0
+            "OK",           // ATL0
+            "OK",           // ATS0
+            "OK"            // ATSP0
+        )
+        // 3 discovery commands
+        queueResponses(
+            "41 00 BE 3F A8 13",  // 0100 — bitmap encodes RPM, Speed, Coolant Temp, and others
+            "NO DATA",            // 0120
+            "NO DATA"             // 0140
+        )
+    }
+
+    @Test
+    fun `integration - connect and discoverSupportedPids via FakeObdConnection`() = runTest {
+        val fake    = FakeObdConnection()
+        val device  = mockk<ScannedDevice>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns fake }
+
+        fake.queueConnectResponses()
+
+        val repo = ObdRepository(factory, PidParser(), mockk<DtcParser>())
+        repo.connect(device)
+
+        assertTrue("isConnectedFlow should be true after connect", repo.isConnectedFlow.value)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull("supportedPidIds should not be null after successful discovery", supported)
+        assertTrue("RPM (010C) should be in supported PIDs",       "010C" in supported!!)
+        assertTrue("Speed (010D) should be in supported PIDs",     "010D" in supported)
+        assertTrue("Coolant Temp (0105) should be in supported PIDs", "0105" in supported)
+    }
+
+    @Test
+    fun `integration - disconnect clears state after FakeObdConnection connect`() = runTest {
+        val fake    = FakeObdConnection()
+        val device  = mockk<ScannedDevice>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns fake }
+
+        fake.queueConnectResponses()
+
+        val repo = ObdRepository(factory, PidParser(), mockk<DtcParser>())
+        repo.connect(device)
+
+        assertTrue("should be connected before disconnect", repo.isConnectedFlow.value)
+        assertNotNull("supportedPidIds should be set before disconnect", repo.supportedPidIds.value)
+
+        repo.disconnect()
+
+        assertFalse("isConnectedFlow should be false after disconnect", repo.isConnectedFlow.value)
+        assertNull("supportedPidIds should be null after disconnect", repo.supportedPidIds.value)
     }
 }
