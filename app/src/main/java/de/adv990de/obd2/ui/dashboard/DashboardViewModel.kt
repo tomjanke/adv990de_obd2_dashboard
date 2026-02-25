@@ -1,9 +1,12 @@
 package de.adv990de.obd2.ui.dashboard
 
 import android.bluetooth.BluetoothAdapter
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.R
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
@@ -68,7 +71,8 @@ class DashboardViewModel @Inject constructor(
     private val appPreferences: AppPreferences,
     private val crashReporter: CrashReporter,
     private val bluetoothAdapter: BluetoothAdapter,
-    private val appLogRepository: AppLogRepository
+    private val appLogRepository: AppLogRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -284,6 +288,7 @@ class DashboardViewModel @Inject constructor(
                     // all 5 delayed attempts (93 seconds of pointless waiting).
                     appLogRepository.log(LogLevel.WARN, "No device configured")
                     _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_no_device))
+                    appContext.stopService(ObdForegroundService.stopIntent(appContext))
                     return@collect
                 }
 
@@ -302,6 +307,7 @@ class DashboardViewModel @Inject constructor(
                         _uiState.value = DashboardUiState.disconnected(
                             UiText.StringResource(R.string.obd_err_bluetooth_disabled)
                         )
+                        appContext.stopService(ObdForegroundService.stopIntent(appContext))
                         return@collect
                     }
                     // Second guard: user may have connected manually while we were waiting
@@ -318,6 +324,7 @@ class DashboardViewModel @Inject constructor(
                         val reconnectedName = inMemoryDevice?.name ?: coldLaunchDevice?.name ?: "device"
                         appLogRepository.log(LogLevel.INFO, "Connected to $reconnectedName")
                         _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0)
+                        appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
                         return@collect  // isConnectedFlow emits true → flatMapLatest restarts
                     } catch (ce: CancellationException) {
                         throw ce
@@ -327,6 +334,7 @@ class DashboardViewModel @Inject constructor(
                 }
                 appLogRepository.log(LogLevel.ERROR, "Connection failed after ${RECONNECT_DELAYS.size} attempts")
                 _uiState.value = DashboardUiState.disconnected(UiText.StringResource(R.string.err_reconnect_fail))
+                appContext.stopService(ObdForegroundService.stopIntent(appContext))
             }
         }
 
@@ -343,6 +351,7 @@ class DashboardViewModel @Inject constructor(
             try {
                 obdRepository.connect(savedDevice)
                 appLogRepository.log(LogLevel.INFO, "Connected to ${savedDevice.name}")
+                appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
                 // Session loop resets isReconnecting when first readings arrive.
             } catch (e: CancellationException) {
                 throw e
