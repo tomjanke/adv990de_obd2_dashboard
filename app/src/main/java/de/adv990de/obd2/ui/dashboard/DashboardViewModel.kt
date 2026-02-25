@@ -41,6 +41,7 @@ import javax.inject.Inject
 // DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
 // If you add a field with a non-trivial default, update disconnected() accordingly.
 private val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+private const val SPARKLINE_WINDOW = 60
 
 private fun SensorValue.isPlausible() = value.isFinite()
 
@@ -237,8 +238,8 @@ class DashboardViewModel @Inject constructor(
                     } else if (connected) {
                         obdRepository.updateLatestReadings(values)
                         values.forEach { sv ->
-                            val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(60) }
-                            if (deque.size >= 60) deque.removeFirst()
+                            val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(SPARKLINE_WINDOW) }
+                            if (deque.size >= SPARKLINE_WINDOW) deque.removeFirst()
                             deque.addLast(sv.value)
                         }
                         // Only updates moving state when SPEED is in the selected PID set.
