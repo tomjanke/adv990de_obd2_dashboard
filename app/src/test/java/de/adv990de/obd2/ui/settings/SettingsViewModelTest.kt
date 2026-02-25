@@ -1,5 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
+import android.content.Context
+import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
@@ -53,8 +55,9 @@ class SettingsViewModelTest {
         appLogRepository: AppLogRepository = mockk(relaxed = true),
         scanner: BluetoothDeviceScanner = mockk {
             every { bondedDevices(any()) } returns emptyList()
-        }
-    ) = SettingsViewModel(scanner, obdRepo, prefs, appLogRepository)
+        },
+        appContext: Context = mockk(relaxed = true)
+    ) = SettingsViewModel(scanner, obdRepo, prefs, appLogRepository, appContext)
 
     @Test
     fun `connect persists device on success`() = runTest {
@@ -289,5 +292,47 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals("AA:BB:CC:DD:EE:FF", vm.uiState.value.lastDeviceAddress)
+    }
+
+    @Test
+    fun `connect starts foreground service on success`() = runTest {
+        val ctx = mockk<Context>(relaxed = true)
+        val vm = makeVm(appContext = ctx)
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        vm.connect(device)
+        advanceUntilIdle()
+        // In Android unit test stubs the Intent constructor is a no-op, so we cannot inspect
+        // intent properties — verify that the call happened at all (not on failure path).
+        verify { ctx.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `connect does not start foreground service on failure`() = runTest {
+        val ctx = mockk<Context>(relaxed = true)
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } throws Exception("connection refused")
+        }
+        val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        vm.connect(device)
+        advanceUntilIdle()
+        verify(exactly = 0) { ctx.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `disconnect stops foreground service`() = runTest {
+        val ctx = mockk<Context>(relaxed = true)
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } just Runs
+            coEvery { disconnect() } just Runs
+        }
+        val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
+        vm.disconnect()
+        advanceUntilIdle()
+        // In Android unit test stubs the Intent constructor is a no-op, so we cannot inspect
+        // intent properties — verify that the call happened at all.
+        verify { ctx.stopService(any()) }
     }
 }

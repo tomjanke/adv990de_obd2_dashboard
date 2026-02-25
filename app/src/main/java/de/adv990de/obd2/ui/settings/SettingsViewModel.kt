@@ -1,9 +1,12 @@
 package de.adv990de.obd2.ui.settings
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
@@ -36,7 +39,8 @@ class SettingsViewModel @Inject constructor(
     private val scanner: BluetoothDeviceScanner,
     private val obdRepository: ObdRepository,
     private val appPreferences: AppPreferences,
-    private val appLogRepository: AppLogRepository
+    private val appLogRepository: AppLogRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -94,7 +98,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun disconnect() {
-        viewModelScope.launch { obdRepository.disconnect() }
+        viewModelScope.launch {
+            obdRepository.disconnect()
+            appContext.stopService(ObdForegroundService.stopIntent(appContext))
+        }
     }
 
     fun connect(device: ScannedDevice) {
@@ -112,6 +119,7 @@ class SettingsViewModel @Inject constructor(
                     connectedDevice = device.name,
                     error = null
                 )
+                appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")
