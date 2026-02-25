@@ -31,19 +31,20 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.adv990de.obd2.R
 
-val requiredPermissions: Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-    // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
-    arrayOf(
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_CONNECT
-    )
-} else {
-    arrayOf(
-        Manifest.permission.BLUETOOTH,
-        Manifest.permission.BLUETOOTH_ADMIN,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
-}
+val requiredPermissions: Array<String> = buildList {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
+        add(Manifest.permission.BLUETOOTH_SCAN)
+        add(Manifest.permission.BLUETOOTH_CONNECT)
+    } else {
+        add(Manifest.permission.BLUETOOTH)
+        add(Manifest.permission.BLUETOOTH_ADMIN)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+}.toTypedArray()
 
 @Composable
 fun PermissionGate(content: @Composable () -> Unit) {
