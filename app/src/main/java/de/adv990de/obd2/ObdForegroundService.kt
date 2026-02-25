@@ -13,8 +13,10 @@ import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -51,7 +53,10 @@ class ObdForegroundService : Service() {
                 }
             }
             ACTION_STOP -> scope.launch {
-                obdRepository.disconnect()
+                withContext(NonCancellable) { obdRepository.disconnect() }
+                stopSelf()
+            }
+            else -> {
                 stopSelf()
             }
         }
