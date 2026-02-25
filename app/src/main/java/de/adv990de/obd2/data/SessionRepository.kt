@@ -2,9 +2,10 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.paging.PagingSource
-import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.core.content.FileProvider
+import androidx.paging.PagingSource
+import androidx.sqlite.db.SimpleSQLiteQuery
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
@@ -60,19 +61,28 @@ class SessionRepository @Inject constructor(
 
     /**
      * Exports a session to a CSV file and returns a shareable [Uri].
-     * Note: all readings for the session are loaded into memory at once.
-     * For typical sessions this is acceptable; very long sessions may need
-     * a streaming/cursor-based approach if memory becomes a concern.
+     * Uses a cursor-based approach so memory usage stays constant regardless
+     * of session length — rows are written as they are read from the database.
      */
     suspend fun exportToCsv(sessionId: Long): Uri = withContext(Dispatchers.IO) {
-        val readings = db.sensorReadingDao().getBySession(sessionId)
         val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val file = File(exportDir, "session_$sessionId.csv")
 
-        file.bufferedWriter().use { writer ->
-            writer.write("timestamp,pid,value\n")
-            readings.forEach { r ->
-                writer.write("${r.timestamp},${r.pidId},${r.value}\n")
+        file.delete()
+
+        val query = SimpleSQLiteQuery(
+            "SELECT timestamp, pidId, value FROM sensor_readings WHERE sessionId = ? ORDER BY timestamp ASC",
+            arrayOf(sessionId)
+        )
+        db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
+            file.bufferedWriter().use { writer ->
+                writer.write("timestamp,pid,value\n")
+                val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
+                val colPid       = cursor.getColumnIndexOrThrow("pidId")
+                val colValue     = cursor.getColumnIndexOrThrow("value")
+                while (cursor.moveToNext()) {
+                    writer.write("${cursor.getLong(colTimestamp)},${cursor.getString(colPid).orEmpty()},${cursor.getFloat(colValue)}\n")
+                }
             }
         }
 
