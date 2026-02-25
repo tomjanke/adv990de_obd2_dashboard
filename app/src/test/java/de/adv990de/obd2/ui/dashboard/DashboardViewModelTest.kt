@@ -941,4 +941,37 @@ class DashboardViewModelTest {
 
         verify { ctx.startForegroundService(any()) }
     }
+
+    @Test
+    fun `service is stopped when Bluetooth is disabled during reconnect`() = runTest {
+        val ctx = mockk<Context>(relaxed = true)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } throws Exception("reconnect failed")
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val btAdapter = mockk<BluetoothAdapter> {
+            every { isEnabled } returns false
+        }
+
+        makeVm(obdRepo = obdRepo, sessionRepo = sessionRepo, btAdapter = btAdapter, appContext = ctx)
+        isConnectedFlow.value = true
+        // Advance past the first 3-second delay so the BT-disabled check fires
+        advanceTimeBy(3_001)
+
+        verify { ctx.stopService(any()) }
+    }
 }
