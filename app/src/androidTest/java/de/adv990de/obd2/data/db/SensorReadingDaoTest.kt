@@ -99,8 +99,20 @@ class SensorReadingDaoTest {
         dao.insertAll(listOf(
             SensorReadingEntity(sessionId = sid, timestamp = 2L, pidId = "010D", value = 50f)
         ))
-        val cursor = dao.getBySessionCursor(SimpleSQLiteQuery("SELECT * FROM sensor_readings WHERE sessionId = ?", arrayOf(sid)))
+        val cursor = dao.getBySessionCursor(
+            SimpleSQLiteQuery("SELECT pidId, value, timestamp FROM sensor_readings WHERE sessionId = ? ORDER BY timestamp ASC", arrayOf(sid))
+        )
         assertEquals(2, cursor.count)
+        // Verify row 1 (inserted via insert())
+        cursor.moveToFirst()
+        assertEquals("010C", cursor.getString(cursor.getColumnIndexOrThrow("pidId")))
+        assertEquals(100f, cursor.getFloat(cursor.getColumnIndexOrThrow("value")), 0.001f)
+        assertEquals(1L, cursor.getLong(cursor.getColumnIndexOrThrow("timestamp")))
+        // Verify row 2 (inserted via insertAll())
+        cursor.moveToNext()
+        assertEquals("010D", cursor.getString(cursor.getColumnIndexOrThrow("pidId")))
+        assertEquals(50f, cursor.getFloat(cursor.getColumnIndexOrThrow("value")), 0.001f)
+        assertEquals(2L, cursor.getLong(cursor.getColumnIndexOrThrow("timestamp")))
         cursor.close()
     }
 }
