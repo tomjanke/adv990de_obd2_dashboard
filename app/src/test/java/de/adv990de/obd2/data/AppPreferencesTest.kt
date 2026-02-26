@@ -105,7 +105,7 @@ class AppPreferencesTest {
         assertNotNull(last)
         assertEquals("ELM327-Classic", last!!.name)
         assertEquals(BtType.CLASSIC, last.type)
-        assertEquals("AA:BB:CC:DD:EE:FF", last.device.address)
+        assertEquals("AA:BB:CC:DD:EE:FF", last.device!!.address)
     }
 
     // ── Display preferences ───────────────────────────────────────────────────
