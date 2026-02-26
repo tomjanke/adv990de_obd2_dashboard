@@ -1,5 +1,6 @@
 package de.adv990de.obd2.data
 
+import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.bluetooth.FakeObdConnection
 import de.adv990de.obd2.bluetooth.ObdConnection
@@ -481,6 +482,40 @@ class ObdRepositoryTest {
         assertTrue("RPM (010C) should be in supported PIDs",       "010C" in supported!!)
         assertTrue("Speed (010D) should be in supported PIDs",     "010D" in supported)
         assertTrue("Coolant Temp (0105) should be in supported PIDs", "0105" in supported)
+    }
+
+    // ── setMoving SIMULATOR guard ─────────────────────────────────────────────
+
+    @Test
+    fun `setMoving is ignored when SIMULATOR device is connected`() = runTest {
+        val simulatorDevice = ScannedDevice(device = null, type = BtType.SIMULATOR, name = "Simulator")
+        val connection = mockk<ObdConnection>()
+        val elm = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory>()
+
+        coEvery { factory.create(simulatorDevice) } returns connection
+        coEvery { connection.connect() } returns elm
+        coEvery { elm.initialize() } just Runs
+        every { connection.isConnected } returns true
+        // Discovery: all ranges return NoData so discovery returns null (irrelevant for this test)
+        coEvery { elm.sendCommand("0100") } throws ObdException.NoData("0100")
+        coEvery { elm.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elm.sendCommand("0140") } throws ObdException.NoData("0140")
+
+        val repo = makeRepo(factory)
+        repo.connect(simulatorDevice)
+
+        repo.setMoving(true)
+
+        assertEquals(false, repo.isMovingFlow.value)
+    }
+
+    // ── readVin ───────────────────────────────────────────────────────────────
+
+    @Test
+    fun `readVin returns null when not connected`() = runTest {
+        val repo = makeRepo()
+        assertNull(repo.readVin())
     }
 
     @Test
