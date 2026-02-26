@@ -53,6 +53,7 @@ class AppPreferences @Inject constructor(
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
+        if (device.device == null) return   // simulator – nothing to persist
         dataStore.edit { prefs ->
             prefs[KEY_DEVICE_ADDRESS] = device.address
             prefs[KEY_DEVICE_NAME]    = device.name
