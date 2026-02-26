@@ -7,8 +7,13 @@ import java.io.PipedInputStream
 import java.io.PipedOutputStream
 
 /**
- * Stub implementation — wires [SimulatedEcuDispatcher] to [ElmController] via piped streams.
- * Full implementation provided in Task 4.
+ * An [ObdConnection] that simulates an ELM327 adapter with animated sensor values.
+ *
+ * Wiring (identical to [de.adv990de.obd2.bluetooth.FakeObdConnection]):
+ *   [ElmController] writes commands → [toDispatcher] PipedOutputStream
+ *     → [fromClient] PipedInputStream (read by dispatcher thread)
+ *   Dispatcher thread writes responses → [toClient] PipedOutputStream
+ *     → [fromElm] PipedInputStream (read by [ElmController])
  */
 class SimulatorObdConnection : ObdConnection {
 

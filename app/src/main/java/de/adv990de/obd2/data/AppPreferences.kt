@@ -67,6 +67,7 @@ class AppPreferences @Inject constructor(
         val type    = prefs[KEY_DEVICE_TYPE]
             ?.let { try { BtType.valueOf(it) } catch (_: IllegalArgumentException) { null } }
             ?: return@map null
+        if (type == BtType.SIMULATOR) return@map null   // never persisted; guard against stale data
         val btDevice = try {
             bluetoothAdapter.getRemoteDevice(address)
         } catch (_: Exception) { return@map null }
