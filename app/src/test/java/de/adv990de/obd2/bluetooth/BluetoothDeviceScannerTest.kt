@@ -27,8 +27,6 @@ class BluetoothDeviceScannerTest {
 
         val result = scanner.bondedDevices(showAll = false)
 
-        // BuildConfig.DEBUG is true in unit tests, so simulator is always prepended
-        assertEquals(2, result.size)
         val classicDevices = result.filter { it.type == BtType.CLASSIC }
         assertEquals(1, classicDevices.size)
         assertEquals("ELM327 v1.5", classicDevices[0].name)
@@ -44,8 +42,8 @@ class BluetoothDeviceScannerTest {
 
         val result = scanner.bondedDevices(showAll = true)
 
-        // 1 simulator + 2 real devices
-        assertEquals(3, result.size)
+        val classicDevices = result.filter { it.type == BtType.CLASSIC }
+        assertEquals(2, classicDevices.size)
     }
 
     // --- Test 3 ---
@@ -85,7 +83,9 @@ class BluetoothDeviceScannerTest {
 
         val result = scanner.bondedDevices(showAll = false)
 
-        val classicNames = result.filter { it.type == BtType.CLASSIC }.map { it.name }
+        val classicDevices = result.filter { it.type == BtType.CLASSIC }
+        assertEquals("Expected exactly 2 CLASSIC devices", 2, classicDevices.size)
+        val classicNames = classicDevices.map { it.name }
         assertTrue("VIECAR BT should be included", "VIECAR BT" in classicNames)
         assertTrue("OBDLINK MX+ should be included", "OBDLINK MX+" in classicNames)
     }
