@@ -119,7 +119,8 @@ class SettingsViewModelTest {
         val btDevice = mockk<android.bluetooth.BluetoothDevice> { every { address } returns "AA:BB:CC:DD:EE:FF" }
         val device = mockk<ScannedDevice> {
             every { name } returns "ELM327"
-            every { device } returns btDevice  // needed by lastDevice.collect → device?.device?.address
+            every { device } returns btDevice
+            every { address } returns "AA:BB:CC:DD:EE:FF"
         }
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
@@ -204,6 +205,7 @@ class SettingsViewModelTest {
         val device = mockk<ScannedDevice> {
             every { name } returns "ELM327"
             every { this@mockk.device } returns btDevice
+            every { address } returns "AA:BB:CC:DD:EE:FF"
         }
         val lastDeviceFlow = MutableStateFlow<ScannedDevice?>(null)
         val obdRepo = mockk<ObdRepository> {
@@ -282,6 +284,7 @@ class SettingsViewModelTest {
             every { device } returns btDevice
             every { name } returns "ELM"
             every { type } returns de.adv990de.obd2.bluetooth.BtType.CLASSIC
+            every { address } returns "AA:BB:CC:DD:EE:FF"
         }
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
