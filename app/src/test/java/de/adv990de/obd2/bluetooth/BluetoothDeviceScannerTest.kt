@@ -2,10 +2,12 @@ package de.adv990de.obd2.bluetooth
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import de.adv990de.obd2.BuildConfig
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class BluetoothDeviceScannerTest {
@@ -50,6 +52,8 @@ class BluetoothDeviceScannerTest {
 
     @Test
     fun `bondedDevices prepends simulator entry in DEBUG build`() {
+        // This test only applies to debug builds; release builds omit the simulator entry.
+        assumeTrue("Requires BuildConfig.DEBUG=true (run testDebugUnitTest)", BuildConfig.DEBUG)
         every { btAdapter.bondedDevices } returns emptySet()
 
         val result = scanner.bondedDevices()
