@@ -213,9 +213,9 @@ class ObdRepositoryTest {
 
     private suspend fun makeConnectedRepo(
         elmCtrl: ElmController,
-        pidParser: PidParser = mockk()
+        pidParser: PidParser = mockk(),
+        device: ScannedDevice = mockk()
     ): ObdRepository {
-        val device = mockk<ScannedDevice>()
         val conn = mockk<ObdConnection> {
             every { isConnected } returns true
             every { close() } just Runs
@@ -488,22 +488,9 @@ class ObdRepositoryTest {
 
     @Test
     fun `setMoving is ignored when SIMULATOR device is connected`() = runTest {
-        val simulatorDevice = ScannedDevice(device = null, type = BtType.SIMULATOR, name = "Simulator")
-        val connection = mockk<ObdConnection>()
-        val elm = mockk<ElmController>()
-        val factory = mockk<ConnectionFactory>()
-
-        coEvery { factory.create(simulatorDevice) } returns connection
-        coEvery { connection.connect() } returns elm
-        coEvery { elm.initialize() } just Runs
-        every { connection.isConnected } returns true
-        // Discovery: all ranges return NoData so discovery returns null (irrelevant for this test)
-        coEvery { elm.sendCommand("0100") } throws ObdException.NoData("0100")
-        coEvery { elm.sendCommand("0120") } throws ObdException.NoData("0120")
-        coEvery { elm.sendCommand("0140") } throws ObdException.NoData("0140")
-
-        val repo = makeRepo(factory)
-        repo.connect(simulatorDevice)
+        val simulatorDevice = ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")
+        val elmCtrl = mockk<ElmController>()
+        val repo = makeConnectedRepo(elmCtrl, device = simulatorDevice)
 
         repo.setMoving(true)
 
