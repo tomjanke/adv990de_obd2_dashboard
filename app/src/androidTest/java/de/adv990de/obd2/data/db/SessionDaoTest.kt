@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
+import androidx.paging.PagingSource
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
@@ -91,8 +92,14 @@ class SessionDaoTest {
     fun pagingSource_notEmptyAfterInsert() = runBlocking {
         sessionDao.insert(SessionEntity(startTime = 1000L))
         val source = sessionDao.pagingSource()
-        assertNotNull(source)
-        val sessions = sessionDao.getAll().first()
-        assertEquals(1, sessions.size)
+        val result = source.load(
+            PagingSource.LoadParams.Refresh(
+                key = null,
+                loadSize = 10,
+                placeholdersEnabled = false
+            )
+        )
+        assertTrue(result is PagingSource.LoadResult.Page)
+        assertEquals(1, (result as PagingSource.LoadResult.Page).data.size)
     }
 }
