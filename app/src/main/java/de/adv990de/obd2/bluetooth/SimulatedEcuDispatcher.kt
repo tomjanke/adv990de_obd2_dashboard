@@ -4,8 +4,8 @@ package de.adv990de.obd2.bluetooth
 /**
  * Parses ELM327 commands and returns simulated responses.
  *
- * RPM follows a slow triangle wave (period 60 s, range 1500–2500 rpm)
- * simulating a calm city cruise.
+ * RPM follows a triangle wave (period 20 s, range 900–8500 rpm)
+ * simulating varied city/highway driving.
  * Coolant temperature ramps from 20°C to 90°C over 90 s.
  * Speed, load, throttle, MAP and MAF are derived from the current RPM.
  * Fuel level, ambient temp and timing advance are constant.
@@ -48,10 +48,10 @@ class SimulatedEcuDispatcher {
 
     private fun rpm(): Int {
         val t = System.currentTimeMillis()
-        // Slow triangle wave: 1500–2500 rpm over 60 s — calm city cruise
-        val phase = (t % 60_000L) / 60_000.0          // 0.0 .. 1.0
+        // Triangle wave: 900–8500 rpm over 20 s — varied city/highway driving
+        val phase = (t % 20_000L) / 20_000.0          // 0.0 .. 1.0
         val triangle = if (phase < 0.5) 2 * phase else 2 * (1 - phase)  // 0.0 .. 1.0
-        return (1500 + 1000 * triangle).toInt()
+        return (900 + 7600 * triangle).toInt()
     }
 
     private fun respondRpm(): String {
@@ -60,7 +60,7 @@ class SimulatedEcuDispatcher {
     }
 
     private fun respondSpeed(): String {
-        val speed = ((rpm() - 800) * 120 / 3700.0).toInt().coerceIn(0, 120)
+        val speed = ((rpm() - 900) * 120 / 7600.0).toInt().coerceIn(0, 120)
         return "41 0D %02X".format(speed)
     }
 
@@ -71,22 +71,22 @@ class SimulatedEcuDispatcher {
     }
 
     private fun respondLoad(): String {
-        val load = (20 + 75.0 * (rpm() - 800) / 3700).toInt().coerceIn(20, 95)
+        val load = (20 + 75.0 * (rpm() - 900) / 7600).toInt().coerceIn(20, 95)
         return "41 04 %02X".format(load * 255 / 100)
     }
 
     private fun respondThrottle(): String {
-        val throttle = (100.0 * (rpm() - 800) / 3700).toInt().coerceIn(0, 100)
+        val throttle = (100.0 * (rpm() - 900) / 7600).toInt().coerceIn(0, 100)
         return "41 11 %02X".format(throttle * 255 / 100)
     }
 
     private fun respondMap(): String {
-        val map = (30 + 70.0 * (rpm() - 800) / 3700).toInt().coerceIn(30, 100)
+        val map = (30 + 70.0 * (rpm() - 900) / 7600).toInt().coerceIn(30, 100)
         return "41 0B %02X".format(map)
     }
 
     private fun respondMaf(): String {
-        val mafCentigs = (50 + 4950.0 * (rpm() - 800) / 3700).toInt().coerceIn(50, 4999)
+        val mafCentigs = (50 + 4950.0 * (rpm() - 900) / 7600).toInt().coerceIn(50, 4999)
         return "41 10 %02X %02X".format(mafCentigs / 256, mafCentigs % 256)
     }
 
