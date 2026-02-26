@@ -969,6 +969,54 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `setMoving false called when SPEED is not in selected PIDs`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(emptyList())
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        // Slot contains only RPM — SPEED is explicitly absent
+        val prefs = makePrefs(slotIds = listOf(PidRegistry.RPM.id))
+
+        makeVm(obdRepo = obdRepo, prefs = prefs)
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        verify { obdRepo.setMoving(false) }
+    }
+
+    @Test
+    fun `uiState error set to no-device banner when no device is configured`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            // Cold launch: no prior connect in this session → lastConnectedDevice is null
+            every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+        }
+        // makePrefs() already stubs lastDevice as flowOf(null) → no persisted device
+        val vm = makeVm(obdRepo = obdRepo, prefs = makePrefs())
+        isConnectedFlow.value = true
+        // advanceTimeBy(1) runs coroutines up to the first suspension point,
+        // enough for the reconnect loop to check both device sources and abort.
+        advanceTimeBy(1)
+
+        assertNotNull("Expected error banner", vm.uiState.value.error)
+    }
+
+    @Test
     fun `service is stopped when Bluetooth is disabled during reconnect`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
