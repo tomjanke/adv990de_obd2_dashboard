@@ -7,6 +7,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import androidx.annotation.RequiresPermission
+import de.adv990de.obd2.BuildConfig
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -16,12 +17,19 @@ class BluetoothDeviceScanner(
     private val bluetoothAdapter: BluetoothAdapter
 ) {
 
-    /** Returns already-bonded (paired) Classic BT devices that look like OBD2 adapters, or all bonded devices if [showAll] is true */
+    /** Returns already-bonded (paired) Classic BT devices that look like OBD2 adapters, or all bonded devices if [showAll] is true.
+     *  In debug builds a virtual "OBD Sim" entry is prepended so the simulator is always reachable. */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun bondedDevices(showAll: Boolean = false): List<ScannedDevice> =
-        bluetoothAdapter.bondedDevices
+    fun bondedDevices(showAll: Boolean = false): List<ScannedDevice> {
+        val real = bluetoothAdapter.bondedDevices
             .filter { showAll || it.isObdLike() }
             .map { ScannedDevice(it, BtType.CLASSIC, it.name ?: "Unknown") }
+        return if (BuildConfig.DEBUG) {
+            listOf(ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")) + real
+        } else {
+            real
+        }
+    }
 
     /** Scans for BLE OBD2 adapters */
     fun scanBle(): Flow<ScannedDevice> = callbackFlow {
