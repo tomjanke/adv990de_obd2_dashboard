@@ -64,6 +64,7 @@ class SettingsScreenTest {
             val navController = rememberNavController()
             SettingsScreen(navController = navController)
         }
+        composeRule.waitForIdle()
     }
 
     @Test
