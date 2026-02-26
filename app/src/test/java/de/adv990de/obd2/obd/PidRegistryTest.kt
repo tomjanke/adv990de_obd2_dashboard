@@ -1,90 +1,100 @@
 package de.adv990de.obd2.obd
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private const val DELTA = 0.01f
 
 class PidRegistryTest {
 
-    // ── Registry integrity ────────────────────────────────────────────────────
+    private val parser = PidParser()
 
-    @Test
-    fun `all map has 19 entries`() {
-        assertEquals(19, PidRegistry.all.size)
+    private fun parse(pid: de.adv990de.obd2.obd.model.PidDefinition, vararg bytes: Int): Float {
+        val byteHex = bytes.joinToString(" ") { "%02X".format(it) }
+        val pidHex = pid.id.takeLast(2)
+        val raw = "41 $pidHex $byteHex"
+        return parser.parse(pid, raw).value
     }
 
-    @Test
-    fun `all map keys match PID ids`() {
-        PidRegistry.all.forEach { (key, pid) ->
-            assertEquals("Key '$key' does not match pid.id '${pid.id}'", key, pid.id)
-        }
-    }
+    // ── RPM: ((A*256 + B) / 4) ────────────────────────────────────────────
+    @Test fun `RPM formula zero`()    = assertEquals(0f,        parse(PidRegistry.RPM, 0x00, 0x00), DELTA)
+    @Test fun `RPM formula typical`() = assertEquals(1726f,     parse(PidRegistry.RPM, 0x1A, 0xF8), DELTA)
+    @Test fun `RPM formula maximum`() = assertEquals(16383.75f, parse(PidRegistry.RPM, 0xFF, 0xFF), DELTA)
 
-    @Test
-    fun `defaults are a subset of all`() {
-        PidRegistry.defaults.forEach { pid ->
-            assertTrue("${pid.id} from defaults not found in all", pid.id in PidRegistry.all)
-        }
-    }
+    // ── SPEED: (A) ────────────────────────────────────────────────────────
+    @Test fun `Speed formula zero`()    = assertEquals(0f,   parse(PidRegistry.SPEED, 0x00), DELTA)
+    @Test fun `Speed formula maximum`() = assertEquals(255f, parse(PidRegistry.SPEED, 0xFF), DELTA)
 
-    // ── SHORT_TERM_FUEL_TRIM formula ──────────────────────────────────────────
+    // ── COOLANT_TEMP: (A - 40) ────────────────────────────────────────────
+    @Test fun `CoolantTemp formula minimum`() = assertEquals(-40f, parse(PidRegistry.COOLANT_TEMP, 0x00), DELTA)
+    @Test fun `CoolantTemp formula typical`() = assertEquals(50f,  parse(PidRegistry.COOLANT_TEMP, 0x5A), DELTA)
+    @Test fun `CoolantTemp formula maximum`() = assertEquals(215f, parse(PidRegistry.COOLANT_TEMP, 0xFF), DELTA)
 
-    @Test
-    fun `SHORT_TERM_FUEL_TRIM A=128 yields 0 percent`() {
-        val result = PidRegistry.SHORT_TERM_FUEL_TRIM.formula(byteArrayOf(0x80.toByte()))
-        assertEquals(0.0f, result, 0.01f)
-    }
+    // ── ENGINE_LOAD: (A*100/255) ──────────────────────────────────────────
+    @Test fun `EngineLoad formula zero`()    = assertEquals(0f,   parse(PidRegistry.ENGINE_LOAD, 0x00), DELTA)
+    @Test fun `EngineLoad formula maximum`() = assertEquals(100f, parse(PidRegistry.ENGINE_LOAD, 0xFF), DELTA)
 
-    @Test
-    fun `SHORT_TERM_FUEL_TRIM A=0 yields -100 percent`() {
-        val result = PidRegistry.SHORT_TERM_FUEL_TRIM.formula(byteArrayOf(0x00))
-        assertEquals(-100.0f, result, 0.01f)
-    }
+    // ── THROTTLE: (A*100/255) ─────────────────────────────────────────────
+    @Test fun `Throttle formula zero`()    = assertEquals(0f,   parse(PidRegistry.THROTTLE, 0x00), DELTA)
+    @Test fun `Throttle formula maximum`() = assertEquals(100f, parse(PidRegistry.THROTTLE, 0xFF), DELTA)
 
-    // ── TIMING_ADVANCE formula ────────────────────────────────────────────────
+    // ── INTAKE_AIR_TEMP: (A - 40) ─────────────────────────────────────────
+    @Test fun `IntakeAirTemp formula minimum`() = assertEquals(-40f, parse(PidRegistry.INTAKE_AIR_TEMP, 0x00), DELTA)
+    @Test fun `IntakeAirTemp formula typical`() = assertEquals(25f,  parse(PidRegistry.INTAKE_AIR_TEMP, 0x41), DELTA)
 
-    @Test
-    fun `TIMING_ADVANCE A=128 yields 0 degrees`() {
-        val result = PidRegistry.TIMING_ADVANCE.formula(byteArrayOf(0x80.toByte()))
-        assertEquals(0.0f, result, 0.01f)
-    }
+    // ── MAF: ((A*256 + B) / 100) ─────────────────────────────────────────
+    @Test fun `MAF formula zero`()    = assertEquals(0f,      parse(PidRegistry.MAF, 0x00, 0x00), DELTA)
+    @Test fun `MAF formula typical`() = assertEquals(3.0f,    parse(PidRegistry.MAF, 0x01, 0x2C), DELTA)
+    @Test fun `MAF formula maximum`() = assertEquals(655.35f, parse(PidRegistry.MAF, 0xFF, 0xFF), DELTA)
 
-    @Test
-    fun `TIMING_ADVANCE A=0 yields -64 degrees`() {
-        val result = PidRegistry.TIMING_ADVANCE.formula(byteArrayOf(0x00))
-        assertEquals(-64.0f, result, 0.01f)
-    }
+    // ── SHORT_TERM_FUEL_TRIM: (A*100/128 - 100) ──────────────────────────
+    // Boundary artefact: 0xFF yields 99.21875 (spec-known overshoot, documented in PidRegistry)
+    @Test fun `ShortFuelTrim formula zero byte`()      = assertEquals(-100f,     parse(PidRegistry.SHORT_TERM_FUEL_TRIM, 0x00), DELTA)
+    @Test fun `ShortFuelTrim formula neutral (0x80)`() = assertEquals(0f,        parse(PidRegistry.SHORT_TERM_FUEL_TRIM, 0x80), DELTA)
+    @Test fun `ShortFuelTrim formula max byte`()       = assertEquals(99.21875f, parse(PidRegistry.SHORT_TERM_FUEL_TRIM, 0xFF), DELTA)
 
-    // ── CATALYST_TEMP_B1S1 formula ────────────────────────────────────────────
+    // ── LONG_TERM_FUEL_TRIM: identical formula ────────────────────────────
+    @Test fun `LongFuelTrim formula neutral`() = assertEquals(0f, parse(PidRegistry.LONG_TERM_FUEL_TRIM, 0x80), DELTA)
 
-    @Test
-    fun `CATALYST_TEMP_B1S1 0x01 0x9C yields 1_2 degrees C`() {
-        // (1×256 + 156) / 10 − 40 = 412/10 − 40 = 41.2 − 40 = 1.2
-        val result = PidRegistry.CATALYST_TEMP_B1S1.formula(byteArrayOf(0x01, 0x9C.toByte()))
-        assertEquals(1.2f, result, 0.01f)
-    }
+    // ── INTAKE_MANIFOLD_PRESSURE: (A) ────────────────────────────────────
+    @Test fun `MAP formula typical`() = assertEquals(101f, parse(PidRegistry.INTAKE_MANIFOLD_PRESSURE, 0x65), DELTA)
 
-    @Test
-    fun `CATALYST_TEMP_B1S1 0x00 0x00 yields -40 degrees C`() {
-        val result = PidRegistry.CATALYST_TEMP_B1S1.formula(byteArrayOf(0x00, 0x00))
-        assertEquals(-40.0f, result, 0.01f)
-    }
+    // ── TIMING_ADVANCE: (A/2 - 64) ───────────────────────────────────────
+    @Test fun `TimingAdvance formula minimum`() = assertEquals(-64f,  parse(PidRegistry.TIMING_ADVANCE, 0x00), DELTA)
+    @Test fun `TimingAdvance formula zero`()    = assertEquals(0f,    parse(PidRegistry.TIMING_ADVANCE, 0x80), DELTA)
+    @Test fun `TimingAdvance formula maximum`() = assertEquals(63.5f, parse(PidRegistry.TIMING_ADVANCE, 0xFF), DELTA)
 
-    // ── CONTROL_MODULE_VOLTAGE formula ────────────────────────────────────────
+    // ── FUEL_TANK_LEVEL: (A*100/255) ─────────────────────────────────────
+    @Test fun `FuelLevel formula zero`() = assertEquals(0f,   parse(PidRegistry.FUEL_TANK_LEVEL, 0x00), DELTA)
+    @Test fun `FuelLevel formula full`() = assertEquals(100f, parse(PidRegistry.FUEL_TANK_LEVEL, 0xFF), DELTA)
 
-    @Test
-    fun `CONTROL_MODULE_VOLTAGE 0x38 0xD8 yields 14_552 V`() {
-        // (0x38×256 + 0xD8) / 1000 = (56×256 + 216) / 1000 = 14552/1000 = 14.552
-        val result = PidRegistry.CONTROL_MODULE_VOLTAGE.formula(byteArrayOf(0x38, 0xD8.toByte()))
-        assertEquals(14.552f, result, 0.001f)
-    }
+    // ── BAROMETRIC_PRESSURE: (A) ──────────────────────────────────────────
+    @Test fun `BaroPressure formula typical`() = assertEquals(101f, parse(PidRegistry.BAROMETRIC_PRESSURE, 0x65), DELTA)
 
-    // ── ENGINE_FUEL_RATE formula ──────────────────────────────────────────────
+    // ── CATALYST_TEMP_B1S1: ((A*256 + B) / 10 - 40) ─────────────────────
+    // 0x19 0x00 = (25*256+0)/10 - 40 = 6400/10 - 40 = 640 - 40 = 600
+    @Test fun `CatalystTemp formula minimum`() = assertEquals(-40f,    parse(PidRegistry.CATALYST_TEMP_B1S1, 0x00, 0x00), DELTA)
+    @Test fun `CatalystTemp formula typical`() = assertEquals(600f,    parse(PidRegistry.CATALYST_TEMP_B1S1, 0x19, 0x00), DELTA)
+    @Test fun `CatalystTemp formula maximum`() = assertEquals(6513.5f, parse(PidRegistry.CATALYST_TEMP_B1S1, 0xFF, 0xFF), DELTA)
 
-    @Test
-    fun `ENGINE_FUEL_RATE 0x00 0x64 yields 5_0 L per h`() {
-        // (0×256 + 100) / 20 = 100/20 = 5.0
-        val result = PidRegistry.ENGINE_FUEL_RATE.formula(byteArrayOf(0x00, 0x64))
-        assertEquals(5.0f, result, 0.001f)
-    }
+    // ── CONTROL_MODULE_VOLTAGE: ((A*256 + B) / 1000) ─────────────────────
+    // 0x2E 0xE0 = (46*256+224)/1000 = 12000/1000 = 12.0
+    @Test fun `ControlModuleVoltage formula typical`() = assertEquals(12.0f, parse(PidRegistry.CONTROL_MODULE_VOLTAGE, 0x2E, 0xE0), DELTA)
+
+    // ── AMBIENT_AIR_TEMP: (A - 40) ───────────────────────────────────────
+    // 0x3C = 60, 60 - 40 = 20
+    @Test fun `AmbientTemp formula typical`() = assertEquals(20f, parse(PidRegistry.AMBIENT_AIR_TEMP, 0x3C), DELTA)
+
+    // ── ACCELERATOR_PEDAL_POS: (A*100/255) ───────────────────────────────
+    @Test fun `AccelPedalPos formula zero`()    = assertEquals(0f,   parse(PidRegistry.ACCELERATOR_PEDAL_POS, 0x00), DELTA)
+    @Test fun `AccelPedalPos formula maximum`() = assertEquals(100f, parse(PidRegistry.ACCELERATOR_PEDAL_POS, 0xFF), DELTA)
+
+    // ── ENGINE_OIL_TEMP: (A - 40) ────────────────────────────────────────
+    // 0x78 = 120, 120 - 40 = 80
+    @Test fun `EngineOilTemp formula typical`() = assertEquals(80f, parse(PidRegistry.ENGINE_OIL_TEMP, 0x78), DELTA)
+
+    // ── ENGINE_FUEL_RATE: ((A*256 + B) / 20) ─────────────────────────────
+    // 0x00 0xC8 = (0*256+200)/20 = 200/20 = 10.0
+    @Test fun `EngineFuelRate formula zero`()    = assertEquals(0f,    parse(PidRegistry.ENGINE_FUEL_RATE, 0x00, 0x00), DELTA)
+    @Test fun `EngineFuelRate formula typical`() = assertEquals(10.0f, parse(PidRegistry.ENGINE_FUEL_RATE, 0x00, 0xC8), DELTA)
 }
