@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only manifest overlay.
+    HiltTestActivity is declared here so it is included in debug (and therefore test) builds
+    without polluting the release APK. The compose.ui.test.manifest artifact already provides
+    a generic ComponentActivity for Compose tests, but @AndroidEntryPoint requires its own
+    concrete class to be explicitly listed.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".HiltTestActivity"
+            android:exported="false" />
+    </application>
+</manifest>
