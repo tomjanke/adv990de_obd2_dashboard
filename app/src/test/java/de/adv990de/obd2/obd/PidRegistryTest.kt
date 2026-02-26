@@ -1,11 +1,22 @@
 package de.adv990de.obd2.obd
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val DELTA = 0.01f
 
 class PidRegistryTest {
+
+    // ── Registry integrity ────────────────────────────────────────────────
+    @Test fun `all map has 19 entries`() = assertEquals(19, PidRegistry.all.size)
+    @Test fun `all map keys match PID ids`() {
+        for ((key, pid) in PidRegistry.all) assertEquals(key, pid.id)
+    }
+    @Test fun `defaults are a subset of all`() {
+        for (pid in PidRegistry.defaults) assertTrue(pid.id in PidRegistry.all)
+    }
+
 
     private val parser = PidParser()
 
@@ -41,6 +52,7 @@ class PidRegistryTest {
     // ── INTAKE_AIR_TEMP: (A - 40) ─────────────────────────────────────────
     @Test fun `IntakeAirTemp formula minimum`() = assertEquals(-40f, parse(PidRegistry.INTAKE_AIR_TEMP, 0x00), DELTA)
     @Test fun `IntakeAirTemp formula typical`() = assertEquals(25f,  parse(PidRegistry.INTAKE_AIR_TEMP, 0x41), DELTA)
+    @Test fun `IntakeAirTemp formula maximum`() = assertEquals(215f, parse(PidRegistry.INTAKE_AIR_TEMP, 0xFF), DELTA)
 
     // ── MAF: ((A*256 + B) / 100) ─────────────────────────────────────────
     @Test fun `MAF formula zero`()    = assertEquals(0f,      parse(PidRegistry.MAF, 0x00, 0x00), DELTA)
@@ -54,10 +66,14 @@ class PidRegistryTest {
     @Test fun `ShortFuelTrim formula max byte`()       = assertEquals(99.21875f, parse(PidRegistry.SHORT_TERM_FUEL_TRIM, 0xFF), DELTA)
 
     // ── LONG_TERM_FUEL_TRIM: identical formula ────────────────────────────
-    @Test fun `LongFuelTrim formula neutral`() = assertEquals(0f, parse(PidRegistry.LONG_TERM_FUEL_TRIM, 0x80), DELTA)
+    @Test fun `LongFuelTrim formula zero byte`() = assertEquals(-100f,     parse(PidRegistry.LONG_TERM_FUEL_TRIM, 0x00), DELTA)
+    @Test fun `LongFuelTrim formula neutral`()   = assertEquals(0f,        parse(PidRegistry.LONG_TERM_FUEL_TRIM, 0x80), DELTA)
+    @Test fun `LongFuelTrim formula max byte`()  = assertEquals(99.21875f, parse(PidRegistry.LONG_TERM_FUEL_TRIM, 0xFF), DELTA)
 
     // ── INTAKE_MANIFOLD_PRESSURE: (A) ────────────────────────────────────
+    @Test fun `MAP formula zero`()    = assertEquals(0f,   parse(PidRegistry.INTAKE_MANIFOLD_PRESSURE, 0x00), DELTA)
     @Test fun `MAP formula typical`() = assertEquals(101f, parse(PidRegistry.INTAKE_MANIFOLD_PRESSURE, 0x65), DELTA)
+    @Test fun `MAP formula maximum`() = assertEquals(255f, parse(PidRegistry.INTAKE_MANIFOLD_PRESSURE, 0xFF), DELTA)
 
     // ── TIMING_ADVANCE: (A/2 - 64) ───────────────────────────────────────
     @Test fun `TimingAdvance formula minimum`() = assertEquals(-64f,  parse(PidRegistry.TIMING_ADVANCE, 0x00), DELTA)
@@ -69,7 +85,9 @@ class PidRegistryTest {
     @Test fun `FuelLevel formula full`() = assertEquals(100f, parse(PidRegistry.FUEL_TANK_LEVEL, 0xFF), DELTA)
 
     // ── BAROMETRIC_PRESSURE: (A) ──────────────────────────────────────────
+    @Test fun `BaroPressure formula zero`()    = assertEquals(0f,   parse(PidRegistry.BAROMETRIC_PRESSURE, 0x00), DELTA)
     @Test fun `BaroPressure formula typical`() = assertEquals(101f, parse(PidRegistry.BAROMETRIC_PRESSURE, 0x65), DELTA)
+    @Test fun `BaroPressure formula maximum`() = assertEquals(255f, parse(PidRegistry.BAROMETRIC_PRESSURE, 0xFF), DELTA)
 
     // ── CATALYST_TEMP_B1S1: ((A*256 + B) / 10 - 40) ─────────────────────
     // 0x19 0x00 = (25*256+0)/10 - 40 = 6400/10 - 40 = 640 - 40 = 600
@@ -79,11 +97,13 @@ class PidRegistryTest {
 
     // ── CONTROL_MODULE_VOLTAGE: ((A*256 + B) / 1000) ─────────────────────
     // 0x2E 0xE0 = (46*256+224)/1000 = 12000/1000 = 12.0
-    @Test fun `ControlModuleVoltage formula typical`() = assertEquals(12.0f, parse(PidRegistry.CONTROL_MODULE_VOLTAGE, 0x2E, 0xE0), DELTA)
+    @Test fun `ControlModuleVoltage formula typical`() = assertEquals(12.0f, parse(PidRegistry.CONTROL_MODULE_VOLTAGE, 0x2E, 0xE0), 0.001f)
 
     // ── AMBIENT_AIR_TEMP: (A - 40) ───────────────────────────────────────
     // 0x3C = 60, 60 - 40 = 20
-    @Test fun `AmbientTemp formula typical`() = assertEquals(20f, parse(PidRegistry.AMBIENT_AIR_TEMP, 0x3C), DELTA)
+    @Test fun `AmbientTemp formula minimum`() = assertEquals(-40f, parse(PidRegistry.AMBIENT_AIR_TEMP, 0x00), DELTA)
+    @Test fun `AmbientTemp formula typical`() = assertEquals(20f,  parse(PidRegistry.AMBIENT_AIR_TEMP, 0x3C), DELTA)
+    @Test fun `AmbientTemp formula maximum`() = assertEquals(215f, parse(PidRegistry.AMBIENT_AIR_TEMP, 0xFF), DELTA)
 
     // ── ACCELERATOR_PEDAL_POS: (A*100/255) ───────────────────────────────
     @Test fun `AccelPedalPos formula zero`()    = assertEquals(0f,   parse(PidRegistry.ACCELERATOR_PEDAL_POS, 0x00), DELTA)
@@ -91,7 +111,9 @@ class PidRegistryTest {
 
     // ── ENGINE_OIL_TEMP: (A - 40) ────────────────────────────────────────
     // 0x78 = 120, 120 - 40 = 80
-    @Test fun `EngineOilTemp formula typical`() = assertEquals(80f, parse(PidRegistry.ENGINE_OIL_TEMP, 0x78), DELTA)
+    @Test fun `EngineOilTemp formula minimum`() = assertEquals(-40f, parse(PidRegistry.ENGINE_OIL_TEMP, 0x00), DELTA)
+    @Test fun `EngineOilTemp formula typical`() = assertEquals(80f,  parse(PidRegistry.ENGINE_OIL_TEMP, 0x78), DELTA)
+    @Test fun `EngineOilTemp formula maximum`() = assertEquals(215f, parse(PidRegistry.ENGINE_OIL_TEMP, 0xFF), DELTA)
 
     // ── ENGINE_FUEL_RATE: ((A*256 + B) / 20) ─────────────────────────────
     // 0x00 0xC8 = (0*256+200)/20 = 200/20 = 10.0
