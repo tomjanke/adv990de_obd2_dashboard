@@ -59,7 +59,7 @@ class SettingsViewModel @Inject constructor(
                 // Keep lastDeviceName in sync so the isConnectedFlow collector (below) can
                 // read the device name from state without a DataStore first() round-trip.
                 _uiState.value = _uiState.value.copy(
-                    lastDeviceAddress = device?.device?.address,
+                    lastDeviceAddress = device?.address,
                     lastDeviceName = device?.name
                 )
                 // Backfill: if the auto-reconnect path already established a connection while

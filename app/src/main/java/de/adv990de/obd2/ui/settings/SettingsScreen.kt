@@ -108,12 +108,12 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
             }
-            items(state.bondedDevices, key = { it.device.address }) { device ->
+            items(state.bondedDevices, key = { it.address }) { device ->
                 DeviceRow(
                     device = device,
                     onClick = { vm.connect(device) },
                     enabled = !state.isConnecting,
-                    isLastConnected = device.device.address == state.lastDeviceAddress
+                    isLastConnected = device.address == state.lastDeviceAddress
                 )
                 HorizontalDivider()
             }

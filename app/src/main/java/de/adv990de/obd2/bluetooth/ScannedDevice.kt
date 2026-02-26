@@ -5,7 +5,9 @@ import android.bluetooth.BluetoothDevice
 enum class BtType { CLASSIC, BLE }
 
 data class ScannedDevice(
-    val device: BluetoothDevice,
+    val device: BluetoothDevice?,
     val type: BtType,
     val name: String
-)
+) {
+    val address: String get() = device?.address ?: "SIMULATOR"
+}

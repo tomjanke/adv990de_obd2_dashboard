@@ -54,7 +54,7 @@ class AppPreferences @Inject constructor(
 
     suspend fun persistDevice(device: ScannedDevice) {
         dataStore.edit { prefs ->
-            prefs[KEY_DEVICE_ADDRESS] = device.device.address
+            prefs[KEY_DEVICE_ADDRESS] = device.address
             prefs[KEY_DEVICE_NAME]    = device.name
             prefs[KEY_DEVICE_TYPE]    = device.type.name
         }
