@@ -23,16 +23,18 @@ class SimulatorObdConnectionTest {
     @Test
     fun `double-connect throws IllegalStateException`() = runTest {
         val conn = SimulatorObdConnection()
-        conn.connect()
-        var threw = false
         try {
-            conn.connect() // should throw
-        } catch (_: IllegalStateException) {
-            threw = true
+            conn.connect()
+            var threw = false
+            try {
+                conn.connect()
+            } catch (_: IllegalStateException) {
+                threw = true
+            }
+            assertTrue("Expected IllegalStateException on second connect()", threw)
         } finally {
             conn.close()
         }
-        assertTrue("Expected IllegalStateException on second connect()", threw)
     }
 
     @Test
@@ -49,6 +51,7 @@ class SimulatorObdConnectionTest {
         conn.connect()
         conn.close()
         conn.close() // should not throw
+        assertFalse("isConnected should be false after close", conn.isConnected)
     }
 
     // ── Integration test ──────────────────────────────────────────────────────
