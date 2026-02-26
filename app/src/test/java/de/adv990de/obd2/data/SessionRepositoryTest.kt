@@ -9,6 +9,7 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.Runs
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -17,9 +18,11 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionRepositoryTest {
@@ -35,6 +38,9 @@ class SessionRepositoryTest {
         every { sensorReadingDao() } returns sensorReadingDao
     }
     private val repo = SessionRepository(mockk<Context>(), db)
+
+    @After
+    fun tearDown() = clearAllMocks()
 
     private fun makePid(id: String) = PidDefinition(
         id = id, name = "Test", unit = "", minValue = 0f, maxValue = 100f, formula = { 0f }
@@ -137,5 +143,22 @@ class SessionRepositoryTest {
 
         coVerify(exactly = 1) { sensorReadingDao.deleteBySession(99L) }
         coVerify(exactly = 0) { sessionDao.delete(any()) }
+    }
+
+    // ── deleteOldSessions ─────────────────────────────────────────────────────
+
+    @Test
+    fun `deleteOldSessions delegates to dao with cutoff calculated from maxAgeMs`() = runTest {
+        val captor = slot<Long>()
+        coEvery { sessionDao.deleteOlderThan(capture(captor)) } just Runs
+
+        val maxAgeMs = 1_000L
+        val before = System.currentTimeMillis()
+        repo.deleteOldSessions(maxAgeMs)
+        val after = System.currentTimeMillis()
+
+        val cutoff = captor.captured
+        assertTrue("cutoff should be within [before-maxAgeMs, after-maxAgeMs]",
+            cutoff in (before - maxAgeMs)..(after - maxAgeMs))
     }
 }
