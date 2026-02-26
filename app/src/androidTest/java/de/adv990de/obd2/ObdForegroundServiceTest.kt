@@ -49,7 +49,7 @@ class ObdForegroundServiceTest {
 
     @Test
     fun onStartCommand_returnsStartNotSticky() {
-        // The service must survive the startService call without crashing; START_NOT_STICKY = 2.
+        // Verifies that the service starts without crashing; the return value is not read here.
         serviceRule.startService(ObdForegroundService.startIntent(ctx))
         assertTrue(true)
     }
@@ -58,8 +58,8 @@ class ObdForegroundServiceTest {
     fun actionStop_callsDisconnectAndStopsService() {
         serviceRule.startService(ObdForegroundService.startIntent(ctx))
         serviceRule.startService(ObdForegroundService.stopIntent(ctx))
-        // disconnect() is launched in a coroutine on the Main dispatcher; give it time to run.
-        Thread.sleep(300)
+        // Give Dispatchers.Main coroutine time to execute on slow CI
+        Thread.sleep(1000)
         coVerify { obdRepository.disconnect() }
     }
 
