@@ -514,8 +514,10 @@ class ObdRepositoryTest {
 
     @Test
     fun `readVin returns null when not connected`() = runTest {
-        val repo = makeRepo()
+        val factory = mockk<ConnectionFactory>()
+        val repo = makeRepo(factory)
         assertNull(repo.readVin())
+        verify(exactly = 0) { factory.create(any()) }
     }
 
     @Test
