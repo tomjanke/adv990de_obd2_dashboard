@@ -75,7 +75,7 @@ class SimulatedEcuDispatcherTest {
         assertEquals(4, parts.size)
         val raw = parts[2].toInt(16) * 256 + parts[3].toInt(16)
         val rpm = raw / 4
-        assertTrue("RPM $rpm not in 800..4500", rpm in 800..4500)
+        assertTrue("RPM $rpm not in 1500..2500", rpm in 1500..2500)
     }
 
     @Test
@@ -86,7 +86,7 @@ class SimulatedEcuDispatcherTest {
         assertEquals("0D", parts[1])
         assertEquals(3, parts.size)
         val speed = parts[2].toInt(16)
-        assertTrue("Speed $speed not in 0..120", speed in 0..120)
+        assertTrue("Speed $speed not in 0..60", speed in 0..60)
     }
 
     @Test

@@ -1,13 +1,11 @@
 package de.adv990de.obd2.bluetooth
 
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.sin
 
 /**
  * Parses ELM327 commands and returns simulated responses.
  *
- * RPM follows a sine wave (period 12 s, range 800–4500 rpm).
+ * RPM follows a slow triangle wave (period 60 s, range 1500–2500 rpm)
+ * simulating a calm city cruise.
  * Coolant temperature ramps from 20°C to 90°C over 90 s.
  * Speed, load, throttle, MAP and MAF are derived from the current RPM.
  * Fuel level, ambient temp and timing advance are constant.
@@ -50,7 +48,10 @@ class SimulatedEcuDispatcher {
 
     private fun rpm(): Int {
         val t = System.currentTimeMillis()
-        return (800 + 3700 * abs(sin(2 * PI * t / 12_000.0))).toInt().coerceIn(800, 4500)
+        // Slow triangle wave: 1500–2500 rpm over 60 s — calm city cruise
+        val phase = (t % 60_000L) / 60_000.0          // 0.0 .. 1.0
+        val triangle = if (phase < 0.5) 2 * phase else 2 * (1 - phase)  // 0.0 .. 1.0
+        return (1500 + 1000 * triangle).toInt()
     }
 
     private fun respondRpm(): String {

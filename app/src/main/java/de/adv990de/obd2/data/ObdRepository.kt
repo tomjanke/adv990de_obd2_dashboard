@@ -1,5 +1,6 @@
 package de.adv990de.obd2.data
 
+import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.bluetooth.ObdConnection
 import de.adv990de.obd2.bluetooth.ScannedDevice
@@ -53,6 +54,7 @@ class ObdRepository @Inject constructor(
     val isMovingFlow: StateFlow<Boolean> = _isMoving.asStateFlow()
 
     fun setMoving(moving: Boolean) {
+        if (_lastConnectedDevice.value?.type == BtType.SIMULATOR) return
         _isMoving.value = moving
     }
 
