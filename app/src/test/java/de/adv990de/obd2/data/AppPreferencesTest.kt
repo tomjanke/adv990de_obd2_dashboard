@@ -108,6 +108,107 @@ class AppPreferencesTest {
         assertEquals("AA:BB:CC:DD:EE:FF", last.device!!.address)
     }
 
+    // ── persistDevice SIMULATOR guard ────────────────────────────────────────
+
+    @Test
+    fun `persistDevice with SIMULATOR device does not persist anything`() = runTest {
+        val prefs = makePreferences()
+        val simDevice = ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")
+        prefs.persistDevice(simDevice)
+        assertNull(prefs.lastDevice.first())
+    }
+
+    // ── loggedPidIds / toggleLoggedPid / setLoggedPids ────────────────────────
+
+    @Test
+    fun `loggedPidIds defaults to ALL_PID_IDS when nothing stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(AppPreferences.ALL_PID_IDS, prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `toggleLoggedPid removes pid when it is in the set`() = runTest {
+        val prefs = makePreferences()
+        // Fresh store defaults to ALL_PID_IDS which contains RPM.
+        val rpmId = PidRegistry.RPM.id
+        assert(rpmId in prefs.loggedPidIds.first()) { "Precondition: $rpmId must be in ALL_PID_IDS" }
+        prefs.toggleLoggedPid(rpmId)
+        assert(rpmId !in prefs.loggedPidIds.first()) { "$rpmId should have been removed" }
+    }
+
+    @Test
+    fun `toggleLoggedPid adds pid when it is not in the set`() = runTest {
+        val prefs = makePreferences()
+        val rpmId = PidRegistry.RPM.id
+        prefs.setLoggedPids(emptySet())
+        assert(rpmId !in prefs.loggedPidIds.first()) { "Precondition: set must be empty" }
+        prefs.toggleLoggedPid(rpmId)
+        assert(rpmId in prefs.loggedPidIds.first()) { "$rpmId should have been added" }
+    }
+
+    @Test
+    fun `setLoggedPids persists empty set`() = runTest {
+        val prefs = makePreferences()
+        prefs.setLoggedPids(emptySet())
+        assertEquals(emptySet<String>(), prefs.loggedPidIds.first())
+    }
+
+    // ── showAllBtDevices ──────────────────────────────────────────────────────
+
+    @Test
+    fun `showAllBtDevices defaults to false`() = runTest {
+        assertEquals(false, makePreferences().showAllBtDevices.first())
+    }
+
+    @Test
+    fun `setShowAllBtDevices persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setShowAllBtDevices(true)
+        assertEquals(true, prefs.showAllBtDevices.first())
+    }
+
+    // ── hideNavOnDrive ────────────────────────────────────────────────────────
+
+    @Test
+    fun `hideNavOnDrive defaults to false`() = runTest {
+        assertEquals(false, makePreferences().hideNavOnDrive.first())
+    }
+
+    @Test
+    fun `setHideNavOnDrive persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setHideNavOnDrive(true)
+        assertEquals(true, prefs.hideNavOnDrive.first())
+    }
+
+    // ── rpmBlinkThreshold ─────────────────────────────────────────────────────
+
+    @Test
+    fun `rpmBlinkThreshold defaults to 0`() = runTest {
+        assertEquals(0, makePreferences().rpmBlinkThreshold.first())
+    }
+
+    @Test
+    fun `setRpmBlinkThreshold persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setRpmBlinkThreshold(4500)
+        assertEquals(4500, prefs.rpmBlinkThreshold.first())
+    }
+
+    // ── rpmDynamicThreshold ───────────────────────────────────────────────────
+
+    @Test
+    fun `rpmDynamicThreshold defaults to false`() = runTest {
+        assertEquals(false, makePreferences().rpmDynamicThreshold.first())
+    }
+
+    @Test
+    fun `setRpmDynamicThreshold persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setRpmDynamicThreshold(true)
+        assertEquals(true, prefs.rpmDynamicThreshold.first())
+    }
+
     // ── Display preferences ───────────────────────────────────────────────────
 
     @Test
