@@ -1013,7 +1013,7 @@ class DashboardViewModelTest {
         // enough for the reconnect loop to check both device sources and abort.
         advanceTimeBy(1)
 
-        assertNotNull("Expected error banner", vm.uiState.value.error)
+        assertEquals(UiText.StringResource(R.string.err_no_device), vm.uiState.value.error)
     }
 
     @Test
