@@ -1,7 +1,5 @@
 package de.adv990de.obd2.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,20 +66,7 @@ fun SettingsScreen(
                 end = 16.dp
             )
         ) {
-            // ── Connected device / error ──────────────────────────────────
-            state.connectedDevice?.let { device ->
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.settings_connected_prefix, device), color = MaterialTheme.colorScheme.primary)
-                        TextButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.settings_disconnect)) }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
+            // ── Connection error ──────────────────────────────────────────
             state.error?.let { error ->
                 item {
                     Text(error, color = MaterialTheme.colorScheme.error)
@@ -109,11 +94,14 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
             items(state.bondedDevices, key = { it.address }) { device ->
+                val isConnected = device.address == state.connectedDeviceAddress
                 DeviceRow(
                     device = device,
                     onClick = { vm.connect(device) },
+                    onDisconnect = { vm.disconnect() },
                     enabled = !state.isConnecting,
-                    isLastConnected = device.address == state.lastDeviceAddress
+                    isLastConnected = device.address == state.lastDeviceAddress,
+                    isConnected = isConnected
                 )
                 HorizontalDivider()
             }
@@ -241,15 +229,17 @@ fun SettingsScreen(
 fun DeviceRow(
     device: ScannedDevice,
     onClick: () -> Unit,
+    onDisconnect: () -> Unit = {},
     enabled: Boolean = true,
-    isLastConnected: Boolean = false
+    isLastConnected: Boolean = false,
+    isConnected: Boolean = false
 ) {
     ListItem(
         headlineContent = { Text(device.name) },
         supportingContent = { Text(device.type.name) },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isLastConnected) {
+                if (isLastConnected && !isConnected) {
                     Icon(
                         Icons.Default.CheckCircle,
                         contentDescription = stringResource(R.string.settings_last_connected_desc),
@@ -257,7 +247,11 @@ fun DeviceRow(
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }
-                Button(onClick = onClick, enabled = enabled) { Text(stringResource(R.string.settings_connect)) }
+                if (isConnected) {
+                    Button(onClick = onDisconnect, enabled = enabled) { Text(stringResource(R.string.settings_disconnect)) }
+                } else {
+                    Button(onClick = onClick, enabled = enabled) { Text(stringResource(R.string.settings_connect)) }
+                }
             }
         }
     )

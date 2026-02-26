@@ -61,7 +61,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `connect persists device on success`() = runTest {
-        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
@@ -77,7 +77,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `isConnecting is true during connect and false after success`() = runTest {
-        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         // Use a real delay so the coroutine suspends at connect() and the intermediate
         // isConnecting=true state is observable via runCurrent().
         val obdRepo = mockk<ObdRepository> {
@@ -148,7 +148,7 @@ class SettingsViewModelTest {
         // Verifies the !isConnecting guard: when connect() is in progress (isConnecting=true),
         // the isConnectedFlow collector must NOT overwrite connectedDevice with the DataStore value.
         val isConnectedFlow = MutableStateFlow(false)
-        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { connect(any()) } coAnswers {
@@ -179,7 +179,7 @@ class SettingsViewModelTest {
     fun `connectedDevice set and isConnecting cleared even when persistDevice fails`() = runTest {
         // Verifies best-effort semantics: a DataStore write failure must not block the
         // connected state — connectedDevice and isConnecting should reflect the successful connect.
-        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } throws Exception("disk full")
             every { lastDevice } returns flowOf(null)
@@ -301,7 +301,7 @@ class SettingsViewModelTest {
     fun `connect starts foreground service on success`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val vm = makeVm(appContext = ctx)
-        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         vm.connect(device)
         advanceUntilIdle()
         // In Android unit test stubs the Intent constructor is a no-op, so we cannot inspect

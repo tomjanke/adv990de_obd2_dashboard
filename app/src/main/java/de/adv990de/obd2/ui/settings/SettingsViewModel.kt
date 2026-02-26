@@ -25,6 +25,7 @@ data class SettingsUiState(
     val bondedDevices: List<ScannedDevice> = emptyList(),
     val isConnecting: Boolean = false,
     val connectedDevice: String? = null,
+    val connectedDeviceAddress: String? = null,
     val lastDeviceAddress: String? = null,
     // Kept in sync with lastDevice flow so the auto-reconnect path can read the device name
     // from state without an extra DataStore I/O round-trip.
@@ -68,7 +69,10 @@ class SettingsViewModel @Inject constructor(
                 if (obdRepository.isConnectedFlow.value
                         && !_uiState.value.isConnecting
                         && _uiState.value.connectedDevice == null) {
-                    _uiState.value = _uiState.value.copy(connectedDevice = device?.name)
+                    _uiState.value = _uiState.value.copy(
+                        connectedDevice = device?.name,
+                        connectedDeviceAddress = device?.address
+                    )
                 }
             }
         }
@@ -79,7 +83,10 @@ class SettingsViewModel @Inject constructor(
                         // Auto-reconnect path: connect() in this VM did not run, so connectedDevice
                         // was not set directly. Use the name already in state (populated by the
                         // lastDevice collector above) to avoid an extra DataStore I/O call.
-                        _uiState.value = _uiState.value.copy(connectedDevice = _uiState.value.lastDeviceName)
+                        _uiState.value = _uiState.value.copy(
+                            connectedDevice = _uiState.value.lastDeviceName,
+                            connectedDeviceAddress = _uiState.value.lastDeviceAddress
+                        )
                     }
                     // Manual connect path: isConnecting=true is set synchronously before
                     // obdRepository.connect() is called (same coroutine), so this collector
@@ -87,7 +94,7 @@ class SettingsViewModel @Inject constructor(
                     // sets connectedDevice directly after returning. The SettingsViewModelTest
                     // verifies this ordering assumption via yield() inside the mock.
                 } else {
-                    _uiState.value = _uiState.value.copy(connectedDevice = null)
+                    _uiState.value = _uiState.value.copy(connectedDevice = null, connectedDeviceAddress = null)
                 }
             }
         }
@@ -117,6 +124,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
                     connectedDevice = device.name,
+                    connectedDeviceAddress = device.address,
                     error = null
                 )
                 appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
