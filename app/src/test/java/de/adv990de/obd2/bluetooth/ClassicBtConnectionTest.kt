@@ -6,11 +6,12 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlin.test.assertFailsWith
 
 class ClassicBtConnectionTest {
 
@@ -26,6 +27,7 @@ class ClassicBtConnectionTest {
         }
         val conn = ClassicBtConnection(device)
         runBlocking { conn.connect() }
+        assertTrue(conn.isConnected)
         conn.close()
         assertFalse(conn.isConnected)
     }
@@ -36,11 +38,23 @@ class ClassicBtConnectionTest {
             every { createRfcommSocketToServiceRecord(any()) } throws IOException("refused")
         }
         val conn = ClassicBtConnection(device)
-        var caught: BluetoothException.ConnectionFailed? = null
-        runBlocking {
-            try { conn.connect() } catch (e: BluetoothException.ConnectionFailed) { caught = e }
+        assertFailsWith<BluetoothException.ConnectionFailed> {
+            runBlocking { conn.connect() }
         }
-        assertNotNull("Expected ConnectionFailed", caught)
+    }
+
+    @Test
+    fun `connect throws ConnectionFailed when socket connect throws IOException`() {
+        val socket = mockk<BluetoothSocket>(relaxed = true) {
+            every { connect() } throws IOException("host unreachable")
+        }
+        val device = mockk<BluetoothDevice> {
+            every { createRfcommSocketToServiceRecord(any()) } returns socket
+        }
+        val conn = ClassicBtConnection(device)
+        assertFailsWith<BluetoothException.ConnectionFailed> {
+            runBlocking { conn.connect() }
+        }
     }
 
     @Test
