@@ -4,13 +4,13 @@ import android.content.Context
 
 class ConnectionFactory(private val context: Context) {
 
-    fun create(device: ScannedDevice): ObdConnection {
-        val btDevice = requireNotNull(device.device) {
-            "ConnectionFactory.create() called with null BluetoothDevice (type=${device.type})"
-        }
-        return when (device.type) {
-            BtType.CLASSIC -> ClassicBtConnection(btDevice)
-            BtType.BLE     -> BleConnection(context, btDevice)
-        }
+    fun create(device: ScannedDevice): ObdConnection = when (device.type) {
+        BtType.CLASSIC   -> ClassicBtConnection(requireNotNull(device.device) {
+            "CLASSIC device has null BluetoothDevice"
+        })
+        BtType.BLE       -> BleConnection(context, requireNotNull(device.device) {
+            "BLE device has null BluetoothDevice"
+        })
+        BtType.SIMULATOR -> SimulatorObdConnection()
     }
 }
