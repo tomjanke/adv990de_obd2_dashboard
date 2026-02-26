@@ -28,14 +28,17 @@ class SimulatorObdConnection : ObdConnection {
     @Volatile private var dispatchThread: Thread? = null
 
     override suspend fun connect(): ElmController {
+        check(!_isConnected) { "SimulatorObdConnection is already connected" }
         _isConnected = true
         dispatchThread = Thread(::dispatchLoop, "obd-sim-dispatcher").also { it.isDaemon = true; it.start() }
         return ElmController(fromElm, toDispatcher)
     }
 
     private fun dispatchLoop() {
-        val sb = StringBuilder()
         try {
+            // ElmController writes commands terminated with '\r'. BufferedReader.readLine()
+            // treats '\r', '\n', and '\r\n' as line terminators, so '\r'-only commands
+            // are read correctly as single lines.
             val reader = fromClient.bufferedReader()
             while (_isConnected) {
                 val line = reader.readLine() ?: break
@@ -53,9 +56,10 @@ class SimulatorObdConnection : ObdConnection {
 
     override fun close() {
         _isConnected = false
-        runCatching { toDispatcher.close() }
-        runCatching { toClient.close() }
         dispatchThread?.interrupt()
-        dispatchThread = null
+        try { toDispatcher.close() }  catch (_: Exception) {}
+        try { toClient.close() }      catch (_: Exception) {}
+        try { fromElm.close() }       catch (_: Exception) {}
+        try { fromClient.close() }    catch (_: Exception) {}
     }
 }
