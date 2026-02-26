@@ -6,6 +6,8 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 
 class ElmControllerTest {
 
@@ -64,4 +66,27 @@ class ElmControllerTest {
         val controller = ElmController(input, output)
         controller.initialize()
     }
+
+    // --- ConnectionLost / Timeout edge-case tests ---
+
+    @Test(expected = ObdException.ConnectionLost::class)
+    fun `sendCommand throws ConnectionLost when IOException occurs`() = runTest {
+        val failingInput = object : InputStream() {
+            override fun read(): Int = throw IOException("pipe broken")
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("pipe broken")
+        }
+        ElmController(failingInput, ByteArrayOutputStream()).sendCommand("010C")
+    }
+
+    @Test(expected = ObdException.ConnectionLost::class)
+    fun `sendCommand throws ConnectionLost when stream is empty`() = runTest {
+        val emptyInput = ByteArrayInputStream(ByteArray(0))
+        ElmController(emptyInput, ByteArrayOutputStream()).sendCommand("010C")
+    }
+
+    // NOTE: The Timeout path (ObdException.Timeout) cannot be covered with virtual time because
+    // withTimeout inside withContext(Dispatchers.IO) uses real wall-clock time. advanceTimeBy()
+    // only advances kotlinx-coroutines-test's virtual clock, which does not affect blocking
+    // threads on the IO dispatcher. A real-time test would make the suite fragile (5 s wait),
+    // so this case is intentionally left untested here.
 }
