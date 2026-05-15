@@ -62,6 +62,16 @@ android {
         unitTests { isReturnDefaultValues = true }
     }
 
+    lint {
+        // AGP 8.7.3's lint engine has an IncompatibleClassChangeError when analyzing
+        // Compose 1.11.x sources (NonNullableMutableLiveDataDetector). Disabling the
+        // release lint-vital task is the minimum-risk workaround; lint can still be
+        // invoked explicitly via ./gradlew lint. Re-enable once AGP supports the
+        // newer lint engine.
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     packaging {
         resources {
             excludes += setOf(
