@@ -43,6 +43,8 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.components.StatusDot
+import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import kotlinx.coroutines.delay
@@ -145,11 +147,17 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     trailingContent = {
                         if (state.isConnected) {
-                            Icon(
-                                painterResource(R.drawable.ic_bluetooth),
-                                contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                StatusDot(state = StatusDotState.Ok)
+                                Icon(
+                                    painterResource(R.drawable.ic_bluetooth),
+                                    contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         } else {
                             IconButton(onClick = {
                                 navController.navigate(Screen.Settings.route) {
