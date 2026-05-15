@@ -112,11 +112,13 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 
 | Composable | Verwendung |
 |---|---|
-| `LiveValueTile(label, value, unit, status)` | Zentrales Tile-Pattern (s.o.) |
-| `StatusDot(state)` | 8-dp Kreis, theme-`tertiary` ok / `#F59E0B` warn / `#EF4444` crit / gepulst „connecting" |
-| `SectionLabel(text)` | ALL-CAPS labelMedium für Section-Header |
-| `ActionButton(label, onClick)` | min. 56 dp Höhe, full-width oder min. 160 dp |
+| `LiveValueText(value, style, color, animated)` | Inline-Wert in Plex Mono + `tnum`; `animated=true` für langsam wechselnde Werte (Snapshots/VIN) |
+| `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
+| `StatusDot(state, size)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting" |
+| `SectionLabel(text)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
+| `ActionButton(label, onClick)` | min. 56 dp Höhe, full-width oder min. 160 dp, rectangular |
 | `HairlineDivider()` | 1-dp `outline`, vertikales Padding 8 dp |
+| `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus) |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
 
