@@ -17,6 +17,37 @@ private val SpaceGroteskFamily = FontFamily(
     Font(R.font.space_grotesk_bold, FontWeight.Bold),
 )
 
+/** Monospaced family for live values — IBM Plex Mono, premium-utility feel, glyph-stable digits. */
+val PlexMonoFamily = FontFamily(
+    Font(R.font.ibm_plex_mono_regular, FontWeight.Normal),
+    Font(R.font.ibm_plex_mono_medium, FontWeight.Medium),
+    Font(R.font.ibm_plex_mono_bold, FontWeight.Bold),
+)
+
+/**
+ * Display-size value style for the dominant live readout (e.g. RPM centerpiece, speed hero tile).
+ * Tabular numerals enforced via `tnum` so digits do not shift width on update.
+ */
+val ValueDisplayStyle = TextStyle(
+    fontFamily = PlexMonoFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = (57f * BIKE_SCALE).sp,
+    lineHeight = (64f * BIKE_SCALE).sp,
+    fontFeatureSettings = "tnum",
+)
+
+/**
+ * Tile-size value style for the standard `LiveValueTile` reading (e.g. coolant temp, voltage).
+ * Same `tnum` guarantee.
+ */
+val ValueTileStyle = TextStyle(
+    fontFamily = PlexMonoFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = (28f * BIKE_SCALE).sp,
+    lineHeight = (36f * BIKE_SCALE).sp,
+    fontFeatureSettings = "tnum",
+)
+
 /** Swap font family and scale fontSize + lineHeight by BIKE_SCALE. */
 private fun TextStyle.bike() = copy(
     fontFamily = SpaceGroteskFamily,
