@@ -150,6 +150,9 @@ Vor dem ersten Live-Polling fragt `ObdRepository.discoverSupportedPids()` per Mo
 ### Wake-Lock nur wo nötig
 `FLAG_KEEP_SCREEN_ON` wird ausschließlich im Dashboard-`DisposableEffect` gesetzt — und nur, wenn `isConnected = true`. Damit bleibt der Bildschirm während der Fahrt an, ohne die ganze App permanent wach zu halten.
 
+### Live-Wert-Typografie
+Sich ändernde Werte (RPM, Speed, Temperatur, Spannung, VIN) werden in **IBM Plex Mono** mit OpenType-`tnum`-Feature gerendert — Ziffern haben konstante Glyph-Breite, springen also beim Update nicht horizontal. Kanonisches Composable: `LiveValueText` (`ui/components/`); für ad-hoc-Verwendung gibt es `TextStyle.asLiveValue()` als Extension. Restliche UI bleibt in Space Grotesk. Volle Design-Doku in [`CLAUDE.md`](CLAUDE.md).
+
 ---
 
 ## Berechtigungen
@@ -198,7 +201,8 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 |---|---|
 | Sprache | Kotlin 2.0.21 |
 | Build | Android Gradle Plugin 8.7.3 · Gradle 8.11.1 · KSP 2.0.21-1.0.27 |
-| UI | Jetpack Compose (BOM 2024.12.01) · Material 3 |
+| UI | Jetpack Compose (BOM 2026.05.00, Compose 1.11.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
+| Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
 | Navigation | androidx.navigation:navigation-compose 2.8.5 |
 | DI | Hilt 2.52 |
 | Persistenz | Room 2.6.1 (mit Paging-3-Integration) · DataStore Preferences 1.1.1 |
