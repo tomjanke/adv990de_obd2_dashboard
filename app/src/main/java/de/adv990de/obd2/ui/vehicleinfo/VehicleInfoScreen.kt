@@ -65,6 +65,7 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
                     value = vin,
                     style = MaterialTheme.typography.titleLarge.asLiveValue(),
                     color = MaterialTheme.colorScheme.onSurface,
+                    animated = true,
                 )
                 else -> Text(stringResource(R.string.vehicle_info_empty))
             }

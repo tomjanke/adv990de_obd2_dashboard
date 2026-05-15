@@ -1,5 +1,13 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,6 +42,14 @@ import de.adv990de.obd2.ui.theme.ValueTileStyle
  *
  * Static or non-numeric live text (status labels, mode indicators) should NOT use this composable —
  * use [Text] with the regular [MaterialTheme.typography] instead.
+ *
+ * ## Animation
+ *
+ * When [animated] is `true`, value changes transition in via [AnimatedContent] with
+ * `slideInVertically + fadeIn` over 180 ms `EaseOutCubic` (per CLAUDE.md spec). Use this only for
+ * **slow-changing** values (freeze frame snapshots, connection status, VIN load) — high-frequency
+ * dashboard readouts (RPM, speed updating at 5–10 Hz) animated this way produce visible motion
+ * thrash because each transition gets interrupted by the next value. Default is `false`.
  */
 @Composable
 fun LiveValueText(
@@ -45,17 +61,42 @@ fun LiveValueText(
     maxLines: Int = 1,
     softWrap: Boolean = false,
     overflow: TextOverflow = TextOverflow.Clip,
+    animated: Boolean = false,
 ) {
-    Text(
-        text = value,
-        modifier = modifier,
-        style = style,
-        color = color,
-        textAlign = textAlign,
-        maxLines = maxLines,
-        softWrap = softWrap,
-        overflow = overflow,
-    )
+    if (animated) {
+        AnimatedContent(
+            targetState = value,
+            modifier = modifier,
+            transitionSpec = {
+                val spec = tween<Float>(durationMillis = 180, easing = EaseOutCubic)
+                val slideSpec = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = 180, easing = EaseOutCubic)
+                (slideInVertically(animationSpec = slideSpec) { it / 2 } + fadeIn(spec)) togetherWith
+                    (slideOutVertically(animationSpec = slideSpec) { -it / 2 } + fadeOut(spec))
+            },
+            label = "live-value",
+        ) { target ->
+            Text(
+                text = target,
+                style = style,
+                color = color,
+                textAlign = textAlign,
+                maxLines = maxLines,
+                softWrap = softWrap,
+                overflow = overflow,
+            )
+        }
+    } else {
+        Text(
+            text = value,
+            modifier = modifier,
+            style = style,
+            color = color,
+            textAlign = textAlign,
+            maxLines = maxLines,
+            softWrap = softWrap,
+            overflow = overflow,
+        )
+    }
 }
 
 // region — Previews

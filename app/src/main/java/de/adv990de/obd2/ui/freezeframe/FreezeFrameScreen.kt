@@ -80,6 +80,7 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
                                 value = v,
                                 style = MaterialTheme.typography.titleMedium.asLiveValue(),
                                 color = MaterialTheme.colorScheme.onSurface,
+                                animated = true,
                             )
                         }
                     }
