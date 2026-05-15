@@ -63,24 +63,30 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 ### Layout-Patterns
 
-**Live-Value-Tile** ist das zentrale UI-Element. Verbindliche Anatomie:
+**`LiveValueTile`** (in `ui/components/LiveValueTile.kt`) ist das zentrale UI-Element. Verbindliche Anatomie (Stand 2026-05-15):
 
 ```
-┌───────────────────────────┐
-│ COOLANT          ●        │  ← labelMedium ALL-CAPS, Status-Dot rechts
-│                           │
-│        87                 │  ← displayLarge, tabular, primary
-│        °C                 │  ← labelLarge, onSurfaceVariant, baseline-aligned
-│                           │
-│ ──────────────────        │  ← optional sparkline, outline color
-└───────────────────────────┘
+┌─┬───────────────────────────┐
+│▓│ COOLANT                   │  ← titleSmall, onSurfaceVariant, top-left
+│▓│                           │
+│▓│                           │
+│▓│   ╲╱╲╱──╲╱   87  °C       │  ← Sparkline (primary) als bottom-Background;
+│▓│                           │    Wert ValueTileStyle (Plex Mono, accent),
+└─┴───────────────────────────┘    Einheit titleSmall onSurfaceVariant
+ ↑
+ 4 dp Status-Side-Bar:
+   `TileStatus.Ok`       → `MaterialTheme.colorScheme.primary`
+   `TileStatus.Warning`  → `StatusColors.Warning`
+   `TileStatus.Critical` → `StatusColors.Critical`
 ```
 
-- Höhe: mindestens 120 dp, idealerweise 140 dp
-- Corner-Radius: **16 dp** überall (M3-Default ist 12 — wir gehen härter Richtung Cockpit)
-- Elevation: 0 dp. **Keine Shadows.** Tile-Abgrenzung über `surface`/`surfaceVariant`-Kontrast oder 1-dp `outline`-Border, nicht über Schatten.
-- Padding: 16 dp innen
-- Tap-Verhalten: leichte Skalierung `0.98f` per `animateFloatAsState`, kein Ripple-Splash auf Live-Tiles
+Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, onClick?, onLongPress?)`. Domain-agnostisch — die Adapter-Logik (PID-Name, Einheit-Konvertierung, NaN-Handling) liegt im rufenden Code (z.B. `SensorCard` für die Dashboard-PIDs).
+
+- Höhe: mindestens 120 dp, idealerweise 140 dp (vom Grid-Caller via Modifier gesetzt)
+- Form: `RectangleShape` (scharfe Kanten — Cockpit-Look). Falls später Rundungen gewünscht: über Modifier-Clip von außen.
+- Elevation: 0 dp. **Keine Shadows.** Tile-Abgrenzung über `surface`/`background`-Kontrast und die 4 dp Status-Side-Bar.
+- Padding innen: 12 dp
+- Tap: optional via `onClick`/`onLongPress`; combinedClickable, kein Ripple-Override aktuell (TODO falls als zu auffällig empfunden)
 
 **Grid:**
 - Portrait: 2 Spalten Standard, optional 1 Spalte für Premium-Slots (RPM dominant)

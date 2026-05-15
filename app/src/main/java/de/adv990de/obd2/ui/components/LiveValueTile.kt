@@ -1,0 +1,264 @@
+package de.adv990de.obd2.ui.components
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.StatusColors
+import de.adv990de.obd2.ui.theme.ValueTileStyle
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
+
+/**
+ * Semantic state of a live tile. Drives the accent color used for the left side
+ * bar and the value text. Sparkline color is always the theme primary (trend
+ * vs. state distinction).
+ *
+ *  - [Ok]       → MaterialTheme.colorScheme.primary (theme-tinted; default)
+ *  - [Warning]  → StatusColors.Warning (cross-theme amber)
+ *  - [Critical] → StatusColors.Critical (cross-theme red)
+ */
+enum class TileStatus { Ok, Warning, Critical }
+
+/**
+ * Canonical dashboard tile for a single live readout. Anatomy:
+ *
+ * ```
+ * ┌─┬─────────────────────────────┐
+ * │ │ LABEL                       │
+ * │ │                             │
+ * │ │                             │
+ * │ │  ╲╱╲╱──╲╱     2 840  rpm    │
+ * └─┴─────────────────────────────┘
+ *   ↑
+ *   4dp accent side-bar (status-colored)
+ * ```
+ *
+ * The tile fills its parent via `Modifier.fillMaxSize()` internally; the caller
+ * controls grid cell size via the [modifier] parameter (e.g. inside a
+ * `LazyVerticalGrid` cell).
+ *
+ * The tile is non-interactive by default. Passing [onClick] or [onLongPress]
+ * wraps the surface in `combinedClickable`. Long-press is the conventional
+ * "configure this slot" gesture on the dashboard.
+ *
+ * @param label Static label (typically the PID name; sans-serif, onSurfaceVariant).
+ * @param value Live numeric or short string (rendered in IBM Plex Mono with tnum).
+ * @param unit  Optional unit suffix shown next to the value in muted style.
+ * @param sparkline Optional trend points; empty list hides the line.
+ * @param status Drives accent color. Default [TileStatus.Ok].
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun LiveValueTile(
+    label: String,
+    value: String,
+    unit: String? = null,
+    modifier: Modifier = Modifier,
+    sparkline: List<Float> = emptyList(),
+    status: TileStatus = TileStatus.Ok,
+    onClick: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+) {
+    val accentColor = when (status) {
+        TileStatus.Ok       -> MaterialTheme.colorScheme.primary
+        TileStatus.Warning  -> StatusColors.Warning
+        TileStatus.Critical -> StatusColors.Critical
+    }
+    val interactive = onClick != null || onLongPress != null
+    val finalModifier = if (interactive) {
+        modifier.combinedClickable(
+            onClick = { onClick?.invoke() },
+            onLongClick = { onLongPress?.invoke() },
+        )
+    } else modifier
+    Surface(
+        modifier = finalModifier,
+        shape = RectangleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor)
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(12.dp)
+            ) {
+                if (sparkline.isNotEmpty()) {
+                    Sparkline(
+                        points = sparkline,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(24.dp)
+                            .align(Alignment.BottomStart),
+                    )
+                }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+                Row(
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    LiveValueText(value = value, style = ValueTileStyle, color = accentColor)
+                    if (unit != null) {
+                        Text(
+                            text = " $unit",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// region — Previews
+
+@Preview(name = "LiveValueTile · Ok (blue)", widthDp = 200, heightDp = 140, showBackground = false)
+@Composable
+private fun PreviewTileOkBlue() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Box(
+            Modifier
+                .size(200.dp, 140.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(12.dp)
+        ) {
+            LiveValueTile(
+                label = "COOLANT",
+                value = "87",
+                unit = "°C",
+                sparkline = listOf(78f, 80f, 82f, 85f, 87f, 86f, 87f, 88f, 87f),
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Preview(name = "LiveValueTile · Warning (blue)", widthDp = 200, heightDp = 140, showBackground = false)
+@Composable
+private fun PreviewTileWarning() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Box(
+            Modifier
+                .size(200.dp, 140.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(12.dp)
+        ) {
+            LiveValueTile(
+                label = "OIL TEMP",
+                value = "118",
+                unit = "°C",
+                status = TileStatus.Warning,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Preview(name = "LiveValueTile · Critical (blue)", widthDp = 200, heightDp = 140, showBackground = false)
+@Composable
+private fun PreviewTileCritical() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Box(
+            Modifier
+                .size(200.dp, 140.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(12.dp)
+        ) {
+            LiveValueTile(
+                label = "RPM",
+                value = "9 100",
+                unit = "rpm",
+                status = TileStatus.Critical,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Preview(name = "LiveValueTile · amber theme", widthDp = 200, heightDp = 140, showBackground = false)
+@Composable
+private fun PreviewTileAmberTheme() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Box(
+            Modifier
+                .size(200.dp, 140.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(12.dp)
+        ) {
+            LiveValueTile(
+                label = "BATTERY",
+                value = "12.7",
+                unit = "V",
+                sparkline = listOf(12.2f, 12.4f, 12.5f, 12.6f, 12.7f),
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Preview(name = "LiveValueTile · grid 2×2", widthDp = 420, heightDp = 300, showBackground = false)
+@Composable
+private fun PreviewTileGrid() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Column(
+            Modifier
+                .background(MaterialTheme.colorScheme.background)
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LiveValueTile("SPEED", "127", "km/h", Modifier.weight(1f).height(140.dp))
+                LiveValueTile("RPM", "2 840", "rpm", Modifier.weight(1f).height(140.dp),
+                    sparkline = listOf(2500f, 2700f, 2900f, 2840f, 2820f, 2840f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LiveValueTile("COOLANT", "87", "°C", Modifier.weight(1f).height(140.dp))
+                LiveValueTile("LOAD", "42", "%", Modifier.weight(1f).height(140.dp),
+                    status = TileStatus.Warning)
+            }
+        }
+    }
+}
+
+// endregion

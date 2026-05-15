@@ -1,6 +1,5 @@
 package de.adv990de.obd2.ui.dashboard
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,19 +31,16 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.components.LiveValueTile
 import de.adv990de.obd2.ui.theme.StatusColors
-import de.adv990de.obd2.ui.theme.ValueTileStyle
 import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
 
@@ -140,7 +136,12 @@ internal fun SensorCardSlot(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Adapter from the domain type [SensorValue] to the generic [LiveValueTile]:
+ * handles unit conversion (imperial flag), NaN/Inf → "--", voltage gets one
+ * decimal place, everything else integer. The accessibility contentDescription
+ * stays here because it depends on the PID semantics.
+ */
 @Composable
 internal fun SensorCard(
     value: SensorValue,
@@ -157,75 +158,14 @@ internal fun SensorCard(
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else if (value.pid.unit == "V") "%.1f".format(convertedValue)
                        else "%.0f".format(convertedValue)
-    Surface(
-        modifier = modifier
-            .semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" }
-            .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() }),
-        shape = RectangleShape,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Row(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(12.dp)
-            ) {
-                // Sparkline as subtle background line at the bottom
-                Sparkline(sparkline, Modifier.fillMaxWidth().height(24.dp).align(Alignment.BottomStart))
-                // Label top-left
-                Text(
-                    value.pid.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-                // Value + unit bottom-right
-                Row(
-                    modifier = Modifier.align(Alignment.BottomEnd),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    LiveValueText(value = displayValue, style = ValueTileStyle)
-                    Text(
-                        " $displayUnit",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun Sparkline(points: List<Float>, modifier: Modifier = Modifier) {
-    if (points.size < 2) return
-    val color = MaterialTheme.colorScheme.primary
-    Canvas(modifier) {
-        val min = points.min()
-        val max = points.max()
-        val range = (max - min).coerceAtLeast(0.001f)
-        val path = Path()
-        points.forEachIndexed { i, v ->
-            val x = i / (points.size - 1f) * size.width
-            val y = size.height - (v - min) / range * size.height
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(path, color, style = Stroke(width = 2.dp.toPx()))
-    }
+    LiveValueTile(
+        label = value.pid.name,
+        value = displayValue,
+        unit = displayUnit,
+        sparkline = sparkline,
+        onLongPress = onLongPress,
+        modifier = modifier.semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
