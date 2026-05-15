@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.theme.asLiveValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +61,11 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
                     Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
                 }
                 isLoading -> Text(stringResource(R.string.vehicle_info_loading))
-                vin.isNotEmpty() -> Text(vin)
+                vin.isNotEmpty() -> LiveValueText(
+                    value = vin,
+                    style = MaterialTheme.typography.titleLarge.asLiveValue(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 else -> Text(stringResource(R.string.vehicle_info_empty))
             }
         }

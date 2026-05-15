@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.freezeframe
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,12 +22,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.theme.asLiveValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +56,7 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
             if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             Column(
                 Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when {
                     error != null -> {
@@ -61,7 +65,24 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
                         Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
                     }
                     data.isEmpty() -> Text(stringResource(R.string.freeze_frame_empty))
-                    else -> data.forEach { (k, v) -> Text("$k: $v") }
+                    else -> data.forEach { (k, v) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            Text(
+                                text = k,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            LiveValueText(
+                                value = v,
+                                style = MaterialTheme.typography.titleMedium.asLiveValue(),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
                 }
             }
         }
