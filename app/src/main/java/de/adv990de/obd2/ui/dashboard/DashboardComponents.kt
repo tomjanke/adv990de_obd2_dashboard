@@ -163,6 +163,7 @@ internal fun SensorCard(
         value = displayValue,
         unit = displayUnit,
         sparkline = sparkline,
+        status = pidTileStatus(value.pid.id, value.value),
         onLongPress = onLongPress,
         modifier = modifier.semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" },
     )
