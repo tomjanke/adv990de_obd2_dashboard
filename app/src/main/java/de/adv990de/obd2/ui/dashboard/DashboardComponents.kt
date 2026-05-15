@@ -32,7 +32,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -44,6 +43,7 @@ import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.ValueTileStyle
 import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
@@ -79,7 +79,7 @@ internal fun RpmBar(
     }
 
     val isAlert = threshold > 0 && rpm > threshold
-    val fillColor = if (isAlert) Color(0xFFD32F2F)
+    val fillColor = if (isAlert) StatusColors.Critical
                     else MaterialTheme.colorScheme.primary
     val fraction = (rpm / 10000f).coerceIn(0f, 1f)
 

@@ -39,10 +39,11 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 | Sekundär (Labels, Sub-Werte) | `onSurfaceVariant` | `#9DC5D6` |
 | Outline (Hairlines) | `outline` | `#3D6070` |
 
-**Statusfarben (cross-theme, immer gleich):**
-- Warnung: `#F59E0B` (Amber 500)
-- Kritisch: `#EF4444` (Red 500)
-- OK / Verbunden: theme-`tertiary`
+**Statusfarben (cross-theme, immer gleich):** definiert in `ui/theme/StatusColors.kt` — nicht hardcoded inline!
+- `StatusColors.Warning` (`#F59E0B`, Tailwind Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
+- `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
+- OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
+- Form-Validation / Empty-State-Error-Texte: `MaterialTheme.colorScheme.error` (M3-Standard, andere Semantik als Dashboard-Critical)
 
 ### Typografie
 
