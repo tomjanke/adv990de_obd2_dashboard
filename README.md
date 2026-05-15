@@ -1,0 +1,236 @@
+# OBD2 Monitor
+
+Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
+
+> Aktuelle Version: **1.6.0** (versionCode 29) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15)
+
+---
+
+## Funktionen
+
+- **Live-Dashboard** mit frei konfigurierbaren PID-Kacheln (Drehzahl, Geschwindigkeit, Kühlmitteltemperatur, Motorlast, Kraftstoffstand, etc.)
+- **Automatische PID-Discovery** — die App fragt das Steuergerät, welche PIDs überhaupt unterstützt werden, und filtert die Live-Abfrage entsprechend
+- **DTC-Lesen & Löschen** (Diagnostic Trouble Codes) mit menschenlesbaren Beschreibungen
+- **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
+- **Fahrzeug-Info** (VIN, ECU-Name, Kalibrier-IDs via Mode 09)
+- **Fahrt-Historie** — Sessions werden in Room persistiert, einzeln löschbar, mit CSV-Export
+- **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
+- **Connection-Backends**:
+  - **BLE** (ELM327-BLE-Adapter, z.B. Vgate, OBDLink CX)
+  - **Klassisches Bluetooth (RFCOMM)** für ältere ELM327-Clones
+  - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
+- **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit, durchsuchbar im Settings-Bereich
+- **Material 3** UI mit Light/Dark-Theme, deutsch und englisch lokalisiert
+- **Crash-Reporting** über Sentry (optional, deaktivierbar)
+
+---
+
+## Hardware-Voraussetzungen
+
+- Android-Gerät mit **Bluetooth Classic + BLE**, ab Android 8.0
+- **ELM327-kompatibler OBD2-Adapter** — getestet u.a. mit Vgate iCar Pro BLE und OBDLink CX
+- Fahrzeug mit OBD2-Buchse (ab Bj. ~2001 in EU, ~1996 in US verpflichtend)
+
+---
+
+## Build & Run
+
+### Voraussetzungen
+- JDK **17** (Android Gradle Plugin 8.7 erwartet JVM 17)
+- Android Studio Ladybug oder neuer (für Compose Preview / Layout Inspector)
+- Optional: ADB im `PATH` für Command-Line-Installation
+
+### Build
+```bash
+./gradlew assembleDebug
+```
+Das APK liegt danach unter `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Auf Gerät installieren
+```bash
+./gradlew installDebug
+```
+Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
+
+---
+
+## Release-Build
+
+Der Release-Build wird über einen lokalen Keystore signiert. Schlüssel und Passwörter werden **nicht im Repository abgelegt**, sondern über Environment-Variablen oder `~/.gradle/gradle.properties`:
+
+```properties
+# ~/.gradle/gradle.properties (NICHT im Projekt-Ordner!)
+KEYSTORE_PASSWORD=<dein-keystore-passwort>
+KEY_ALIAS=<alias>
+KEY_PASSWORD=<key-passwort>
+SENTRY_DSN=<optional-sentry-dsn>
+```
+
+Die Datei `keystore.jks` muss im Projekt-Root liegen (per `.gitignore` ausgeschlossen).
+
+Release bauen:
+```bash
+./gradlew assembleRelease
+```
+Output: `app/build/outputs/apk/release/app-release.apk`
+
+> **Release-Reihenfolge:** 1) Version bumpen + committen → 2) `assembleRelease` → 3) auf Gerät installieren → 4) Tag und Push
+
+---
+
+## Tests
+
+```bash
+# JVM Unit Tests (271 Tests, < 30 Sekunden)
+./gradlew :app:testDebugUnitTest
+
+# Instrumented Tests (benötigen Gerät/Emulator)
+./gradlew :app:connectedDebugAndroidTest
+```
+
+| Test-Layer | Frameworks | Anzahl |
+|---|---|---|
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 271 |
+| Compose UI Tests | androidx.compose.ui.test + Hilt (`HiltTestRunner`) | DashboardScreen, DtcScreen, SettingsScreen |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | AppLogDao, SensorReadingDao, SessionDao |
+| Service Tests | `HiltAndroidRule` + Robolectric-frei | ObdForegroundService |
+
+---
+
+## Modulstruktur
+
+Single-Module-App (`app/`):
+
+```
+app/src/main/java/de/adv990de/obd2/
+├── MainActivity.kt              # Compose-Host
+├── Obd2Application.kt           # @HiltAndroidApp
+├── ObdForegroundService.kt      # Hält ObdRepository am Leben (Background)
+├── bluetooth/                   # BleConnection, ClassicBtConnection, SimulatorObdConnection,
+│                                # ConnectionFactory, BluetoothDeviceScanner, SimulatedEcuDispatcher
+├── obd/                         # ElmController, PidRegistry, PidParser, DtcParser, UnitConverter
+├── data/                        # ObdRepository (@Singleton), SessionRepository, AppPreferences (DataStore),
+│   └── db/                      # Room: AppDatabase, *Dao
+├── ui/                          # Compose-Screens + ViewModels
+│   ├── dashboard/               # Live-Werte
+│   ├── dashboardconfig/         # PID-Slot-Belegung
+│   ├── dtc/                     # Fehlercode-Reader
+│   ├── freezeframe/             # Snapshot-Daten
+│   ├── history/                 # Fahrt-Sessions
+│   ├── loggingconfig/           # Aufzeichnungs-Einstellungen
+│   ├── settings/                # Verbindung, Display, App-Logs
+│   ├── vehicleinfo/             # Mode 09 (VIN etc.)
+│   ├── appinfo/                 # Über-Bildschirm
+│   ├── permission/              # Runtime-Permissions Gate
+│   ├── navigation/              # Compose-Navigation
+│   └── theme/                   # Material 3 Theme
+├── di/                          # Hilt-Module (AppModule, CrashReporterModule)
+└── crash/                       # CrashReporter (Sentry-Wrapper)
+```
+
+---
+
+## Architektur-Highlights
+
+### `ObdRepository` als Singleton
+Die zentrale Repository-Schicht ist als Hilt-`@Singleton` markiert. Foreground-Service und alle ViewModels teilen sich die gleiche Instanz, kein Service-Binding nötig.
+
+### BLE-Writes serialisiert
+`BleConnection.kt` nutzt einen `Semaphore(0)` als Mutex für BLE-Writes: jeder Write blockiert, bis `onCharacteristicWrite` feuert (5 s Timeout). Verhindert verlorene Pakete bei schnellen Sequenzen.
+
+### Foreground Service hält Verbindung
+`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice"` und einer persistenten Notification. Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft weiter.
+
+### Room mit Foreign Keys
+SQLite aktiviert Foreign-Key-Constraints standardmäßig **nicht**. Die App setzt `PRAGMA foreign_keys = ON` via `RoomDatabase.Callback` in `AppModule.kt` — sonst hätte `ON DELETE CASCADE` keine Wirkung.
+
+### PID-Discovery vor Live-Polling
+Vor dem ersten Live-Polling fragt `ObdRepository.discoverSupportedPids()` per Mode 01, welche PIDs das Steuergerät überhaupt antwortet. Das Dashboard filtert die konfigurierten Slots gegen diese Menge — unbekannte PIDs werden übersprungen, RPM und Kühlmitteltemperatur werden immer abgefragt (Dashboard-Logik benötigt sie).
+
+### Wake-Lock nur wo nötig
+`FLAG_KEEP_SCREEN_ON` wird ausschließlich im Dashboard-`DisposableEffect` gesetzt — und nur, wenn `isConnected = true`. Damit bleibt der Bildschirm während der Fahrt an, ohne die ganze App permanent wach zu halten.
+
+---
+
+## Berechtigungen
+
+Die App fordert zur Laufzeit (via `PermissionGate`) an:
+
+| Permission | API-Range | Zweck |
+|---|---|---|
+| `BLUETOOTH_SCAN` | 31+ | BLE/Classic-Scan |
+| `BLUETOOTH_CONNECT` | 31+ | Verbindung herstellen |
+| `BLUETOOTH` / `BLUETOOTH_ADMIN` | ≤30 | Legacy-Bluetooth |
+| `ACCESS_FINE_LOCATION` | bis 30 | BLE-Scan-Voraussetzung vor Android 12 |
+| `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification |
+| `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 |
+
+---
+
+## Konfiguration
+
+### Sentry (optional)
+Wenn die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt ist, wird der Crash-Reporter aktiviert. Ohne DSN bleibt Sentry inaktiv (kein Netzwerktraffic). Konfiguriert über Manifest-Placeholder in `app/build.gradle.kts`.
+
+### Benutzerseitige Einstellungen
+Persistiert via Jetpack DataStore:
+- Auto-Connect zum letzten Gerät
+- Polling-Intervall
+- Dashboard-Slot-Belegung (welche PIDs in welche Kachel)
+- Anzeige-Einheiten (metrisch/imperial)
+- Aufzeichnungs-Modus (immer / nur bei Fahrt / aus)
+- App-Log-Verbosity
+
+---
+
+## Lokalisierung
+
+- Deutsch (`values-de/`) — Default für deutsche Locale
+- Englisch (`values/`) — Fallback
+
+Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die `UiText`-Sealed-Klasse, damit Texte testbar bleiben (kein direkter `Context`-Zugriff).
+
+---
+
+## Tech-Stack
+
+| Bereich | Bibliothek / Version |
+|---|---|
+| Sprache | Kotlin 2.0.21 |
+| Build | Android Gradle Plugin 8.7.3 · Gradle 8.11.1 · KSP 2.0.21-1.0.27 |
+| UI | Jetpack Compose (BOM 2024.12.01) · Material 3 |
+| Navigation | androidx.navigation:navigation-compose 2.8.5 |
+| DI | Hilt 2.52 |
+| Persistenz | Room 2.6.1 (mit Paging-3-Integration) · DataStore Preferences 1.1.1 |
+| Coroutines | kotlinx-coroutines 1.9.0 |
+| Lifecycle | androidx.lifecycle 2.8.7 |
+| Crash-Reporting | Sentry Android 8.29.0 |
+| Tests | JUnit 4 · MockK 1.13.12 · Compose UI Test · Room Testing · Hilt Testing |
+
+---
+
+## Release-Historie
+
+Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit Version 1.0.
+
+---
+
+## Verzeichnis-Konventionen
+
+| Pfad | Inhalt |
+|---|---|
+| `app/src/main/` | Produktiv-Code |
+| `app/src/test/` | JVM-Unit-Tests (271) |
+| `app/src/androidTest/` | Instrumented Tests (Hilt + Compose) |
+| `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
+| `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
+| `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
+
+---
+
+## Bekannte Einschränkungen
+
+- **Kein iOS-Port** geplant.
+- **CAN-Bus direkt** wird nicht unterstützt — nur OBD2-PIDs (Mode 01, 02, 03, 04, 09).
+- **Multi-Frame-Antworten** (Mode 09 VIN, langwierige DTC-Listen) werden gelesen, aber die ELM327-Adapter müssen den `AT CAF1`-Modus unterstützen.
+- **Klassisches Bluetooth** ist ab Android 12 deprecated für neue Adapter — funktioniert noch, aber für neue Hardware-Käufe BLE-Adapter bevorzugen.
