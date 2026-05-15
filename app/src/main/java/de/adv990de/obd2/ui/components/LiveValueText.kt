@@ -14,9 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.theme.ValueDisplayStyle
 import de.adv990de.obd2.ui.theme.ValueTileStyle
@@ -40,6 +42,9 @@ fun LiveValueText(
     style: TextStyle = ValueTileStyle,
     color: Color = MaterialTheme.colorScheme.primary,
     textAlign: TextAlign? = null,
+    maxLines: Int = 1,
+    softWrap: Boolean = false,
+    overflow: TextOverflow = TextOverflow.Clip,
 ) {
     Text(
         text = value,
@@ -47,6 +52,9 @@ fun LiveValueText(
         style = style,
         color = color,
         textAlign = textAlign,
+        maxLines = maxLines,
+        softWrap = softWrap,
+        overflow = overflow,
     )
 }
 
@@ -124,6 +132,33 @@ private fun PreviewTabularAlignment() {
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf("1111", "2222", "3333", "1 111", "11 111").forEach { v ->
                     LiveValueText(value = v, textAlign = TextAlign.End, modifier = Modifier)
+                }
+            }
+        }
+    }
+}
+
+@Preview(name = "LiveValueText · amber theme", showBackground = false)
+@Composable
+private fun PreviewLiveValueAmber() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    LiveValueText(value = "98")
+                    Text(
+                        text = " °C",
+                        style = AppTypography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    LiveValueText(value = "4 200", style = ValueDisplayStyle)
+                    Text(
+                        text = " rpm",
+                        style = AppTypography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

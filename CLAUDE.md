@@ -53,7 +53,7 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 | Verwendung | M3-Token | Beispiel |
 |---|---|---|
 | Live-Hauptwert (Speed/RPM) | `displayLarge` (oder größer via custom) | „2.840" RPM in 64 sp |
-| Live-Werte in Kacheln | `headlineMedium` mit `tnum` | „87 °C" |
+| Live-Werte in Kacheln | `ValueTileStyle` (`displayMedium`-Größe, Plex Mono, `tnum`) | „87 °C" |
 | Tile-Label | `labelMedium` ALL-CAPS letterspaced | „COOLANT" |
 | Body / Settings-Text | `bodyMedium` | Standardtext |
 | Kleine Hinweise / Footer | `labelSmall` | „last update 0.4 s" |

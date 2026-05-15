@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.theme.ValueTileStyle
+import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
 
 @Composable
@@ -101,11 +104,10 @@ internal fun RpmBar(
                 )
             }
         }
-        Text(
-            text = "%.0f rpm".format(rpm),
-            style = MaterialTheme.typography.titleSmall,
+        LiveValueText(
+            value = "%.0f rpm".format(rpm),
+            style = MaterialTheme.typography.titleSmall.asLiveValue(),
             color = MaterialTheme.colorScheme.onSurface,
-            softWrap = false,
             modifier = Modifier
                 .padding(start = 8.dp)
                 .width(90.dp)
@@ -193,12 +195,7 @@ internal fun SensorCard(
                     modifier = Modifier.align(Alignment.BottomEnd),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Text(
-                        displayValue,
-                        style = MaterialTheme.typography.displayMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip
-                    )
+                    LiveValueText(value = displayValue, style = ValueTileStyle)
                     Text(
                         " $displayUnit",
                         style = MaterialTheme.typography.titleSmall,

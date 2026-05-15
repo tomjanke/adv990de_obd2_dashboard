@@ -37,14 +37,28 @@ val ValueDisplayStyle = TextStyle(
 )
 
 /**
- * Tile-size value style for the standard `LiveValueTile` reading (e.g. coolant temp, voltage).
- * Same `tnum` guarantee.
+ * Tile-size value style for the standard sensor-card reading (coolant temp, voltage, etc).
+ * Sized to match M3 `displayMedium` so direct swap of existing displayMedium-styled values
+ * preserves vertical rhythm. Same `tnum` guarantee.
  */
 val ValueTileStyle = TextStyle(
     fontFamily = PlexMonoFamily,
     fontWeight = FontWeight.Medium,
-    fontSize = (28f * BIKE_SCALE).sp,
-    lineHeight = (36f * BIKE_SCALE).sp,
+    fontSize = (45f * BIKE_SCALE).sp,
+    lineHeight = (52f * BIKE_SCALE).sp,
+    fontFeatureSettings = "tnum",
+)
+
+/**
+ * Adapter for any existing M3 [TextStyle] that should be promoted to a live-value style without
+ * changing its size: swaps in IBM Plex Mono and enables tabular numerals. Use sparingly — prefer
+ * [ValueDisplayStyle] / [ValueTileStyle] for canonical uses.
+ *
+ * Example: `MaterialTheme.typography.titleSmall.asLiveValue()` for compact inline readouts where
+ * the surrounding layout was built around a specific text size.
+ */
+fun TextStyle.asLiveValue() = copy(
+    fontFamily = PlexMonoFamily,
     fontFeatureSettings = "tnum",
 )
 
