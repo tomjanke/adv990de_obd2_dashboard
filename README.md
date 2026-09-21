@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.10.0** (versionCode 35) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
+> Aktuelle Version: **1.10.1** (versionCode 36) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
 
 ---
 
@@ -63,6 +63,11 @@ Optisch unterscheiden sie sich am Launcher-Icon: Der Release-Build behält den T
 (`#006874`), der Debug-Build ist amber (`#B45309`). Überschrieben wird dafür allein
 `src/debug/res/drawable/ic_launcher_background.xml`; Vordergrund und Adaptive-Icon-Definition
 bleiben gemeinsam in `src/main`, sodass beide Icons dieselbe Form behalten.
+
+Hat der Nutzer ab Android 13 *themed icons* aktiviert, greift diese Unterscheidung nicht: Das
+System verwirft dann die Hintergrundebene und tönt allein die `<monochrome>`-Ebene nach der
+Wallpaper-Palette. Beide Installationen sehen dort gleich aus und sind nur am Namenszusatz
+„Debug" auseinanderzuhalten.
 
 Das ist vor allem für den **ECU-Simulator** relevant: Das virtuelle Gerät „OBD Sim" erscheint
 in der Geräteliste nur, wenn `BuildConfig.DEBUG` gesetzt ist (siehe

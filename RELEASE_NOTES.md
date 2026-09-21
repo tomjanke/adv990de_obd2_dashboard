@@ -1,5 +1,31 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.10.1 (versionCode 36)
+
+Ein Nachzügler aus dem Lint-Lauf gegen 1.10.0.
+
+---
+
+### Themed Icons
+
+Den Adaptive Icons fehlte die `<monochrome>`-Ebene. Auf Android 13 und neuer färbt das System
+App-Icons nach der Wallpaper-Palette ein, wenn der Nutzer themed icons aktiviert hat — Apps
+ohne diese Ebene bleiben dann als bunte Fremdkörper zwischen lauter getönten Icons stehen.
+`ic_launcher` und `ic_launcher_round` führen die Ebene jetzt, und zwar mit derselben Zeichnung
+wie der Vordergrund: Das Symbol ist bereits einfarbig weiß, das System legt seine Tönung
+darüber. Die Silhouette bleibt damit exakt die gewohnte.
+
+Eine Einschränkung, die in der Natur der Sache liegt: Themed Icons verwerfen die
+Hintergrundebene. Die farbliche Unterscheidung von Debug (amber) und Release (blaugrün) aus
+1.8.1 greift dort also nicht — bei aktivierten themed icons sehen beide Installationen gleich
+aus und sind nur am Namenszusatz „Debug" zu unterscheiden.
+
+### Sonstiges
+
+- Lint meldet damit 28 statt 30 Warnungen, weiterhin 0 Fehler.
+
+---
+
 ## Version 1.10.0 (versionCode 35)
 
 Geschwindigkeit per GPS, und ehrlichere Kacheln.
