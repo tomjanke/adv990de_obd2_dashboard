@@ -28,7 +28,20 @@ Kachel zeigte „0 V" und färbte sich alarmrot. Ein antwortendes Steuergerät h
   filtert. `buildBitmap` wirft jetzt, wenn ein PID nicht in seinen Bereich passt, statt ihn
   stillschweigend zu verschlucken.
 
-Vier neue Unit-Tests decken beides ab (309 statt 305).
+### Verlaufslinien sichtbarer
+
+Die Sparklines waren mit 2 dp zu dünn, um sie bei Tageslicht im Vorbeischauen zu erfassen. Sie
+sind jetzt 3 dp stark mit runden Enden, unterlegt mit einer 14 % gefüllten Fläche, und das Band
+ist von 28 auf 36 dp gewachsen.
+
+### Drehzahlbalken in Segmenten
+
+Der durchgehende Balken ist einer Segmentanzeige gewichen: 50 Stufen à 200 rpm über die volle
+Breite. Die unbeleuchteten Segmente bleiben sichtbar, sodass die Skala auch bei 0 rpm lesbar ist
+und die Position der Drehzahl im Band ohne Lesen der Zahl erfassbar wird. Segmente oberhalb des
+Blink-Schwellwerts leuchten rot — wie die Schaltblitz-Skala eines Cockpit-Drehzahlmessers.
+
+Vier neue Unit-Tests decken die Statusfarbe und den Simulator ab (309 statt 305).
 
 ---
 

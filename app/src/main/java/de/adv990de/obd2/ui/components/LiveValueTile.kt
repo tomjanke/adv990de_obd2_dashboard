@@ -139,7 +139,7 @@ fun LiveValueTile(
                             points = sparkline,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(28.dp)
+                                .height(36.dp)
                                 .padding(bottom = 8.dp),
                         )
                     }

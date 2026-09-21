@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -31,6 +32,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -46,8 +49,15 @@ import de.adv990de.obd2.ui.components.LiveValueTile
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
+import kotlin.math.ceil
 
 @Composable
+/** Oberes Ende der Drehzahl-Skala; entspricht der maxValue-Angabe des RPM-PID. */
+private const val RPM_BAR_MAX = 10_000f
+
+/** Eine Stufe der Segmentanzeige. 200 rpm ergeben 50 Segmente ueber die volle Breite. */
+private const val RPM_SEGMENT = 200f
+
 internal fun RpmBar(
     rpm: Float,
     threshold: Int,
@@ -81,9 +91,12 @@ internal fun RpmBar(
     }
 
     val isAlert = isLive && threshold > 0 && rpm > threshold
-    val fillColor = if (isAlert) StatusColors.Critical
-                    else MaterialTheme.colorScheme.primary
-    val fraction = (rpm / 10000f).coerceIn(0f, 1f)
+    val litColor = if (isAlert) StatusColors.Critical else MaterialTheme.colorScheme.primary
+    // Segmente oberhalb des Schwellwerts sind schon vor dem Erreichen als Grenzbereich
+    // erkennbar — wie die Schaltblitz-Skala eines Cockpit-Drehzahlmessers.
+    val redlineColor = StatusColors.Critical
+    val idleColor = MaterialTheme.colorScheme.surfaceVariant
+    val redlineFrom = if (isLive && threshold > 0) threshold.toFloat() else Float.MAX_VALUE
 
     Row(
         modifier = modifier
@@ -97,13 +110,29 @@ internal fun RpmBar(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surface)
             )
-            if (visible) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .fillMaxHeight()
-                        .background(fillColor)
-                )
+            // Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm. Die Skala bleibt
+            // auch bei 0 rpm sichtbar, sodass der Fahrer die Position der Drehzahl im Band
+            // ablesen kann, ohne die Zahl zu lesen.
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val count = (RPM_BAR_MAX / RPM_SEGMENT).toInt()
+                val gap = 1.5.dp.toPx()
+                val segmentWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
+                val lit = if (visible) {
+                    ceil(rpm / RPM_SEGMENT).toInt().coerceIn(0, count)
+                } else 0
+                for (i in 0 until count) {
+                    val segmentStartRpm = i * RPM_SEGMENT
+                    val color = when {
+                        i < lit && segmentStartRpm >= redlineFrom -> redlineColor
+                        i < lit                                   -> litColor
+                        else                                      -> idleColor
+                    }
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(i * (segmentWidth + gap), 0f),
+                        size = Size(segmentWidth, size.height),
+                    )
+                }
             }
         }
         LiveValueText(

@@ -96,6 +96,14 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 - Landscape: 3-4 Spalten (DMD2 erlaubt bis zu 9 Slots)
 - `LazyVerticalGrid` mit `GridCells.Fixed`, `verticalArrangement = spacedBy(12.dp)`, `horizontalArrangement = spacedBy(12.dp)`
 
+### RPM-Balken
+
+Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm über die volle Breite, 1,5 dp
+Abstand. Die unbeleuchteten Segmente bleiben in `surfaceVariant` sichtbar, damit die Skala auch
+bei 0 rpm lesbar ist — die Position der Drehzahl im Band erfasst man so, ohne die Zahl zu lesen.
+Segmente ab dem Blink-Schwellwert leuchten in `StatusColors.Critical` (Schaltblitz-Prinzip),
+darunter in `primary`. Ohne Verbindung: keine Alarmfarbe, kein Blinken, Wert „-- rpm".
+
 ### Animation-Disziplin
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
@@ -121,7 +129,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `SectionLabel(text)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
 | `ActionButton(label, onClick)` | min. 56 dp Höhe, full-width oder min. 160 dp, rectangular |
 | `HairlineDivider()` | 1-dp `outline`, vertikales Padding 8 dp |
-| `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus) |
+| `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 3 dp, runde Enden, 14 % Flächenfüllung darunter — bei Tageslicht auf dem Motorrad war 2 dp zu dünn |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
 
