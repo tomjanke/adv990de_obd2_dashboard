@@ -55,6 +55,10 @@ compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.2.1" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version = "1.6.1" }
+# Compose ui-test zieht transitiv ein aelteres Espresso, das die versteckte API
+# InputManager.getInstance() per Reflection aufruft — die gibt es ab Android 17 nicht mehr.
+# Explizit auf 3.7.0 gehoben, damit die Compose-UI-Tests auf aktuellen Geraeten laufen.
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version = "3.7.0" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
