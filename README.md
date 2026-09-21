@@ -74,14 +74,29 @@ Release bauen:
 ```
 Output: `app/build/outputs/apk/release/app-release.apk`
 
-> **Release-Reihenfolge:** 1) Version bumpen + committen → 2) `assembleRelease` → 3) auf Gerät installieren → 4) Tag und Push
+### Release-Reihenfolge
+
+1. `appVersionCode` und `appVersionName` in `app/build.gradle.kts` erhöhen und committen:
+   ```bash
+   git commit -am "release: 1.8.0 (versionCode 31)"
+   ```
+2. Release bauen: `./gradlew assembleRelease`
+3. APK auf dem Gerät installieren und kurz gegenprüfen.
+4. Den Release-Commit taggen und beides pushen:
+   ```bash
+   git tag -a v1.8.0 -m "Release 1.8.0 (versionCode 31)"
+   git push && git push --tags
+   ```
+5. Änderungen in `RELEASE_NOTES.md` festhalten.
+
+**Tag-Konvention:** annotierte Tags im Format `vMAJOR.MINOR.PATCH`, gesetzt auf den Release-Commit (also den Commit, aus dem das ausgelieferte APK gebaut wurde). Die Tags für 1.0 bis 1.7.0 wurden am 21.09.2026 nachträglich aus der Historie rekonstruiert; `v1.0` sitzt mangels eigenem Bump-Commit auf dem letzten Commit vor dem 1.0.1-Bump.
 
 ---
 
 ## Tests
 
 ```bash
-# JVM Unit Tests (271 Tests, < 30 Sekunden)
+# JVM Unit Tests (298 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -90,7 +105,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 271 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 298 |
 | Compose UI Tests | androidx.compose.ui.test + Hilt (`HiltTestRunner`) | DashboardScreen, DtcScreen, SettingsScreen |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | AppLogDao, SensorReadingDao, SessionDao |
 | Service Tests | `HiltAndroidRule` + Robolectric-frei | ObdForegroundService |
@@ -203,7 +218,7 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 | Bereich | Bibliothek / Version |
 |---|---|
 | Sprache | Kotlin 2.0.21 |
-| Build | Android Gradle Plugin 8.7.3 · Gradle 8.11.1 · KSP 2.0.21-1.0.27 |
+| Build | Android Gradle Plugin 8.7.3 · Gradle 9.2.1 · KSP 2.0.21-1.0.27 |
 | UI | Jetpack Compose (BOM 2026.05.00, Compose 1.11.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
 | Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
 | Navigation | androidx.navigation:navigation-compose 2.8.5 |
@@ -227,7 +242,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (271) |
+| `app/src/test/` | JVM-Unit-Tests (298) |
 | `app/src/androidTest/` | Instrumented Tests (Hilt + Compose) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
