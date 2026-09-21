@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.7.0** (versionCode 30) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
+> Aktuelle Version: **1.8.0** (versionCode 31) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
 
 ---
 
@@ -78,13 +78,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 1. `appVersionCode` und `appVersionName` in `app/build.gradle.kts` erhöhen und committen:
    ```bash
-   git commit -am "release: 1.8.0 (versionCode 31)"
+   git commit -am "release: 1.9.0 (versionCode 32)"
    ```
 2. Release bauen: `./gradlew assembleRelease`
 3. APK auf dem Gerät installieren und kurz gegenprüfen.
 4. Den Release-Commit taggen und beides pushen:
    ```bash
-   git tag -a v1.8.0 -m "Release 1.8.0 (versionCode 31)"
+   git tag -a v1.9.0 -m "Release 1.9.0 (versionCode 32)"
    git push && git push --tags
    ```
 5. Änderungen in `RELEASE_NOTES.md` festhalten.
@@ -96,7 +96,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (298 Tests, < 30 Sekunden)
+# JVM Unit Tests (305 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -105,10 +105,10 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 298 |
-| Compose UI Tests | androidx.compose.ui.test + Hilt (`HiltTestRunner`) | DashboardScreen, DtcScreen, SettingsScreen |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | AppLogDao, SensorReadingDao, SessionDao |
-| Service Tests | `HiltAndroidRule` + Robolectric-frei | ObdForegroundService |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 305 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 9 (Dashboard, DTC, Settings) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | 16 (AppLogDao, SensorReadingDao, SessionDao) |
+| Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 3 (ObdForegroundService) |
 
 ---
 
@@ -242,8 +242,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (298) |
-| `app/src/androidTest/` | Instrumented Tests (Hilt + Compose) |
+| `app/src/test/` | JVM-Unit-Tests (305) |
+| `app/src/androidTest/` | Instrumented Tests (28, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
