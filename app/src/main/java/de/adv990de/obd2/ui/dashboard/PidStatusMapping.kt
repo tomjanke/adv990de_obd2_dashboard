@@ -34,6 +34,10 @@ fun pidTileStatus(pidId: String, metricValue: Float): TileStatus {
             else               -> TileStatus.Ok
         }
         PidRegistry.CONTROL_MODULE_VOLTAGE.id -> when {
+            // Ein antwortendes Steuergeraet hat immer Spannung: 0 V bedeutet "keine Antwort"
+            // (Adapter liefert NO DATA, Platzhalter-Wert), nicht "Batterie leer". Ohne diese
+            // Zeile faerbt sich die Kachel rot, sobald der PID nicht unterstuetzt wird.
+            metricValue <= 0f   -> TileStatus.Ok
             metricValue < 11.0f -> TileStatus.Critical   // engine likely can't start
             metricValue < 11.8f -> TileStatus.Warning    // battery weak
             metricValue > 15.0f -> TileStatus.Warning    // overcharging / regulator fault

@@ -9,8 +9,8 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 36
 
-    val appVersionCode = 33
-    val appVersionName = "1.9.0"
+    val appVersionCode = 34
+    val appVersionName = "1.9.1"
 
     val keystoreFile = rootProject.file("keystore.jks")
     fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()

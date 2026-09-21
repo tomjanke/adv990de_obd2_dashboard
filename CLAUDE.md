@@ -67,13 +67,12 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 ```
 ┌─┬───────────────────────────┐
-│▓│ COOLANT                   │  ← titleSmall, onSurfaceVariant, top-left
+│▓│ COOLANT                   │  ← labelMedium ALL-CAPS, 0.12 em, onSurfaceVariant
 │▓│                           │
-│▓│                           │
-│▓│   ╲╱╲╱──╲╱   87  °C       │  ← Sparkline (primary) als bottom-Background;
-│▓│                           │    Wert ValueTileStyle (Plex Mono, accent),
-└─┴───────────────────────────┘    Einheit titleSmall onSurfaceVariant
- ↑
+│▓│ ╲╱╲╱────╲╱╲──╲╱╲╱╲──╲╱    │  ← Sparkline (primary), eigenes Band ueber dem
+│▓│                    87 °C  │    Wert, volle Kachelbreite, 28 dp hoch
+└─┴───────────────────────────┘  ← Wert ValueTileStyle (Plex Mono, accent),
+ ↑                                 Einheit titleSmall onSurfaceVariant
  4 dp Status-Side-Bar:
    `TileStatus.Ok`       → `MaterialTheme.colorScheme.primary`
    `TileStatus.Warning`  → `StatusColors.Warning`
@@ -82,7 +81,11 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, onClick?, onLongPress?)`. Domain-agnostisch — die Adapter-Logik (PID-Name, Einheit-Konvertierung, NaN-Handling) liegt im rufenden Code (z.B. `SensorCard` für die Dashboard-PIDs).
 
-- Höhe: mindestens 120 dp, idealerweise 140 dp (vom Grid-Caller via Modifier gesetzt)
+- Höhe: mindestens 120 dp, idealerweise 140–170 dp (vom Grid-Caller via Modifier gesetzt).
+  **Nie** `weight(1f)` ueber die volle Resthoehe: bei ~270 dp liegen Label und Wert so weit
+  auseinander, dass die Zuordnung beim Blick von 0,5 s nicht mehr gelingt (Stand 1.9.0).
+- Sparkline liegt **ueber** dem Wert, nicht daneben und nicht dahinter: neben dem Wert bleiben
+  bei vierstelligen Zahlen nur wenige dp, dahinter schneidet die Linie durch die Ziffern.
 - Form: `RectangleShape` (scharfe Kanten — Cockpit-Look). Falls später Rundungen gewünscht: über Modifier-Clip von außen.
 - Elevation: 0 dp. **Keine Shadows.** Tile-Abgrenzung über `surface`/`background`-Kontrast und die 4 dp Status-Side-Bar.
 - Padding innen: 12 dp
@@ -150,7 +153,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 305 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 309 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 28 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

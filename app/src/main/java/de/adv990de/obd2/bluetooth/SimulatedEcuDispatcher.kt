@@ -15,7 +15,7 @@ class SimulatedEcuDispatcher {
     private val connectTimeMs = System.currentTimeMillis()
 
     private val BITMAP_0100 = buildBitmap(0x00, setOf(0x04, 0x05, 0x0B, 0x0C, 0x0D, 0x0E, 0x10, 0x11, 0x20))
-    private val BITMAP_0120 = buildBitmap(0x20, setOf(0x2F, 0x40))
+    private val BITMAP_0120 = buildBitmap(0x20, setOf(0x2F, 0x40, 0x42))
     private val BITMAP_0140 = buildBitmap(0x40, setOf(0x46))
 
     fun respond(command: String): String {
@@ -39,6 +39,7 @@ class SimulatedEcuDispatcher {
         "010B" -> respondMap()
         "0110" -> respondMaf()
         "012F" -> "41 2F A6"   // fuel level 65 % (constant): 0xA6=166, 166*100/255=65
+        "0142" -> "41 42 37 78" // board voltage 14.2 V (constant): 0x3778=14200, /1000
         "0146" -> "41 46 3C"   // ambient temp 20°C (constant)
         "010E" -> "41 0E 94"   // timing advance 10° (constant)
         else   -> "NO DATA"

@@ -26,6 +26,10 @@ class PidStatusMappingTest {
     @Test fun voltage_low_isWarn()           = check(PidRegistry.CONTROL_MODULE_VOLTAGE.id, 11.5f, TileStatus.Warning)
     @Test fun voltage_veryLow_isCrit()       = check(PidRegistry.CONTROL_MODULE_VOLTAGE.id, 10.5f, TileStatus.Critical)
     @Test fun voltage_overcharging_isWarn()  = check(PidRegistry.CONTROL_MODULE_VOLTAGE.id, 15.5f, TileStatus.Warning)
+    // 0 V ist keine leere Batterie, sondern eine fehlende Antwort (PID nicht unterstuetzt,
+    // Platzhalter-Wert). Alarm waere hier eine Falschmeldung.
+    @Test fun voltage_zero_isOk()            = check(PidRegistry.CONTROL_MODULE_VOLTAGE.id, 0f, TileStatus.Ok)
+    @Test fun voltage_negative_isOk()        = check(PidRegistry.CONTROL_MODULE_VOLTAGE.id, -1f, TileStatus.Ok)
     // endregion
 
     // region — RPM

@@ -55,6 +55,22 @@ class SimulatedEcuDispatcherTest {
     }
 
     @Test
+    fun `0120 bitmap declares board voltage (42) support`() {
+        assertPidSupported(range = "0120", rangeStart = 0x20, pid = 0x42)
+    }
+
+    @Test
+    fun `0142 returns a plausible board voltage`() {
+        val d = SimulatedEcuDispatcher()
+        val response = d.respond("0142").replace(" ", "")
+        assertTrue("Erwartet Mode-01-Antwort auf 42, war: $response", response.startsWith("4142"))
+        val a = response.substring(4, 6).toInt(16)
+        val b = response.substring(6, 8).toInt(16)
+        val volts = (a * 256 + b) / 1000f
+        assertTrue("Bordspannung ausserhalb des plausiblen Bereichs: $volts V", volts in 11.8f..15.0f)
+    }
+
+    @Test
     fun `0120 bitmap declares fuel level (2F) support`() {
         assertPidSupported(range = "0120", rangeStart = 0x20, pid = 0x2F)
     }

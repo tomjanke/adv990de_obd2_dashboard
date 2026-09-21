@@ -125,35 +125,36 @@ fun LiveValueTile(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.align(Alignment.TopStart),
                 )
-                // Sparkline und Wert teilen sich die Grundlinie, statt uebereinander zu liegen:
-                // der Graph bekommt den Platz links vom Wert. Vorher lief die Linie hinter den
-                // Ziffern und quer durch die Einheit.
-                Row(
+                // Sparkline ueber dem Wert statt daneben oder dahinter: neben dem Wert blieben
+                // bei vierstelligen Zahlen nur wenige dp uebrig, dahinter lief die Linie durch
+                // die Ziffern. Als eigenes Band nutzt sie die volle Kachelbreite.
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.End,
+                    horizontalAlignment = Alignment.End,
                 ) {
                     if (sparkline.isNotEmpty()) {
                         Sparkline(
                             points = sparkline,
                             modifier = Modifier
-                                .weight(1f)
-                                .height(24.dp)
-                                .padding(end = 12.dp, bottom = 6.dp),
+                                .fillMaxWidth()
+                                .height(28.dp)
+                                .padding(bottom = 8.dp),
                         )
                     }
-                    LiveValueText(value = value, style = ValueTileStyle, color = accentColor)
-                    if (unit != null) {
-                        Text(
-                            text = " $unit",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        LiveValueText(value = value, style = ValueTileStyle, color = accentColor)
+                        if (unit != null) {
+                            Text(
+                                text = " $unit",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
                     }
                 }
             }

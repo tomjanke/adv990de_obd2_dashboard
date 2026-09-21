@@ -1,5 +1,33 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.9.1 (versionCode 34)
+
+Zwei Nachbesserungen aus dem ersten Praxiseinsatz von 1.9.0.
+
+---
+
+### Sparkline hatte zu wenig Platz
+
+In 1.9.0 teilten sich Sparkline und Wert eine Zeile. Bei vierstelligen Werten wie „3885" blieben
+davon nur wenige dp für den Graphen übrig, und er lief optisch in die Ziffern hinein. Die
+Sparkline liegt jetzt als eigenes Band über dem Wert und nutzt die volle Kachelbreite. Die
+Kachel-Anatomie in `CLAUDE.md` ist entsprechend nachgezogen.
+
+### Bordspannung war fälschlich rot
+
+`pidTileStatus` stufte alles unter 11 V als kritisch ein — auch 0 V. Genau das liefert die
+Anzeige aber, wenn der PID gar nicht beantwortet wird: Der Simulator kannte 0142 nicht, die
+Kachel zeigte „0 V" und färbte sich alarmrot. Ein antwortendes Steuergerät hat immer Spannung,
+0 V bedeutet also „keine Messung" und nicht „Batterie leer".
+
+- `pidTileStatus` behandelt Werte ≤ 0 V wie fehlende Daten und lässt die Kachel neutral.
+- Der ECU-Simulator meldet 0142 jetzt als unterstützt und liefert konstant 14.2 V, damit die
+  Kachel im Simulatorbetrieb einen plausiblen Wert zeigt.
+
+Vier neue Unit-Tests decken beides ab (309 statt 305).
+
+---
+
 ## Version 1.9.0 (versionCode 33)
 
 Dashboard-Layout: Die Kacheln sind wieder lesbar, und die Beschriftungen sprechen Deutsch.
