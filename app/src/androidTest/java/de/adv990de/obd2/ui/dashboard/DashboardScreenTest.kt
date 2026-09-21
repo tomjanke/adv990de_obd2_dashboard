@@ -9,6 +9,7 @@ import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -104,7 +105,12 @@ class DashboardScreenTest {
         launchDashboardScreen()
         // "RPM" is rendered by SensorCard as a Text node (value.pid.name).
         // Default slot 0 → PidRegistry.RPM.id = "010C" → name = "RPM".
-        composeRule.onNodeWithText("RPM").assertIsDisplayed()
+        // Das Kachel-Label kommt aus den Ressourcen und wird in ALL-CAPS gerendert — auf einem
+        // deutschen Geraet also "DREHZAHL". Die Erwartung muss denselben Weg gehen, sonst
+        // haengt der Test an der Geraetesprache.
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.pid_rpm).uppercase())
+            .assertIsDisplayed()
     }
 
     /**
