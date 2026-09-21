@@ -32,9 +32,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
@@ -132,7 +135,21 @@ internal fun SensorCardSlot(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             color = MaterialTheme.colorScheme.surface
-        ) {}
+        ) {
+            // Ein unbelegter Slot war bisher eine leere Flaeche und sah nach Renderfehler aus.
+            // Der Hinweis nennt zugleich die einzige Geste, die ihn belegt.
+            Box(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.dashboard_slot_empty),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
 

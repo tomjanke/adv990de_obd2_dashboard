@@ -3,6 +3,7 @@
     <string name="app_name">Bike OBD2 Monitor</string>
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
     <string name="app_label">BOM</string>
+    <string name="dashboard_slot_empty">Lang drücken, um einen Sensor zu belegen</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
