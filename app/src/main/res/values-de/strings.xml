@@ -3,6 +3,7 @@
     <string name="app_name">Bike OBD2 Monitor</string>
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
     <string name="app_label">BOM</string>
+    <string name="dashboard_slot_empty">Lang drücken, um einen Sensor zu belegen</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
@@ -129,4 +130,25 @@
     <string name="notif_obd_title">OBD2 verbunden</string>
     <string name="notif_obd_text">Fahrzeugdaten werden aufgezeichnet</string>
     <string name="notif_obd_disconnect">Trennen</string>
+
+    <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
+    <string name="pid_rpm">Drehzahl</string>
+    <string name="pid_speed">Geschwindigkeit</string>
+    <string name="pid_coolant_temp">Kühlmittel</string>
+    <string name="pid_engine_load">Motorlast</string>
+    <string name="pid_throttle">Drosselklappe</string>
+    <string name="pid_intake_air_temp">Ansaugluft</string>
+    <string name="pid_maf">Luftmasse</string>
+    <string name="pid_short_term_fuel_trim">Gemisch kurz</string>
+    <string name="pid_long_term_fuel_trim">Gemisch lang</string>
+    <string name="pid_intake_manifold_pressure">Saugrohrdruck</string>
+    <string name="pid_timing_advance">Zündzeitpunkt</string>
+    <string name="pid_fuel_tank_level">Tankfüllstand</string>
+    <string name="pid_barometric_pressure">Luftdruck</string>
+    <string name="pid_catalyst_temp_b1s1">Kat-Temp B1S1</string>
+    <string name="pid_control_module_voltage">Bordspannung</string>
+    <string name="pid_ambient_air_temp">Außentemperatur</string>
+    <string name="pid_accelerator_pedal_pos">Gaspedal</string>
+    <string name="pid_engine_oil_temp">Öltemperatur</string>
+    <string name="pid_engine_fuel_rate">Verbrauch</string>
 </resources>

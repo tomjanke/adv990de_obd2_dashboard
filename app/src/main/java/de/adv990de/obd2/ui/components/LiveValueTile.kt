@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.ValueTileStyle
@@ -113,27 +114,36 @@ fun LiveValueTile(
                     .fillMaxHeight()
                     .padding(12.dp)
             ) {
-                if (sparkline.isNotEmpty()) {
-                    Sparkline(
-                        points = sparkline,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(24.dp)
-                            .align(Alignment.BottomStart),
-                    )
-                }
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.titleSmall,
+                    // ALL-CAPS mit Letterspacing gemaess Design-Profil; die Grossschreibung
+                    // passiert hier, damit die Quelle des Labels (PID-Name, Ressource) davon
+                    // nichts wissen muss.
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.12.em),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.align(Alignment.TopStart),
                 )
+                // Sparkline und Wert teilen sich die Grundlinie, statt uebereinander zu liegen:
+                // der Graph bekommt den Platz links vom Wert. Vorher lief die Linie hinter den
+                // Ziffern und quer durch die Einheit.
                 Row(
-                    modifier = Modifier.align(Alignment.BottomEnd),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(),
                     verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.End,
                 ) {
+                    if (sparkline.isNotEmpty()) {
+                        Sparkline(
+                            points = sparkline,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(24.dp)
+                                .padding(end = 12.dp, bottom = 6.dp),
+                        )
+                    }
                     LiveValueText(value = value, style = ValueTileStyle, color = accentColor)
                     if (unit != null) {
                         Text(

@@ -86,12 +86,12 @@ fun LoggingConfigScreen(
             items(vm.allPids, key = { it.id }) { pid ->
                 val reading = latestReadings.firstOrNull { it.pid.id == pid.id }
                 val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                    "${pid.name}: -- (${pid.unit})"
+                    "${stringResource(pid.labelRes)}: -- (${pid.unit})"
                 } else {
                     val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
                     val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
                                     else "%.0f".format(convertedValue)
-                    "${pid.name}: $formatted ($displayUnit)"
+                    "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
                 }
                 ListItem(
                     modifier = Modifier.clickable { vm.togglePid(pid.id) },

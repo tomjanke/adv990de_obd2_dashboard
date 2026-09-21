@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
@@ -145,6 +146,7 @@ fun DashboardScreen(
                     rpm = displayRpm,
                     threshold = displayThreshold,
                     modifier = Modifier.fillMaxWidth(),
+                    isLive = state.isConnected,
                     trailingContent = {
                         if (state.isConnected) {
                             Row(
@@ -177,48 +179,50 @@ fun DashboardScreen(
                 )
 
                 // ── Sensor grid ───────────────────────────────────────────
-                if (isLandscape) {
-                    // Landscape: 3 columns — col 3 has 2 stacked cards
-                    Row(
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                            .background(MaterialTheme.colorScheme.outlineVariant),
-                        horizontalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
-                            onLongPress = { pickerSlot = 0 })
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
-                            onLongPress = { pickerSlot = 1 })
-                        Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
-                                onLongPress = { pickerSlot = 2 })
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f),
-                                onLongPress = { pickerSlot = 3 })
-                        }
-                    }
-                } else {
-                    // Portrait: 3 rows — row 3 has 2 cards side by side
-                    Column(
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                            .background(MaterialTheme.colorScheme.outlineVariant),
-                        verticalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        SensorCardSlot(slots[0], state.sparklines, useImperial, Modifier.weight(1f),
-                            onLongPress = { pickerSlot = 0 })
-                        SensorCardSlot(slots[1], state.sparklines, useImperial, Modifier.weight(1f),
-                            onLongPress = { pickerSlot = 1 })
+                // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
+                // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
+                // hundert dp auseinanderlagen — bei 0,5 s Blickzeit nicht mehr zuzuordnen.
+                // 160-170 dp entspricht der Anatomie in CLAUDE.md; der Rest bleibt bewusst frei.
+                val tileHeight = if (isLandscape) 160.dp else 170.dp
+                Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    if (isLandscape) {
+                        // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
+                        // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
                         Row(
-                            modifier = Modifier.fillMaxWidth().weight(1f)
+                            modifier = Modifier.fillMaxWidth().height(tileHeight)
                                 .background(MaterialTheme.colorScheme.outlineVariant),
                             horizontalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
-                            SensorCardSlot(slots[2], state.sparklines, useImperial, Modifier.weight(1f),
-                                onLongPress = { pickerSlot = 2 })
-                            SensorCardSlot(slots[3], state.sparklines, useImperial, Modifier.weight(1f),
-                                onLongPress = { pickerSlot = 3 })
+                            repeat(4) { i ->
+                                SensorCardSlot(
+                                    slots[i], state.sparklines, useImperial,
+                                    Modifier.weight(1f).fillMaxHeight(),
+                                    onLongPress = { pickerSlot = i }
+                                )
+                            }
+                        }
+                    } else {
+                        // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            repeat(2) { row ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().height(tileHeight),
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
+                                    repeat(2) { col ->
+                                        val i = row * 2 + col
+                                        SensorCardSlot(
+                                            slots[i], state.sparklines, useImperial,
+                                            Modifier.weight(1f).fillMaxHeight(),
+                                            onLongPress = { pickerSlot = i }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

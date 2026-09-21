@@ -32,9 +32,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
@@ -49,9 +52,12 @@ internal fun RpmBar(
     rpm: Float,
     threshold: Int,
     modifier: Modifier = Modifier,
+    /** Ohne Verbindung zeigt der Balken nur die Demo-Bewegung: kein Alarmrot, kein Blinken
+     *  und keine Zahl, die eine Drehzahl vortaeuscht, die es nicht gibt. */
+    isLive: Boolean = true,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
-    val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
+    val blinkPeriodMs: Long = if (isLive && threshold > 0 && rpm > threshold) {
         val f = if (threshold >= 10000) 1f
                 else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
         (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
@@ -74,7 +80,7 @@ internal fun RpmBar(
         }
     }
 
-    val isAlert = threshold > 0 && rpm > threshold
+    val isAlert = isLive && threshold > 0 && rpm > threshold
     val fillColor = if (isAlert) StatusColors.Critical
                     else MaterialTheme.colorScheme.primary
     val fraction = (rpm / 10000f).coerceIn(0f, 1f)
@@ -101,7 +107,7 @@ internal fun RpmBar(
             }
         }
         LiveValueText(
-            value = "%.0f rpm".format(rpm),
+            value = if (isLive) "%.0f rpm".format(rpm) else "-- rpm",
             style = MaterialTheme.typography.titleSmall.asLiveValue(),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
@@ -132,7 +138,21 @@ internal fun SensorCardSlot(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             color = MaterialTheme.colorScheme.surface
-        ) {}
+        ) {
+            // Ein unbelegter Slot war bisher eine leere Flaeche und sah nach Renderfehler aus.
+            // Der Hinweis nennt zugleich die einzige Geste, die ihn belegt.
+            Box(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.dashboard_slot_empty),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
 
@@ -158,14 +178,15 @@ internal fun SensorCard(
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else if (value.pid.unit == "V") "%.1f".format(convertedValue)
                        else "%.0f".format(convertedValue)
+    val pidLabel = stringResource(value.pid.labelRes)
     LiveValueTile(
-        label = value.pid.name,
+        label = pidLabel,
         value = displayValue,
         unit = displayUnit,
         sparkline = sparkline,
         status = pidTileStatus(value.pid.id, value.value),
         onLongPress = onLongPress,
-        modifier = modifier.semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" },
+        modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
     )
 }
 
@@ -188,12 +209,12 @@ internal fun SlotPickerSheet(
             items(availablePids, key = { it.id }) { pid ->
                 val reading = readings.firstOrNull { it.pid.id == pid.id }
                 val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                    "${pid.name}: -- (${pid.unit})"
+                    "${stringResource(pid.labelRes)}: -- (${pid.unit})"
                 } else {
                     val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
                     val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
                                     else "%.0f".format(convertedValue)
-                    "${pid.name}: $formatted ($displayUnit)"
+                    "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
                 }
                 ListItem(
                     modifier = Modifier.clickable { onSelect(pid.id) },

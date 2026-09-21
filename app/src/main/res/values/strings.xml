@@ -3,6 +3,7 @@
     <string name="app_name">Bike OBD2 Monitor</string>
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
     <string name="app_label">BOM</string>
+    <string name="dashboard_slot_empty">Long-press to assign a sensor</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">No known device to reconnect to.</string>
@@ -129,4 +130,25 @@
     <string name="notif_obd_title">OBD2 Connected</string>
     <string name="notif_obd_text">Vehicle data is being recorded</string>
     <string name="notif_obd_disconnect">Disconnect</string>
+
+    <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
+    <string name="pid_rpm">RPM</string>
+    <string name="pid_speed">Speed</string>
+    <string name="pid_coolant_temp">Coolant Temp</string>
+    <string name="pid_engine_load">Engine Load</string>
+    <string name="pid_throttle">Throttle</string>
+    <string name="pid_intake_air_temp">Intake Air Temp</string>
+    <string name="pid_maf">MAF</string>
+    <string name="pid_short_term_fuel_trim">Short Term Fuel Trim</string>
+    <string name="pid_long_term_fuel_trim">Long Term Fuel Trim</string>
+    <string name="pid_intake_manifold_pressure">Intake Manifold Pressure</string>
+    <string name="pid_timing_advance">Timing Advance</string>
+    <string name="pid_fuel_tank_level">Fuel Tank Level</string>
+    <string name="pid_barometric_pressure">Barometric Pressure</string>
+    <string name="pid_catalyst_temp_b1s1">Catalyst Temp B1S1</string>
+    <string name="pid_control_module_voltage">Control Module Voltage</string>
+    <string name="pid_ambient_air_temp">Ambient Air Temp</string>
+    <string name="pid_accelerator_pedal_pos">Accelerator Pedal Pos</string>
+    <string name="pid_engine_oil_temp">Engine Oil Temp</string>
+    <string name="pid_engine_fuel_rate">Engine Fuel Rate</string>
 </resources>

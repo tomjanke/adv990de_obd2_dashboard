@@ -86,10 +86,11 @@ class DashboardScreenTest {
     @Test
     fun dashboard_rendersWithoutCrash_whenDisconnected() {
         launchDashboardScreen()
-        // RpmBar always renders "%.0f rpm".format(rpmValue). With rpmValue == 0 the text is
-        // "0 rpm". The waitForIdle() above ensures all animations have settled and the node
-        // is in the tree; assertIsDisplayed() confirms it is not hidden behind another layer.
-        composeRule.onNodeWithText("0 rpm").assertIsDisplayed()
+        // Ohne Verbindung zeigt die RpmBar "-- rpm" statt einer Zahl: die Demo-Animation
+        // bewegt zwar den Balken, darf aber keine Drehzahl vortaeuschen. Das waitForIdle()
+        // oben stellt sicher, dass alle Animationen stehen und der Knoten im Baum ist;
+        // assertIsDisplayed() prueft zusaetzlich, dass er nicht verdeckt ist.
+        composeRule.onNodeWithText("-- rpm").assertIsDisplayed()
     }
 
     /**
