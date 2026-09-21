@@ -4,7 +4,7 @@
 
 ## Projekt-Kontext
 
-Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.0.21, Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 35. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
+Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.10 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 35 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
 ---
 

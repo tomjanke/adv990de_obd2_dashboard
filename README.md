@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.7.0** (versionCode 30) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15)
+> Aktuelle Version: **1.7.0** (versionCode 30) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
 
 ---
 
@@ -36,7 +36,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 ## Build & Run
 
 ### Voraussetzungen
-- JDK **17** (Android Gradle Plugin 8.7 erwartet JVM 17)
+- JDK **17** (Android Gradle Plugin 9.3 setzt mindestens JVM 17 voraus)
 - Android Studio Ladybug oder neuer (für Compose Preview / Layout Inspector)
 - Optional: ADB im `PATH` für Command-Line-Installation
 
@@ -217,13 +217,13 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 
 | Bereich | Bibliothek / Version |
 |---|---|
-| Sprache | Kotlin 2.0.21 |
-| Build | Android Gradle Plugin 8.7.3 · Gradle 9.2.1 · KSP 2.0.21-1.0.27 |
+| Sprache | Kotlin 2.4.10 |
+| Build | Android Gradle Plugin 9.3.0 (built-in Kotlin) · Gradle 9.5.0 · KSP 2.3.11 |
 | UI | Jetpack Compose (BOM 2026.05.00, Compose 1.11.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
 | Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
 | Navigation | androidx.navigation:navigation-compose 2.8.5 |
-| DI | Hilt 2.52 |
-| Persistenz | Room 2.6.1 (mit Paging-3-Integration) · DataStore Preferences 1.1.1 |
+| DI | Hilt 2.60.1 |
+| Persistenz | Room 2.8.5 (mit Paging-3-Integration) · DataStore Preferences 1.1.1 |
 | Coroutines | kotlinx-coroutines 1.9.0 |
 | Lifecycle | androidx.lifecycle 2.8.7 |
 | Crash-Reporting | Sentry Android 8.29.0 |
