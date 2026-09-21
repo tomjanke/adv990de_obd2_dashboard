@@ -36,10 +36,12 @@ class DisplaySettingsViewModelTest {
 
     private fun makePrefs(
         useImperial: Boolean = false,
-        theme: String = THEME_SYSTEM
+        theme: String = THEME_SYSTEM,
+        useGpsSpeed: Boolean = false
     ): AppPreferences = mockk {
-        every { this@mockk.useImperial } returns flowOf(useImperial)
-        every { this@mockk.theme }       returns flowOf(theme)
+        every { this@mockk.useImperial }  returns flowOf(useImperial)
+        every { this@mockk.theme }        returns flowOf(theme)
+        every { this@mockk.useGpsSpeed }  returns flowOf(useGpsSpeed)
     }
 
     @Test
@@ -124,5 +126,38 @@ class DisplaySettingsViewModelTest {
         advanceUntilIdle()
         job.cancel()
         assertEquals(THEME_BLUE, vm.theme.value)
+    }
+
+    @Test
+    fun `useGpsSpeed defaults to false`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(useGpsSpeed = false))
+        val job = launch { vm.useGpsSpeed.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        assertFalse(vm.useGpsSpeed.value)
+    }
+
+    @Test
+    fun `useGpsSpeed reflects persisted true value`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(useGpsSpeed = true))
+        val job = launch { vm.useGpsSpeed.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        assertTrue(vm.useGpsSpeed.value)
+    }
+
+    @Test
+    fun `setUseGpsSpeed calls appPreferences setUseGpsSpeed with given value`() = runTest {
+        val prefs = makePrefs(useGpsSpeed = false)
+        coEvery { prefs.setUseGpsSpeed(any()) } just Runs
+        val vm = DisplaySettingsViewModel(prefs)
+        val job = launch { vm.useGpsSpeed.collect {} }
+        advanceUntilIdle()
+
+        vm.setUseGpsSpeed(true)
+        advanceUntilIdle()
+        job.cancel()
+
+        coVerify { prefs.setUseGpsSpeed(true) }
     }
 }

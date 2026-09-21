@@ -87,6 +87,7 @@ class DashboardViewModelTest {
     fun `session starts when connected and readings are written`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns "TESTVIN123"
@@ -112,6 +113,7 @@ class DashboardViewModelTest {
     fun `session ends when disconnected`() = runTest {
         val isConnectedFlow = MutableStateFlow(true)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -138,6 +140,7 @@ class DashboardViewModelTest {
         val reading = makeSensorValue()
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -163,6 +166,7 @@ class DashboardViewModelTest {
     fun `session starts with null vin when readVin throws`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } throws Exception("VIN not supported")
@@ -187,6 +191,7 @@ class DashboardViewModelTest {
     fun `ui state shows error when livePids throws`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -215,6 +220,7 @@ class DashboardViewModelTest {
         // never called because sessionId was never assigned (guard: if (sessionId != -1L)).
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -273,6 +279,7 @@ class DashboardViewModelTest {
         // rather than the catch(Exception) handler which would set error=".." instead.
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -301,6 +308,7 @@ class DashboardViewModelTest {
     fun `reconnect loop starts isReconnecting state before first delay`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -337,6 +345,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val persistedDevice = mockk<ScannedDevice>()
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
@@ -376,6 +385,7 @@ class DashboardViewModelTest {
     fun `reconnect loop sets permanent error after all attempts fail`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -407,6 +417,7 @@ class DashboardViewModelTest {
     fun `reconnect loop aborts immediately when Bluetooth is disabled`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -443,6 +454,7 @@ class DashboardViewModelTest {
         val dtc = mockk<DtcEntry>()
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -522,6 +534,7 @@ class DashboardViewModelTest {
     fun `logOnlyDtcSessions=true, no DTCs - session is deleted`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -554,6 +567,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val dtc = mockk<DtcEntry>()
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
@@ -760,6 +774,7 @@ class DashboardViewModelTest {
     fun `setSlotPid delegates to AppPreferences with correct slot and pid`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
         }
@@ -788,6 +803,7 @@ class DashboardViewModelTest {
     fun `auto-connect on startup triggers reconnect loop when connect fails`() = runTest {
         val savedDevice = mockk<ScannedDevice> { every { name } returns "TestAdapter" }
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
@@ -894,6 +910,7 @@ class DashboardViewModelTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -924,6 +941,7 @@ class DashboardViewModelTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice> { every { name } returns "TestAdapter" })
@@ -957,6 +975,7 @@ class DashboardViewModelTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
@@ -1005,6 +1024,7 @@ class DashboardViewModelTest {
     fun `uiState error set to no-device banner when no device is configured`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
@@ -1031,6 +1051,7 @@ class DashboardViewModelTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
