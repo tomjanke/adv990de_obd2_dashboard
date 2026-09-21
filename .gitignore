@@ -99,3 +99,6 @@ lint/tmp/
 # Editor backups
 *.swp
 *~
+
+# Claude Code (lokale, nutzerspezifische Einstellungen)
+.claude/settings.local.json
