@@ -1,5 +1,51 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.9.0 (versionCode 33)
+
+Dashboard-Layout: Die Kacheln sind wieder lesbar, und die Beschriftungen sprechen Deutsch.
+
+---
+
+### Kachel-Geometrie
+
+Die Sensor-Kacheln dehnten sich über die gesamte Resthöhe des Bildschirms — gemessen rund
+267 dp statt der 120 bis 140 dp, für die die Kachel-Anatomie in `CLAUDE.md` gedacht ist. Label
+oben links und Wert unten rechts lagen dadurch so weit auseinander, dass die Zuordnung bei einem
+halben Sekundenblick nicht mehr gelang.
+
+- Feste Höhen: 170 dp im Hoch-, 160 dp im Querformat. Der verbleibende Platz bleibt frei, statt
+  die Kacheln aufzublähen.
+- Hochformat: zwei Spalten, zwei Reihen — der im Design-Profil vorgesehene Standard.
+- Querformat: vier gleich breite Spalten nebeneinander statt drei mit einer gestapelten Spalte,
+  in der eine halbe Kachel leer blieb.
+- Sparkline und Wert teilen sich jetzt eine Zeile. Vorher lagen beide unten im selben Bereich,
+  die Trendlinie lief hinter den Ziffern durch und schnitt quer durch die Einheit.
+- Ein unbelegter Slot zeigt statt einer toten Fläche den Hinweis, dass ein langer Druck ihn
+  belegt.
+
+### Beschriftungen
+
+- Kachel-Labels erscheinen in ALL-CAPS mit 0.12 em Letterspacing, wie im Profil vorgesehen.
+- Die 19 PID-Namen kommen aus den String-Ressourcen und sind übersetzt: auf einem deutschen
+  Gerät steht „KÜHLMITTEL" statt „Coolant Temp" über einer Navigation, die „Verlauf" und
+  „Einstellungen" heißt. `PidDefinition.name` bleibt als stabiler, sprachunabhängiger
+  Bezeichner für Sortierung, Logs und Freeze-Frame-Schlüssel erhalten.
+
+### Kein Alarm beim Start
+
+Die Demo-Animation lief beim Öffnen ohne Verbindung bis knapp 10000 rpm gegen den
+Blink-Schwellwert: Der Kopfbalken wurde alarmrot und zeigte „9977 rpm", während die RPM-Kachel
+darunter 0 anzeigte. Ohne Verbindung bleibt der Balken jetzt in der Primärfarbe, blinkt nicht
+und zeigt „-- rpm" — die Bewegung bleibt als Lebenszeichen, gibt sich aber nicht als Messwert aus.
+
+### Bekannte Lücke
+
+Die Freeze-Frame-Ansicht zeigt weiterhin englische PID-Namen: `ObdRepository` nutzt
+`PidDefinition.name` dort als Schlüssel der Ergebnis-Map. Das sauber zu lösen heißt, die Map auf
+PID-IDs umzustellen und die Auflösung in die UI zu ziehen — ein eigener Schnitt.
+
+---
+
 ## Version 1.8.1 (versionCode 32)
 
 Debug- und Release-Build lassen sich jetzt parallel installieren.
