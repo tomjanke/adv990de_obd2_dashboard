@@ -38,6 +38,7 @@ class AppPreferences @Inject constructor(
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
+        private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
@@ -125,6 +126,16 @@ class AppPreferences @Inject constructor(
 
     suspend fun setHideNavOnDrive(enabled: Boolean) {
         dataStore.edit { it[KEY_HIDE_NAV_ON_DRIVE] = enabled }
+    }
+
+    /** Geschwindigkeit aus dem GPS, wenn das Fahrzeug PID 010D nicht liefert. Standard aus:
+     *  die Standortberechtigung wird erst angefragt, wenn der Nutzer das Feature einschaltet. */
+    val useGpsSpeed: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_USE_GPS_SPEED] ?: false
+    }
+
+    suspend fun setUseGpsSpeed(enabled: Boolean) {
+        dataStore.edit { it[KEY_USE_GPS_SPEED] = enabled }
     }
 
     // ── Display preferences ───────────────────────────────────────────────────

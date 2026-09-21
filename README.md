@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.9.1** (versionCode 34) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
+> Aktuelle Version: **1.10.0** (versionCode 35) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
 
 ---
 
@@ -13,6 +13,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 - **DTC-Lesen & Löschen** (Diagnostic Trouble Codes) mit menschenlesbaren Beschreibungen
 - **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
 - **Fahrzeug-Info** (VIN, ECU-Name, Kalibrier-IDs via Mode 09)
+- **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall
 - **Fahrt-Historie** — Sessions werden in Room persistiert, einzeln löschbar, mit CSV-Export
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
@@ -112,7 +113,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (309 Tests, < 30 Sekunden)
+# JVM Unit Tests (319 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -121,7 +122,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 309 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 319 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 9 (Dashboard, DTC, Settings) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | 16 (AppLogDao, SensorReadingDao, SessionDao) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 3 (ObdForegroundService) |
@@ -155,6 +156,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── permission/              # Runtime-Permissions Gate
 │   ├── navigation/              # Compose-Navigation
 │   └── theme/                   # Material 3 Theme
+├── location/                    # GpsSpeedSource (Geschwindigkeit aus dem GPS-Fix)
 ├── di/                          # Hilt-Module (AppModule, CrashReporterModule)
 └── crash/                       # CrashReporter (Sentry-Wrapper)
 ```
@@ -198,7 +200,8 @@ Die App fordert zur Laufzeit (via `PermissionGate`) an:
 | `BLUETOOTH_SCAN` | 31+ | BLE/Classic-Scan |
 | `BLUETOOTH_CONNECT` | 31+ | Verbindung herstellen |
 | `BLUETOOTH` / `BLUETOOTH_ADMIN` | ≤30 | Legacy-Bluetooth |
-| `ACCESS_FINE_LOCATION` | bis 30 | BLE-Scan-Voraussetzung vor Android 12 |
+| `ACCESS_FINE_LOCATION` | alle | BLE-Scan vor Android 12; ab 1.10.0 zusätzlich Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt) |
+| `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen) |
 | `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 |
 
@@ -212,8 +215,8 @@ Wenn die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt ist, wird der Cr
 ### Benutzerseitige Einstellungen
 Persistiert via Jetpack DataStore:
 - Auto-Connect zum letzten Gerät
-- Polling-Intervall
 - Dashboard-Slot-Belegung (welche PIDs in welche Kachel)
+- Geschwindigkeit per GPS, wenn das Fahrzeug keine liefert
 - Anzeige-Einheiten (metrisch/imperial)
 - Aufzeichnungs-Modus (immer / nur bei Fahrt / aus)
 - App-Log-Verbosity
@@ -258,7 +261,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (309) |
+| `app/src/test/` | JVM-Unit-Tests (319) |
 | `app/src/androidTest/` | Instrumented Tests (28, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

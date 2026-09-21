@@ -22,6 +22,15 @@ class DisplaySettingsViewModel @Inject constructor(
     val theme: StateFlow<String> = appPreferences.theme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), THEME_SYSTEM)
 
+    val useGpsSpeed: StateFlow<Boolean> = appPreferences.useGpsSpeed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Wird erst gerufen, wenn die Standortberechtigung vorliegt — der Schalter in den
+     *  Einstellungen fragt sie vorher an. */
+    fun setUseGpsSpeed(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setUseGpsSpeed(enabled) }
+    }
+
     fun toggleUseImperial() {
         viewModelScope.launch { appPreferences.setUseImperial(!useImperial.value) }
     }

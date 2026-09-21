@@ -152,4 +152,7 @@
     <string name="pid_accelerator_pedal_pos">Accelerator Pedal Pos</string>
     <string name="pid_engine_oil_temp">Engine Oil Temp</string>
     <string name="pid_engine_fuel_rate">Engine Fuel Rate</string>
+    <string name="pid_speed_gps">Speed (GPS)</string>
+    <string name="settings_gps_speed">Speed from GPS</string>
+    <string name="settings_gps_speed_desc">Uses the device GPS when the vehicle does not provide a speed signal. Requires location permission.</string>
 </resources>

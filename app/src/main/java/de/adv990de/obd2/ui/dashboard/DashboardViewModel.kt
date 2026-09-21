@@ -14,6 +14,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
@@ -73,6 +74,7 @@ class DashboardViewModel @Inject constructor(
     private val crashReporter: CrashReporter,
     private val bluetoothAdapter: BluetoothAdapter,
     private val appLogRepository: AppLogRepository,
+    private val gpsSpeedSource: GpsSpeedSource,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -120,6 +122,17 @@ class DashboardViewModel @Inject constructor(
     fun setSlotPid(slot: Int, pidId: String) {
         viewModelScope.launch { appPreferences.setSlotPid(slot, pidId) }
     }
+
+    /**
+     * GPS-Geschwindigkeit in km/h, null wenn das Feature aus ist, keine Berechtigung vorliegt
+     * oder kein Fix mit Geschwindigkeit ansteht. Der Flow wird nur gesammelt, solange das
+     * Dashboard aktiv ist — im Hintergrund laeuft kein GPS.
+     */
+    private val gpsSpeedKmh: StateFlow<Float?> = combine(
+        appPreferences.useGpsSpeed,
+        gpsSpeedSource.speedKmh,
+    ) { enabled, kmh -> if (enabled) kmh else null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
@@ -173,11 +186,6 @@ class DashboardViewModel @Inject constructor(
                                 .distinctBy { it.id }
                                 .ifEmpty { PidRegistry.defaults }
 
-                            // If SPEED is not being polled, ensure moving=false so nav is never locked hidden.
-                            if (selectedPids.none { it.id == PidRegistry.SPEED.id }) {
-                                obdRepository.setMoving(false)
-                            }
-
                             // Snapshot recording preferences once per session, not per cycle.
                             val logOnlyDtc        = appPreferences.logOnlyDtcSessions.first()
                             val logOnlyDiscovered = appPreferences.logOnlyDiscoveredPids.first()
@@ -210,6 +218,9 @@ class DashboardViewModel @Inject constructor(
                                 sessionId = sessionRepository.startSession(vin)
                                 emitAll(
                                     obdRepository.livePids(selectedPids)
+                                        // GPS ergaenzt die Geschwindigkeit, bevor aufgezeichnet
+                                        // und angezeigt wird — der Fahrzeugwert hat Vorrang.
+                                        .map { mergeGpsSpeed(it, gpsSpeedKmh.value) }
                                         .onEach { values ->
                                             val filtered = values
                                                 .filter { sv ->
@@ -255,11 +266,11 @@ class DashboardViewModel @Inject constructor(
                             if (deque.size >= SPARKLINE_WINDOW) deque.removeFirst()
                             deque.addLast(sv.value)
                         }
-                        // Only updates moving state when SPEED is in the selected PID set.
-                        // If the user has deselected SPEED, isMovingFlow retains its last value
-                        // and the auto-hide feature effectively does nothing.
-                        values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
-                            ?.let { obdRepository.setMoving(it.value > 0f) }
+                        // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug
+                        // oder vom GPS kommt. Fehlt sie ganz, gilt "steht", damit die Navigation
+                        // nie dauerhaft ausgeblendet bleibt.
+                        val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
+                        obdRepository.setMoving(speed != null && speed.value > 0f)
                         val displayIds = slotPids.value.toSet()
                         val engineTempC = if (rpmDynamicThreshold.value) {
                             values.firstOrNull { it.pid.id == PidRegistry.ENGINE_OIL_TEMP.id && it.isPlausible() }?.value

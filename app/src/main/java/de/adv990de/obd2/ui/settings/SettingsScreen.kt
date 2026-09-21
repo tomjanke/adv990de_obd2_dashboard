@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.settings
 
+import android.Manifest
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,6 +56,16 @@ fun SettingsScreen(
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
     val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
+    val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
+
+    // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS einschaltet — nicht
+    // beim Start der App. Wird sie verweigert, bleibt der Schalter aus.
+    val context = LocalContext.current
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        displayVm.setUseGpsSpeed(results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
+    }
     val useImperial by displayVm.useImperial.collectAsState()
     val theme by displayVm.theme.collectAsState()
     val showAllBtDevices by vm.showAllBtDevices.collectAsState()
@@ -170,6 +186,33 @@ fun SettingsScreen(
                         Switch(
                             checked = hideNavOnDrive,
                             onCheckedChange = { driveVm.toggleHideNavOnDrive() }
+                        )
+                    }
+                )
+                HorizontalDivider()
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_gps_speed)) },
+                    supportingContent = { Text(stringResource(R.string.settings_gps_speed_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = useGpsSpeed,
+                            onCheckedChange = { wanted ->
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+                                when {
+                                    !wanted -> displayVm.setUseGpsSpeed(false)
+                                    granted -> displayVm.setUseGpsSpeed(true)
+                                    else -> locationPermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                                        )
+                                    )
+                                }
+                            }
                         )
                     }
                 )

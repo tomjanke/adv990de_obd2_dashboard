@@ -1,5 +1,49 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.10.0 (versionCode 35)
+
+Geschwindigkeit per GPS, und ehrlichere Kacheln.
+
+---
+
+### Geschwindigkeit aus dem GPS
+
+Viele Fahrzeuge liefern PID 010D nicht — bei Motorrädern ist das eher die Regel als die
+Ausnahme, weil die Geschwindigkeit dort vom ABS-Steuergerät oder dem Kombiinstrument kommt und
+gar nicht auf dem OBD2-Bus liegt. Ohne sie bleibt nicht nur die Kachel leer: Auch die
+Fahrterkennung und damit das Ausblenden der Navigation während der Fahrt hängen daran.
+
+- Neue `GpsSpeedSource` liest die Geschwindigkeit aus dem GPS-Fix (Framework-`LocationManager`,
+  keine Play-Services-Abhängigkeit) und meldet sie sekündlich.
+- Der Wert vom Fahrzeug hat immer Vorrang; GPS springt nur ein, wenn keiner ankommt oder er
+  unbrauchbar ist. Die Kachel zeigt dann „GESCHW. (GPS)", die Quelle bleibt also sichtbar.
+- Einzuschalten unter Einstellungen → Anzeige. Die Standortberechtigung wird **erst beim
+  Einschalten** angefragt, nicht beim Start der App — wer die Funktion nicht braucht, wird nie
+  danach gefragt.
+- Die Fahrterkennung nutzt beide Quellen gleichermaßen. Fehlt die Geschwindigkeit ganz, gilt
+  „steht", damit die Navigation nie dauerhaft ausgeblendet bleibt.
+
+Grenze: Das GPS läuft nur, solange das Dashboard aktiv ist. Für die Aufzeichnung im Hintergrund
+über den Foreground Service müsste der Service den Typ `location` führen und eine weitere
+Berechtigung anfragen — das ist bewusst nicht Teil dieses Release.
+
+### Kacheln sagen, warum sie leer sind
+
+Eine Kachel ohne Messwert zeigte bisher immer den Hinweis auf die Belegung per Long-Press — auch
+wenn der Slot belegt war und schlicht das Fahrzeug den Wert nicht liefert. Jetzt steht dort
+„Vom Fahrzeug nicht unterstützt", sobald die PID-Discovery abgeschlossen ist und der zugewiesene
+PID nicht in der gemeldeten Menge steht. Ohne Verbindung oder vor der Discovery bleibt es beim
+neutralen Hinweis — eine Aussage über Unterstützung wäre dort nicht belegbar.
+
+### Sonstiges
+
+- Zehn neue Unit-Tests (319 statt 309) für die Zusammenführung der Geschwindigkeitsquellen und
+  die Platzhalter-Logik.
+- Die README-Zeile „Polling-Intervall" bei den benutzerseitigen Einstellungen ist entfallen: Eine
+  solche Einstellung gab es nie, das Intervall liegt fest bei 500 ms.
+
+---
+
 ## Version 1.9.1 (versionCode 34)
 
 Zwei Nachbesserungen aus dem ersten Praxiseinsatz von 1.9.0.

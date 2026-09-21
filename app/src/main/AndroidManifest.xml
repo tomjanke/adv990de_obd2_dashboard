@@ -21,11 +21,11 @@
     <!-- Notifications (required on API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Required for BLE scan on API < 31 -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
+    <!-- Standort: vor API 31 Voraussetzung fuer den BLE-Scan, ab 1.9.2 ausserdem Quelle der
+         Geschwindigkeit, wenn das Fahrzeug PID 010D nicht liefert (opt-in in den Einstellungen).
+         Deshalb ohne maxSdkVersion; die Berechtigung wird erst beim Einschalten angefragt. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".Obd2Application"
