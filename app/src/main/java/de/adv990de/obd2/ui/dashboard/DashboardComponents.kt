@@ -52,9 +52,12 @@ internal fun RpmBar(
     rpm: Float,
     threshold: Int,
     modifier: Modifier = Modifier,
+    /** Ohne Verbindung zeigt der Balken nur die Demo-Bewegung: kein Alarmrot, kein Blinken
+     *  und keine Zahl, die eine Drehzahl vortaeuscht, die es nicht gibt. */
+    isLive: Boolean = true,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
-    val blinkPeriodMs: Long = if (threshold > 0 && rpm > threshold) {
+    val blinkPeriodMs: Long = if (isLive && threshold > 0 && rpm > threshold) {
         val f = if (threshold >= 10000) 1f
                 else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
         (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
@@ -77,7 +80,7 @@ internal fun RpmBar(
         }
     }
 
-    val isAlert = threshold > 0 && rpm > threshold
+    val isAlert = isLive && threshold > 0 && rpm > threshold
     val fillColor = if (isAlert) StatusColors.Critical
                     else MaterialTheme.colorScheme.primary
     val fraction = (rpm / 10000f).coerceIn(0f, 1f)
@@ -104,7 +107,7 @@ internal fun RpmBar(
             }
         }
         LiveValueText(
-            value = "%.0f rpm".format(rpm),
+            value = if (isLive) "%.0f rpm".format(rpm) else "-- rpm",
             style = MaterialTheme.typography.titleSmall.asLiveValue(),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier

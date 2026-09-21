@@ -146,6 +146,7 @@ fun DashboardScreen(
                     rpm = displayRpm,
                     threshold = displayThreshold,
                     modifier = Modifier.fillMaxWidth(),
+                    isLive = state.isConnected,
                     trailingContent = {
                         if (state.isConnected) {
                             Row(
