@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Ab Android 12 ersetzen diese Regeln android:allowBackup. Die App haelt ausschliesslich
+    geraetegebundene Daten: Fahrt-Sessions und Sensormesswerte in Room, App-Logs, das zuletzt
+    verbundene Bluetooth-Geraet und die Anzeige-Einstellungen. Nichts davon gehoert in ein
+    Cloud-Backup oder auf ein anderes Geraet — Sessions eines Fahrzeugs auf einem fremden
+    Telefon waeren bestenfalls verwirrend.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

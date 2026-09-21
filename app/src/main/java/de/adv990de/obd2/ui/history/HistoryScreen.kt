@@ -65,6 +65,12 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect
+    // umgeht die Recomposition bei Sprach- oder Konfigurationswechsel.
+    val shareChooserTitle = stringResource(R.string.history_share_chooser)
+    val shareNoAppMessage = stringResource(R.string.history_share_no_app)
+    val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
+
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -73,17 +79,17 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             try {
-                context.startActivity(Intent.createChooser(intent, context.getString(R.string.history_share_chooser)))
+                context.startActivity(Intent.createChooser(intent, shareChooserTitle))
             } catch (_: android.content.ActivityNotFoundException) {
-                snackbarHostState.showSnackbar(context.getString(R.string.history_share_no_app))
+                snackbarHostState.showSnackbar(shareNoAppMessage)
             }
             vm.consumeShareUri()
         }
     }
 
-    LaunchedEffect(exportError) {
-        exportError?.let {
-            snackbarHostState.showSnackbar(context.getString(R.string.history_export_error_prefix, it))
+    LaunchedEffect(exportErrorMessage) {
+        exportErrorMessage?.let {
+            snackbarHostState.showSnackbar(it)
             vm.consumeExportError()
         }
     }

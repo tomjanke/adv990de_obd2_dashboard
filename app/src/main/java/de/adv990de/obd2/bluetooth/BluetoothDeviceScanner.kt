@@ -21,9 +21,17 @@ class BluetoothDeviceScanner(
      *  In debug builds a virtual "OBD Sim" entry is prepended so the simulator is always reachable. */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun bondedDevices(showAll: Boolean = false): List<ScannedDevice> {
-        val real = bluetoothAdapter.bondedDevices
+        if (!BluetoothPermissions.hasConnect(context)) {
+            throw BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
+        val bonded = try {
+            bluetoothAdapter.bondedDevices
+        } catch (_: SecurityException) {
+            throw BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
+        val real = bonded
             .filter { showAll || it.isObdLike() }
-            .map { ScannedDevice(it, BtType.CLASSIC, it.name ?: "Unknown") }
+            .map { ScannedDevice(it, BtType.CLASSIC, it.safeName() ?: "Unknown") }
         return if (BuildConfig.DEBUG) {
             listOf(ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")) + real
         } else {
@@ -32,7 +40,12 @@ class BluetoothDeviceScanner(
     }
 
     /** Scans for BLE OBD2 adapters */
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun scanBle(): Flow<ScannedDevice> = callbackFlow {
+        if (!BluetoothPermissions.hasScan(context)) {
+            close(BluetoothException.PermissionDenied("BLUETOOTH_SCAN"))
+            return@callbackFlow
+        }
         val scanner = bluetoothAdapter.bluetoothLeScanner ?: run {
             close(BluetoothException.ConnectionFailed("Bluetooth is off or BLE not supported"))
             return@callbackFlow
@@ -42,16 +55,28 @@ class BluetoothDeviceScanner(
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
                 if (device.isObdLike() && seen.add(device.address)) {
-                    trySend(ScannedDevice(device, BtType.BLE, device.name ?: "BLE OBD2"))
+                    trySend(ScannedDevice(device, BtType.BLE, device.safeName() ?: "BLE OBD2"))
                 }
             }
         }
-        scanner.startScan(callback)
-        awaitClose { scanner.stopScan(callback) }
+        try {
+            scanner.startScan(callback)
+        } catch (_: SecurityException) {
+            close(BluetoothException.PermissionDenied("BLUETOOTH_SCAN"))
+            return@callbackFlow
+        }
+        awaitClose {
+            try { scanner.stopScan(callback) } catch (_: SecurityException) { /* Berechtigung entzogen */ }
+        }
     }
 
+    /** Der Gerätename erfordert BLUETOOTH_CONNECT. Wurde die Berechtigung entzogen, wirft der
+     *  Zugriff eine SecurityException statt null zu liefern — dann gilt das Gerät als unbekannt. */
+    private fun BluetoothDevice.safeName(): String? =
+        try { name } catch (_: SecurityException) { null }
+
     private fun BluetoothDevice.isObdLike(): Boolean {
-        val n = name?.uppercase() ?: return false
+        val n = safeName()?.uppercase() ?: return false
         return n.contains("OBD") || n.contains("ELM") || n.contains("VIECAR")
                 || n.contains("OBDLINK") || n.contains("VEEPEAK") || n.contains("CARISTA")
                 || n.contains("IOBD") || n.contains("SCAN") || n.contains("CAR TOOL")

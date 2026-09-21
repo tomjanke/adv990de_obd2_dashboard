@@ -1,6 +1,7 @@
 package de.adv990de.obd2.obd
 
 import de.adv990de.obd2.R
+import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.ui.UiText
 import org.junit.Assert.assertEquals
@@ -52,5 +53,11 @@ class ObdErrorMapperTest {
             "Expected class name fallback",
             (result as UiText.DynamicString).value.contains("RuntimeException")
         )
+    }
+
+    @Test
+    fun `BluetoothException PermissionDenied maps to the permission StringResource`() {
+        val result = ObdErrorMapper.toUiText(BluetoothException.PermissionDenied("BLUETOOTH_CONNECT"))
+        assertEquals(UiText.StringResource(R.string.obd_err_bluetooth_permission), result)
     }
 }

@@ -93,4 +93,34 @@ class BluetoothDeviceScannerTest {
         assertTrue("VIECAR BT should be included", "VIECAR BT" in classicNames)
         assertTrue("OBDLINK MX+ should be included", "OBDLINK MX+" in classicNames)
     }
+
+    // --- Test 6 ---
+
+    @Test
+    fun `bondedDevices skips a device whose name access is denied`() {
+        // BLUETOOTH_CONNECT entzogen: der Namenszugriff wirft, statt null zu liefern.
+        val denied = mockk<BluetoothDevice> { every { name } throws SecurityException("permission denied") }
+        val allowed = makeDevice("ELM327 v1.5")
+        every { btAdapter.bondedDevices } returns setOf(denied, allowed)
+
+        val result = scanner.bondedDevices(showAll = false)
+
+        val classicDevices = result.filter { it.type == BtType.CLASSIC }
+        assertEquals(1, classicDevices.size)
+        assertEquals("ELM327 v1.5", classicDevices[0].name)
+    }
+
+    // --- Test 7 ---
+
+    @Test
+    fun `bondedDevices falls back to Unknown when the name is denied and showAll is true`() {
+        val denied = mockk<BluetoothDevice> { every { name } throws SecurityException("permission denied") }
+        every { btAdapter.bondedDevices } returns setOf(denied)
+
+        val result = scanner.bondedDevices(showAll = true)
+
+        val classicDevices = result.filter { it.type == BtType.CLASSIC }
+        assertEquals(1, classicDevices.size)
+        assertEquals("Unknown", classicDevices[0].name)
+    }
 }

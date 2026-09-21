@@ -45,62 +45,82 @@ class BleConnection(
     override val isConnected: Boolean get() = gatt != null
 
     override suspend fun connect(): ElmController = withContext(Dispatchers.IO) {
+        // Zweite Verteidigungslinie hinter dem PermissionGate: die Berechtigung kann ab
+        // Android 12 jederzeit entzogen werden, auch zwischen Gate und Verbindungsaufbau.
+        if (!BluetoothPermissions.hasConnect(context)) {
+            throw BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
+
         // Local deferred so connect() can be called again after close() without reuse issues
         val connectedDeferred = CompletableDeferred<Unit>()
 
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
-                if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    g.discoverServices()
-                } else {
+                try {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        g.discoverServices()
+                    } else {
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("state=$newState")
+                        )
+                    }
+                } catch (_: SecurityException) {
+                    // BLUETOOTH_CONNECT wurde zur Laufzeit entzogen.
                     connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("state=$newState")
+                        BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
                     )
                 }
             }
 
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
-                if (status != BluetoothGatt.GATT_SUCCESS) {
-                    g.close()
-                    connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("Service discovery failed, status=$status")
-                    )
-                    return
-                }
-                val service = g.getService(SERVICE_UUID) ?: run {
-                    g.close()
-                    connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("OBD2 service not found")
-                    )
-                    return
-                }
+                try {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        g.close()
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("Service discovery failed, status=$status")
+                        )
+                        return
+                    }
+                    val service = g.getService(SERVICE_UUID) ?: run {
+                        g.close()
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("OBD2 service not found")
+                        )
+                        return
+                    }
 
-                val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID) ?: run {
-                    g.close()
-                    connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("Notify characteristic not found")
-                    )
-                    return
-                }
-                g.setCharacteristicNotification(notifyChar, true)
-                val cccd = notifyChar.getDescriptor(CCCD_UUID) ?: run {
-                    g.close()
-                    connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("CCCD descriptor not found")
-                    )
-                    return
-                }
+                    val notifyChar = service.getCharacteristic(NOTIFY_CHAR_UUID) ?: run {
+                        g.close()
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("Notify characteristic not found")
+                        )
+                        return
+                    }
+                    g.setCharacteristicNotification(notifyChar, true)
+                    val cccd = notifyChar.getDescriptor(CCCD_UUID) ?: run {
+                        g.close()
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("CCCD descriptor not found")
+                        )
+                        return
+                    }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                    @Suppress("DEPRECATION")
-                    g.writeDescriptor(cccd)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                        @Suppress("DEPRECATION")
+                        g.writeDescriptor(cccd)
+                    }
+                    // gatt assignment and deferred completion happen in onDescriptorWrite
+                    // to ensure notifications are active before the caller gets ElmController
+                } catch (_: SecurityException) {
+                    // BLUETOOTH_CONNECT wurde zur Laufzeit entzogen.
+                    connectedDeferred.completeExceptionally(
+                        BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+                    )
                 }
-                // gatt assignment and deferred completion happen in onDescriptorWrite
-                // to ensure notifications are active before the caller gets ElmController
             }
 
             override fun onDescriptorWrite(
@@ -108,14 +128,21 @@ class BleConnection(
                 descriptor: BluetoothGattDescriptor,
                 status: Int
             ) {
-                if (status != BluetoothGatt.GATT_SUCCESS) {
-                    g.close()
+                try {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        g.close()
+                        connectedDeferred.completeExceptionally(
+                            BluetoothException.ConnectionFailed("CCCD write failed, status=$status")
+                        )
+                    } else {
+                        gatt = g
+                        connectedDeferred.complete(Unit)
+                    }
+                } catch (_: SecurityException) {
+                    // BLUETOOTH_CONNECT wurde zur Laufzeit entzogen.
                     connectedDeferred.completeExceptionally(
-                        BluetoothException.ConnectionFailed("CCCD write failed, status=$status")
+                        BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
                     )
-                } else {
-                    gatt = g
-                    connectedDeferred.complete(Unit)
                 }
             }
 
@@ -157,11 +184,15 @@ class BleConnection(
             }
         }
 
-        val rawGatt = device.connectGatt(context, false, callback)
+        val rawGatt = try {
+            device.connectGatt(context, false, callback)
+        } catch (_: SecurityException) {
+            throw BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
         try {
             connectedDeferred.await()
         } catch (e: Exception) {
-            rawGatt.close()
+            try { rawGatt.close() } catch (_: SecurityException) { /* Berechtigung entzogen */ }
             throw e
         }
 
@@ -172,17 +203,23 @@ class BleConnection(
                 val currentGatt = gatt ?: return
                 val service = currentGatt.getService(SERVICE_UUID) ?: return
                 val writeChar = service.getCharacteristic(WRITE_CHAR_UUID) ?: return
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    currentGatt.writeCharacteristic(
-                        writeChar,
-                        b,
-                        BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    writeChar.value = b
-                    @Suppress("DEPRECATION")
-                    currentGatt.writeCharacteristic(writeChar)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        currentGatt.writeCharacteristic(
+                            writeChar,
+                            b,
+                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        writeChar.value = b
+                        @Suppress("DEPRECATION")
+                        currentGatt.writeCharacteristic(writeChar)
+                    }
+                } catch (_: SecurityException) {
+                    // Berechtigung mitten in der Sitzung entzogen: als IOException melden, damit
+                    // ElmController und ObdRepository das wie einen Verbindungsabbruch behandeln.
+                    throw IOException("Bluetooth permission revoked")
                 }
                 writeAck.tryAcquire(5, TimeUnit.SECONDS)
             }
@@ -193,7 +230,7 @@ class BleConnection(
 
     override fun close() {
         writeAck.release()
-        gatt?.close()
+        try { gatt?.close() } catch (_: SecurityException) { /* Berechtigung entzogen */ }
         gatt = null
         try { pipedOutput.close() } catch (_: IOException) {}
         try { pipedInput.close() } catch (_: IOException) {}
