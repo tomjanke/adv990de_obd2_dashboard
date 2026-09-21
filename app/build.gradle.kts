@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -112,7 +111,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlin.test)
 
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.androidx.test.runner)
