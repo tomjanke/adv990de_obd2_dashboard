@@ -51,13 +51,13 @@ import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
-@Composable
 /** Oberes Ende der Drehzahl-Skala; entspricht der maxValue-Angabe des RPM-PID. */
 private const val RPM_BAR_MAX = 10_000f
 
 /** Eine Stufe der Segmentanzeige. 200 rpm ergeben 50 Segmente ueber die volle Breite. */
 private const val RPM_SEGMENT = 200f
 
+@Composable
 internal fun RpmBar(
     rpm: Float,
     threshold: Int,
