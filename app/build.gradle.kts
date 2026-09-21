@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "de.adv990de.obd2"
-    compileSdk = 35
+    compileSdk = 36
 
     val appVersionCode = 30
     val appVersionName = "1.7.0"
@@ -55,21 +55,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
 
     testOptions {
         unitTests { isReturnDefaultValues = true }
-    }
-
-    lint {
-        // AGP 8.7.3's lint engine has an IncompatibleClassChangeError when analyzing
-        // Compose 1.11.x sources (NonNullableMutableLiveDataDetector). Disabling the
-        // release lint-vital task is the minimum-risk workaround; lint can still be
-        // invoked explicitly via ./gradlew lint. Re-enable once AGP supports the
-        // newer lint engine.
-        checkReleaseBuilds = false
-        abortOnError = false
     }
 
     packaging {
@@ -80,6 +69,12 @@ android {
                 "META-INF/NOTICE.md",
             )
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
