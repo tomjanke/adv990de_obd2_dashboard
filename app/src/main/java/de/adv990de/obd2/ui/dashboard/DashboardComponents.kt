@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -154,6 +155,8 @@ internal fun SensorCardSlot(
     sparklines: Map<String, List<Float>>,
     useImperial: Boolean,
     modifier: Modifier = Modifier,
+    /** Text fuer den Fall ohne Messwert — siehe [slotPlaceholderRes]. */
+    @StringRes placeholderRes: Int = R.string.dashboard_slot_empty,
     onLongPress: (() -> Unit)? = null
 ) {
     if (reading != null) {
@@ -175,7 +178,7 @@ internal fun SensorCardSlot(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = stringResource(R.string.dashboard_slot_empty),
+                    text = stringResource(placeholderRes),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

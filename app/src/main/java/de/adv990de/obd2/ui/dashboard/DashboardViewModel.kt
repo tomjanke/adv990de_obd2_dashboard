@@ -100,6 +100,10 @@ class DashboardViewModel @Inject constructor(
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_SLOT_PIDS)
 
+    /** Vom Steuergeraet gemeldete PID-Menge; null solange keine Discovery gelaufen ist.
+     *  Die UI unterscheidet damit "Slot nicht belegt" von "Fahrzeug liefert den Wert nicht". */
+    val supportedPidIds: StateFlow<Set<String>?> get() = obdRepository.supportedPidIds
+
     /** PIDs available in the picker: ECU-supported when connected, full registry otherwise. */
     val availablePids: StateFlow<List<PidDefinition>> = obdRepository.supportedPidIds
         .map { supported ->

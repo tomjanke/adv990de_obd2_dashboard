@@ -132,6 +132,7 @@ fun DashboardScreen(
             }
         } else {
             val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val supportedPidIds by vm.supportedPidIds.collectAsState()
             // Slot order is driven by slotPids; always exactly 4 entries.
             val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
                 List(4) { i ->
@@ -197,6 +198,9 @@ fun DashboardScreen(
                                 SensorCardSlot(
                                     slots[i], state.sparklines, useImperial,
                                     Modifier.weight(1f).fillMaxHeight(),
+                                    placeholderRes = slotPlaceholderRes(
+                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected
+                                    ),
                                     onLongPress = { pickerSlot = i }
                                 )
                             }
@@ -218,6 +222,9 @@ fun DashboardScreen(
                                         SensorCardSlot(
                                             slots[i], state.sparklines, useImperial,
                                             Modifier.weight(1f).fillMaxHeight(),
+                                            placeholderRes = slotPlaceholderRes(
+                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected
+                                            ),
                                             onLongPress = { pickerSlot = i }
                                         )
                                     }
