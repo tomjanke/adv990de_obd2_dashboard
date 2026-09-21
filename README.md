@@ -52,6 +52,17 @@ Das APK liegt danach unter `app/build/outputs/apk/debug/app-debug.apk`.
 ```
 Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
 
+### Debug- und Release-Build parallel
+
+Der Debug-Build trägt `applicationIdSuffix = ".debug"` und heißt im Launcher **BOM Debug**;
+seine Version endet auf `-debug`. Beide Varianten lassen sich damit gleichzeitig installieren,
+jede mit eigenen Daten — kein Deinstallieren, kein Datenverlust beim Wechsel.
+
+Das ist vor allem für den **ECU-Simulator** relevant: Das virtuelle Gerät „OBD Sim" erscheint
+in der Geräteliste nur, wenn `BuildConfig.DEBUG` gesetzt ist (siehe
+`BluetoothDeviceScanner.bondedDevices`). Im Release-Build gibt es den Eintrag nicht — wer ohne
+Fahrzeug testen will, nutzt die Debug-Variante.
+
 ---
 
 ## Release-Build

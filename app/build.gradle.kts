@@ -35,6 +35,11 @@ android {
 
     buildTypes {
         debug {
+            // Eigene applicationId: Debug- und Release-Build liegen dadurch parallel auf dem
+            // Geraet, jeder mit eigenen Daten. Nur im Debug-Build erscheint der ECU-Simulator
+            // in der Geraeteliste (siehe BluetoothDeviceScanner.bondedDevices).
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
             manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
             manifestPlaceholders["buildEnvironment"] = "debug"
         }

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bike OBD2 Monitor</string>
+    <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
+    <string name="app_label">BOM</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
