@@ -97,14 +97,12 @@ class DashboardScreenTest {
     /**
      * Verifies that the slot sensor cards use the default PID assignments from PidRegistry.
      * When disconnected, DashboardViewModel.placeholderReadings maps each default slot PID to a
-     * SensorValue(pid, 0f). SensorCard renders pid.name as a Text node — "RPM" is the first
-     * default slot (PidRegistry.defaults = [RPM, SPEED, COOLANT_TEMP]).
+     * SensorValue(pid, 0f). SensorCard rendert das lokalisierte Label (pid.labelRes) als
+     * Text-Knoten — Slot 0 ist PidRegistry.RPM (defaults = [RPM, SPEED, COOLANT_TEMP]).
      */
     @Test
     fun dashboard_showsSlotCards() {
         launchDashboardScreen()
-        // "RPM" is rendered by SensorCard as a Text node (value.pid.name).
-        // Default slot 0 → PidRegistry.RPM.id = "010C" → name = "RPM".
         // Das Kachel-Label kommt aus den Ressourcen und wird in ALL-CAPS gerendert — auf einem
         // deutschen Geraet also "DREHZAHL". Die Erwartung muss denselben Weg gehen, sonst
         // haengt der Test an der Geraetesprache.
