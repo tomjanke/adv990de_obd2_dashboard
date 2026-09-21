@@ -364,6 +364,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = mockk<AppPreferences> {
+            every { useGpsSpeed }            returns flowOf(false)
             every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
             every { lastDevice }            returns flowOf(persistedDevice)
             every { logOnlyDtcSessions }    returns flowOf(false)
@@ -779,6 +780,7 @@ class DashboardViewModelTest {
             every { supportedPidIds } returns MutableStateFlow(null)
         }
         val prefs = mockk<AppPreferences> {
+            every { useGpsSpeed }            returns flowOf(false)
             every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
             every { logOnlyDtcSessions }    returns flowOf(false)
             every { logOnlyDiscoveredPids } returns flowOf(false)
@@ -820,6 +822,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = mockk<AppPreferences> {
+            every { useGpsSpeed }            returns flowOf(false)
             every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
             every { lastDevice }            returns flowOf(savedDevice)
             every { logOnlyDtcSessions }    returns flowOf(false)
@@ -890,6 +893,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = mockk<AppPreferences> {
+            every { useGpsSpeed }            returns flowOf(false)
             every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
             every { lastDevice }            returns flowOf(savedDevice)
             every { logOnlyDtcSessions }    returns flowOf(false)
