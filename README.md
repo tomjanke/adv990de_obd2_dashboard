@@ -58,6 +58,11 @@ Der Debug-Build trägt `applicationIdSuffix = ".debug"` und heißt im Launcher *
 seine Version endet auf `-debug`. Beide Varianten lassen sich damit gleichzeitig installieren,
 jede mit eigenen Daten — kein Deinstallieren, kein Datenverlust beim Wechsel.
 
+Optisch unterscheiden sie sich am Launcher-Icon: Der Release-Build behält den Teal-Hintergrund
+(`#006874`), der Debug-Build ist amber (`#B45309`). Überschrieben wird dafür allein
+`src/debug/res/drawable/ic_launcher_background.xml`; Vordergrund und Adaptive-Icon-Definition
+bleiben gemeinsam in `src/main`, sodass beide Icons dieselbe Form behalten.
+
 Das ist vor allem für den **ECU-Simulator** relevant: Das virtuelle Gerät „OBD Sim" erscheint
 in der Geräteliste nur, wenn `BuildConfig.DEBUG` gesetzt ist (siehe
 `BluetoothDeviceScanner.bondedDevices`). Im Release-Build gibt es den Eintrag nicht — wer ohne

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-Variante des Launcher-Hintergrunds. Der Release-Build bleibt beim Teal (#006874),
+    der Debug-Build bekommt Amber — zusammen mit dem Label "BOM Debug" ist damit auf einen
+    Blick erkennbar, welche der beiden parallel installierten Apps gerade geoeffnet wird.
+    Nur diese Datei wird ueberschrieben; Vordergrund und Adaptive-Icon-Definition bleiben
+    gemeinsam in src/main.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#B45309"/>
+</shape>
