@@ -2,7 +2,10 @@
 agp = "9.3.0"
 kotlin = "2.4.10"
 sentry = "8.29.0"
-compose-bom = "2026.09.00"
+# Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6.
+# Bewusst auf dem mit 1.7.0 ausgelieferten Stand belassen — das Toolchain-Upgrade
+# soll nicht zugleich den Compose-Stack anheben.
+compose-bom = "2026.05.00"
 hilt = "2.60.1"
 room = "2.8.5"
 navigation = "2.8.5"
