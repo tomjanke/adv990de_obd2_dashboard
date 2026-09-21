@@ -9,6 +9,7 @@ import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -71,7 +72,7 @@ class SettingsScreenTest {
     fun settingsTitle_isVisible() {
         launchSettingsScreen()
         composeRule
-            .onNodeWithText("Settings")
+            .onNodeWithText(composeRule.activity.getString(R.string.settings_title))
             .assertIsDisplayed()
     }
 
@@ -79,7 +80,7 @@ class SettingsScreenTest {
     fun pairedDevicesSection_isVisible() {
         launchSettingsScreen()
         composeRule
-            .onNodeWithText("Paired Devices")
+            .onNodeWithText(composeRule.activity.getString(R.string.settings_paired_devices))
             .assertIsDisplayed()
     }
 
@@ -90,7 +91,7 @@ class SettingsScreenTest {
         // returns an empty list, so the "No paired OBD2 devices found" text is shown.
         launchSettingsScreen()
         composeRule
-            .onNodeWithText("No paired OBD2 devices found.\nPlease pair the adapter in system Bluetooth settings first.")
+            .onNodeWithText(composeRule.activity.getString(R.string.settings_no_paired_devices))
             .assertIsDisplayed()
     }
 }
