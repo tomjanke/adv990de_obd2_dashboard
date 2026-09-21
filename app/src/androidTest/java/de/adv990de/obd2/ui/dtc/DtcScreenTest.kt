@@ -9,6 +9,7 @@ import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.model.DtcEntry
 import io.mockk.coEvery
@@ -71,7 +72,7 @@ class DtcScreenTest {
     fun dtcScreen_showsTitle() {
         launchDtcScreen()
         composeRule
-            .onNodeWithText("Fault Codes (DTCs)")
+            .onNodeWithText(composeRule.activity.getString(R.string.dtc_title))
             .assertIsDisplayed()
     }
 
@@ -81,7 +82,7 @@ class DtcScreenTest {
         launchDtcScreen()
         composeRule.waitForIdle()
         composeRule
-            .onNodeWithText("Fault Codes (DTCs)")
+            .onNodeWithText(composeRule.activity.getString(R.string.dtc_title))
             .assertIsDisplayed()
     }
 

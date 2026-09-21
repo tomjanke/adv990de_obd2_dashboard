@@ -1,5 +1,98 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.8.0 (versionCode 31)
+
+Wartungs-Release: Build-Stack auf aktuellen Stand, Lint wieder scharf, Bluetooth-Berechtigungen
+gehärtet und die Instrumentation-Tests nach über einem Jahr wieder grün.
+
+---
+
+### Toolchain
+
+Der Compose-Stack lief seit 1.7.0 auf einem Build-Stack von Anfang 2025. Das war die Ursache
+gleich mehrerer Altlasten und ist jetzt aufgelöst:
+
+| Komponente | vorher | nachher |
+|---|---|---|
+| Android Gradle Plugin | 8.7.3 | 9.3.0 (built-in Kotlin) |
+| Gradle | 9.2.1 | 9.5.0 |
+| Kotlin | 2.0.21 | 2.4.10 |
+| KSP | 2.0.21-1.0.27 | 2.3.11 |
+| Hilt | 2.52 | 2.60.1 |
+| Room | 2.6.1 | 2.8.5 |
+| compileSdk | 35 | 36 |
+
+Ab AGP 9 bringt das Android-Plugin Kotlin selbst mit — das separate `kotlin-android`-Plugin ist
+entfallen, die Kotlin-Version wird im Root-Build per `buildscript`-Classpath gesetzt, und
+`kotlinOptions` ist einem Top-Level-`kotlin { compilerOptions { } }` gewichen.
+
+Der Compose-Stack bleibt bewusst auf BOM 2026.05.00: Compose 1.12 verlangt compileSdk 37 und
+damit AGP 9.4 plus Gradle 9.6, während Kotlin 2.4 offiziell nur bis Gradle 9.5 freigegeben ist.
+Dieser Sprung gehört in ein eigenes Release.
+
+### Lint wieder aktiv
+
+Der Workaround aus 1.7.0 (`checkReleaseBuilds = false`, `abortOnError = false`) ist ersatzlos
+entfallen — die Lint-Engine von AGP 9.3 verträgt die Compose-Sourcen, an denen AGP 8.7.3 mit
+`IncompatibleClassChangeError` zerbrochen ist. Alle 24 Befunde des ersten Laufs sind behoben,
+`lintVitalRelease` läuft im Release-Build wieder mit.
+
+### Bluetooth-Berechtigungen gehärtet
+
+Ab Android 12 kann der Nutzer BLUETOOTH_CONNECT und BLUETOOTH_SCAN jederzeit entziehen — auch
+mitten in der Fahrt. Statt die 19 Lint-Befunde zu unterdrücken, ist die Bluetooth-Schicht jetzt
+dagegen abgesichert:
+
+- Neuer Helper `BluetoothPermissions`; unterhalb API 31 liefert er ohne Context-Zugriff `true`,
+  weil BLUETOOTH und BLUETOOTH_ADMIN dort Install-Time-Berechtigungen sind.
+- Neue `BluetoothException.PermissionDenied`, im `ObdErrorMapper` auf eine eigene Meldung
+  abgebildet (deutsch und englisch).
+- `BleConnection` prüft vor dem Verbindungsaufbau und fängt `SecurityException` in jedem
+  GATT-Callback ab; ein Entzug mitten im Schreibpfad wird als `IOException` gemeldet, damit
+  `ObdRepository` ihn wie einen Verbindungsabbruch behandelt.
+- `BluetoothDeviceScanner` prüft vor `bondedDevices()` und `scanBle()` und liest Gerätenamen nur
+  noch über einen abgesicherten Zugriff.
+- `SettingsViewModel.loadDevices()` zeigt eine Fehlermeldung statt die App zu beenden.
+
+Nebenbefund aus den Gerätetests: Ein Foreground-Service vom Typ `connectedDevice` startet nur,
+wenn zur Laufzeit mindestens eine Bluetooth-Berechtigung erteilt ist — sonst lehnt das System
+den Start mit einer SecurityException ab.
+
+### Weitere Korrekturen
+
+- `HistoryScreen` löst seine Texte auf Composable-Ebene über `stringResource` auf, statt über
+  `context.getString()` im `LaunchedEffect` — letzteres überging die Recomposition bei
+  Sprachwechsel.
+- `ACCESS_FINE_LOCATION` ist wie `ACCESS_COARSE_LOCATION` auf API ≤ 30 begrenzt; ab Android 12
+  trägt `BLUETOOTH_SCAN` bereits `neverForLocation`.
+- Neue Backup-Regeln (`data_extraction_rules.xml`, `backup_rules.xml`): Fahrt-Sessions,
+  Sensormesswerte und Logs sind gerätegebunden und gehören weder in ein Cloud-Backup noch auf
+  ein anderes Gerät.
+- Überflüssiger SDK-Guard in `Obd2Application` entfernt, fünf verwaiste Strings in beiden
+  Locales gelöscht, Listen-Icon der Navigation auf die AutoMirrored-Variante umgestellt.
+
+### Tests
+
+**305 JVM-Unit-Tests** (vorher 298) und **28 Instrumentation-Tests** — erstmals seit 1.7.0 wieder
+vollständig grün auf einem Gerät (Pixel 8 Pro, Android 17). Die sieben neuen Unit-Tests decken
+den Berechtigungs-Pfad ab.
+
+Die als „strukturell" vermutete Altlast aus 1.7.0 bestand aus vier unabhängigen Ursachen:
+
+1. Compose `ui-test` zog transitiv ein Espresso mit, das per Reflection auf die ab Android 17
+   entfernte Methode `InputManager.getInstance()` zugreift — jetzt explizit auf 3.7.0 gehoben.
+2. `ObdForegroundServiceTest` band über `ServiceTestRule` an einen Service, dessen `onBind()`
+   `null` liefert. Neu gefasst, mit echten Zusicherungen statt `assertTrue(true)`, und mit
+   `GrantPermissionRule` für den Foreground-Service-Start.
+3. Die Compose-Tests hatten englische UI-Strings fest verdrahtet, das Testgerät läuft auf
+   Deutsch. Erwartungen kommen jetzt aus den Ressourcen.
+4. Die Display-Zeitsperre kippte die Suite mitten im Lauf; `HiltTestActivity` hält den Bildschirm
+   jetzt an und zeigt sich über dem Sperrbildschirm.
+
+Vollständiges Build-Protokoll: [`docs/plans/2026-09-21-toolchain-upgrade.md`](docs/plans/2026-09-21-toolchain-upgrade.md).
+
+---
+
 ## Version 1.7.0 (versionCode 30)
 
 UI-Design-Refresh: „racing-monitor + premium + utility" (Referenz DMD²), plus Modernisierung des Compose-Stacks.
@@ -58,7 +151,7 @@ Vor dem Design-Refresh entstanden (versionCode 29 → 30), bisher nicht dokument
 
 ### Bekannte Issues
 
-- `connectedDebugAndroidTest` schlägt auf Android 16 (API 36) weiter fehl — strukturelles Hilt + ComposeTestRule + neue Espresso-Compose-Integration. Unit-Tests bleiben grün; Compose-Layer wird über `@Preview`s und Smoke-Tests auf Gerät verifiziert. Tieferer Test-Infra-Deep-Dive ausstehend.
+- ~~`connectedDebugAndroidTest` schlägt auf Android 16 (API 36) weiter fehl~~ — **behoben in 1.8.0.** Die Ursache war nicht strukturell, sondern vierfach: veraltetes Espresso, ein Test an einem Service ohne Binder, fest verdrahtete englische UI-Strings und die Display-Zeitsperre.
 
 ---
 

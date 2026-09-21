@@ -5,15 +5,11 @@
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>
     <string name="err_reconnect_fail">Verbindung dauerhaft unterbrochen.</string>
-    <string name="reconnecting_progress">Verbindung unterbrochen – Versuch %1$d/%2$d…</string>
-    <string name="connection_error_prefix">Verbindungsfehler: %1$s</string>
-    <string name="not_connected">Nicht verbunden. Bitte unter Einstellungen ein Gerät auswählen.</string>
     <string name="dashboard_bt_connected_desc">Bluetooth verbunden</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth getrennt</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Einstellungen</string>
-    <string name="settings_connected_prefix">Verbunden: %1$s</string>
     <string name="settings_disconnect">Trennen</string>
     <string name="settings_paired_devices">Gekoppelte Geräte</string>
     <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
@@ -32,7 +28,6 @@
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Dashboard konfigurieren</string>
     <string name="dashboard_config_back_desc">Zurück</string>
-    <string name="dashboard_config_connected_banner">Verbindung aktiv – Änderungen starten die laufende Session neu.</string>
     <string name="dashboard_rpm_threshold_label">Drehzahl-Blinkgrenze</string>
     <string name="dashboard_rpm_threshold_disabled">Deaktiviert</string>
     <string name="dashboard_rpm_dynamic_label">Dynamische Schwellenskalierung</string>
@@ -62,6 +57,7 @@
     <string name="obd_err_init_failed">Adapter-Initialisierung fehlgeschlagen.</string>
     <string name="obd_err_bluetooth">Bluetooth-Fehler.</string>
     <string name="obd_err_bluetooth_disabled">Bluetooth ist deaktiviert.</string>
+    <string name="obd_err_bluetooth_permission">Bluetooth-Berechtigung fehlt. Bitte in den Systemeinstellungen erteilen.</string>
 
     <!-- PermissionGate -->
     <string name="permission_bt_title">Bluetooth-Berechtigung erforderlich</string>

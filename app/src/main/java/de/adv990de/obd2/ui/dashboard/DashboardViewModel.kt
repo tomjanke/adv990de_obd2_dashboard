@@ -132,6 +132,9 @@ class DashboardViewModel @Inject constructor(
     }
 
     // ── Session loop ─────────────────────────────────────────────────────
+    // flatMapLatest ist weiterhin als experimentell markiert; die Verwendung hier ist
+    // beabsichtigt und seit Jahren stabil.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun launchSessionLoop() {
         viewModelScope.launch {
             // NOTE: combining slotPids means a slot change while connected ends the current

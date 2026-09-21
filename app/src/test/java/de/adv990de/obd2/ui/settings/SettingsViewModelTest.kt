@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.settings
 import android.content.Context
 import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
+import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
@@ -337,5 +338,32 @@ class SettingsViewModelTest {
         // In Android unit test stubs the Intent constructor is a no-op, so we cannot inspect
         // intent properties — verify that the call happened at all.
         verify { ctx.stopService(any()) }
+    }
+
+    @Test
+    fun `loadDevices yields an empty list and an error when the Bluetooth permission is denied`() = runTest {
+        val scanner = mockk<BluetoothDeviceScanner> {
+            every { bondedDevices(any()) } throws BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
+        val vm = makeVm(scanner = scanner)
+        advanceUntilIdle()
+
+        vm.loadDevices()
+
+        assertTrue(vm.uiState.value.bondedDevices.isEmpty())
+        assertNotNull("Der Nutzer soll erfahren, warum keine Geraete erscheinen", vm.uiState.value.error)
+    }
+
+    @Test
+    fun `loadDevices survives a SecurityException from the scanner`() = runTest {
+        val scanner = mockk<BluetoothDeviceScanner> {
+            every { bondedDevices(any()) } throws SecurityException("permission revoked")
+        }
+        val vm = makeVm(scanner = scanner)
+        advanceUntilIdle()
+
+        vm.loadDevices()
+
+        assertTrue(vm.uiState.value.bondedDevices.isEmpty())
     }
 }

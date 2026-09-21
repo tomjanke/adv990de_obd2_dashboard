@@ -5,15 +5,11 @@
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">No known device to reconnect to.</string>
     <string name="err_reconnect_fail">Connection permanently lost.</string>
-    <string name="reconnecting_progress">Connection lost – attempt %1$d/%2$d…</string>
-    <string name="connection_error_prefix">Connection error: %1$s</string>
-    <string name="not_connected">Not connected. Please select a device in Settings.</string>
     <string name="dashboard_bt_connected_desc">Bluetooth connected</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth disconnected</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
-    <string name="settings_connected_prefix">Connected: %1$s</string>
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_paired_devices">Paired Devices</string>
     <string name="settings_no_paired_devices">No paired OBD2 devices found.\nPlease pair the adapter in system Bluetooth settings first.</string>
@@ -32,7 +28,6 @@
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Configure Dashboard</string>
     <string name="dashboard_config_back_desc">Back</string>
-    <string name="dashboard_config_connected_banner">Connection active – changes will restart the current session.</string>
     <string name="dashboard_rpm_threshold_label">RPM Blink Threshold</string>
     <string name="dashboard_rpm_threshold_disabled">Disabled</string>
     <string name="dashboard_rpm_dynamic_label">Dynamic Threshold Scaling</string>
@@ -62,6 +57,7 @@
     <string name="obd_err_init_failed">Adapter initialisation failed.</string>
     <string name="obd_err_bluetooth">Bluetooth error.</string>
     <string name="obd_err_bluetooth_disabled">Bluetooth is disabled.</string>
+    <string name="obd_err_bluetooth_permission">Bluetooth permission missing. Please grant it in the system settings.</string>
 
     <!-- PermissionGate -->
     <string name="permission_bt_title">Bluetooth Permission Required</string>

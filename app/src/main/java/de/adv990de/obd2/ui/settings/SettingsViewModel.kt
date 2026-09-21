@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
+import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
@@ -101,7 +102,18 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun loadDevices() {
-        _uiState.value = _uiState.value.copy(bondedDevices = scanner.bondedDevices(showAllBtDevices.value))
+        // Die Bluetooth-Berechtigung kann ab Android 12 auch nach dem PermissionGate wegfallen.
+        // Dann bleibt die Geraeteliste leer statt die App mit einer SecurityException zu beenden.
+        val devices = try {
+            scanner.bondedDevices(showAllBtDevices.value)
+        } catch (e: BluetoothException.PermissionDenied) {
+            _uiState.value = _uiState.value.copy(error = e.message)
+            emptyList()
+        } catch (e: SecurityException) {
+            _uiState.value = _uiState.value.copy(error = e.message)
+            emptyList()
+        }
+        _uiState.value = _uiState.value.copy(bondedDevices = devices)
     }
 
     fun disconnect() {

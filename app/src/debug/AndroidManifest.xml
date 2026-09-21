@@ -6,10 +6,14 @@
     a generic ComponentActivity for Compose tests, but @AndroidEntryPoint requires its own
     concrete class to be explicitly listed.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application>
+        <!-- tools:ignore: die Klasse liegt in androidTest/ und ist fuer Lint in der
+             Debug-Variante nicht sichtbar, zur Testlaufzeit aber vorhanden. -->
         <activity
             android:name=".HiltTestActivity"
-            android:exported="false" />
+            android:exported="false"
+            tools:ignore="MissingClass" />
     </application>
 </manifest>

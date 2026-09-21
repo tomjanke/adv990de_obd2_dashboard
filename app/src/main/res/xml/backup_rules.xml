@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Gegenstueck zu data_extraction_rules.xml fuer Android 11 und aelter. Die App sichert
+    nichts in die Cloud: Fahrt-Sessions, Sensormesswerte, App-Logs und das zuletzt verbundene
+    Geraet sind geraetegebunden. android:allowBackup="false" schaltet Backups ohnehin ab,
+    diese Datei macht die Absicht explizit.
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>
