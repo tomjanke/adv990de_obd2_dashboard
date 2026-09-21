@@ -1,9 +1,10 @@
 package de.adv990de.obd2
 
 import android.content.Context
+import android.content.Intent
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.rule.ServiceTestRule
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -11,25 +12,31 @@ import de.adv990de.obd2.data.ObdRepository
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
-import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * ObdForegroundService ist ein gestarteter, kein gebundener Service — [ObdForegroundService.onBind]
+ * liefert null. Deshalb kommt hier bewusst keine `ServiceTestRule` zum Einsatz: die bindet immer
+ * und wartet auf `onServiceConnected`, was mit einem Null-Binder nie eintritt.
+ *
+ * Abgedeckt sind die beiden Pfade ohne `startForeground()`. Der ACTION_START-Pfad bleibt
+ * ausgespart: er braucht den Notification-Channel, den nur `Obd2Application` anlegt — in
+ * Hilt-Tests laeuft aber `HiltTestApplication` — und ab Android 13 zusaetzlich POST_NOTIFICATIONS.
+ * Ein Test dafuer wuerde mehr ueber die Testumgebung aussagen als ueber den Service.
+ */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class ObdForegroundServiceTest {
 
-    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
-
-    // ServiceTestRule binds to the service lifecycle; order = 1 ensures Hilt is ready first.
-    @get:Rule(order = 1) val serviceRule = ServiceTestRule()
+    @get:Rule val hiltRule = HiltAndroidRule(this)
 
     /**
-     * Replaces the @Singleton ObdRepository binding for all tests in this class.
-     * Hilt injects this mock directly into ObdForegroundService, bypassing the real
-     * constructor (which requires Bluetooth / ConnectionFactory infrastructure).
+     * Ersetzt die @Singleton-Bindung fuer diese Testklasse. Hilt injiziert den Mock direkt in
+     * den Service, ohne die echte Bluetooth-Infrastruktur aufzubauen.
      */
     @BindValue
     @JvmField
@@ -39,35 +46,41 @@ class ObdForegroundServiceTest {
 
     private val ctx: Context get() = ApplicationProvider.getApplicationContext()
 
-    @Before fun setup() = hiltRule.inject()
+    // Ab API 26 darf ein Prozess im Hintergrund kein startService() aufrufen. Die Activity
+    // holt den Testprozess in den Vordergrund und macht den Aufruf damit zulaessig.
+    private lateinit var scenario: ActivityScenario<HiltTestActivity>
 
-    @Test
-    fun actionStart_startsService() {
-        serviceRule.startService(ObdForegroundService.startIntent(ctx))
-        assertTrue("Service did not start", true)
+    @Before
+    fun setup() {
+        hiltRule.inject()
+        scenario = ActivityScenario.launch(HiltTestActivity::class.java)
     }
 
-    @Test
-    fun onStartCommand_returnsStartNotSticky() {
-        // Verifies that the service starts without crashing; the return value is not read here.
-        serviceRule.startService(ObdForegroundService.startIntent(ctx))
-        assertTrue(true)
+    @After
+    fun teardown() {
+        scenario.close()
     }
 
-    @Test
-    fun actionStop_callsDisconnectAndStopsService() {
-        serviceRule.startService(ObdForegroundService.startIntent(ctx))
-        serviceRule.startService(ObdForegroundService.stopIntent(ctx))
-        // Give Dispatchers.Main coroutine time to execute on slow CI
-        Thread.sleep(1000)
-        coVerify { obdRepository.disconnect() }
-    }
+    // --- Test 1 ---
 
     @Test
-    fun unknownAction_stopsServiceImmediately() {
-        // No action set — service hits the else branch and calls stopSelf() without crashing.
-        val unknownIntent = android.content.Intent(ctx, ObdForegroundService::class.java)
-        serviceRule.startService(unknownIntent)
-        assertTrue("Service should handle unknown action gracefully", true)
+    fun actionStop_disconnectsTheRepository() {
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+
+        // Die Trennung laeuft in einer Coroutine auf Dispatchers.Main — coVerify wartet darauf,
+        // statt den Test mit einem festen Thread.sleep zu bezahlen.
+        coVerify(timeout = 5_000) { obdRepository.disconnect() }
+    }
+
+    // --- Test 2 ---
+
+    @Test
+    fun unknownAction_stopsWithoutDisconnecting() {
+        ctx.startService(Intent(ctx, ObdForegroundService::class.java))
+
+        // Der else-Zweig ruft nur stopSelf(). Kurz warten, damit ein faelschlicher
+        // disconnect()-Aufruf ueberhaupt auflaufen koennte.
+        Thread.sleep(500)
+        coVerify(exactly = 0) { obdRepository.disconnect() }
     }
 }
