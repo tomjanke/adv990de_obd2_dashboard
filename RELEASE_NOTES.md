@@ -37,8 +37,8 @@ neutralen Hinweis — eine Aussage über Unterstützung wäre dort nicht belegba
 
 ### Sonstiges
 
-- Zehn neue Unit-Tests (319 statt 309) für die Zusammenführung der Geschwindigkeitsquellen und
-  die Platzhalter-Logik.
+- Dreizehn neue Unit-Tests (322 statt 309) für die Zusammenführung der Geschwindigkeitsquellen,
+  die Platzhalter-Logik und den GPS-Schalter in den Anzeigeeinstellungen.
 - Die README-Zeile „Polling-Intervall" bei den benutzerseitigen Einstellungen ist entfallen: Eine
   solche Einstellung gab es nie, das Intervall liegt fest bei 500 ms.
 
