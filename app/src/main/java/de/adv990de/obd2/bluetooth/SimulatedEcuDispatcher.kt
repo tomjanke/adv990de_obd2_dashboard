@@ -15,8 +15,8 @@ class SimulatedEcuDispatcher {
     private val connectTimeMs = System.currentTimeMillis()
 
     private val BITMAP_0100 = buildBitmap(0x00, setOf(0x04, 0x05, 0x0B, 0x0C, 0x0D, 0x0E, 0x10, 0x11, 0x20))
-    private val BITMAP_0120 = buildBitmap(0x20, setOf(0x2F, 0x40, 0x42))
-    private val BITMAP_0140 = buildBitmap(0x40, setOf(0x46))
+    private val BITMAP_0120 = buildBitmap(0x20, setOf(0x2F, 0x40))
+    private val BITMAP_0140 = buildBitmap(0x40, setOf(0x42, 0x46))
 
     fun respond(command: String): String {
         val cmd = command.trim().uppercase()
@@ -97,7 +97,14 @@ class SimulatedEcuDispatcher {
         var bits = 0
         for (pid in pids) {
             val offset = pid - rangeStart  // 1..32
-            if (offset in 1..32) bits = bits or (1 shl (32 - offset))
+            // Frueher wurde ein PID ausserhalb des Bereichs stillschweigend verschluckt: der
+            // Eintrag stand im Code, im Bitmap fehlte er, und der PID war nie waehlbar.
+            require(offset in 1..32) {
+                "PID 0x%02X gehoert nicht in den Bereich 0x%02X..0x%02X".format(
+                    pid, rangeStart + 1, rangeStart + 32
+                )
+            }
+            bits = bits or (1 shl (32 - offset))
         }
         return "%02X %02X %02X %02X".format(
             (bits ushr 24) and 0xFF,

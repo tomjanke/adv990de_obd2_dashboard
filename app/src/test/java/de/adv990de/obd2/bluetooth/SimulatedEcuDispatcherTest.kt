@@ -55,8 +55,9 @@ class SimulatedEcuDispatcherTest {
     }
 
     @Test
-    fun `0120 bitmap declares board voltage (42) support`() {
-        assertPidSupported(range = "0120", rangeStart = 0x20, pid = 0x42)
+    fun `0140 bitmap declares board voltage (42) support`() {
+        // 0x42 liegt im Bereich 0x41..0x60, wird also von 0140 angekuendigt — nicht von 0120.
+        assertPidSupported(range = "0140", rangeStart = 0x40, pid = 0x42)
     }
 
     @Test

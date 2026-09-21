@@ -22,7 +22,11 @@ Kachel zeigte „0 V" und färbte sich alarmrot. Ein antwortendes Steuergerät h
 
 - `pidTileStatus` behandelt Werte ≤ 0 V wie fehlende Daten und lässt die Kachel neutral.
 - Der ECU-Simulator meldet 0142 jetzt als unterstützt und liefert konstant 14.2 V, damit die
-  Kachel im Simulatorbetrieb einen plausiblen Wert zeigt.
+  Kachel im Simulatorbetrieb einen plausiblen Wert zeigt. PID 0x42 gehört dabei in den
+  0140-Bereich (0x41–0x60), nicht in den 0120-Bereich — ohne das bleibt die Bordspannung in der
+  Sensor-Auswahl unsichtbar, weil `availablePids` gegen die vom Steuergerät gemeldete Menge
+  filtert. `buildBitmap` wirft jetzt, wenn ein PID nicht in seinen Bereich passt, statt ihn
+  stillschweigend zu verschlucken.
 
 Vier neue Unit-Tests decken beides ab (309 statt 305).
 
