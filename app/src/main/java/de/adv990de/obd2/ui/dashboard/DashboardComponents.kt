@@ -178,14 +178,15 @@ internal fun SensorCard(
     val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
                        else if (value.pid.unit == "V") "%.1f".format(convertedValue)
                        else "%.0f".format(convertedValue)
+    val pidLabel = stringResource(value.pid.labelRes)
     LiveValueTile(
-        label = value.pid.name,
+        label = pidLabel,
         value = displayValue,
         unit = displayUnit,
         sparkline = sparkline,
         status = pidTileStatus(value.pid.id, value.value),
         onLongPress = onLongPress,
-        modifier = modifier.semantics { contentDescription = "${value.pid.name}: $displayValue $displayUnit" },
+        modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
     )
 }
 
@@ -208,12 +209,12 @@ internal fun SlotPickerSheet(
             items(availablePids, key = { it.id }) { pid ->
                 val reading = readings.firstOrNull { it.pid.id == pid.id }
                 val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                    "${pid.name}: -- (${pid.unit})"
+                    "${stringResource(pid.labelRes)}: -- (${pid.unit})"
                 } else {
                     val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
                     val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
                                     else "%.0f".format(convertedValue)
-                    "${pid.name}: $formatted ($displayUnit)"
+                    "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
                 }
                 ListItem(
                     modifier = Modifier.clickable { onSelect(pid.id) },

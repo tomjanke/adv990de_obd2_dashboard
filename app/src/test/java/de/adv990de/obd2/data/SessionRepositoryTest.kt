@@ -42,8 +42,9 @@ class SessionRepositoryTest {
     @After
     fun tearDown() = clearAllMocks()
 
+    // labelRes = 0: dieser Test rendert nichts, der Anzeigename wird nie aufgeloest.
     private fun makePid(id: String) = PidDefinition(
-        id = id, name = "Test", unit = "", minValue = 0f, maxValue = 100f, formula = { 0f }
+        id = id, name = "Test", labelRes = 0, unit = "", minValue = 0f, maxValue = 100f, formula = { 0f }
     )
 
     // ── startSession ──────────────────────────────────────────────────────────
