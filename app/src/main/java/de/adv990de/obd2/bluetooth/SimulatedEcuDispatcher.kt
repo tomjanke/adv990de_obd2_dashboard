@@ -8,7 +8,12 @@ package de.adv990de.obd2.bluetooth
  * simulating varied city/highway driving.
  * Coolant temperature ramps from 20°C to 90°C over 90 s.
  * Speed, load, throttle, MAP and MAF are derived from the current RPM.
- * Fuel level, ambient temp and timing advance are constant.
+ * Fuel level (65 %), board voltage (14.2 V), ambient temp (20 °C) and timing advance (10°)
+ * are constant.
+ *
+ * Hinweis fuer Tests: die Kuehlmittelrampe endet bei 90 °C, die Warn- und Kritisch-Schwellen
+ * der Kachel liegen bei 110 bzw. 120 °C. Ueber den Simulator laesst sich der Statuswechsel
+ * daher nur bei der Drehzahl ausloesen.
  */
 class SimulatedEcuDispatcher {
 
