@@ -34,7 +34,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.OBD2Monitor"
         android:allowBackup="false"
-        android:dataExtractionRules="@xml/data_extraction_rules">
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules">
 
         <meta-data android:name="io.sentry.dsn"         android:value="${sentryDsn}" />
         <meta-data android:name="io.sentry.environment"  android:value="${buildEnvironment}" />

@@ -172,7 +172,7 @@ class BleConnection(
             }
 
             // Pre-API 33 signature — called on Android 12 and below
-            @Suppress("DEPRECATION")
+            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
             override fun onCharacteristicChanged(
                 g: BluetoothGatt,
                 char: BluetoothGattCharacteristic

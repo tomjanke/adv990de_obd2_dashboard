@@ -1,6 +1,7 @@
 package de.adv990de.obd2.bluetooth
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -17,6 +18,10 @@ import androidx.core.content.ContextCompat
  * Das ersetzt nicht den PermissionGate in der UI — es ist die zweite Verteidigungslinie für
  * den Fall, dass die Berechtigung nach dem Gate wegfällt.
  */
+// InlinedApi: BLUETOOTH_CONNECT und BLUETOOTH_SCAN sind reine String-Konstanten, die der
+// Compiler einbettet. Das ist hier gewollt — der SDK_INT-Guard in hasRuntimePermission
+// verhindert, dass unterhalb von API 31 ueberhaupt danach gefragt wird.
+@SuppressLint("InlinedApi")
 object BluetoothPermissions {
 
     fun hasConnect(context: Context): Boolean =
