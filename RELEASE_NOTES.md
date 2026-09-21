@@ -47,9 +47,124 @@ Neue Datei `CLAUDE.md` im Repo-Root mit komplettem Design-System-Profil: Aesthet
 - **27 neue Unit-Tests** für `pidTileStatus()`-Mapping (Threshold-Edges, NaN/Inf, unbekannte PIDs).
 - Gesamt: **298 JVM-Unit-Tests**, alle grün.
 
+### ECU-Simulator & Test-Ausbau
+
+Vor dem Design-Refresh entstanden (versionCode 29 → 30), bisher nicht dokumentiert:
+
+- **ECU-Simulator:** `BtType.SIMULATOR` mit `SimulatedEcuDispatcher` und `SimulatorObdConnection` — synthetische Steuergerät-Antworten mit animiertem RPM-Profil (900–8500 über 20 s Periode). In Debug-Builds als Gerät „OBD Sim" in der Geräteliste, wird nie als `lastDevice` persistiert und löst kein `isMoving` aus.
+- **CSV-Export** streamt jetzt über einen Cursor, statt alle Readings in den Speicher zu laden.
+- **Refactorings:** `DashboardScreen` und `SettingsScreen` in `DashboardComponents.kt` bzw. `SettingsComponents.kt` aufgeteilt, `DashboardViewModel`-Init-Blöcke in private Funktionen zerlegt, Magic Number 60 durch `SPARKLINE_WINDOW` ersetzt.
+- **Test-Offensive:** androidTest-Infrastruktur (Hilt, Compose UI, MockK), PidRegistry-Formelgrenzen für alle 19 PIDs, `ObdErrorMapper`-Mapping, Basistests für `ClassicBtConnection` und `BleConnection`, Room-DAO-Instrumentationstests (AppLog, SensorReading, Session), `ObdForegroundService`-Test sowie Compose-UI-Tests für Dashboard, DTC und Settings.
+
 ### Bekannte Issues
 
 - `connectedDebugAndroidTest` schlägt auf Android 16 (API 36) weiter fehl — strukturelles Hilt + ComposeTestRule + neue Espresso-Compose-Integration. Unit-Tests bleiben grün; Compose-Layer wird über `@Preview`s und Smoke-Tests auf Gerät verifiziert. Tieferer Test-Infra-Deep-Dive ausstehend.
+
+---
+
+## Versionen 1.1 bis 1.6
+
+> Diese Abschnitte wurden am 21.09.2026 aus der Git-Historie rekonstruiert und bündeln die Patch-Releases je Minor-Version. Die versionCodes 24 bis 27 wurden seinerzeit ohne eigene Bump-Commits in den jeweiligen Fix-Commits mitgeführt.
+
+---
+
+## Version 1.6.0 (versionCode 29)
+
+Hintergrund-Betrieb: die Verbindung überlebt den App-Wechsel.
+
+### Foreground Service
+
+- `ObdForegroundService` mit eigenem Notification-Channel, Manifest-Eintrag und persistenter Benachrichtigung.
+- Start und Stopp aus `SettingsViewModel` (Connect/Disconnect) und `DashboardViewModel`.
+- Disconnect ist gegen Scope-Cancellation abgesichert, damit der Adapter beim Service-Stopp sauber getrennt wird.
+- `POST_NOTIFICATIONS` wird ab Android 13 zur Laufzeit angefragt.
+
+### OBD-Schicht
+
+- Live-Polling filtert die konfigurierten PIDs gegen die vom Steuergerät tatsächlich unterstützte Menge.
+- `PRAGMA foreign_keys = ON` per `RoomDatabase.Callback` — verhindert verwaiste `sensor_readings` beim Bulk-Delete.
+
+---
+
+## Versionen 1.5.0 bis 1.5.11 (versionCode 17 bis 28)
+
+Zwölf Releases: App-Logs, Farbthemen und eine breite Stabilitätswelle.
+
+### App-Logs
+
+- `AppLogEntity`, `AppLogDao`, `AppLogRepository` und Room-Migration 1 → 2; `LogLevel` ins `data`-Package verschoben.
+- `AppLogsScreen` in der Settings-Navigation, Bluetooth-Verbindungsereignisse werden protokolliert.
+- Automatisches Pruning nach 30 Tagen plus `LIMIT 1000` auf der Query; thread-sicherer `DateTimeFormatter`.
+
+### UI-Redesign
+
+- Drei dunkle Farbthemen (Blau, Amber, Grün) mit zweistufigem Farb- und Helligkeits-Picker.
+- Flaches Edge-to-Edge-Dashboard: 0 dp Elevation, 1-dp-Divider, Primary-Akzent.
+- Diverse Layout-Korrekturen an Theme-Picker und BottomNav; der RPM-Alarm blinkt themeunabhängig rot; RPM-Label bricht bei 10000 nicht mehr um.
+- Status- und DTC-Banner aus dem Dashboard entfernt — aktive Fehlercodes landen stattdessen im App-Log.
+
+### Funktionen
+
+- Dynamischer RPM-Blink-Threshold, skaliert über die Motortemperatur.
+- Slot-Picker und „Aufgezeichnete PIDs"-Liste zeigen den jeweils aktuellen Live-Wert.
+- Toggle „Alle gekoppelten Geräte anzeigen" plus erweiterte OBD2-Keyword-Liste im Scanner.
+
+### Stabilität
+
+- Spurious `slotPids`-Emissionen unterdrückt — verhinderte unnötige Neustarts der OBD-Session.
+- `ConnectionLost` wird aus `readFreezeFrame` propagiert statt verschluckt.
+- Explizites `deleteBySession` im `SensorReadingDao` vor dem Session-Delete.
+- `FLAG_KEEP_SCREEN_ON` auf das Dashboard und den verbundenen Zustand eingeschränkt.
+- BLE-GATT-Writes serialisiert (Semaphore + 5-s-Timeout) — behebt verlorene Kommandos auf Clone-Adaptern.
+- Gepufferte Reads im `ElmController`, `convertUnit` nach `obd/UnitConverter.kt` verschoben, Fuel-Trim-Formelgrenze dokumentiert.
+
+---
+
+## Versionen 1.4.0 bis 1.4.9 (versionCode 7 bis 16)
+
+Cockpit-Layout, frei belegbare Kacheln und Auto-Connect.
+
+- **Tile-Slots:** `slotPids`/`setSlotPid` ersetzen `selectedPidIds`/`togglePid`. Long-Press auf eine Kachel öffnet den Sensor-Picker, die Slot-Reihenfolge bestimmt die Anzeige. `availablePids` filtert gegen die ECU-Unterstützung, `DEFAULT_SLOT_PIDS` ist immer auf vier Einträge aufgefüllt.
+- **Layout:** TopAppBar-Titel entfernt, Bluetooth-Icon in die RPM-Bar-Zeile geholt; SensorCard mit Label oben links und Wert unten rechts; BottomNav auf 56 dp, RpmBar auf 72 dp.
+- **Auto-Connect:** Beim App-Start wird das zuletzt verwendete Bluetooth-Gerät automatisch verbunden (testgetrieben entwickelt).
+- **Display:** `FLAG_KEEP_SCREEN_ON` eingeführt (in 1.5.x auf das Dashboard eingegrenzt).
+- **Fixes:** RPM-Blink nutzt `rememberUpdatedState`, damit die Coroutine nicht neu startet; ruhigere Demo- und Blink-Timings.
+
+---
+
+## Versionen 1.3.0 und 1.3.1 (versionCode 5 und 6)
+
+Motorrad-Dashboard und Typografie für die Lesbarkeit in Fahrt.
+
+- **Fixes-4-Slot-Layout** für Portrait und Landscape, Platzhalter-Kacheln im getrennten Zustand.
+- **Space Grotesk** als App-weite Schrift, globale Typo-Skalierung 1.18× und größere SensorCard-Styles.
+- **RPM-Bar** mit konfigurierbarem Blink-Threshold (Maximum auf 10000 angehoben), RPM wird immer gepollt, Schwellwert-Slider im DashboardConfig, Demo-Animation beim Öffnen ohne Motorlauf.
+- **Ruhigeres UI:** Icon-Jumping behoben (BottomNav nach `AppNavHost` gehoben, `pinnedScrollBehavior`, `contentWindowInsets = 0` auf inneren Scaffolds), BottomNav-Labels immer sichtbar.
+- Ganzzahlige Dashboard-Werte, Spannung mit einer Nachkommastelle, neuer App-Info-Screen.
+- **1.3.1:** Das Bluetooth-Icon führt im getrennten Zustand direkt in die Einstellungen, mit korrekten Navigations-Flags gegen einen kaputten Back-Stack.
+
+---
+
+## Version 1.2.0 (versionCode 4)
+
+Anzeige-Einstellungen und Layout-Politur.
+
+- **Display-Sektion:** imperiale Einheiten über den `convertUnit`-Helper, Theme-Auswahl, in `MainActivity` auf das `MaterialTheme` angewandt.
+- **Fahrmodus:** BottomNav blendet während der Fahrt aus — `isMovingFlow` im `ObdRepository`, Präferenz `hideNavOnDrive`, gebündelt im neuen `DriveStateViewModel`.
+- **Dashboard:** Bluetooth-Status und DTC-Warnung direkt im Dashboard, SensorCard mit Value/Unit-Split und Akzentstreifen, Grid bleibt im getrennten Zustand sichtbar.
+- **Screens:** Scroll-Behavior, PullToRefresh und Icon-Empty-States für DTC- und History-Screen, einheitliches `contentPadding`.
+- **Build:** Gradle 8.11.1 → 9.2.1 plus foojay-Toolchain-Resolver.
+- App-Name auf „Bike OBD2 Monitor" geändert.
+
+---
+
+## Version 1.1.0 (versionCode 3)
+
+Aufzeichnungs-Einstellungen.
+
+- Recording-Präferenzen (Modus und gefilterte PIDs) in `AppPreferences`.
+- Neuer LoggingConfig-Screen für die Auswahl der aufgezeichneten Sensoren.
+- `DashboardViewModel` wendet die Recording-Filter an und prüft die DTC-Session.
 
 ---
 
