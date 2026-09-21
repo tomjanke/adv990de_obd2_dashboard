@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.8.1 (versionCode 32)
+
+Debug- und Release-Build lassen sich jetzt parallel installieren.
+
+---
+
+Der ECU-Simulator erscheint nur in Debug-Builds als virtuelles Gerät „OBD Sim" in der
+Geräteliste — im Release-Build fehlt der Eintrag. Weil beide Varianten bisher dieselbe
+`applicationId` trugen, war zum Testen ohne Fahrzeug jedes Mal ein Deinstallieren nötig, und
+damit gingen aufgezeichnete Fahrten und Logs verloren.
+
+- Der Debug-Build trägt `applicationIdSuffix = ".debug"` und `versionNameSuffix = "-debug"`,
+  läuft also als eigene App mit eigener Datenbank neben der Release-Version.
+- Im Launcher heißt er **BOM Debug**: Das Label kommt jetzt aus `@string/app_label`, das die
+  Debug-Quellen überschreiben.
+
+Am ausgelieferten Release-Build ändert sich nichts — FileProvider und `SessionRepository`
+leiteten ihre Authority ohnehin aus `applicationId` beziehungsweise `context.packageName` ab.
+
+---
+
 ## Version 1.8.0 (versionCode 31)
 
 Wartungs-Release: Build-Stack auf aktuellen Stand, Lint wieder scharf, Bluetooth-Berechtigungen
