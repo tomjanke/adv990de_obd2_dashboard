@@ -139,8 +139,9 @@ fun LiveValueTile(
                             points = sparkline,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(36.dp)
-                                .padding(bottom = 8.dp),
+                                .height(48.dp)
+                                // rechts Platz fuer den Punkt auf dem juengsten Wert
+                                .padding(bottom = 8.dp, end = 4.dp),
                         )
                     }
                     Row(verticalAlignment = Alignment.Bottom) {

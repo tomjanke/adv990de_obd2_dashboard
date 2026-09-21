@@ -31,8 +31,10 @@ Kachel zeigte „0 V" und färbte sich alarmrot. Ein antwortendes Steuergerät h
 ### Verlaufslinien sichtbarer
 
 Die Sparklines waren mit 2 dp zu dünn, um sie bei Tageslicht im Vorbeischauen zu erfassen. Sie
-sind jetzt 3 dp stark mit runden Enden, unterlegt mit einer 14 % gefüllten Fläche, und das Band
-ist von 28 auf 36 dp gewachsen.
+sind jetzt 4 dp stark mit runden Enden, unterlegt mit einem nach unten auslaufenden Verlauf
+(32 % Deckkraft an der Linie, transparent am Boden), und ein Punkt markiert den jüngsten Wert —
+ohne ihn liest sich die Kurve in beide Richtungen gleich. Das Band ist von 28 auf 48 dp
+gewachsen.
 
 ### Drehzahlbalken in Segmenten
 

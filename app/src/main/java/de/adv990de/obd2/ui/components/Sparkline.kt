@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -17,9 +19,9 @@ import androidx.compose.ui.unit.dp
  * the active theme's primary — sparklines represent trend, not state, so they don't take the
  * [LiveValueTile] status accent.
  *
- * Die Linie ist bewusst kraeftig (3 dp, runde Enden) und wird nach unten mit einer schwach
- * gefuellten Flaeche unterlegt: auf einem Motorrad-Display bei Tageslicht war die duenne
- * 2-dp-Linie kaum auszumachen.
+ * Die Linie ist bewusst kraeftig: 4 dp mit runden Enden, unterlegt mit einem nach unten
+ * auslaufenden Verlauf, plus ein Punkt auf dem juengsten Wert. Auf einem Motorrad-Display bei
+ * Tageslicht war die urspruengliche 2-dp-Linie ohne Flaeche kaum auszumachen.
  */
 @Composable
 fun Sparkline(
@@ -42,18 +44,30 @@ fun Sparkline(
             val y = inset + usableHeight - (v - min) / range * usableHeight
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        // Flaeche unter der Kurve: gibt der Linie Koerper, ohne mit dem Wert zu konkurrieren.
+        // Flaeche unter der Kurve als auslaufender Verlauf: gibt der Linie Koerper und einen
+        // Schwerpunkt, ohne als zweite Flaeche mit dem Wert zu konkurrieren.
         val fill = Path().apply {
             addPath(path)
             lineTo(size.width, size.height)
             lineTo(0f, size.height)
             close()
         }
-        drawPath(fill, color.copy(alpha = 0.14f))
+        drawPath(
+            fill,
+            Brush.verticalGradient(
+                colors = listOf(color.copy(alpha = 0.32f), Color.Transparent),
+                startY = 0f,
+                endY = size.height,
+            ),
+        )
         drawPath(
             path,
             color,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
+        // Punkt auf dem juengsten Wert: markiert, wo "jetzt" liegt — ohne ihn liest sich die
+        // Kurve in beide Richtungen gleich.
+        val lastY = inset + usableHeight - (points.last() - min) / range * usableHeight
+        drawCircle(color, radius = 4.dp.toPx(), center = Offset(size.width, lastY))
     }
 }
