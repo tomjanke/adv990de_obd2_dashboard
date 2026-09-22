@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -125,5 +126,30 @@ class DashboardScreenTest {
         // There is no assertable static text, so "no crash + idle" is the success criterion.
         // The composeRule.waitForIdle() call inside launchDashboardScreen() ensures all
         // coroutines launched by the ViewModel have settled before we return.
+    }
+    /**
+     * Ohne Verbindung zeigt das Dashboard eine Vorschau der Slot-Belegung. Das Band sagt das
+     * ausdruecklich — bis 1.11.0 standen dort Kacheln mit dem Wert 0, die sich von echten
+     * Messwerten nicht unterscheiden liessen.
+     */
+    @Test
+    fun dashboard_marksItsPreviewWhenDisconnected() {
+        launchDashboardScreen()
+        composeRule
+            .onNodeWithText(
+                composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase()
+            )
+            .assertIsDisplayed()
+    }
+
+    /**
+     * Und die Kacheln selbst tragen "--" statt einer Zahl. Geprueft ueber die
+     * contentDescription, weil der Wert im Baum aus mehreren Textknoten besteht.
+     */
+    @Test
+    fun dashboard_showsDashesInsteadOfZeroWhenDisconnected() {
+        launchDashboardScreen()
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        composeRule.onNodeWithContentDescription("$rpmLabel: -- rpm").assertIsDisplayed()
     }
 }

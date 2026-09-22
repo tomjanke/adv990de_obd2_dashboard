@@ -41,12 +41,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.LiveValueTile
+import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.asLiveValue
 import kotlinx.coroutines.delay
@@ -157,10 +159,19 @@ internal fun SensorCardSlot(
     modifier: Modifier = Modifier,
     /** Text fuer den Fall ohne Messwert — siehe [slotPlaceholderRes]. */
     @StringRes placeholderRes: Int = R.string.dashboard_slot_empty,
+    /** false zeichnet die Kachel als Vorschau: "--" statt einer Zahl, keine Statusfarbe. */
+    isLive: Boolean = true,
     onLongPress: (() -> Unit)? = null
 ) {
     if (reading != null) {
-        SensorCard(reading, sparklines[reading.pid.id] ?: emptyList(), useImperial, onLongPress, modifier.fillMaxSize())
+        SensorCard(
+            reading,
+            sparklines[reading.pid.id] ?: emptyList(),
+            useImperial,
+            onLongPress,
+            modifier.fillMaxSize(),
+            isLive = isLive,
+        )
     } else {
         Surface(
             modifier = modifier
@@ -189,6 +200,36 @@ internal fun SensorCardSlot(
 }
 
 /**
+ * Schmales Band ueber dem Kachelraster, solange keine Verbindung besteht.
+ *
+ * Bis 1.11.0 zeigte das Dashboard ohne Verbindung Kacheln mit dem Wert 0 — optisch nicht von
+ * echten Messwerten zu unterscheiden. Genau diese Verwechslung stand am Anfang der Fehlersuche
+ * nach der GPS-Geschwindigkeit: Der Eindruck, die App zeige eine Geschwindigkeit, kam von der
+ * Vorschau, nicht vom Fahrzeug.
+ *
+ * Die Vorschau bleibt — sie zeigt die Slot-Belegung und macht das Layout begreifbar — aber sie
+ * sagt jetzt, was sie ist.
+ */
+@Composable
+internal fun PreviewBanner(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RectangleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Text(
+            text = stringResource(R.string.dashboard_preview_banner).uppercase(),
+            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.12.em),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        )
+    }
+}
+
+/**
  * Adapter from the domain type [SensorValue] to the generic [LiveValueTile]:
  * handles unit conversion (imperial flag), NaN/Inf → "--", voltage gets one
  * decimal place, everything else integer. The accessibility contentDescription
@@ -200,23 +241,35 @@ internal fun SensorCard(
     sparkline: List<Float> = emptyList(),
     useImperial: Boolean = false,
     onLongPress: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * false bedeutet: Es gibt keine Verbindung, der Wert stammt aus der Vorschau-Belegung und ist
+     * kein Messwert. Er wird dann als "--" gezeichnet — eine "0" liesse sich von einem echten
+     * Messwert nicht unterscheiden, und genau diese Verwechslung hat schon eine Fehlersuche
+     * ausgeloest.
+     */
+    isLive: Boolean = true,
 ) {
     val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
         value.value to value.pid.unit
     } else {
         convertUnit(value.value, value.pid.unit, useImperial)
     }
-    val displayValue = if (value.value.isNaN() || value.value.isInfinite()) "--"
-                       else if (value.pid.unit == "V") "%.1f".format(convertedValue)
-                       else "%.0f".format(convertedValue)
+    val displayValue = when {
+        !isLive -> "--"
+        value.value.isNaN() || value.value.isInfinite() -> "--"
+        value.pid.unit == "V" -> "%.1f".format(convertedValue)
+        else -> "%.0f".format(convertedValue)
+    }
     val pidLabel = stringResource(value.pid.labelRes)
     LiveValueTile(
         label = pidLabel,
         value = displayValue,
         unit = displayUnit,
-        sparkline = sparkline,
-        status = pidTileStatus(value.pid.id, value.value),
+        // Ohne Verbindung gibt es auch keinen Verlauf zu zeigen.
+        sparkline = if (isLive) sparkline else emptyList(),
+        status = if (isLive) pidTileStatus(value.pid.id, value.value) else TileStatus.Ok,
+        isPreview = !isLive,
         onLongPress = onLongPress,
         modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
     )

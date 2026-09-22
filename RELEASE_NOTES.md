@@ -1,5 +1,36 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.12.0 (versionCode 39)
+
+Die Vorschau sagt jetzt, dass sie eine ist.
+
+---
+
+### Kacheln ohne Verbindung logen
+
+Ohne OBD-Verbindung zeigte das Dashboard die Slot-Belegung mit dem Wert 0 — optisch nicht von
+echten Messwerten zu unterscheiden. Genau diese Verwechslung stand am Anfang der Fehlersuche nach
+der GPS-Geschwindigkeit: Der Eindruck, die App zeige ohne Verbindung eine Geschwindigkeit und
+verliere sie beim Verbinden, kam von der Vorschau, nicht vom Fahrzeug.
+
+Die Vorschau bleibt — sie zeigt die Belegung und macht das Layout begreifbar, bevor überhaupt
+etwas verbunden ist. Aber sie gibt sich jetzt zu erkennen:
+
+- Statt einer Zahl steht in jeder Kachel `--`, wie es die Drehzahlanzeige seit 1.9.1 schon tut.
+- Die Akzentleiste ist gedämpft statt status-farbig. Ein grüner oder roter Balken über einem Wert,
+  den kein Fahrzeug geliefert hat, wäre eine Aussage ohne Grundlage.
+- Verlaufslinien bleiben aus, denn es gibt keinen Verlauf.
+- Über dem Kachelraster steht ein schmales Band: „Vorschau · nicht verbunden".
+
+Der Drehzahlbalken animiert weiterhin einmal beim Öffnen durch — das Band erklärt jetzt, was man
+dabei sieht.
+
+### Sonstiges
+
+- Zwei neue Instrumentation-Tests (37 statt 35) für das Band und die `--`-Kacheln.
+
+---
+
 ## Version 1.11.0 (versionCode 38)
 
 Aufräumen unter der Haube. An der App ändert sich nichts Sichtbares.

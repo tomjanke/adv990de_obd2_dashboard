@@ -180,6 +180,14 @@ fun DashboardScreen(
                     }
                 )
 
+                // ── Vorschau-Band ─────────────────────────────────────────
+                // Ohne Verbindung zeigt das Dashboard die Slot-Belegung mit "--" statt Zahlen.
+                // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
+                // die App nichts misst oder nichts messen kann.
+                if (!state.isConnected) {
+                    PreviewBanner(modifier = Modifier.fillMaxWidth())
+                }
+
                 // ── Sensor grid ───────────────────────────────────────────
                 // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
                 // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
@@ -202,6 +210,7 @@ fun DashboardScreen(
                                     placeholderRes = slotPlaceholderRes(
                                         slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                     ),
+                                    isLive = state.isConnected,
                                     onLongPress = { pickerSlot = i }
                                 )
                             }
@@ -226,6 +235,7 @@ fun DashboardScreen(
                                             placeholderRes = slotPlaceholderRes(
                                                 slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                             ),
+                                            isLive = state.isConnected,
                                             onLongPress = { pickerSlot = i }
                                         )
                                     }

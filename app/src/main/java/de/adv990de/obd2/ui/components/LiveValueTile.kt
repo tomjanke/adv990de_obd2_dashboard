@@ -69,6 +69,8 @@ enum class TileStatus { Ok, Warning, Critical }
  * @param unit  Optional unit suffix shown next to the value in muted style.
  * @param sparkline Optional trend points; empty list hides the line.
  * @param status Drives accent color. Default [TileStatus.Ok].
+ * @param isPreview Kennzeichnet eine Kachel ohne Verbindung: gedaempfte Akzentfarbe, keine
+ *   Statusfarbe. Der Wert selbst kommt als "--" vom Aufrufer.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -79,10 +81,15 @@ fun LiveValueTile(
     modifier: Modifier = Modifier,
     sparkline: List<Float> = emptyList(),
     status: TileStatus = TileStatus.Ok,
+    isPreview: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
 ) {
-    val accentColor = when (status) {
+    // Im Vorschau-Zustand traegt die Kachel keine Statusfarbe: Eine gruene oder rote Akzentleiste
+    // ueber einem Wert, den kein Fahrzeug geliefert hat, waere eine Aussage ohne Grundlage.
+    val accentColor = if (isPreview) {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    } else when (status) {
         TileStatus.Ok       -> MaterialTheme.colorScheme.primary
         TileStatus.Warning  -> StatusColors.Warning
         TileStatus.Critical -> StatusColors.Critical
