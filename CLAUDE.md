@@ -4,7 +4,7 @@
 
 ## Projekt-Kontext
 
-Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.10 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 35 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
+Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.10 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
 ---
 
@@ -112,7 +112,7 @@ darunter in `primary`. Ohne Verbindung: keine Alarmfarbe, kein Blinken, Wert „
 ### Animation-Disziplin
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
-- **Connection-Status:** Pulsierender Dot via `infiniteRepeatable` `tween(1200)` für „connecting"; statisch für „connected"/„disconnected".
+- **Connection-Status:** Pulsierender Dot via `infiniteRepeatable` `tween(600)` für „connecting"; statisch für „connected"/„disconnected".
 - **Screen-Transitions:** `slideIntoContainer` 220 ms, **nicht** `fadeIn` allein (zu unbestimmt).
 - **Verboten:** parallax scroll, decorative particle effects, anything that draws attention away from data.
 
