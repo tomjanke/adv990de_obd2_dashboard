@@ -1,5 +1,44 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.15.0 (versionCode 43)
+
+Zwei Ergänzungen: das Dashboard zeigt jetzt einen pulsierenden Status-Punkt während des
+Wiederverbindens, und die GPS-Geschwindigkeit läuft mit erteilter Berechtigung auch weiter,
+wenn die App im Hintergrund ist.
+
+---
+
+### Connecting-Status auf dem Dashboard
+
+`DashboardUiState.isReconnecting` wurde bisher berechnet, aber nirgends angezeigt — der
+Status-Punkt neben dem Bluetooth-Symbol zeigte nur „verbunden" oder gar nichts. Jetzt pulsiert
+er, solange die App eine gespeicherte Verbindung neu aufbaut (Kaltstart-Autoconnect oder die
+Wiederverbindungs-Schleife nach einem Verbindungsabbruch) — das Symbol bleibt währenddessen
+antippbar, man kann jederzeit zu den Einstellungen springen.
+
+### GPS-Geschwindigkeit im Hintergrund
+
+Bisher lieferte GPS nur Geschwindigkeit, solange das Dashboard sichtbar war — Android liefert
+Standort-Updates an eine Komponente ohne sichtbare Activity nur, wenn
+`ACCESS_BACKGROUND_LOCATION` erteilt ist und ein laufender Foreground Service den Typ `location`
+anfordert. Beides ist jetzt der Fall: Der bestehende Foreground Service fordert den
+zusätzlichen Typ an, wenn die Berechtigung vorliegt, und die Einstellungen eskalieren nach der
+Fine/Coarse-Freigabe automatisch zur Hintergrund-Berechtigung (ein zweiter System-Dialog, den
+Android getrennt von der ersten Anfrage verlangt). Lehnt der Nutzer ab, bleibt GPS-Geschwindigkeit
+im Vordergrund weiter nutzbar; das automatische Nachfragen passiert nur einmal, nicht bei jedem
+Besuch der Einstellungen.
+
+Das galt anfangs nicht für jeden Verbindungsweg: Der manuelle „Verbinden"-Tap in den
+Einstellungen startete den Foreground Service über eine eigene Codestelle, die den neuen
+Berechtigungs-Typ zunächst nicht kannte — GPS im Hintergrund hätte für die meisten Verbindungen
+gar nicht gegriffen. Beide Codestellen fragen jetzt dieselbe Entscheidung ab.
+
+### Tests
+
+361 Unit- und 40 Instrumentation-Tests grün. Lint unverändert bei 29 Warnungen.
+
+---
+
 ## Version 1.14.1 (versionCode 42)
 
 Die Freeze-Frame-Ansicht zeigt jetzt lokalisierte PID-Namen statt der englischen Bezeichner.
