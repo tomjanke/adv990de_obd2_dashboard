@@ -63,4 +63,25 @@ class SlotPlaceholderTest {
             slotPlaceholderRes(PidRegistry.SPEED.id, supportedPidIds = null, isConnected = true)
         )
     }
+    // --- Test 6 ---
+
+    @Test
+    fun `with GPS enabled the speed slot waits for a fix instead of blaming the vehicle`() {
+        // Das Fahrzeug liefert 010D nicht — mit eingeschaltetem GPS ist "nicht unterstuetzt"
+        // trotzdem falsch, denn der Wert kommt gleich aus einer anderen Quelle.
+        assertEquals(
+            R.string.dashboard_slot_waiting_gps,
+            slotPlaceholderRes(PidRegistry.SPEED.id, supported, isConnected = true, gpsSpeedEnabled = true)
+        )
+    }
+
+    // --- Test 7 ---
+
+    @Test
+    fun `GPS switch does not change the hint for other pids`() {
+        assertEquals(
+            R.string.dashboard_slot_unsupported,
+            slotPlaceholderRes(PidRegistry.INTAKE_AIR_TEMP.id, supported, isConnected = true, gpsSpeedEnabled = true)
+        )
+    }
 }

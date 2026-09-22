@@ -107,11 +107,20 @@ class DashboardViewModel @Inject constructor(
     val supportedPidIds: StateFlow<Set<String>?> get() = obdRepository.supportedPidIds
 
     /** PIDs available in the picker: ECU-supported when connected, full registry otherwise. */
-    val availablePids: StateFlow<List<PidDefinition>> = obdRepository.supportedPidIds
-        .map { supported ->
-            val all = PidRegistry.all.values.sortedBy { it.name }
-            if (supported.isNullOrEmpty()) all else all.filter { it.id in supported }
+    val availablePids: StateFlow<List<PidDefinition>> = combine(
+        obdRepository.supportedPidIds,
+        appPreferences.useGpsSpeed,
+    ) { supported, gpsEnabled ->
+        val all = PidRegistry.all.values.sortedBy { it.name }
+        if (supported.isNullOrEmpty()) {
+            all
+        } else {
+            // Die Geschwindigkeit bleibt waehlbar, solange das GPS sie liefern kann — sonst
+            // verschwaende sie bei genau den Fahrzeugen aus dem Picker, fuer die das Feature
+            // gebaut wurde.
+            all.filter { it.id in supported || (gpsEnabled && it.id == PidRegistry.SPEED.id) }
         }
+    }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -125,14 +134,21 @@ class DashboardViewModel @Inject constructor(
 
     /**
      * GPS-Geschwindigkeit in km/h, null wenn das Feature aus ist, keine Berechtigung vorliegt
-     * oder kein Fix mit Geschwindigkeit ansteht. Der Flow wird nur gesammelt, solange das
-     * Dashboard aktiv ist — im Hintergrund laeuft kein GPS.
+     * oder kein Fix mit Geschwindigkeit ansteht.
+     *
+     * `Eagerly` ist hier Pflicht, nicht Geschmack: Der Wert wird ausschliesslich ueber
+     * [StateFlow.value] gelesen, und ein `WhileSubscribed`-Flow ohne Sammler startet seinen
+     * Upstream nie — `value` bliebe fuer immer auf dem Initialwert null stehen. Genau dieser
+     * Fehler liess die GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen.
+     *
+     * Der `flatMapLatest` sorgt dafuer, dass der GPS-Empfaenger trotzdem nur laeuft, solange der
+     * Schalter an ist: Bei ausgeschaltetem Feature wird [GpsSpeedSource.speedKmh] gar nicht
+     * gesammelt und registriert deshalb keine Standort-Updates.
      */
-    private val gpsSpeedKmh: StateFlow<Float?> = combine(
-        appPreferences.useGpsSpeed,
-        gpsSpeedSource.speedKmh,
-    ) { enabled, kmh -> if (enabled) kmh else null }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val gpsSpeedKmh: StateFlow<Float?> = appPreferences.useGpsSpeed
+        .flatMapLatest { enabled -> if (enabled) gpsSpeedSource.speedKmh else flowOf(null) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 

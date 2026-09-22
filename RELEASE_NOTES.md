@@ -1,5 +1,54 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.10.2 (versionCode 37)
+
+Die GPS-Geschwindigkeit aus 1.10.0 kam nie im Dashboard an. Dieses Release repariert das.
+
+---
+
+### Der Fehler
+
+`gpsSpeedKmh` war ein `StateFlow`, den niemand gesammelt hat: Der Wert wurde ausschliesslich
+ueber `.value` gelesen, und ein mit `SharingStarted.WhileSubscribed` geteilter Flow startet
+seinen Upstream erst, wenn sich ein Sammler anmeldet. Ohne Sammler blieb `.value` fuer immer auf
+dem Initialwert `null` stehen — `mergeGpsSpeed` bekam also nie eine Geschwindigkeit zu sehen und
+gab die Messwerte unveraendert zurueck. Das Feature war damit von Anfang an tot, ohne dass ein
+Test es bemerkt hat: Die vorhandenen Tests pruefen `mergeGpsSpeed` als reine Funktion, nicht den
+Weg vom Empfaenger bis in die Oberflaeche.
+
+Der Flow wird jetzt mit `SharingStarted.Eagerly` geteilt und ist damit tatsaechlich heiss. Damit
+der GPS-Empfaenger trotzdem nur laeuft, solange der Schalter an ist, haengt ein `flatMapLatest`
+auf der Praeferenz davor: Ist das Feature aus, wird `GpsSpeedSource.speedKmh` gar nicht erst
+gesammelt und registriert keine Standort-Updates.
+
+Zwei neue Tests decken jetzt den ganzen Weg ab — vom GPS-Wert bis in `uiState.readings`, und die
+Gegenprobe mit ausgeschaltetem Schalter.
+
+### Geschwindigkeit bleibt waehlbar
+
+Sobald die PID-Discovery lief, filterte der Sensor-Picker auf die gemeldeten PIDs — die
+Geschwindigkeit verschwand damit ausgerechnet bei den Fahrzeugen aus der Auswahl, fuer die das
+GPS-Feature gebaut wurde. Bei eingeschaltetem GPS bleibt sie jetzt in der Liste.
+
+### Ehrlicherer Platzhalter
+
+Eine leere Geschwindigkeits-Kachel meldete „Vom Fahrzeug nicht unterstuetzt", auch wenn das GPS
+eingeschaltet war und lediglich noch kein Fix vorlag. Dort steht jetzt „Warte auf GPS-Signal" —
+eine Aussage ueber das Fahrzeug waere in diesem Zustand schlicht falsch.
+
+### Hinweis zur Anzeige ohne Verbindung
+
+Ohne OBD-Verbindung zeigt das Dashboard weiterhin Demo-Kacheln mit dem Wert 0, darunter eine fuer
+die Geschwindigkeit. Das ist kein GPS-Wert: Die Zusammenfuehrung haengt am Messwert-Strom der
+Verbindung und laeuft erst, wenn diese steht. Eine GPS-Anzeige auch ohne Fahrzeugverbindung waere
+ein eigenes Feature.
+
+### Sonstiges
+
+- Vier neue Unit-Tests (326 statt 322).
+
+---
+
 ## Version 1.10.1 (versionCode 36)
 
 Ein Nachzügler aus dem Lint-Lauf gegen 1.10.0.

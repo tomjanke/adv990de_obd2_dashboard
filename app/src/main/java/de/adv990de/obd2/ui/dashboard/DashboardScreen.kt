@@ -60,6 +60,7 @@ fun DashboardScreen(
     val state by vm.uiState.collectAsState()
     val placeholderReadings by vm.placeholderReadings.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
+    val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
     val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
     val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsState()
     val slotPids by vm.slotPids.collectAsState()
@@ -199,7 +200,7 @@ fun DashboardScreen(
                                     slots[i], state.sparklines, useImperial,
                                     Modifier.weight(1f).fillMaxHeight(),
                                     placeholderRes = slotPlaceholderRes(
-                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected
+                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                     ),
                                     onLongPress = { pickerSlot = i }
                                 )
@@ -223,7 +224,7 @@ fun DashboardScreen(
                                             slots[i], state.sparklines, useImperial,
                                             Modifier.weight(1f).fillMaxHeight(),
                                             placeholderRes = slotPlaceholderRes(
-                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected
+                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                             ),
                                             onLongPress = { pickerSlot = i }
                                         )

@@ -5,6 +5,7 @@
     <string name="app_label">BOM</string>
     <string name="dashboard_slot_empty">Lang drücken, um einen Sensor zu belegen</string>
     <string name="dashboard_slot_unsupported">Vom Fahrzeug nicht unterstützt</string>
+    <string name="dashboard_slot_waiting_gps">Warte auf GPS-Signal</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>

@@ -58,7 +58,8 @@ class DashboardViewModelTest {
         slotIds: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
         logOnlyDtc: Boolean = false,
         logOnlyDiscovered: Boolean = false,
-        loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS
+        loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS,
+        useGpsSpeed: Boolean = false
     ): AppPreferences = mockk {
         every { slotPids }              returns flowOf(slotIds)
         every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
@@ -67,7 +68,7 @@ class DashboardViewModelTest {
         every { rpmBlinkThreshold }     returns flowOf(0)
         every { rpmDynamicThreshold }   returns flowOf(false)
         every { lastDevice }            returns flowOf(null)
-        every { useGpsSpeed }           returns flowOf(false)
+        every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
     }
 
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
@@ -1082,5 +1083,73 @@ class DashboardViewModelTest {
         advanceTimeBy(3_001)
 
         verify { ctx.stopService(any()) }
+    }
+    // --- GPS-Geschwindigkeit ---
+
+    @Test
+    fun `GPS speed reaches the ui state when the vehicle provides none`() = runTest {
+        // Regression: gpsSpeedKmh war ein WhileSubscribed-StateFlow, den niemand sammelte.
+        // Sein value blieb deshalb fuer immer null und die GPS-Geschwindigkeit kam nie an.
+        val rpm = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
+            every { setMoving(any()) } just Runs
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(listOf(rpm))
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = DashboardViewModel(
+            obdRepo, sessionRepo,
+            makePrefs(slotIds = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = true),
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
+            makeGpsSpeedSource(42f), mockk(relaxed = true)
+        )
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        val speed = vm.uiState.value.readings.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
+        assertNotNull(speed)
+        assertEquals(42f, speed!!.value, 0.001f)
+        verify { obdRepo.setMoving(true) }
+    }
+
+    @Test
+    fun `GPS speed is ignored while the switch is off`() = runTest {
+        val rpm = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
+            every { setMoving(any()) } just Runs
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(listOf(rpm))
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = DashboardViewModel(
+            obdRepo, sessionRepo,
+            makePrefs(slotIds = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = false),
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
+            makeGpsSpeedSource(42f), mockk(relaxed = true)
+        )
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.readings.firstOrNull { it.pid.id == PidRegistry.SPEED.id })
     }
 }

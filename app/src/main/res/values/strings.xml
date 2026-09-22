@@ -5,6 +5,7 @@
     <string name="app_label">BOM</string>
     <string name="dashboard_slot_empty">Long-press to assign a sensor</string>
     <string name="dashboard_slot_unsupported">Not provided by this vehicle</string>
+    <string name="dashboard_slot_waiting_gps">Waiting for a GPS fix</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">No known device to reconnect to.</string>
