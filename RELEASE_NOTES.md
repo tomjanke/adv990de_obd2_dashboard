@@ -48,6 +48,18 @@ Die bestehenden ViewModel-Tests bleiben unverändert bestehen und prüfen weiter
 Zusammenspiel — sie bauen die Kollaborateure aus denselben Mocks zusammen, die sie schon vorher
 übergeben haben.
 
+### Ein Fund, den erst die Trennung sichtbar machte
+
+Der Auslöser für die Wiederverbindung war ein `MutableSharedFlow` ohne Replay. Ein solcher Flow
+verwirft, was emittiert wird, bevor der erste Sammler bereitsteht — und Auto-Connect und
+Wiederverbindungs-Schleife werden in denselben Scope gestartet, ohne garantierte Reihenfolge.
+Scheiterte der Auto-Connect, bevor die Schleife zu sammeln begann, ging die Aufforderung verloren
+und die App blieb stumm getrennt, ohne einen einzigen Versuch.
+
+Die Konstruktion stammt aus der Zeit vor dem Umbau; kein Test hatte sie je angefasst, weil sie im
+ViewModel nicht isoliert erreichbar war. `replay = 1` schließt die Lücke. Es gibt genau einen
+Sammler pro Instanz, also entsteht auch keine verspätete Doppelzustellung.
+
 ### Eine kleine Verhaltensänderung
 
 Bei erfolgreichem Auto-Connect endete die Wiederverbindungs-Anzeige bisher erst mit dem ersten
