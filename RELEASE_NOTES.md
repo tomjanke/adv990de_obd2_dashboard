@@ -1,5 +1,38 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.15.1 (versionCode 44)
+
+Drei Feinschliff-Fixes am Dashboard: schnellere GPS-Geschwindigkeit, ruhigere Sparklines,
+mehr genutzter Platz im Querformat.
+
+---
+
+### GPS-Geschwindigkeit reagiert schneller
+
+Die Geschwindigkeitsanzeige lief spürbar der echten Tachoanzeige hinterher. Ursache:
+`AndroidLocationSpeedProvider` forderte Standort-Updates nur alle 1000 ms an. Das Intervall ist
+jetzt 200 ms — die Anzeige folgt Beschleunigen/Bremsen deutlich direkter.
+
+### Sparklines geglättet
+
+Die Trendlinien in den Dashboard-Kacheln, besonders bei der Bordspannung, wirkten unruhig und
+kaum lesbar. `Sparkline` glättet die Punkte jetzt vor der Darstellung über einen zentrierten
+gleitenden Mittelwert (Fenstergröße 3, an den Rändern mit weniger Nachbarn). Die Skalierung
+(Min/Max) rechnet auf den geglätteten Werten, nicht auf den Rohwerten.
+
+### Mehr Platz im Querformat genutzt
+
+Im Querformat blieb unterhalb der Sensor-Kacheln viel ungenutzter Raum, besonders bei
+ausgeblendetem Hauptmenü während der Fahrt. Die Kachelhöhe im Querformat ist jetzt 200 dp statt
+160 dp; auf kürzeren Bildschirmen schrumpft die Reihe weiterhin auf die verfügbare Höhe, genau
+wie zuvor bei 160 dp.
+
+### Tests
+
+367 Unit- und 40 Instrumentation-Tests grün. Lint unverändert bei 29 Warnungen.
+
+---
+
 ## Version 1.15.0 (versionCode 43)
 
 Zwei Ergänzungen: das Dashboard zeigt jetzt einen pulsierenden Status-Punkt während des
