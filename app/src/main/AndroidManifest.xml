@@ -18,6 +18,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
         tools:targetApi="upside_down_cake" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"
+        tools:targetApi="upside_down_cake" />
     <!-- Notifications (required on API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -26,6 +28,11 @@
          Deshalb ohne maxSdkVersion; die Berechtigung wird erst beim Einschalten angefragt. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Haelt die GPS-Geschwindigkeit auch im Hintergrund am Leben, wenn ObdForegroundService
+         laeuft (foregroundServiceType unten) und der Nutzer diese zusaetzliche Berechtigung
+         erteilt hat — ohne sie liefert Android einer Komponente ohne sichtbare Activity keine
+         Standort-Updates. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
         android:name=".Obd2Application"
@@ -52,7 +59,7 @@
 
         <service
             android:name=".ObdForegroundService"
-            android:foregroundServiceType="connectedDevice"
+            android:foregroundServiceType="connectedDevice|location"
             android:exported="false" />
 
         <provider

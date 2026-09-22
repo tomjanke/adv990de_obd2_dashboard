@@ -48,7 +48,9 @@ class ObdForegroundServiceTest {
     @get:Rule(order = 1)
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
         Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.POST_NOTIFICATIONS
+        Manifest.permission.POST_NOTIFICATIONS,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
     )
 
     /**
@@ -124,6 +126,24 @@ class ObdForegroundServiceTest {
         }
 
         assertTrue("Foreground-Notification des Service nicht gefunden", found)
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+    }
+
+    // --- Test 4 ---
+
+    @Test
+    fun actionStart_withLocationType_movesServiceToForegroundWithoutCrashing() {
+        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = true))
+
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        val deadline = System.currentTimeMillis() + 5_000
+        var found = false
+        while (!found && System.currentTimeMillis() < deadline) {
+            found = nm.activeNotifications.any { it.notification.channelId == ObdForegroundService.CHANNEL_ID }
+            if (!found) Thread.sleep(100)
+        }
+
+        assertTrue("Foreground-Notification (mit location-Typ) nicht gefunden", found)
         ctx.startService(ObdForegroundService.stopIntent(ctx))
     }
 }
