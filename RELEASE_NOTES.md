@@ -1,5 +1,65 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.11.0 (versionCode 38)
+
+Aufräumen unter der Haube. An der App ändert sich nichts Sichtbares.
+
+---
+
+### `DashboardViewModel` trug sieben Zuständigkeiten
+
+427 Zeilen: Sitzungsschleife, Wiederverbindung mit wachsenden Wartezeiten, Auto-Connect beim
+Start, GPS-Zusammenführung, Sparkline-Puffer, Steuerung des Foreground Service,
+Sitzungsaufzeichnung. Die zugehörige Testdatei war mit über 1150 Zeilen fast ein Viertel des
+gesamten Testcodes.
+
+Wie teuer das ist, hat sich messbar gezeigt: Eine einzige geänderte Zeile im Messwert-Pfad — die
+Fahrterkennung läuft seit 1.10.0 bei jedem Zyklus statt nur bei vorhandener Geschwindigkeit —
+liess 18 Tests fallen, von denen keiner die Verbindung betraf. Der Produktivcode war korrekt; die
+Tests hingen schlicht alle am selben Objekt.
+
+### Zwei herausgelöste Kollaborateure
+
+`ConnectionCoordinator` hält die Verbindung: Auto-Connect, Wiederverbindung mit den fünf
+Wartestufen, Start und Stopp des Foreground Service, Protokollierung. Er meldet dem ViewModel
+Ereignisse — `Attempting`, `Connected`, `Failed` — statt selbst in einen Zustand zu schreiben. Der
+Rückweg ist bewusst ein Callback und kein Flow: Ein SharedFlow ohne Replay verwirft Ereignisse,
+die vor dem ersten Sammler entstehen, und der Auto-Connect feuert sofort.
+
+`ReadingsPipeline` hält den Messwert-Pfad: Auswahl der abzufragenden PIDs, Aufzeichnung der
+Sitzung, Zusammenführung der Geschwindigkeitsquellen, Fahrterkennung. Auch sie meldet Ereignisse —
+`Values`, `Idle`, `ConnectionLost`, `Failed`.
+
+Geblieben ist im ViewModel, was Darstellung ist: Kachelbelegung, Sparkline-Puffer, Schwellwerte
+und die Übersetzung beider Ereignisströme in einen Zustand. Aus 427 Zeilen wurden 213.
+
+Keiner der beiden Teile besitzt einen eigenen Coroutine-Scope. Beide bekommen den des ViewModels
+übergeben und sterben mit ihm — ein eigener Scope wäre eine zweite Lebensdauer, die jemand
+aufräumen müsste.
+
+### Was das für Tests bedeutet
+
+Vierzehn neue Tests, und zwar solche, die vorher nicht möglich waren: `ConnectionCoordinatorTest`
+braucht weder SessionRepository noch CrashReporter noch GPS, `ReadingsPipelineTest` weder
+BluetoothAdapter noch Context noch Foreground Service. Eine Änderung am einen Pfad kann die Tests
+des anderen nicht mehr umwerfen.
+
+Die bestehenden ViewModel-Tests bleiben unverändert bestehen und prüfen weiterhin das
+Zusammenspiel — sie bauen die Kollaborateure aus denselben Mocks zusammen, die sie schon vorher
+übergeben haben.
+
+### Eine kleine Verhaltensänderung
+
+Bei erfolgreichem Auto-Connect endete die Wiederverbindungs-Anzeige bisher erst mit dem ersten
+Messwert, bei erfolgreicher Wiederverbindung dagegen sofort. Jetzt endet sie in beiden Fällen
+sofort — die Verbindung steht ja.
+
+### Sonstiges
+
+- 340 statt 326 Unit-Tests.
+
+---
+
 ## Version 1.10.2 (versionCode 37)
 
 Die GPS-Geschwindigkeit aus 1.10.0 kam nie im Dashboard an. Dieses Release repariert das.
