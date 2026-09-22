@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.12.0** (versionCode 39) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
+> Aktuelle Version: **1.13.0** (versionCode 40) · minSdk **26** (Android 8.0) · targetSdk **35** (Android 15) · compileSdk **36**
 
 ---
 
@@ -118,7 +118,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (340 Tests, < 30 Sekunden)
+# JVM Unit Tests (346 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -127,7 +127,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 340 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 346 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 11 (Dashboard, DTC, Settings) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | 16 (AppLogDao, SensorReadingDao, SessionDao) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -267,7 +267,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (340) |
+| `app/src/test/` | JVM-Unit-Tests (346) |
 | `app/src/androidTest/` | Instrumented Tests (37, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

@@ -1,5 +1,46 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.13.0 (versionCode 40)
+
+Die letzte ungetestete Stelle des GPS-Pfads bekommt eine Naht. An der App ändert sich nichts
+Sichtbares.
+
+---
+
+### Warum das nötig war
+
+`GpsSpeedSource` hing direkt am `LocationManager` des Frameworks, und der existiert im JVM-Test
+nicht. Damit war ausgerechnet die Klasse ungeprüft, die den Wert überhaupt erst beschafft — in
+einem Feature, das schon einmal zwei Releases lang tot war, ohne dass es jemand bemerkt hat.
+
+### Die Naht
+
+`LocationSpeedProvider` ist eine Schnittstelle mit zwei Methoden: „darf ich den Standort lesen"
+und „melde mir Geschwindigkeiten in m/s, hier ist die Abmeldefunktion". `AndroidLocationSpeedProvider`
+ist die einzige Klasse der App, die den `LocationManager` noch kennt — sie rechnet nicht, filtert
+nicht und hält keinen Zustand. Was sich nicht prüfen lässt, enthält damit auch nichts zu Prüfendes.
+
+Dieselbe Trennung leistet `ObdConnection` seit jeher für Bluetooth; die GPS-Seite zieht jetzt nach.
+
+Bewusst in Metern pro Sekunde: Das ist die Einheit des Frameworks. Die Umrechnung in km/h ist
+Logik und gehört damit in die getestete Klasse, nicht in die untestbare.
+
+### Sechs neue Tests
+
+Berechtigung fehlt, Registrierung scheitert, Umrechnung von 10 m/s auf 36 km/h, ein Fix ohne
+Geschwindigkeit, unplausible Werte, und — der wichtigste — das Abmelden beim Ende der Sammlung.
+Bliebe der Empfänger registriert, liefe der GPS-Empfänger weiter, nachdem das Dashboard längst
+geschlossen ist.
+
+Nebenbei enger geworden: Negative, unendliche und NaN-Werte werden jetzt an der Quelle zu `null`,
+statt weiter oben aussortiert zu werden.
+
+### Sonstiges
+
+- 346 statt 340 Unit-Tests.
+
+---
+
 ## Version 1.12.0 (versionCode 39)
 
 Die Vorschau sagt jetzt, dass sie eine ist.
