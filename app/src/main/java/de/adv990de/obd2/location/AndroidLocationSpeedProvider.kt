@@ -65,9 +65,11 @@ class AndroidLocationSpeedProvider @Inject constructor(
         }
     }
 
-    private companion object {
-        /** 1 s: dichter als das OBD-Polling braucht es nicht, spart aber Strom gegenueber 0. */
-        const val MIN_INTERVAL_MS = 1_000L
+    internal companion object {
+        /** 200 ms: bewusst schneller als der ~500ms-OBD-Zyklus, damit die GPS-Geschwindigkeit
+         *  nicht spuerbar hinter der Tachoanzeige herlaeuft. Kostet etwas mehr Akku, greift aber
+         *  nur, waehrend GPS-Speed in den Einstellungen eingeschaltet ist. */
+        const val MIN_INTERVAL_MS = 200L
         const val MIN_DISTANCE_M = 0f
     }
 }
