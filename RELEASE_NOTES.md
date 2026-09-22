@@ -1,5 +1,44 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.14.0 (versionCode 41)
+
+`targetSdk` von 35 auf 36. Die App erklärt sich damit für Android 16 zuständig.
+
+---
+
+### Was dabei zu prüfen war
+
+Ein `targetSdk`-Sprung ist keine Zahl, sondern eine Zusage: Das System schaltet für die App alle
+Verhaltensänderungen der neuen Version scharf. Vier davon betreffen diese App überhaupt.
+
+**Edge-to-edge ohne Ausweg.** Android 16 entfernt das Opt-out `windowOptOutEdgeToEdgeEnforcement`.
+Für diese App folgenlos: Die Durchsetzung gilt seit `targetSdk` 35, das Opt-out wurde nie
+verwendet, und die Bildschirme kompensieren bereits über `statusBarsPadding()` im Dashboard und
+`navigationBarsPadding()` in der unteren Navigation.
+
+**Orientierung und Größenanpassung auf großen Bildschirmen.** Ab 600 dp ignoriert Android 16
+`screenOrientation` und `resizableActivity` im Manifest. Die `MainActivity` deklariert beides
+nicht und läuft ohnehin in beiden Orientierungen — keine Änderung.
+
+**Predictive Back.** Für Apps mit `targetSdk` 36 sind die Systemanimationen des vorhergesagten
+Zurück-Gestus standardmäßig aktiv. Die App führt keine eigene Zurück-Behandlung: Kein
+`BackHandler`, kein `onBackPressed`, alle Rückwege laufen über `navController.popBackStack()`.
+Damit greift das, was Compose Navigation mitbringt.
+
+**Job-Kontingente und Broadcast-Reihenfolge.** Beides ohne Berührungspunkt — die App nutzt einen
+Foreground Service, keinen `JobScheduler`, und versendet keine geordneten Broadcasts.
+
+Lint meldet damit eine Warnung weniger: `OldTargetApi` ist erledigt.
+
+### Was bewusst nicht Teil dieses Release ist
+
+`MainActivity` ruft weiterhin kein `enableEdgeToEdge()`. Das wäre die ausdrückliche Fassung dessen,
+was seit 1.8.0 ohnehin gilt, würde aber zugleich die Farbgebung der Systemleisten-Symbole ändern.
+Eine sichtbare Änderung gehört nicht in einen Release, dessen Zweck die Prüfung von
+Verhaltensänderungen ist.
+
+---
+
 ## Version 1.13.0 (versionCode 40)
 
 Die letzte ungetestete Stelle des GPS-Pfads bekommt eine Naht. An der App ändert sich nichts

@@ -9,8 +9,8 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 36
 
-    val appVersionCode = 40
-    val appVersionName = "1.13.0"
+    val appVersionCode = 41
+    val appVersionName = "1.14.0"
 
     val keystoreFile = rootProject.file("keystore.jks")
     fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()
@@ -27,7 +27,7 @@ android {
     defaultConfig {
         applicationId = "de.adv990de.obd2"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
         testInstrumentationRunner = "de.adv990de.obd2.HiltTestRunner"
