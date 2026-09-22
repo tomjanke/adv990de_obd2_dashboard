@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.theme.asLiveValue
 
@@ -65,19 +66,23 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
                         Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
                     }
                     data.isEmpty() -> Text(stringResource(R.string.freeze_frame_empty))
-                    else -> data.forEach { (k, v) ->
+                    else -> data.forEach { (pidId, formattedValue) ->
+                        // Keyed by PID id, not the English PidDefinition.name — resolve the
+                        // localized label here, the same pattern SensorCard uses for the Dashboard.
+                        val pidLabelRes = PidRegistry.all[pidId]?.labelRes
+                        val label = if (pidLabelRes != null) stringResource(pidLabelRes) else pidId
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Bottom,
                         ) {
                             Text(
-                                text = k,
+                                text = label,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             LiveValueText(
-                                value = v,
+                                value = formattedValue,
                                 style = MaterialTheme.typography.titleMedium.asLiveValue(),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 animated = true,

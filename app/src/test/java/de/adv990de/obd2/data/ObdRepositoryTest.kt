@@ -203,10 +203,12 @@ class ObdRepositoryTest {
         val result = repo.readFreezeFrame()
 
         coVerify { elmCtrl.sendCommand("02 0C 00") }  // space-separated for clone compatibility
-        assertTrue("RPM" in result)
+        // Keyed by PID id ("010C"), not the English PidDefinition.name — the UI resolves the
+        // localized label from the id via PidRegistry, so the repository must not bake in English.
+        assertTrue("010C" in result)
         // Value should use decimal precision (%.1f), not integer truncation.
         // RPM formula: (26*256 + 248) / 4 = 1726.0 → "1726.0 rpm"
-        assertTrue("RPM value should contain decimal point: ${result["RPM"]}", result["RPM"]!!.contains("."))
+        assertTrue("RPM value should contain decimal point: ${result["010C"]}", result["010C"]!!.contains("."))
     }
 
     // ── BusInit escalation ────────────────────────────────────────────────────

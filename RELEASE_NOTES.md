@@ -1,5 +1,30 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.14.1 (versionCode 42)
+
+Die Freeze-Frame-Ansicht zeigt jetzt lokalisierte PID-Namen statt der englischen Bezeichner.
+
+---
+
+### Der Fehler
+
+Seit 1.9.0 galt: `PidDefinition.name` ist der stabile, sprachunabhängige Bezeichner (Sortierung,
+Logs), angezeigt wird ausschließlich `labelRes`. `ObdRepository.readFreezeFrame()` hielt sich
+nicht daran — die Ergebnis-Map war nach `pid.name` geschlüsselt, und `FreezeFrameScreen` hat
+diesen Schlüssel direkt als Text gerendert. Auf einem deutschen Gerät stand dort „Coolant Temp"
+statt „Kühlmitteltemperatur", während der Rest der App übersetzt war.
+
+Die Map ist jetzt nach `pid.id` geschlüsselt (z. B. „0105" statt „Coolant Temp"); die Auflösung
+zum lokalisierten Label passiert über `PidRegistry` erst in der Composable — genau das Muster,
+das `SensorCard` im Dashboard bereits für Live-Werte verwendet.
+
+### Tests
+
+Ein neuer `FreezeFrameScreenTest` deckt den Screen erstmals über einen Compose-UI-Test ab (gab
+es vorher nicht). 346 Unit- und 38 Instrumentation-Tests grün, Lint unverändert bei 29 Warnungen.
+
+---
+
 ## Version 1.14.0 (versionCode 41)
 
 `targetSdk` von 35 auf 36. Die App erklärt sich damit für Android 16 zuständig.

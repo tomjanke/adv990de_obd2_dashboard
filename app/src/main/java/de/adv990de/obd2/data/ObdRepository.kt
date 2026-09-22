@@ -239,7 +239,9 @@ class ObdRepository @Inject constructor(
     /**
      * Reads freeze frame data (mode 02) for all known PIDs.
      * Mode 02 uses the same PID bytes as mode 01; responses carry "42" prefix.
-     * Returns a map of PID name → formatted value, or empty map if no freeze frame is stored.
+     * Returns a map of PID id → formatted value, or empty map if no freeze frame is stored.
+     * Keyed by id (not the English PidDefinition.name) so the UI can resolve the localized
+     * label via PidRegistry, the same pattern used for sparklines and slot assignment.
      */
     suspend fun readFreezeFrame(): Map<String, String> {
         val controller = elm ?: return emptyMap()
@@ -262,7 +264,7 @@ class ObdRepository @Inject constructor(
                   throw e
               } ?: continue
             val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
-            result[pid.name] = "%.1f ${pid.unit}".format(value)
+            result[pid.id] = "%.1f ${pid.unit}".format(value)
         }
         return result
     }
