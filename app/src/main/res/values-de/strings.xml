@@ -13,6 +13,7 @@
     <string name="err_reconnect_fail">Verbindung dauerhaft unterbrochen.</string>
     <string name="dashboard_bt_connected_desc">Bluetooth verbunden</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth getrennt</string>
+    <string name="dashboard_bt_connecting_desc">Bluetooth verbindet</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Einstellungen</string>

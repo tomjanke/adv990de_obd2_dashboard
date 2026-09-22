@@ -13,6 +13,7 @@
     <string name="err_reconnect_fail">Connection permanently lost.</string>
     <string name="dashboard_bt_connected_desc">Bluetooth connected</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth disconnected</string>
+    <string name="dashboard_bt_connecting_desc">Bluetooth connecting</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>

@@ -163,18 +163,33 @@ fun DashboardScreen(
                                 )
                             }
                         } else {
-                            IconButton(onClick = {
-                                navController.navigate(Screen.Settings.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_bluetooth),
-                                    contentDescription = stringResource(R.string.dashboard_bt_disconnected_desc),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                val dotState = dashboardStatusDotState(
+                                    isConnected = state.isConnected,
+                                    isReconnecting = state.isReconnecting,
                                 )
+                                if (dotState != null) {
+                                    StatusDot(state = dotState)
+                                }
+                                IconButton(onClick = {
+                                    navController.navigate(Screen.Settings.route) {
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }) {
+                                    Icon(
+                                        painterResource(R.drawable.ic_bluetooth),
+                                        contentDescription = stringResource(
+                                            if (state.isReconnecting) R.string.dashboard_bt_connecting_desc
+                                            else R.string.dashboard_bt_disconnected_desc
+                                        ),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
