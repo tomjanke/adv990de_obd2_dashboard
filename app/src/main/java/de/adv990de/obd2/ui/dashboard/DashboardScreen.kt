@@ -209,8 +209,13 @@ fun DashboardScreen(
                 // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
                 // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
                 // hundert dp auseinanderlagen — bei 0,5 s Blickzeit nicht mehr zuzuordnen.
-                // 160-170 dp entspricht der Anatomie in CLAUDE.md; der Rest bleibt bewusst frei.
-                val tileHeight = if (isLandscape) 160.dp else 170.dp
+                // Portrait (170dp) entspricht der Anatomie in CLAUDE.md. Querformat ist bewusst
+                // hoeher (200dp, dokumentierte Ausnahme in CLAUDE.md): dort bleibt sonst ein
+                // grosser Teil der Bildschirmhoehe unter der Kachel-Reihe leer, besonders wenn
+                // das Hauptmenue waehrend der Fahrt ausgeblendet ist. Der zusaetzliche Raum ist
+                // bewusster Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher
+                // Inhalt — eine zweite Kachel-Reihe waere der groessere Eingriff gewesen.
+                val tileHeight = if (isLandscape) 200.dp else 170.dp
                 Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     if (isLandscape) {
                         // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,

@@ -84,6 +84,9 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 - Höhe: mindestens 120 dp, idealerweise 140–170 dp (vom Grid-Caller via Modifier gesetzt).
   **Nie** `weight(1f)` ueber die volle Resthoehe: bei ~270 dp liegen Label und Wert so weit
   auseinander, dass die Zuordnung beim Blick von 0,5 s nicht mehr gelingt (Stand 1.9.0).
+  **Dokumentierte Ausnahme:** Dashboard-Kacheln im Querformat sind 200dp hoch (Stand 2026-09-22)
+  — dort bleibt sonst Bildschirmhoehe unter der Kachel-Reihe ungenutzt, besonders bei
+  ausgeblendetem Hauptmenue. Der zusaetzliche Raum ist bewusster Atemraum, kein neuer Inhalt.
 - Sparkline liegt **ueber** dem Wert, nicht daneben und nicht dahinter: neben dem Wert bleiben
   bei vierstelligen Zahlen nur wenige dp, dahinter schneidet die Linie durch die Ziffern.
 - Form: `RectangleShape` (scharfe Kanten — Cockpit-Look). Falls später Rundungen gewünscht: über Modifier-Clip von außen.
