@@ -162,7 +162,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 326 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 28 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 35 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
