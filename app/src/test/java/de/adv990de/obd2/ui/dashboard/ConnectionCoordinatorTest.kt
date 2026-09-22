@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,8 +67,13 @@ class ConnectionCoordinatorTest {
         every { lastConnectedDevice } returns MutableStateFlow(lastConnected)
     }
 
+    // `useGpsSpeed` has no per-test variant here on purpose: shouldIncludeLocationServiceType()
+    // (Tests 8-11) is tested directly as a pure function, so none of these coordinator-level tests
+    // need to vary it — but ConnectionCoordinator.startObdForegroundService() still reads it on
+    // every successful connect, so the stub must exist or the non-relaxed mock throws.
     private fun makePrefs(lastDevice: ScannedDevice? = null): AppPreferences = mockk {
         every { this@mockk.lastDevice } returns flowOf(lastDevice)
+        every { this@mockk.useGpsSpeed } returns flowOf(false)
     }
 
     private fun makeAdapter(enabled: Boolean = true): BluetoothAdapter = mockk {
@@ -222,5 +228,33 @@ class ConnectionCoordinatorTest {
 
         coVerify(exactly = 0) { repo.reconnect() }
         assertTrue("Es darf kein Versuch gemeldet werden: $events", events.isEmpty())
+    }
+
+    // --- Test 8 ---
+
+    @Test
+    fun `shouldIncludeLocationServiceType is true when GPS speed is on and background location is granted`() {
+        assertTrue(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = true))
+    }
+
+    // --- Test 9 ---
+
+    @Test
+    fun `shouldIncludeLocationServiceType is false when GPS speed is off`() {
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = true))
+    }
+
+    // --- Test 10 ---
+
+    @Test
+    fun `shouldIncludeLocationServiceType is false when background location is not granted`() {
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = false))
+    }
+
+    // --- Test 11 ---
+
+    @Test
+    fun `shouldIncludeLocationServiceType is false when neither condition holds`() {
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = false))
     }
 }

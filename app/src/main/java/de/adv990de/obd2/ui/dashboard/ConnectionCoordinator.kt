@@ -9,6 +9,7 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,12 @@ import javax.inject.Inject
 
 /** Wartezeiten der Wiederverbindungs-Versuche, in Millisekunden. */
 internal val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+
+/** Whether ObdForegroundService should request the `location` foreground-service type on this
+ *  (re)connect. Both conditions are required: the user opted in, and Android will actually
+ *  deliver background location callbacks only when the permission is granted. */
+internal fun shouldIncludeLocationServiceType(useGpsSpeed: Boolean, hasBackgroundLocation: Boolean): Boolean =
+    useGpsSpeed && hasBackgroundLocation
 
 /**
  * Was der Koordinator dem ViewModel ueber den Verbindungszustand meldet. Bewusst Ereignisse und
@@ -85,6 +92,18 @@ class ConnectionCoordinator @Inject constructor(
         trigger.tryEmit(Unit)
     }
 
+    // GPS-Speed im Hintergrund braucht ACCESS_BACKGROUND_LOCATION *und* dass der Service den Typ
+    // `location` beim Start anfordert (siehe ObdForegroundService.resolveForegroundServiceType).
+    // Ohne die Berechtigung bleibt includeLocation false — der Service startet dann wie bisher
+    // nur mit dem Typ `connectedDevice`, kein Verhaltensunterschied fuer Nutzer ohne GPS-Speed.
+    private suspend fun startObdForegroundService() {
+        val includeLocation = shouldIncludeLocationServiceType(
+            useGpsSpeed = appPreferences.useGpsSpeed.first(),
+            hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
+        )
+        appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
+    }
+
     // ── Auto-Connect ─────────────────────────────────────────────────────────
     // Feuert einmal beim Kaltstart: Gibt es ein gespeichertes Geraet und keine aktive Verbindung,
     // wird ohne Wartezeit verbunden. Scheitert das, uebernimmt die Wiederverbindungs-Schleife.
@@ -96,7 +115,7 @@ class ConnectionCoordinator @Inject constructor(
         try {
             obdRepository.connect(savedDevice)
             appLogRepository.log(LogLevel.INFO, "Connected to ${savedDevice.name}")
-            appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
+            startObdForegroundService()
             onEvent(ConnectionEvent.Connected)
         } catch (e: CancellationException) {
             throw e
@@ -145,7 +164,7 @@ class ConnectionCoordinator @Inject constructor(
                     }
                     val name = inMemoryDevice?.name ?: coldLaunchDevice?.name ?: "device"
                     appLogRepository.log(LogLevel.INFO, "Connected to $name")
-                    appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
+                    startObdForegroundService()
                     onEvent(ConnectionEvent.Connected)
                     return@collect  // isConnectedFlow wird true → der Messwert-Strom startet neu
                 } catch (ce: CancellationException) {
