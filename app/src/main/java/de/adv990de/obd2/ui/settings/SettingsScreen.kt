@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import android.Manifest
+import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 
@@ -61,10 +63,35 @@ fun SettingsScreen(
     // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS einschaltet — nicht
     // beim Start der App. Wird sie verweigert, bleibt der Schalter aus.
     val context = LocalContext.current
+
+    // Ergebnis wird nicht ausgewertet: GPS-Speed funktioniert so oder so im Vordergrund weiter,
+    // ob der Nutzer die zusaetzliche Hintergrund-Berechtigung erteilt oder ablehnt. Android
+    // verlangt diese Anfrage getrennt von Fine/Coarse — beides zusammen wird ab API 30 ignoriert.
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    fun escalateToBackgroundLocationIfNeeded() {
+        if (LocationPermissions.needsBackgroundLocationRequest(
+                Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
+            )
+        ) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        displayVm.setUseGpsSpeed(results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
+        val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        displayVm.setUseGpsSpeed(granted)
+        if (granted) escalateToBackgroundLocationIfNeeded()
+    }
+
+    // Holt Nutzer nach, deren Schalter aus einer frueheren Version bereits an ist, aber die den
+    // Hintergrund-Prompt sonst nie zu sehen bekaemen.
+    LaunchedEffect(Unit) {
+        if (useGpsSpeed) escalateToBackgroundLocationIfNeeded()
     }
     val useImperial by displayVm.useImperial.collectAsState()
     val theme by displayVm.theme.collectAsState()
@@ -204,7 +231,10 @@ fun SettingsScreen(
                                 ) == PackageManager.PERMISSION_GRANTED
                                 when {
                                     !wanted -> displayVm.setUseGpsSpeed(false)
-                                    granted -> displayVm.setUseGpsSpeed(true)
+                                    granted -> {
+                                        displayVm.setUseGpsSpeed(true)
+                                        escalateToBackgroundLocationIfNeeded()
+                                    }
                                     else -> locationPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.ACCESS_FINE_LOCATION,

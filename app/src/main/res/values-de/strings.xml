@@ -157,5 +157,5 @@
     <string name="pid_engine_fuel_rate">Verbrauch</string>
     <string name="pid_speed_gps">Geschw. (GPS)</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
-    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Benötigt die Standortberechtigung.</string>
+    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
 </resources>
