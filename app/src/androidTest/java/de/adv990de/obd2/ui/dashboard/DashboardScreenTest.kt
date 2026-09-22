@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.navigation.compose.rememberNavController
@@ -11,10 +12,14 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
+import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.model.ObdException
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -151,5 +156,51 @@ class DashboardScreenTest {
         launchDashboardScreen()
         val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
         composeRule.onNodeWithContentDescription("$rpmLabel: -- rpm").assertIsDisplayed()
+    }
+
+    /**
+     * ConnectionCoordinator.autoConnect() only reads AppPreferences.lastDevice (real, empty
+     * DataStore in this test), so it never attempts anything on its own. What DOES reliably
+     * drive isReconnecting=true is the same path DashboardViewModelTest's "reconnect loop starts
+     * isReconnecting state before first delay" test uses: a connected session whose livePids()
+     * throws ConnectionLost, which DashboardViewModel.onSessionEvent maps to
+     * connectionCoordinator.requestReconnect() — and lastConnectedDevice being non-null lets the
+     * reconnect loop skip the cold-launch AppPreferences lookup entirely.
+     */
+    @Test
+    fun dashboard_showsConnectingDot_whenReconnecting() {
+        val isConnectedFlow = MutableStateFlow(false)
+        every { obdRepository.isConnectedFlow } returns isConnectedFlow
+        every { obdRepository.lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flow {
+            // Deliberately NOT setting isConnectedFlow.value = false here (unlike the mirrored
+            // DashboardViewModelTest recipe): DashboardScreen's rendering depends only on
+            // DashboardUiState.isReconnecting, not on obdRepository.isConnectedFlow directly, and
+            // flipping that flow from within this same call frame races the ReadingsPipeline
+            // collector reentrantly on the real Main dispatcher this instrumented test runs on
+            // (see task-3-report.md for the full root-cause analysis).
+            throw ObdException.ConnectionLost()
+        }
+        coEvery { obdRepository.reconnect() } throws Exception("reconnect failed")
+
+        launchDashboardScreen()
+        isConnectedFlow.value = true
+        composeRule.waitForIdle()
+
+        // A single waitForIdle() only settles Compose's own recomposition/layout/draw queue; it
+        // does not span the real DataStore reads and Room writes that ReadingsPipeline.runSession
+        // awaits before the ConnectionLost throw is even reached, so isReconnecting can still be
+        // false at this point. waitUntil polls until that async chain has actually landed.
+        val connectingDesc = composeRule.activity.getString(R.string.dashboard_bt_connecting_desc)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription(connectingDesc)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule
+            .onNodeWithContentDescription(connectingDesc)
+            .assertIsDisplayed()
     }
 }
