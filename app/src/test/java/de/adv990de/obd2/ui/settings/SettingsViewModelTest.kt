@@ -52,6 +52,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
         },
         appLogRepository: AppLogRepository = mockk(relaxed = true),
         scanner: BluetoothDeviceScanner = mockk {
@@ -67,6 +68,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -166,6 +168,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -185,6 +188,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } throws Exception("disk full")
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
 

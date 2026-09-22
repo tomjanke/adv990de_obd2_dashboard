@@ -14,10 +14,13 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.location.LocationPermissions
+import de.adv990de.obd2.ui.dashboard.shouldIncludeLocationServiceType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -139,7 +142,15 @@ class SettingsViewModel @Inject constructor(
                     connectedDeviceAddress = device.address,
                     error = null
                 )
-                appContext.startForegroundService(ObdForegroundService.startIntent(appContext))
+                // Mirrors ConnectionCoordinator.startObdForegroundService(): this is a separate
+                // manual-connect call site, so it needs the same includeLocationType decision —
+                // otherwise the service silently starts with connectedDevice-only type and GPS
+                // speed stops delivering location callbacks the moment the app is backgrounded.
+                val includeLocation = shouldIncludeLocationServiceType(
+                    useGpsSpeed = appPreferences.useGpsSpeed.first(),
+                    hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
+                )
+                appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")

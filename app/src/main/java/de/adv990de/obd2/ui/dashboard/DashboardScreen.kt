@@ -150,12 +150,18 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     isLive = state.isConnected,
                     trailingContent = {
+                        val dotState = dashboardStatusDotState(
+                            isConnected = state.isConnected,
+                            isReconnecting = state.isReconnecting,
+                        )
                         if (state.isConnected) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                StatusDot(state = StatusDotState.Ok)
+                                if (dotState != null) {
+                                    StatusDot(state = dotState)
+                                }
                                 Icon(
                                     painterResource(R.drawable.ic_bluetooth),
                                     contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
@@ -167,10 +173,6 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                val dotState = dashboardStatusDotState(
-                                    isConnected = state.isConnected,
-                                    isReconnecting = state.isReconnecting,
-                                )
                                 if (dotState != null) {
                                     StatusDot(state = dotState)
                                 }

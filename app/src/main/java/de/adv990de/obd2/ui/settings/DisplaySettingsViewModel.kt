@@ -31,6 +31,13 @@ class DisplaySettingsViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setUseGpsSpeed(enabled) }
     }
 
+    val backgroundLocationPrompted: StateFlow<Boolean> = appPreferences.backgroundLocationPrompted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBackgroundLocationPrompted(value: Boolean) {
+        viewModelScope.launch { appPreferences.setBackgroundLocationPrompted(value) }
+    }
+
     fun toggleUseImperial() {
         viewModelScope.launch { appPreferences.setUseImperial(!useImperial.value) }
     }

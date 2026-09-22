@@ -60,6 +60,7 @@ fun SettingsScreen(
     val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
+    val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsState()
 
     // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS einschaltet — nicht
     // beim Start der App. Wird sie verweigert, bleibt der Schalter aus.
@@ -74,10 +75,12 @@ fun SettingsScreen(
 
     @SuppressLint("InlinedApi")
     fun escalateToBackgroundLocationIfNeeded() {
-        if (LocationPermissions.needsBackgroundLocationRequest(
+        if (!backgroundLocationPrompted &&
+            LocationPermissions.needsBackgroundLocationRequest(
                 Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
             )
         ) {
+            displayVm.setBackgroundLocationPrompted(true)
             backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
     }

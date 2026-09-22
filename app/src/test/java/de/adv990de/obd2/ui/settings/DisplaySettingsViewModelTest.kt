@@ -37,11 +37,13 @@ class DisplaySettingsViewModelTest {
     private fun makePrefs(
         useImperial: Boolean = false,
         theme: String = THEME_SYSTEM,
-        useGpsSpeed: Boolean = false
+        useGpsSpeed: Boolean = false,
+        backgroundLocationPrompted: Boolean = false
     ): AppPreferences = mockk {
         every { this@mockk.useImperial }  returns flowOf(useImperial)
         every { this@mockk.theme }        returns flowOf(theme)
         every { this@mockk.useGpsSpeed }  returns flowOf(useGpsSpeed)
+        every { this@mockk.backgroundLocationPrompted } returns flowOf(backgroundLocationPrompted)
     }
 
     @Test
