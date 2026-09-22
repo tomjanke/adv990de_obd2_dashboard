@@ -57,7 +57,7 @@ class ReadingsPipelineTest {
         coEvery { startSession(any()) } returns 7L
         coEvery { writeReadings(any(), any()) } just Runs
         coEvery { endSession(any()) } just Runs
-        coEvery { deleteSession(any()) } just Runs
+        coEvery { deleteSession(any()) } returns null  // Rueckgabetyp ist Unit?
     }
 
     private fun makePrefs(

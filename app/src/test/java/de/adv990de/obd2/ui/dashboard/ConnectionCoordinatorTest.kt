@@ -15,13 +15,21 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -34,6 +42,19 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConnectionCoordinatorTest {
+
+    // Eigener Scope statt `backgroundScope`: Der Koordinator laeuft im Scope des ViewModels, und
+    // dieser hier teilt sich ueber Dispatchers.setMain den Scheduler von runTest — nur dann treibt
+    // advanceUntilIdle() die Coroutinen des Koordinators wirklich an.
+    private val testDispatcher = StandardTestDispatcher()
+    private val coordinatorScope = CoroutineScope(testDispatcher)
+
+    @Before fun setup() { Dispatchers.setMain(testDispatcher) }
+
+    @After fun teardown() {
+        coordinatorScope.cancel()
+        Dispatchers.resetMain()
+    }
 
     private val device = mockk<ScannedDevice> { every { name } returns "TestAdapter" }
 
@@ -71,7 +92,7 @@ class ConnectionCoordinatorTest {
         val events = mutableListOf<ConnectionEvent>()
 
         makeCoordinator(repo, makePrefs(lastDevice = device), context = context)
-            .start(backgroundScope, events::add)
+            .start(coordinatorScope, events::add)
         advanceUntilIdle()
 
         coVerify { repo.connect(device) }
@@ -89,7 +110,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo()
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = null)).start(backgroundScope, events::add)
+        makeCoordinator(repo, makePrefs(lastDevice = null)).start(coordinatorScope, events::add)
         advanceUntilIdle()
 
         assertTrue("Ohne Geraet darf kein Ereignis entstehen: $events", events.isEmpty())
@@ -105,7 +126,7 @@ class ConnectionCoordinatorTest {
         coEvery { repo.reconnect() } just Runs
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = device)).start(backgroundScope, events::add)
+        makeCoordinator(repo, makePrefs(lastDevice = device)).start(coordinatorScope, events::add)
         advanceUntilIdle()
 
         // Der erste Versuch der Schleife traegt die Nummer 1 — der Auto-Connect selbst die 0.
@@ -124,7 +145,7 @@ class ConnectionCoordinatorTest {
         val events = mutableListOf<ConnectionEvent>()
 
         val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
-        coordinator.start(backgroundScope, events::add)
+        coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
 
@@ -144,10 +165,13 @@ class ConnectionCoordinatorTest {
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
+        // Kein gespeichertes Geraet: Der Auto-Connect haelt sich heraus, damit allein die
+        // ausdrueckliche Aufforderung die Schleife treibt. Das Geraet der letzten Verbindung steht
+        // im Repository — genau der Fall "Verbindung waehrend der Fahrt verloren".
         val coordinator = makeCoordinator(
-            repo, makePrefs(lastDevice = device), adapter = makeAdapter(enabled = false), context = context
+            repo, makePrefs(lastDevice = null), adapter = makeAdapter(enabled = false), context = context
         )
-        coordinator.start(backgroundScope, events::add)
+        coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
 
@@ -168,8 +192,10 @@ class ConnectionCoordinatorTest {
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = device), context = context)
-        coordinator.start(backgroundScope, events::add)
+        // Wie oben: nur die ausdrueckliche Aufforderung treibt die Schleife, sonst zaehlte der
+        // gescheiterte Auto-Connect einen zweiten Durchlauf mit.
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
 
@@ -190,7 +216,7 @@ class ConnectionCoordinatorTest {
         val events = mutableListOf<ConnectionEvent>()
 
         val coordinator = makeCoordinator(repo, makePrefs(lastDevice = device))
-        coordinator.start(backgroundScope, events::add)
+        coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
 

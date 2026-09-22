@@ -60,7 +60,13 @@ class ConnectionCoordinator @Inject constructor(
     // Getrennt vom Messwert-Strom: flatMapLatest dort wuerde die Schleife in dem Moment abbrechen,
     // in dem isConnectedFlow auf false geht — und das tut es, sobald livePids() bei Verbindungs-
     // verlust disconnect() ruft. Der Trigger ueberlebt das.
-    private val trigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    //
+    // `replay = 1` schliesst ein Zustellungsloch: Ein SharedFlow ohne Replay verwirft, was vor dem
+    // ersten Sammler emittiert wird. Der Auto-Connect kann aber scheitern, bevor die Schleife im
+    // selben Scope ueberhaupt zu sammeln begonnen hat — dann ginge die Aufforderung zur
+    // Wiederverbindung verloren und die App bliebe stumm getrennt. Ein Sammler pro Instanz, also
+    // gibt es auch keine verspaetete Doppelzustellung.
+    private val trigger = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
 
     /**
      * Startet Auto-Connect und Wiederverbindungs-Schleife im uebergebenen Scope.
