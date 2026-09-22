@@ -96,6 +96,9 @@ lint/tmp/
 # Worktrees (Claude Code)
 .worktrees/
 
+# Subagent-driven-development scratch workspace (Claude Code superpowers)
+.superpowers/
+
 # Editor backups
 *.swp
 *~
