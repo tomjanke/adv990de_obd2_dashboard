@@ -85,12 +85,14 @@ fun SettingsScreen(
     ) { results ->
         val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         displayVm.setUseGpsSpeed(granted)
-        if (granted) escalateToBackgroundLocationIfNeeded()
     }
 
     // Holt Nutzer nach, deren Schalter aus einer frueheren Version bereits an ist, aber die den
-    // Hintergrund-Prompt sonst nie zu sehen bekaemen.
-    LaunchedEffect(Unit) {
+    // Hintergrund-Prompt sonst nie zu sehen bekaemen. Key ist useGpsSpeed statt Unit: der Wert
+    // kommt asynchron aus dem DataStore und ist bei der ersten Komposition noch der Default
+    // (false), daher muss der Effect erneut laufen, sobald der echte Wert eintrifft — und deckt
+    // damit als einziger Aufrufpunkt zugleich den frischen Grant und das Switch-Toggle ab.
+    LaunchedEffect(useGpsSpeed) {
         if (useGpsSpeed) escalateToBackgroundLocationIfNeeded()
     }
     val useImperial by displayVm.useImperial.collectAsState()
@@ -231,10 +233,7 @@ fun SettingsScreen(
                                 ) == PackageManager.PERMISSION_GRANTED
                                 when {
                                     !wanted -> displayVm.setUseGpsSpeed(false)
-                                    granted -> {
-                                        displayVm.setUseGpsSpeed(true)
-                                        escalateToBackgroundLocationIfNeeded()
-                                    }
+                                    granted -> displayVm.setUseGpsSpeed(true)
                                     else -> locationPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.ACCESS_FINE_LOCATION,
