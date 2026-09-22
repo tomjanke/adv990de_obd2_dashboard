@@ -14,6 +14,23 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 /**
+ * Leichte Glaettung fuer die Sparkline-Trendlinie: zentrierter gleitender Mittelwert.
+ * Randpunkte nutzen weniger Nachbarn statt die Kurve dort abzuschneiden oder zu verzerren.
+ * Der Rohwert im ViewModel-Puffer bleibt unveraendert — nur die gezeichnete Linie (und ihre
+ * Min/Max-Skalierung) sieht diese geglaetteten Werte; der numerische Live-Wert der Kachel
+ * kommt nie aus diesem Pfad.
+ */
+internal fun smoothSparklinePoints(points: List<Float>, windowSize: Int = 3): List<Float> {
+    if (points.size < 2 || windowSize <= 1) return points
+    val half = windowSize / 2
+    return points.indices.map { i ->
+        val start = (i - half).coerceAtLeast(0)
+        val end = (i + half).coerceAtMost(points.size - 1)
+        points.subList(start, end + 1).average().toFloat()
+    }
+}
+
+/**
  * Trend line for dashboard tiles. Renders nothing if fewer than two points are available;
  * auto-scales to the available range so the trace fills the box vertically. Color defaults to
  * the active theme's primary — sparklines represent trend, not state, so they don't take the
@@ -30,17 +47,18 @@ fun Sparkline(
     color: Color = MaterialTheme.colorScheme.primary,
 ) {
     if (points.size < 2) return
+    val smoothed = smoothSparklinePoints(points)
     Canvas(modifier) {
-        val min = points.min()
-        val max = points.max()
+        val min = smoothed.min()
+        val max = smoothed.max()
         val range = (max - min).coerceAtLeast(0.001f)
         // Die Linie laesst oben und unten je 2 dp Luft, damit der runde Strich an den
         // Extremwerten nicht am Rand abgeschnitten wird.
         val inset = 2.dp.toPx()
         val usableHeight = (size.height - 2 * inset).coerceAtLeast(1f)
         val path = Path()
-        points.forEachIndexed { i, v ->
-            val x = i / (points.size - 1f) * size.width
+        smoothed.forEachIndexed { i, v ->
+            val x = i / (smoothed.size - 1f) * size.width
             val y = inset + usableHeight - (v - min) / range * usableHeight
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
@@ -67,7 +85,7 @@ fun Sparkline(
         )
         // Punkt auf dem juengsten Wert: markiert, wo "jetzt" liegt — ohne ihn liest sich die
         // Kurve in beide Richtungen gleich.
-        val lastY = inset + usableHeight - (points.last() - min) / range * usableHeight
+        val lastY = inset + usableHeight - (smoothed.last() - min) / range * usableHeight
         drawCircle(color, radius = 4.dp.toPx(), center = Offset(size.width, lastY))
     }
 }
