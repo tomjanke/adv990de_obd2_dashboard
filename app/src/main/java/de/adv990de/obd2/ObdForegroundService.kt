@@ -1,5 +1,6 @@
 package de.adv990de.obd2
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -92,6 +93,7 @@ class ObdForegroundService : Service() {
          * permission throws a SecurityException at startForeground(), exactly like the existing
          * connectedDevice/Bluetooth-permission precondition this service already relies on.
          */
+        @SuppressLint("InlinedApi")
         internal fun resolveForegroundServiceType(includeLocationType: Boolean): Int =
             if (includeLocationType) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION

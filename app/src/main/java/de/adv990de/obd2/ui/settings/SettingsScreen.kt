@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -71,6 +72,7 @@ fun SettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    @SuppressLint("InlinedApi")
     fun escalateToBackgroundLocationIfNeeded() {
         if (LocationPermissions.needsBackgroundLocationRequest(
                 Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
