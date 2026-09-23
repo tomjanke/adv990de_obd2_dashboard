@@ -1240,6 +1240,116 @@ class DashboardViewModelTest {
         assertEquals(1, vm.uiState.value.gear)
     }
 
+    @Test
+    fun `gear stays locked across updates via hysteresis lastGear wiring`() = runTest {
+        // Finding 3 (final review): the two pre-existing gear tests each use a SINGLE emission,
+        // so neither actually proves that determineGear() is threaded with the correct lastGear
+        // on the NEXT update. A regression that silently passed lastGear = null on every call
+        // (defeating hysteresis entirely) would not be caught by anything else in this suite.
+        //
+        // Same fixture style as `gear is computed from rpm and speed using the configured ratios`:
+        // 1x1 primary/secondary, wheel circumference 2000mm -> wheelRpm = speedKmh * 8.3333.
+        //
+        // 1st emission: rpm=5000, speed=60 -> wheelRpm=500 -> actualRatio=10.0 -> matches gear 1
+        // (ratio 10) exactly -> gear = 1.
+        // 2nd emission: rpm=4810, speed=60 -> wheelRpm=500 -> actualRatio=9.62 -> matches gear 2
+        // (ratio 9.62, deliberately placed close to gear 1) exactly, deviation 0. Deviation from
+        // gear 1's own ratio is |9.62-10|/10 = 3.8%, comfortably under STAY_TOLERANCE (6%).
+        // With correct hysteresis wiring (lastGear=1 threaded from the 1st update), the gear
+        // stays 1. Without it (lastGear reset to null / not threaded), the closest-match fallback
+        // would pick gear 2 (deviation 0% beats gear 1's 3.8%) -> the assertion below would fail.
+        val firstReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
+        )
+        val secondReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 4810f, timestamp = 2000L),
+            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 2000L),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 9.62f, 5f, 3f, 2f, 1.5f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `gear resets to null after a disconnect during reconnect handling`() = runTest {
+        // Finding 2/3 (final review): applyIdle()'s "error or reconnecting" branch used to leave
+        // speedKmh/gear untouched, so a stale, never-revalidated gear survived a disconnect and
+        // silently biased the hysteresis once the vehicle reconnected. This proves the reset.
+        //
+        // Shape mirrors `ConnectionLost from livePids triggers reconnect state not generic error`:
+        // isConnectedFlow is flipped to false FROM WITHIN the livePids flow, in the same call
+        // frame as the ConnectionLost throw. That ordering is deliberate (see that test's own
+        // comment) — it lets startReconnecting() run first (isReconnecting=true), so the Idle
+        // event that follows from the outer combine()/flatMapLatest re-subscription lands in the
+        // "preserve state" branch of applyIdle(), not the full DashboardUiState.disconnected()
+        // reset. Only the first branch is what this fix (and this test) is about.
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                // First, a normal cycle that locks in a gear...
+                emit(
+                    listOf(
+                        SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+                        SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
+                    )
+                )
+                // ...then the connection drops.
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            coEvery { reconnect() } throws Exception("reconnect failed")
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        isConnectedFlow.value = true
+        advanceTimeBy(1)
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertNull(vm.uiState.value.gear)
+        assertNull(vm.uiState.value.speedKmh)
+    }
+
     /**
      * Baut das ViewModel aus denselben Bausteinen wie Hilt.
      *

@@ -172,8 +172,14 @@ class DashboardViewModel @Inject constructor(
         } else null
         val newRpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
             ?.value ?: _uiState.value.rpmValue
+        // Kein Fallback auf den letzten Wert (anders als newRpmValue): Fehlt SPEED in diesem
+        // Zyklus, bedeutet das bei GPS-basierter Geschwindigkeit "kein aktueller Fix" — GPS aus,
+        // Anbieter deaktiviert, oder schlicht kein Fix gerade jetzt. Das ist das Signal, dass der
+        // Wert JETZT unbekannt ist, keine transiente Luecke, die man ueberbruecken sollte. Ein
+        // Fallback wuerde eine veraltete Geschwindigkeit unbegrenzt weiterzeigen und
+        // determineGear() mit ihr fuettern, obwohl das Fahrzeug sie nicht mehr meldet.
         val newSpeedKmh = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id && it.isPlausible() }
-            ?.value ?: _uiState.value.speedKmh
+            ?.value
         val newGear = determineGear(newRpmValue, newSpeedKmh, _uiState.value.gear, gearRatios.value)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
@@ -195,7 +201,11 @@ class DashboardViewModel @Inject constructor(
      */
     private fun applyIdle() {
         _uiState.value = if (_uiState.value.error != null || _uiState.value.isReconnecting) {
-            _uiState.value.copy(isConnected = false, readings = emptyList())
+            // speedKmh/gear werden hier explizit mit zurueckgesetzt (anders als rpmValue/
+            // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
+            // determineGear(..., lastGear = <alter, nie neu bestaetigter Gang>, ...) ein und
+            // die Hysterese "erinnert" sich an einen Zustand von vor dem Verbindungsabbruch.
+            _uiState.value.copy(isConnected = false, readings = emptyList(), speedKmh = null, gear = null)
         } else {
             DashboardUiState.disconnected()
         }
