@@ -63,6 +63,24 @@ fun determineGear(
 }
 
 /**
+ * Anzeige-Persistenz fuer [determineGear]s Ergebnis: Ein einzelner unplausibler Zyklus (Kupplung
+ * gezogen, Gas weg — die Motordrehzahl entkoppelt sich kurz von der Radgeschwindigkeit) soll die
+ * Anzeige nicht sofort auf "unbekannt" zuruecksetzen, wie es ein Fahrer nicht erwartet. Nur ein
+ * echter Stillstand (keine oder zu geringe Geschwindigkeit, dieselbe [MIN_SPEED_KMH]-Schwelle wie
+ * in [determineGear]) loescht den gehaltenen Gang.
+ *
+ * [heldGear] ist der zuletzt ANGEZEIGTE Gang (nicht zwingend derselbe, den der Aufrufer als
+ * `lastGear` an [determineGear] uebergeben hat — s. `DashboardViewModel.applyReadings()`, das
+ * beide bewusst auf denselben Zustand zurueckfuehrt, damit die Hysterese nach einer gehaltenen
+ * Anzeige weiterhin denselben Gang zuerst erneut zu bestaetigen versucht).
+ */
+fun holdGear(computedGear: Int?, speedKmh: Float?, heldGear: Int?): Int? = when {
+    computedGear != null -> computedGear
+    speedKmh == null || speedKmh < MIN_SPEED_KMH -> null
+    else -> heldGear
+}
+
+/**
  * Findet Gangpaare, deren Gesamt-Uebersetzung so nah beieinander liegt (relative Abweichung
  * <= [STAY_TOLERANCE]), dass die Hysterese in [determineGear] einen echten Wechsel zwischen ihnen
  * nicht mehr zuverlaessig erkennen koennte — siehe deren KDoc: ein bereits gesperrter Gang bleibt

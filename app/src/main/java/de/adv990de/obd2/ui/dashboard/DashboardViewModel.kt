@@ -186,7 +186,17 @@ class DashboardViewModel @Inject constructor(
         // GpsSpeedSource) sind auf GPS-Charakteristik zugeschnitten, nicht auf die vom Fahrzeug
         // gemeldete Geschwindigkeit. Fehlt GPS (aus, keine Berechtigung, kein Fix), ist der Gang
         // unbekannt, auch wenn das Fahrzeug selbst eine Geschwindigkeit liefert.
-        val newGear = determineGear(newRpmValue, gpsSpeedKmh, _uiState.value.gear, gearRatios.value)
+        val computedGear = determineGear(newRpmValue, gpsSpeedKmh, _uiState.value.gear, gearRatios.value)
+        // Nutzer-Feedback nach einer Testfahrt (v1.16.6): Kupplung ziehen oder Gas wegnehmen
+        // entkoppelt die Motordrehzahl kurz von der Radgeschwindigkeit — determineGear() liefert
+        // dann fuer einen Zyklus `null`, obwohl das Fahrzeug erkennbar weiterrollt. Ohne
+        // holdGear() wuerde das nicht nur die Anzeige kurz auf "–" springen lassen, sondern auch
+        // das Hysterese-Gedaechtnis loeschen (naechster Zyklus haette wieder lastGear=null) — der
+        // Gang muesste sich danach komplett neu einrasten (ENTER_TOLERANCE statt STAY_TOLERANCE),
+        // was sich als zaeher Wiedereinstieg bemerkbar machte. holdGear() haelt den zuletzt
+        // angezeigten Gang, solange die Geschwindigkeit ueber MIN_SPEED_KMH bleibt, und loescht
+        // ihn nur bei echtem Stillstand oder fehlendem GPS-Fix.
+        val newGear = holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,

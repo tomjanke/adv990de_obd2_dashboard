@@ -216,4 +216,44 @@ class GearIndicatorTest {
         val gearRatios = listOf(10f, 7f, 9.8f)
         assertEquals(listOf(1 to 3), closeGearPairs(primaryRatio = 1f, secondaryRatio = 1f, gearRatios = gearRatios))
     }
+
+    // --- holdGear ---
+
+    @Test
+    fun `a freshly computed gear always wins, regardless of speed or held gear`() {
+        assertEquals(3, holdGear(computedGear = 3, speedKmh = 60f, heldGear = 5))
+        assertEquals(3, holdGear(computedGear = 3, speedKmh = null, heldGear = null))
+    }
+
+    @Test
+    fun `no speed at all clears the held gear`() {
+        // Kein GPS-Fix — z.B. GPS aus oder Signal komplett weg, nicht nur eine kurze Fahrt-
+        // Unterbrechung. Das ist kein Fall, in dem der Fahrer einen alten Gang sehen soll.
+        assertNull(holdGear(computedGear = null, speedKmh = null, heldGear = 3))
+    }
+
+    @Test
+    fun `speed below the minimum clears the held gear`() {
+        assertNull(holdGear(computedGear = null, speedKmh = 7.9f, heldGear = 3))
+    }
+
+    @Test
+    fun `exactly the minimum speed still holds the gear, not clears it`() {
+        // Muss zum "<" in determineGear passen: exakt MIN_SPEED_KMH gilt dort noch als gueltig,
+        // also darf holdGear hier nicht strenger sein und den Gang faelschlich loeschen.
+        assertEquals(3, holdGear(computedGear = null, speedKmh = 8.0f, heldGear = 3))
+    }
+
+    @Test
+    fun `an implausible reading above the minimum speed holds the last gear`() {
+        // Der Kernfall aus dem Feedback: Kupplung gezogen oder Gas weg macht die Motordrehzahl
+        // kurzzeitig unplausibel gegenueber der (weiterhin validen) Geschwindigkeit — die Anzeige
+        // soll dabei nicht auf "–" springen, solange das Fahrzeug erkennbar noch rollt.
+        assertEquals(3, holdGear(computedGear = null, speedKmh = 60f, heldGear = 3))
+    }
+
+    @Test
+    fun `nothing to hold and no fresh gear yields null`() {
+        assertNull(holdGear(computedGear = null, speedKmh = 60f, heldGear = null))
+    }
 }

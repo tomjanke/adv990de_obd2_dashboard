@@ -26,6 +26,7 @@ import io.mockk.verify
 import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -1369,6 +1370,113 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `gear holds through a single implausible reading instead of dropping to unknown`() = runTest {
+        // User feedback after a real test ride (v1.16.7): pulling the clutch or closing the
+        // throttle briefly decouples engine rpm from road speed, so determineGear() legitimately
+        // returns null for that one cycle even though the vehicle is still clearly moving. Without
+        // holdGear(), that null would (a) blank the display and (b) erase the hysteresis memory
+        // (lastGear back to null), forcing a full re-lock via the stricter ENTER_TOLERANCE on the
+        // next reading instead of the looser STAY_TOLERANCE.
+        //
+        // Same fixture as `gear is computed from rpm and GPS speed using the configured ratios`:
+        // 1x1 primary/secondary, wheel circumference 2000mm -> wheelRpm = 500 at speed=60 (GPS,
+        // held constant across all three emissions).
+        //
+        // 1st emission: rpm=5000 -> actualRatio=10.0 -> exact match, gear locks to 1.
+        // 2nd emission: rpm=100 (idle, as if the clutch were pulled) -> actualRatio=0.2 -> miles
+        // off every configured ratio -> determineGear() returns null regardless of lastGear. This
+        // is the implausible reading itself.
+        // 3rd emission: rpm=4750 -> actualRatio=9.5, a 5% deviation from gear 1's ratio (10) —
+        // between ENTER_TOLERANCE (4%) and STAY_TOLERANCE (6%) on purpose. If the 2nd emission's
+        // held gear survived, lastGear=1 lets the STAY_TOLERANCE path (5% <= 6%) reconfirm gear 1.
+        // If it didn't (holdGear regressed back to `newGear = computedGear`), lastGear resets to
+        // null and only the stricter ENTER_TOLERANCE path runs — 5% > 4% fails it, so the gear
+        // would come out null instead of 1.
+        val readings = listOf(
+            listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L)),
+            listOf(SensorValue(pid = PidRegistry.RPM, value = 100f, timestamp = 2000L)),
+            listOf(SensorValue(pid = PidRegistry.RPM, value = 4750f, timestamp = 3000L)),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings[0], readings[1], readings[2])
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            useGpsSpeed = true,
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(kmh = 60f), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `gear clears to unknown when speed drops below the minimum, not just held`() = runTest {
+        // Counterpart to the hold test above: holdGear() must still clear the display once the
+        // vehicle is genuinely stopped (or GPS has no fix), not hold onto a stale gear forever.
+        // Same fixture: gear locks to 1 at speed=60, then GPS reports 5 km/h (below
+        // MIN_SPEED_KMH=8.0) — the held gear must be cleared, not kept.
+        //
+        // Both source flows carry an explicit delay so the ordering is deterministic under
+        // virtual time: GPS drops to 5 km/h at t=100, strictly before the second OBD reading at
+        // t=200, so that reading is guaranteed to see the already-lowered speed.
+        val firstReadings = listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L))
+        val secondReadings = listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L))
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                emit(firstReadings)
+                delay(200)
+                emit(secondReadings)
+            }
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            useGpsSpeed = true,
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+        val gps: GpsSpeedSource = mockk {
+            every { speedKmh } returns flow {
+                emit(60f)
+                delay(100)
+                emit(5f)
+            }
+        }
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), gps, mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(null, vm.uiState.value.gear)
     }
 
     @Test

@@ -128,6 +128,13 @@ nicht bestimmbar — keine Verbindung, oder verbunden aber z.B. im Stillstand �
 `STAY_TOLERANCE`/`ENTER_TOLERANCE`) liegt in `ui/dashboard/GearIndicator.kt`, domain-agnostisch und
 ohne Android-Bezug.
 
+**Anzeige-Persistenz (seit 2026-09-23, Nutzer-Feedback nach Testfahrt):** Ein einzelner
+unplausibler Messzyklus (Kupplung gezogen, Gas weg) soll die Anzeige nicht auf „–“ zurückfallen
+lassen. `holdGear()` (`ui/dashboard/GearIndicator.kt`, ebenfalls reine Funktion) hält den zuletzt
+angezeigten Gang, solange die GPS-Geschwindigkeit über `MIN_SPEED_KMH` bleibt, und löscht ihn erst
+bei echtem Stillstand oder fehlendem GPS-Fix. `DashboardViewModel.applyReadings()` reicht dafür
+`determineGear()`s Ergebnis durch `holdGear()`, bevor es in den UI-State geschrieben wird.
+
 ### Animation-Disziplin
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
@@ -183,7 +190,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 414 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 422 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 42 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
