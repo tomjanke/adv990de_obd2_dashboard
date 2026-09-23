@@ -74,6 +74,14 @@ android {
             )
         }
     }
+
+    sourceSets {
+        // Exposes the exported Room schema JSONs (app/schemas/…) as instrumentation-test
+        // assets so androidx.room.testing.MigrationTestHelper can load them by version.
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 kotlin {
@@ -130,4 +138,17 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
+
+    constraints {
+        // room-testing (androidTest-only) needs kotlinx-serialization-json 1.8.1 to deserialize
+        // exported Room schema JSONs (MigrationTestHelper). androidx.lifecycle:lifecycle-viewmodel-
+        // savedstate-android (main classpath, pulled in via compose/activity) depends on the older
+        // kotlinx-serialization-core 1.7.3, and AGP's cross-variant "consistent resolution" then
+        // forces that same 1.7.3 onto the androidTest classpath too — breaking Room's precompiled
+        // SchemaBundle serializers (AbstractMethodError: GeneratedSerializer.typeParametersSerializers,
+        // a method added in 1.7.x that Room's serializer classes, built against 1.8.1, implement but
+        // an older loaded core interface does not declare). Forcing the newer, additive-only version
+        // here resolves both classpaths to 1.8.1 consistently.
+        implementation(libs.kotlinx.serialization.core)
+    }
 }
