@@ -16,15 +16,19 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -62,13 +66,24 @@ class ReadingsPipeline @Inject constructor(
 ) {
 
     /**
+     * Die zuletzt vom Fahrzeug gelesenen, noch NICHT mit GPS zusammengefuehrten Werte eines
+     * OBD-Zyklus. Existiert nur, damit [gpsRefresh] zwischen zwei OBD-Zyklen erneut zusammenfuehren
+     * kann — [mergeGpsSpeed] auf ein bereits zusammengefuehrtes Ergebnis anzuwenden waere falsch:
+     * die zuvor eingesetzte GPS-Geschwindigkeit traegt dieselbe PID-ID wie ein echter Fahrzeugwert
+     * und wuerde als "Fahrzeug liefert Geschwindigkeit" missverstanden.
+     */
+    private val lastObdReadings = MutableStateFlow<List<SensorValue>?>(null)
+
+    /**
      * GPS-Geschwindigkeit in km/h, null wenn das Feature aus ist, keine Berechtigung vorliegt oder
      * kein Fix mit Geschwindigkeit ansteht.
      *
-     * `Eagerly` ist hier Pflicht, nicht Geschmack: Der Wert wird ausschliesslich ueber
-     * [StateFlow.value] gelesen, und ein `WhileSubscribed`-Flow ohne Sammler startet seinen
-     * Upstream nie — `value` bliebe fuer immer auf dem Initialwert null stehen. Genau dieser Fehler
-     * liess die GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen.
+     * `Eagerly` ist hier Pflicht, nicht Geschmack: Ein `WhileSubscribed`-Flow ohne Sammler startet
+     * seinen Upstream nie — der GPS-Empfaenger liefe nie an. Genau dieser Fehler liess die
+     * GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen. Seit 1.15.2 wird dieser Flow
+     * zusaetzlich per `collect` in [gpsRefresh] gesammelt (nicht mehr nur ueber [StateFlow.value]
+     * gelesen), damit ein neuer GPS-Fix die Anzeige sofort ausloest statt auf den naechsten
+     * OBD-Takt zu warten.
      *
      * Der `flatMapLatest` sorgt dafuer, dass der GPS-Empfaenger trotzdem nur laeuft, solange der
      * Schalter an ist.
@@ -94,9 +109,35 @@ class ReadingsPipeline @Inject constructor(
             appPreferences.slotPids,
         ) { connected, slotIds -> connected to slotIds }
             .flatMapLatest { (connected, slotIds) ->
-                if (!connected) flowOf(SessionEvent.Idle) else runSession(slotIds, gpsSpeed)
+                if (!connected) {
+                    flowOf(SessionEvent.Idle)
+                } else {
+                    // Zwei bewusst getrennte Quellen: [runSession] entscheidet ueber Aufzeichnung
+                    // und Sitzungs-Lebenszyklus (Start/Ende/Fehler) und bleibt dafuer unveraendert
+                    // allein am OBD-Takt haengen; [gpsRefresh] frischt zusaetzlich zwischen zwei
+                    // OBD-Zyklen nur die Anzeige auf. Die Sitzungslogik soll von einem GPS-Fix
+                    // weder beschleunigt noch verzoegert werden.
+                    merge(runSession(slotIds, gpsSpeed), gpsRefresh(gpsSpeed))
+                }
             }
     }
+
+    /**
+     * Aktualisiert Anzeige und Fahrterkennung bei jedem NEUEN GPS-Fix zwischen zwei OBD-Zyklen —
+     * unabhaengig vom Sitzungsstrom in [runSession], der Aufzeichnung und Lebenszyklus haelt.
+     *
+     * `drop(1)`: Der erste Wert ist der Replay des aktuellen [StateFlow]-Standes beim Abonnieren,
+     * keine echte Aenderung — der ist bereits (oder wird gleich) durch den laufenden OBD-Zyklus
+     * abgedeckt, der `gpsSpeed.value` ohnehin an jedem eigenen Takt liest. Ohne `drop(1)` koennte
+     * dieser Ersatz-Wert in einer engen Race mit dem allerersten OBD-Zyklus um den ersten Platz im
+     * Ereignisstrom konkurrieren.
+     */
+    private fun gpsRefresh(gpsSpeed: StateFlow<Float?>): Flow<SessionEvent.Values> =
+        gpsSpeed.drop(1).mapNotNull { gpsKmh ->
+            val readings = lastObdReadings.value ?: return@mapNotNull null
+            mergeGpsSpeed(readings, gpsKmh)
+        }.onEach { merged -> applyMerged(merged) }
+            .map { merged -> SessionEvent.Values(merged) }
 
     private fun runSession(slotIds: List<String>, gpsSpeed: StateFlow<Float?>): Flow<SessionEvent> = flow {
         val selectedPids = selectPids(slotIds)
@@ -127,18 +168,13 @@ class ReadingsPipeline @Inject constructor(
             sessionId = sessionRepository.startSession(vin)
             emitAll(
                 obdRepository.livePids(selectedPids)
+                    // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
+                    .onEach { readings -> lastObdReadings.value = readings }
                     // GPS ergaenzt die Geschwindigkeit, bevor aufgezeichnet und angezeigt wird —
                     // der Fahrzeugwert hat Vorrang.
                     .map { mergeGpsSpeed(it, gpsSpeed.value) }
                     .onEach { values -> record(sessionId, values, logOnlyDiscovered, loggedPidIds) }
-                    .onEach { values ->
-                        obdRepository.updateLatestReadings(values)
-                        // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug oder
-                        // vom GPS kommt. Fehlt sie ganz, gilt "steht", damit die Navigation nie
-                        // dauerhaft ausgeblendet bleibt.
-                        val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
-                        obdRepository.setMoving(speed != null && speed.value > 0f)
-                    }
+                    .onEach { values -> applyMerged(values) }
                     .map { SessionEvent.Values(it) }
             )
         } catch (e: CancellationException) {
@@ -182,6 +218,19 @@ class ReadingsPipeline @Inject constructor(
             .mapNotNull { PidRegistry.all[it] }
             .distinctBy { it.id }
             .ifEmpty { PidRegistry.defaults }
+    }
+
+    /**
+     * Aktualisiert Anzeige und Fahrterkennung fuer einen zusammengefuehrten Zyklus. Wird sowohl
+     * vom OBD-Takt in [runSession] als auch vom GPS-Zwischen-Update in [gpsRefresh] aufgerufen —
+     * nur [record] bleibt exklusiv dem OBD-Takt vorbehalten.
+     */
+    private fun applyMerged(values: List<SensorValue>) {
+        obdRepository.updateLatestReadings(values)
+        // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug oder vom GPS kommt.
+        // Fehlt sie ganz, gilt "steht", damit die Navigation nie dauerhaft ausgeblendet bleibt.
+        val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
+        obdRepository.setMoving(speed != null && speed.value > 0f)
     }
 
     private suspend fun record(

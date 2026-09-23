@@ -17,10 +17,16 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -160,7 +166,11 @@ class ReadingsPipelineTest {
             .events(backgroundScope).take(1).toList()
 
         assertTrue("Erwartet wurde ein Fehlerereignis: $events", events.single() is SessionEvent.Failed)
-        verify { crashReporter.recordException(boom) }
+        // Seit der Zusammenfuehrung per combine() (1.15.2) durchquert die Exception eine zusaetzliche
+        // Coroutine-Grenze; kotlinx.coroutines kopiert sie dabei fuer eine korrekte Stacktrace ("exception
+        // was originally thrown here") - `eq(boom)` (Referenzgleichheit) traefe die Kopie nicht mehr, obwohl
+        // Typ und Nachricht identisch sind.
+        verify { crashReporter.recordException(match { it is IllegalStateException && it.message == boom.message }) }
         coVerify { sessionRepo.endSession(7L) }
     }
 
@@ -177,5 +187,39 @@ class ReadingsPipelineTest {
 
         coVerify { sessionRepo.deleteSession(7L) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
+    }
+
+    // --- Test 8 ---
+
+    @Test
+    fun `GPS refreshes the displayed speed between OBD ticks but records only once per OBD tick`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm))
+            awaitCancellation()
+        }
+        val gps: GpsSpeedSource = mockk {
+            every { speedKmh } returns flow {
+                emit(10f)
+                delay(100)
+                emit(20f)
+            }
+        }
+        val sessionRepo = makeSessionRepo()
+
+        val collected = mutableListOf<SessionEvent>()
+        val job = launch {
+            makePipeline(repo, sessionRepo = sessionRepo, prefs = makePrefs(useGpsSpeed = true), gps = gps)
+                .events(backgroundScope)
+                .filterIsInstance<SessionEvent.Values>()
+                .toList(collected)
+        }
+        advanceTimeBy(150)
+        job.cancel()
+
+        val speeds = collected.filterIsInstance<SessionEvent.Values>()
+            .mapNotNull { evt -> evt.values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }?.value }
+        assertEquals(listOf(10f, 20f), speeds)
+        coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }
     }
 }
