@@ -1,5 +1,21 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.11 (versionCode 57)
+
+Internes Test-Update — keine sichtbaren Änderungen für Nutzer.
+
+---
+
+### Testabdeckung für den Verbindungs-Dot ergänzt
+
+Die Farblogik des Verbindungs-Status-Punkts ist jetzt vollständig durch Tests abgesichert.
+
+### Tests
+
+432 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.10 (versionCode 56)
 
 Feinjustierung: Verbindungs-Dot sitzt jetzt direkt am Bluetooth-Symbol.
