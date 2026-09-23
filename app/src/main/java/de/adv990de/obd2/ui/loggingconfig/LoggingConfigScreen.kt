@@ -85,14 +85,8 @@ fun LoggingConfigScreen(
             }
             items(vm.allPids, key = { it.id }) { pid ->
                 val reading = latestReadings.firstOrNull { it.pid.id == pid.id }
-                val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                    "${stringResource(pid.labelRes)}: -- (${pid.unit})"
-                } else {
-                    val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
-                    val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
-                                    else "%.0f".format(convertedValue)
-                    "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
-                }
+                val valuePart = formatLoggingRowValue(reading?.value ?: Float.NaN, pid.unit, useImperial)
+                val label = "${stringResource(pid.labelRes)}: $valuePart"
                 ListItem(
                     modifier = Modifier.clickable { vm.togglePid(pid.id) },
                     headlineContent = { Text(label) },
@@ -108,4 +102,19 @@ fun LoggingConfigScreen(
             }
         }
     }
+}
+
+/**
+ * Formats a single logging-row's value part ("<value> (<unit>)"), independent of the PID label
+ * (which needs a Composable [stringResource] and stays in the caller). NaN/Infinite → "--" with
+ * the raw (unaltered) unit, matching [de.adv990de.obd2.ui.dashboard.SensorCard]'s precedent: otherwise
+ * the value is run through [convertUnit] and formatted with one decimal for volts, none otherwise.
+ */
+internal fun formatLoggingRowValue(value: Float, unit: String, useImperial: Boolean): String {
+    if (value.isNaN() || value.isInfinite()) {
+        return "-- ($unit)"
+    }
+    val (convertedValue, displayUnit) = convertUnit(value, unit, useImperial)
+    val formatted = if (unit == "V") "%.1f".format(convertedValue) else "%.0f".format(convertedValue)
+    return "$formatted ($displayUnit)"
 }
