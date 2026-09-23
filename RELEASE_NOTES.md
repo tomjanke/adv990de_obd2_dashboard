@@ -1,5 +1,30 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.0 (versionCode 46)
+
+Neu: eine virtuelle Ganganzeige neben dem Drehzahlbalken.
+
+---
+
+### Virtuelle Ganganzeige
+
+Das bisherige „rpm"-Textfeld rechts neben dem großen Drehzahl-Segmentbalken zeigt jetzt den
+aktuell eingelegten Gang (1–6, oder „–" wenn nicht eindeutig bestimmbar) — errechnet aus
+Motordrehzahl und GPS-Geschwindigkeit. Radumfang, Primär-/Sekundärübersetzung und die sechs
+Getriebestufen sind in einem neuen Settings-Bereich „Getriebe" hinterlegt und editierbar (Defaults
+passend zu einem 150/70-18-Hinterreifen und einem typischen 6-Gang-Motorradgetriebe).
+
+Damit die Anzeige nicht an nah beieinanderliegenden Übersetzungen flackert, rastet ein Gang erst
+bei deutlicher Übereinstimmung ein, bleibt danach aber stehen, solange er selbst noch plausibel
+ist — unabhängig davon, ob ein Nachbar-Gang gerade knapp näher läge. Unterhalb von 8 km/h zeigt
+die Anzeige bewusst „–", da GPS-Geschwindigkeit dort zu ungenau ist.
+
+### Tests
+
+397 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.15.2 (versionCode 45)
 
 Die GPS-Geschwindigkeit aus 1.15.1 aktualisiert die Anzeige jetzt wirklich alle 200 ms — nicht
