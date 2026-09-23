@@ -137,11 +137,94 @@ class SimulatedEcuDispatcherTest {
     }
 
     @Test
+    fun `Load response has correct format and value in range`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("0104").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("04", parts[1])
+        assertEquals(3, parts.size)
+        val raw = parts[2].toInt(16)
+        val loadPct = raw * 100 / 255
+        assertTrue("Load $loadPct% not in 20..95 (raw=$raw)", loadPct in 20..95)
+    }
+
+    @Test
+    fun `Throttle response has correct format and value in range`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("0111").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("11", parts[1])
+        assertEquals(3, parts.size)
+        val raw = parts[2].toInt(16)
+        val throttlePct = raw * 100 / 255
+        assertTrue("Throttle $throttlePct% not in 0..100 (raw=$raw)", throttlePct in 0..100)
+    }
+
+    @Test
+    fun `MAP response has correct format and value in range`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("010B").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("0B", parts[1])
+        assertEquals(3, parts.size)
+        // MAP is reported as a raw kPa byte, unlike Load/Throttle there is no *255/100 scaling.
+        val kPa = parts[2].toInt(16)
+        assertTrue("MAP $kPa kPa not in 30..100", kPa in 30..100)
+    }
+
+    @Test
+    fun `MAF response has correct format and value in range`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("0110").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("10", parts[1])
+        assertEquals(4, parts.size)
+        val raw = parts[2].toInt(16) * 256 + parts[3].toInt(16)
+        val gramsPerSec = raw / 100.0
+        assertTrue("MAF $gramsPerSec g/s not in 0.50..49.99 (raw=$raw)", gramsPerSec in 0.50..49.99)
+    }
+
+    @Test
+    fun `Ambient temp is constant 20 degrees`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("0146").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("46", parts[1])
+        assertEquals(3, parts.size)
+        val tempC = parts[2].toInt(16) - 40
+        assertEquals(20, tempC)
+    }
+
+    @Test
+    fun `Timing advance is constant 10 degrees`() {
+        val d = SimulatedEcuDispatcher()
+        val parts = d.respond("010E").split(" ")
+        assertEquals("41", parts[0])
+        assertEquals("0E", parts[1])
+        assertEquals(3, parts.size)
+        // Standard OBD-II PID 0x0E formula: advance = A/2 - 64.
+        val raw = parts[2].toInt(16)
+        val advanceDeg = raw / 2 - 64
+        assertEquals(10, advanceDeg)
+    }
+
+    @Test
     fun `unknown PID returns NO DATA`() {
         val d = SimulatedEcuDispatcher()
         assertEquals("NO DATA", d.respond("01FF"))
         assertEquals("NO DATA", d.respond("0199"))
     }
+
+    // ── buildBitmap() require() validation ──────────────────────────────────────
+    //
+    // buildBitmap()'s `require(offset in 1..32)` guards against a PID literal outside its
+    // declared range. It is private and called exactly 3 times, all from field initializers
+    // (BITMAP_0100/0120/0140) with fixed, hardcoded PID sets that are always in range by
+    // construction — there is no code path (not even via respond()/respondPid()) that reaches
+    // it with a value chosen at runtime or by a caller. It is a compile-time-fixed internal
+    // invariant, not something exercisable through the class's public API, so no test forces an
+    // artificial call into it (e.g. via reflection) — doing so would test the `require` call in
+    // isolation rather than any real, reachable behavior of SimulatedEcuDispatcher.
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
