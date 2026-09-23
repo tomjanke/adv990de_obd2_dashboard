@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -29,21 +30,9 @@ class MainActivity : ComponentActivity() {
             val displayVm: DisplaySettingsViewModel = hiltViewModel()
             val theme by displayVm.theme.collectAsState()
             val systemDark = isSystemInDarkTheme()
-            val darkTheme = when (theme) {
-                AppPreferences.THEME_DARK,
-                AppPreferences.THEME_BLUE,
-                AppPreferences.THEME_AMBER,
-                AppPreferences.THEME_GREEN -> true
-                AppPreferences.THEME_LIGHT -> false
-                else                       -> systemDark
-            }
+            val darkTheme = resolveDarkTheme(theme, systemDark)
             MaterialTheme(
-                colorScheme = when (theme) {
-                    AppPreferences.THEME_BLUE  -> blueColorScheme
-                    AppPreferences.THEME_AMBER -> amberColorScheme
-                    AppPreferences.THEME_GREEN -> greenColorScheme
-                    else                       -> if (darkTheme) darkColorScheme() else lightColorScheme()
-                },
+                colorScheme = resolveColorScheme(theme, darkTheme),
                 typography = AppTypography
             ) {
                 PermissionGate {
@@ -52,4 +41,31 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+/**
+ * Maps a persisted [AppPreferences] theme string to whether the app should render in dark mode.
+ * [AppPreferences.THEME_SYSTEM] and any unrecognized value fall back to [systemDark].
+ */
+internal fun resolveDarkTheme(theme: String, systemDark: Boolean): Boolean = when (theme) {
+    AppPreferences.THEME_DARK,
+    AppPreferences.THEME_BLUE,
+    AppPreferences.THEME_AMBER,
+    AppPreferences.THEME_GREEN -> true
+    AppPreferences.THEME_LIGHT -> false
+    else                       -> systemDark
+}
+
+/**
+ * Maps a persisted [AppPreferences] theme string to the [ColorScheme] used by [MaterialTheme].
+ * The named color themes ([AppPreferences.THEME_BLUE]/[AppPreferences.THEME_AMBER]/
+ * [AppPreferences.THEME_GREEN]) resolve to their fixed cockpit schemes; everything else
+ * (including [AppPreferences.THEME_SYSTEM] and [AppPreferences.THEME_LIGHT]) falls back to
+ * Material 3's default [darkColorScheme] or [lightColorScheme] depending on [darkTheme].
+ */
+internal fun resolveColorScheme(theme: String, darkTheme: Boolean): ColorScheme = when (theme) {
+    AppPreferences.THEME_BLUE  -> blueColorScheme
+    AppPreferences.THEME_AMBER -> amberColorScheme
+    AppPreferences.THEME_GREEN -> greenColorScheme
+    else                       -> if (darkTheme) darkColorScheme() else lightColorScheme()
 }
