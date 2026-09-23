@@ -67,6 +67,27 @@ class PidParserTest {
         parser.parse(PidRegistry.RPM, "42 0C 1F 40")
     }
 
+    @Test(expected = ObdException.UnknownResponse::class)
+    fun `parse throws UnknownResponse when response has no data bytes`() {
+        // "41 0C" is just header + echoed PID byte, no data at all — tokens.size (2) <= dataStart (2).
+        parser.parse(PidRegistry.RPM, "41 0C")
+    }
+
+    @Test(expected = ObdException.UnknownResponse::class)
+    fun `parse throws UnknownResponse when a data byte is not valid hex`() {
+        // "GG" is not a valid hex byte — tokens.drop(dataStart).map { it.toInt(16) } throws
+        // NumberFormatException, which parse() must translate into UnknownResponse.
+        parser.parse(PidRegistry.RPM, "41 0C GG 40")
+    }
+
+    @Test(expected = ObdException.UnknownResponse::class)
+    fun `parse throws UnknownResponse when formula reads past the supplied data bytes`() {
+        // RPM's formula reads bytes[0] and bytes[1], but only one data byte ("1F") is supplied here.
+        // pid.formula(dataBytes) throws ArrayIndexOutOfBoundsException, which parse() must catch
+        // and translate into UnknownResponse rather than letting it propagate.
+        parser.parse(PidRegistry.RPM, "41 0C 1F")
+    }
+
     // ── parseFreezeFrame ─────────────────────────────────────────────────────
 
     @Test
@@ -94,5 +115,26 @@ class PidParserTest {
     fun `parseFreezeFrame returns null when PID byte does not match`() {
         // Response is for Speed (0D) but RPM (0C) was requested
         assertNull(parser.parseFreezeFrame(PidRegistry.RPM, "42 0D 57"))
+    }
+
+    @Test
+    fun `parseFreezeFrame returns null when response has no data bytes`() {
+        // "42 0C" is just header + echoed PID byte, no data at all — tokens.size (2) < 3.
+        assertNull(parser.parseFreezeFrame(PidRegistry.RPM, "42 0C"))
+    }
+
+    @Test
+    fun `parseFreezeFrame returns null when a data byte is not valid hex`() {
+        // "GG" is not a valid hex byte — tokens.drop(2).map { it.toInt(16) } throws
+        // NumberFormatException, which parseFreezeFrame() must swallow and turn into null.
+        assertNull(parser.parseFreezeFrame(PidRegistry.RPM, "42 0C GG 40"))
+    }
+
+    @Test
+    fun `parseFreezeFrame returns null when formula reads past the supplied data bytes`() {
+        // RPM's formula reads bytes[0] and bytes[1], but only one data byte ("1A") is supplied here.
+        // pid.formula(dataBytes) throws ArrayIndexOutOfBoundsException, which parseFreezeFrame()
+        // must catch and turn into null rather than letting it propagate.
+        assertNull(parser.parseFreezeFrame(PidRegistry.RPM, "42 0C 1A"))
     }
 }
