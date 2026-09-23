@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.1 (versionCode 47)
+
+Der Verbindungs-Status-Punkt zeigt jetzt auch einen eigenen Fehler-Zustand.
+
+---
+
+### StatusDot mit Failed-Zustand
+
+Bisher kannte der pulsierende Status-Punkt neben dem Bluetooth-Symbol nur „verbunden" (grün
+getönt) und „verbindet neu" (pulsierend). Ist die Verbindung endgültig gescheitert — kein Gerät
+konfiguriert, Bluetooth deaktiviert, oder alle Wiederverbindungs-Versuche erschöpft — sah das
+optisch identisch zu „noch nie verbunden" aus: kein Punkt, nur das nackte Bluetooth-Symbol. Jetzt
+erscheint in diesem Fall ein roter Punkt, sodass ein stiller Verbindungsabbruch während der Fahrt
+nicht mehr unbemerkt bleiben kann.
+
+### Tests
+
+401 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.0 (versionCode 46)
 
 Neu: eine virtuelle Ganganzeige neben dem Drehzahlbalken.
