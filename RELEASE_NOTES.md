@@ -1,5 +1,30 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.15.2 (versionCode 45)
+
+Die GPS-Geschwindigkeit aus 1.15.1 aktualisiert die Anzeige jetzt wirklich alle 200 ms — nicht
+erst beim naechsten OBD-Zyklus.
+
+---
+
+### GPS-Wert wurde erst beim naechsten OBD-Zyklus sichtbar
+
+Das gesenkte GPS-Intervall aus 1.15.1 (200 ms statt 1000 ms) kam bei der Anzeige nicht wie
+erwartet an: `ReadingsPipeline` las die GPS-Geschwindigkeit nur als Momentaufnahme (`.value`)
+innerhalb der OBD-Abfrage-Kette — ein neuer GPS-Fix zwischen zwei OBD-Zyklen (500 ms+) wurde
+schlicht uebersprungen, bis der naechste OBD-Zyklus lief.
+
+Die Aufzeichnung und das Sitzungsende bleiben unveraendert exklusiv am OBD-Takt haengen; ein
+zweiter, unabhaengiger Strom aktualisiert nur die Anzeige, sobald ein neuer GPS-Fix eintrifft.
+Ein GPS-Update loest dadurch nie zusaetzliche Aufzeichnungs-Zeilen aus und veraendert das
+Sitzungsverhalten (Start, Ende, Fehlerbehandlung) nicht.
+
+### Tests
+
+368 Unit- und 40 Instrumentation-Tests gruen. Lint unveraendert bei 29 Warnungen.
+
+---
+
 ## Version 1.15.1 (versionCode 44)
 
 Drei Feinschliff-Fixes am Dashboard: schnellere GPS-Geschwindigkeit, ruhigere Sparklines,
