@@ -25,14 +25,25 @@ import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 
+/**
+ * Klassifiziert einen Theme-Konstantenwert (s. `AppPreferences.THEME_*`) als Farbschema
+ * (`blue`/`amber`/`green` — eigenstaendige Farbpalette, keine Helligkeits-Wahl) oder nicht
+ * (`system`/`light`/`dark` — Helligkeits-Varianten des Default-Farbschemas). Steuert in
+ * [ThemePickerItem], welcher Segmented-Button-Eintrag markiert ist UND ob die Helligkeits-Zeile
+ * (Helligkeits-`AnimatedVisibility`) ueberhaupt sichtbar ist. Eigene Top-Level-Funktion statt
+ * Inline-Lambda, damit die Klassifikation unabhaengig vom Composable testbar ist (s.
+ * `SettingsComponentsTest`).
+ */
+internal fun isColorTheme(theme: String): Boolean = theme in listOf(
+    AppPreferences.THEME_BLUE, AppPreferences.THEME_AMBER, AppPreferences.THEME_GREEN
+)
+
 @Composable
 internal fun ThemePickerItem(
     theme: String,
     onThemeChange: (String) -> Unit
 ) {
-    val isColorTheme = theme in listOf(
-        AppPreferences.THEME_BLUE, AppPreferences.THEME_AMBER, AppPreferences.THEME_GREEN
-    )
+    val isColorTheme = isColorTheme(theme)
 
     // ── Color scheme row ─────────────────────────────────────────────────
     Column(
