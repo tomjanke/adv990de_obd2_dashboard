@@ -16,6 +16,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -101,23 +102,38 @@ internal fun parsePositiveFloat(text: String): Float? = text.toFloatOrNull()?.ta
  * (leer, Buchstaben, negativ) bleibt lokal sichtbar, ohne den zuletzt gespeicherten Wert zu
  * ueberschreiben.
  *
- * Bewusst `remember { }` OHNE Schluessel auf [value]: Wuerde der Puffer bei jeder Aenderung von
- * [value] neu aus dem (nach jedem gueltigen Tastendruck aktualisierten) State gesetzt, spraenge
- * der Cursor beim Tippen zurueck ans Textende — ein bekannter Compose-Stolperstein bei
- * selbst-rueckgekoppelten Textfeldern.
+ * [value] kommt aus einem StateFlow, das per `stateIn(..., WhileSubscribed(5_000), DEFAULT_*)`
+ * gebaut ist (s. `GearSettingsViewModel`): `collectAsState()` liest bei der ersten Komposition
+ * synchron den DEFAULT_*-Konstantenwert, waehrend der echte, in AppPreferences/DataStore
+ * gespeicherte Wert erst asynchron nachtraeglich eintrifft. Der lokale Puffer wird deshalb per
+ * `LaunchedEffect(value)` mit dem Upstream-Wert nachgezogen — aber NUR, bis der Nutzer das erste
+ * Mal in diesem Feld editiert hat ([hasBeenEdited]). Ab dann greift wieder der urspruengliche
+ * Schutz: Ein Upstream-Update waehrend des Tippens (z.B. weil ein gueltiger Tastendruck ueber den
+ * ViewModel-Setter ins DataStore geschrieben und als derselbe Wert zurueckgespiegelt wird) wuerde
+ * sonst den Puffer neu formatieren und den Cursor ans Textende zurueckspringen lassen — ein
+ * bekannter Compose-Stolperstein bei selbst-rueckgekoppelten Textfeldern.
  */
 @Composable
-private fun GearRatioField(
+internal fun GearRatioField(
     label: String,
     value: Float,
     onValueChange: (Float) -> Unit,
 ) {
     var text by remember { mutableStateOf(value.toString()) }
+    var hasBeenEdited by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!hasBeenEdited) {
+            text = value.toString()
+        }
+    }
+
     val isValid = parsePositiveFloat(text) != null
 
     OutlinedTextField(
         value = text,
         onValueChange = { newText ->
+            hasBeenEdited = true
             text = newText
             parsePositiveFloat(newText)?.let(onValueChange)
         },
