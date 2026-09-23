@@ -154,6 +154,7 @@ fun DashboardScreen(
                         val dotState = dashboardStatusDotState(
                             isConnected = state.isConnected,
                             isReconnecting = state.isReconnecting,
+                            hasError = state.error != null,
                         )
                         if (state.isConnected) {
                             Row(
