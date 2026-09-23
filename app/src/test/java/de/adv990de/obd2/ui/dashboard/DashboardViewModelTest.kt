@@ -1299,19 +1299,28 @@ class DashboardViewModelTest {
         // speedKmh/gear untouched, so a stale, never-revalidated gear survived a disconnect and
         // silently biased the hysteresis once the vehicle reconnected. This proves the reset.
         //
-        // Shape mirrors `ConnectionLost from livePids triggers reconnect state not generic error`:
-        // isConnectedFlow is flipped to false FROM WITHIN the livePids flow, in the same call
-        // frame as the ConnectionLost throw. That ordering is deliberate (see that test's own
-        // comment) — it lets startReconnecting() run first (isReconnecting=true), so the Idle
-        // event that follows from the outer combine()/flatMapLatest re-subscription lands in the
-        // "preserve state" branch of applyIdle(), not the full DashboardUiState.disconnected()
-        // reset. Only the first branch is what this fix (and this test) is about.
+        // A first version of this test used the REAL ConnectionCoordinator (via makeVmFrom), like
+        // `ConnectionLost from livePids triggers reconnect state not generic error` does. That
+        // turned out to be a false positive: the real reconnect loop fires
+        // ConnectionEvent.Attempting(attempt=1) so promptly that onConnectionEvent's "attempt != 0"
+        // branch already replaces the whole state with a FRESH DashboardUiState (gear/speedKmh
+        // defaulting to null) before the Idle event — and therefore applyIdle() — ever runs.
+        // Confirmed empirically: reverting applyIdle()'s explicit reset left this assertion
+        // passing anyway. A relaxed ConnectionCoordinator mock makes start()/requestReconnect()
+        // no-ops, so onConnectionEvent is never invoked at all — isReconnecting is set ONLY by
+        // startReconnecting()'s own `.copy(isReconnecting = true, ...)` (which preserves gear/
+        // speedKmh unchanged), isolating applyIdle()'s own reset as the only thing that can still
+        // null them here.
+        //
+        // isConnectedFlow is still flipped to false FROM WITHIN the livePids flow, in the same
+        // call frame as the ConnectionLost throw — same ordering trick as the real-coordinator
+        // test above, so startReconnecting() still runs before the Idle event that follows from
+        // the outer combine()/flatMapLatest re-subscription.
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(null)
-            every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
@@ -1326,7 +1335,59 @@ class DashboardViewModelTest {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            coEvery { reconnect() } throws Exception("reconnect failed")
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = DashboardViewModel(
+            obdRepo,
+            prefs,
+            mockk<ConnectionCoordinator>(relaxed = true),
+            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
+        )
+        isConnectedFlow.value = true
+        advanceTimeBy(1)
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertNull(vm.uiState.value.gear)
+        assertNull(vm.uiState.value.speedKmh)
+    }
+
+    @Test
+    fun `speedKmh and gear become null when a cycle omits the SPEED reading`() = runTest {
+        // Finding 2 (final review): applyReadings() used to fall back to the previous speedKmh
+        // whenever a cycle's readings omitted SPEED (`?: _uiState.value.speedKmh`), silently
+        // keeping a stale GPS speed forever once GPS stopped reporting one, and feeding
+        // determineGear() with data the vehicle/GPS source no longer actually provides. This
+        // proves the fallback is gone: unlike rpmValue (which legitimately keeps its own
+        // last-known-value fallback — RPM is polled every OBD cycle, so a single miss really is a
+        // transient gap), a missing SPEED must make speedKmh — and therefore gear — null
+        // immediately, not on some delay.
+        val firstReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
+        )
+        val secondReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L),
+            // No SPEED this cycle — e.g. GPS lost its fix.
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
+            every { setMoving(any()) } just Runs
             every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
@@ -1342,12 +1403,10 @@ class DashboardViewModelTest {
         )
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
-        isConnectedFlow.value = true
-        advanceTimeBy(1)
+        advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.isReconnecting)
-        assertNull(vm.uiState.value.gear)
         assertNull(vm.uiState.value.speedKmh)
+        assertNull(vm.uiState.value.gear)
     }
 
     /**
