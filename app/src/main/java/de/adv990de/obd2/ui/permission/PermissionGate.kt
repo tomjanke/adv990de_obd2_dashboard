@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.permission
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,8 +32,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.adv990de.obd2.R
 
-val requiredPermissions: Array<String> = buildList {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+// Lint's InlinedApi guard only recognizes a direct `Build.VERSION.SDK_INT >= ...` comparison —
+// it can't see through `sdkInt` as a parameter, even though the real call sites below all use
+// the default (the true Build.VERSION.SDK_INT) and only tests ever override it. The guard here
+// is real, just not statically visible to that specific check.
+@SuppressLint("InlinedApi")
+internal fun requiredPermissions(sdkInt: Int = Build.VERSION.SDK_INT): Array<String> = buildList {
+    if (sdkInt >= Build.VERSION_CODES.S) {
         // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
         add(Manifest.permission.BLUETOOTH_SCAN)
         add(Manifest.permission.BLUETOOTH_CONNECT)
@@ -41,7 +47,7 @@ val requiredPermissions: Array<String> = buildList {
         add(Manifest.permission.BLUETOOTH_ADMIN)
         add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
         add(Manifest.permission.POST_NOTIFICATIONS)
     }
 }.toTypedArray()
@@ -52,7 +58,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
 
     var allGranted by remember {
         mutableStateOf(
-            requiredPermissions.all {
+            requiredPermissions().all {
                 ContextCompat.checkSelfPermission(context, it) == PermissionChecker.PERMISSION_GRANTED
             }
         )
@@ -68,7 +74,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                allGranted = requiredPermissions.all {
+                allGranted = requiredPermissions().all {
                     ContextCompat.checkSelfPermission(context, it) == PermissionChecker.PERMISSION_GRANTED
                 }
             }
@@ -78,7 +84,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        if (!allGranted) launcher.launch(requiredPermissions)
+        if (!allGranted) launcher.launch(requiredPermissions())
     }
 
     if (allGranted) {
@@ -97,7 +103,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
                     stringResource(R.string.permission_bt_rationale),
                     modifier = Modifier.padding(horizontal = 32.dp)
                 )
-                Button(onClick = { launcher.launch(requiredPermissions) }) {
+                Button(onClick = { launcher.launch(requiredPermissions()) }) {
                     Text(stringResource(R.string.permission_grant))
                 }
             }
