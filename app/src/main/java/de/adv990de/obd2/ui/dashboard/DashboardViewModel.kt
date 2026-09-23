@@ -152,14 +152,14 @@ class DashboardViewModel @Inject constructor(
 
     private fun onSessionEvent(event: SessionEvent) {
         when (event) {
-            is SessionEvent.Values -> applyReadings(event.values)
+            is SessionEvent.Values -> applyReadings(event.values, event.gpsSpeedKmh)
             SessionEvent.Idle -> applyIdle()
             SessionEvent.ConnectionLost -> startReconnecting()
             is SessionEvent.Failed -> _uiState.value = DashboardUiState.disconnected(event.error)
         }
     }
 
-    private fun applyReadings(values: List<SensorValue>) {
+    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?) {
         values.forEach { sv ->
             val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(SPARKLINE_WINDOW) }
             if (deque.size >= SPARKLINE_WINDOW) deque.removeFirst()
@@ -180,7 +180,13 @@ class DashboardViewModel @Inject constructor(
         // determineGear() mit ihr fuettern, obwohl das Fahrzeug sie nicht mehr meldet.
         val newSpeedKmh = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id && it.isPlausible() }
             ?.value
-        val newGear = determineGear(newRpmValue, newSpeedKmh, _uiState.value.gear, gearRatios.value)
+        // Bewusst NICHT newSpeedKmh (das ist der ggf. vom Fahrzeug dominierte, zusammengefuehrte
+        // Anzeigewert, s. mergeGpsSpeed) — die Ganganzeige braucht exklusiv den rohen GPS-Wert.
+        // determineGear()s Annahmen (MIN_SPEED_KMH als GPS-Rauschgrenze, die 2s-Staleness in
+        // GpsSpeedSource) sind auf GPS-Charakteristik zugeschnitten, nicht auf die vom Fahrzeug
+        // gemeldete Geschwindigkeit. Fehlt GPS (aus, keine Berechtigung, kein Fix), ist der Gang
+        // unbekannt, auch wenn das Fahrzeug selbst eine Geschwindigkeit liefert.
+        val newGear = determineGear(newRpmValue, gpsSpeedKmh, _uiState.value.gear, gearRatios.value)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,

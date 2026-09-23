@@ -107,7 +107,7 @@ class ReadingsPipelineTest {
         val events = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
             .events(backgroundScope).take(1).toList()
 
-        assertEquals(listOf(SessionEvent.Values(listOf(rpm))), events)
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify { sessionRepo.startSession("VIN") }
         coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
     }

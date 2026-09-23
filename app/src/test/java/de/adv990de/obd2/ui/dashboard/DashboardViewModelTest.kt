@@ -1206,9 +1206,85 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `gear is computed from rpm and speed using the configured ratios`() = runTest {
+    fun `gear is computed from rpm and GPS speed using the configured ratios`() = runTest {
         // 1x1 primary/secondary, wheel circumference 2000mm, single gear ratio 10 -> at 60 km/h
-        // (wheelRpm 500) an engine speed of 5000 rpm hits gear 1 exactly.
+        // (wheelRpm 500) an engine speed of 5000 rpm hits gear 1 exactly. Speed comes from GPS
+        // only, matching the fix in v1.16.6 — the vehicle reports no SPEED PID here at all.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            useGpsSpeed = true,
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(kmh = 60f), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `gear ignores a vehicle-reported speed and uses GPS instead`() = runTest {
+        // v1.16.6 fix: determineGear() must be fed the GPS speed exclusively, never the
+        // (possibly vehicle-sourced) merged SPEED PID value. The vehicle reports 999 km/h here —
+        // a value that matches none of the configured ratios even remotely — while GPS reports
+        // 60 km/h, which hits gear 1 exactly (same fixture as the test above). If this ever
+        // regresses back to reading the merged SPEED PID, gear would come out null instead of 1.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.SPEED, value = 999f, timestamp = 1000L),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            useGpsSpeed = true,
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(kmh = 60f), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `gear is unknown when GPS has no fix, even if the vehicle reports a plausible speed`() = runTest {
+        // Mirror of the test above: the vehicle reports 60 km/h (which would hit gear 1 if it
+        // were used), but GPS has no fix at all. determineGear() must not fall back to the
+        // vehicle's speed — the gear stays unknown.
         val readings = listOf(
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
             SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
@@ -1228,16 +1304,17 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = makePrefs(
+            useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
             secondaryRatio = 1f,
             gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
         )
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(kmh = null), mockk(relaxed = true))
         advanceUntilIdle()
 
-        assertEquals(1, vm.uiState.value.gear)
+        assertEquals(null, vm.uiState.value.gear)
     }
 
     @Test
@@ -1247,8 +1324,10 @@ class DashboardViewModelTest {
         // on the NEXT update. A regression that silently passed lastGear = null on every call
         // (defeating hysteresis entirely) would not be caught by anything else in this suite.
         //
-        // Same fixture style as `gear is computed from rpm and speed using the configured ratios`:
-        // 1x1 primary/secondary, wheel circumference 2000mm -> wheelRpm = speedKmh * 8.3333.
+        // Same fixture style as `gear is computed from rpm and GPS speed using the configured
+        // ratios`: 1x1 primary/secondary, wheel circumference 2000mm -> wheelRpm = speedKmh *
+        // 8.3333. Speed comes from GPS (v1.16.6 fix), constant at 60 km/h across both emissions —
+        // only rpm changes between them.
         //
         // 1st emission: rpm=5000, speed=60 -> wheelRpm=500 -> actualRatio=10.0 -> matches gear 1
         // (ratio 10) exactly -> gear = 1.
@@ -1260,11 +1339,9 @@ class DashboardViewModelTest {
         // would pick gear 2 (deviation 0% beats gear 1's 3.8%) -> the assertion below would fail.
         val firstReadings = listOf(
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
-            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
         )
         val secondReadings = listOf(
             SensorValue(pid = PidRegistry.RPM, value = 4810f, timestamp = 2000L),
-            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 2000L),
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
@@ -1281,13 +1358,14 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         val prefs = makePrefs(
+            useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
             secondaryRatio = 1f,
             gearRatios = listOf(10f, 9.62f, 5f, 3f, 2f, 1.5f),
         )
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(kmh = 60f), mockk(relaxed = true))
         advanceUntilIdle()
 
         assertEquals(1, vm.uiState.value.gear)

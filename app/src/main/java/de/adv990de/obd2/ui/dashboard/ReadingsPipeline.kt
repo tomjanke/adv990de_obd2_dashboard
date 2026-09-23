@@ -35,8 +35,15 @@ import javax.inject.Inject
 
 /** Was der Messwert-Strom dem ViewModel meldet. */
 sealed interface SessionEvent {
-    /** Ein vollstaendiger Abfragezyklus, bereits um die GPS-Geschwindigkeit ergaenzt. */
-    data class Values(val values: List<SensorValue>) : SessionEvent
+    /**
+     * Ein vollstaendiger Abfragezyklus, bereits um die GPS-Geschwindigkeit ergaenzt.
+     *
+     * [gpsSpeedKmh] ist der ROHE GPS-Wert desselben Zyklus — unabhaengig davon, ob er in [values]
+     * tatsaechlich zum Einsatz kam ([mergeGpsSpeed] gibt dem Fahrzeugwert Vorrang, sobald das
+     * Fahrzeug selbst eine Geschwindigkeit meldet). Die virtuelle Ganganzeige braucht ihn separat
+     * und exklusiv, s. Kommentar in `DashboardViewModel.applyReadings()`.
+     */
+    data class Values(val values: List<SensorValue>, val gpsSpeedKmh: Float?) : SessionEvent
 
     /** Keine Verbindung — es fliessen keine Werte. */
     data object Idle : SessionEvent
@@ -135,9 +142,9 @@ class ReadingsPipeline @Inject constructor(
     private fun gpsRefresh(gpsSpeed: StateFlow<Float?>): Flow<SessionEvent.Values> =
         gpsSpeed.drop(1).mapNotNull { gpsKmh ->
             val readings = lastObdReadings.value ?: return@mapNotNull null
-            mergeGpsSpeed(readings, gpsKmh)
-        }.onEach { merged -> applyMerged(merged) }
-            .map { merged -> SessionEvent.Values(merged) }
+            mergeGpsSpeed(readings, gpsKmh) to gpsKmh
+        }.onEach { (merged, _) -> applyMerged(merged) }
+            .map { (merged, gpsKmh) -> SessionEvent.Values(merged, gpsKmh) }
 
     private fun runSession(slotIds: List<String>, gpsSpeed: StateFlow<Float?>): Flow<SessionEvent> = flow {
         val selectedPids = selectPids(slotIds)
@@ -171,11 +178,13 @@ class ReadingsPipeline @Inject constructor(
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
                     .onEach { readings -> lastObdReadings.value = readings }
                     // GPS ergaenzt die Geschwindigkeit, bevor aufgezeichnet und angezeigt wird —
-                    // der Fahrzeugwert hat Vorrang.
-                    .map { mergeGpsSpeed(it, gpsSpeed.value) }
-                    .onEach { values -> record(sessionId, values, logOnlyDiscovered, loggedPidIds) }
-                    .onEach { values -> applyMerged(values) }
-                    .map { SessionEvent.Values(it) }
+                    // der Fahrzeugwert hat Vorrang. Der rohe GPS-Wert wird trotzdem mitgefuehrt
+                    // (s. SessionEvent.Values-KDoc) — die Ganganzeige braucht ihn unabhaengig davon,
+                    // ob das Fahrzeug selbst eine Geschwindigkeit meldet.
+                    .map { readings -> val gpsKmh = gpsSpeed.value; mergeGpsSpeed(readings, gpsKmh) to gpsKmh }
+                    .onEach { (values, _) -> record(sessionId, values, logOnlyDiscovered, loggedPidIds) }
+                    .onEach { (values, _) -> applyMerged(values) }
+                    .map { (values, gpsKmh) -> SessionEvent.Values(values, gpsKmh) }
             )
         } catch (e: CancellationException) {
             throw e  // Abbruch einer Coroutine nie verschlucken
