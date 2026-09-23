@@ -13,6 +13,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -25,10 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,3 +161,46 @@ internal fun GearRatioField(
             .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
+
+// region — Previews
+//
+// GearSettingsScreen selbst braucht `hiltViewModel()` und bekommt deshalb bewusst kein Preview —
+// kein Screen in diesem Projekt, der einen Hilt-ViewModel voraussetzt, hat eines (AppLogsScreen,
+// LoggingConfigScreen, SettingsScreen selbst eingeschlossen). Stattdessen wird die ViewModel-lose
+// Bausteinkomponente GearRatioField geprevit, die alles Interessante traegt.
+//
+// Der Fehler-Zustand laesst sich ueber die oeffentliche API nicht direkt herbeifuehren (das
+// Composable nimmt einen bereits gueltigen `value: Float` entgegen, nicht rohen Text) — ein
+// nicht-positiver Startwert (hier 0f) seedet den internen Text-Puffer aber mit genau der Eingabe,
+// die auch ein Nutzer-Tippfehler erzeugen wuerde, und durchlaeuft dieselbe `parsePositiveFloat`-
+// Pruefung wie jede echte Eingabe.
+
+@Preview(name = "GearRatioField · valid value (blue)", showBackground = true)
+@Composable
+private fun PreviewGearRatioFieldValid() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            GearRatioField(
+                label = "Radumfang (mm)",
+                value = 2096f,
+                onValueChange = {},
+            )
+        }
+    }
+}
+
+@Preview(name = "GearRatioField · invalid value (amber)", showBackground = true)
+@Composable
+private fun PreviewGearRatioFieldInvalid() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            GearRatioField(
+                label = "Primärübersetzung",
+                value = 0f,
+                onValueChange = {},
+            )
+        }
+    }
+}
+
+// endregion
