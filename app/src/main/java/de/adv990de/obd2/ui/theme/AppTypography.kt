@@ -78,7 +78,7 @@ fun TextStyle.asLiveValue() = copy(
 )
 
 /** Swap font family and scale fontSize + lineHeight by BIKE_SCALE. */
-private fun TextStyle.bike() = copy(
+internal fun TextStyle.bike() = copy(
     fontFamily = SpaceGroteskFamily,
     fontSize   = (fontSize.value   * BIKE_SCALE).sp,
     lineHeight = (lineHeight.value * BIKE_SCALE).sp,
