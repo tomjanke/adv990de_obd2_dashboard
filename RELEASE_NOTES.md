@@ -1,5 +1,31 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.12 (versionCode 58)
+
+Großes internes Test-Update — keine sichtbaren Änderungen für Nutzer, mit einer Ausnahme: einer
+Doku-Korrektur, die kein Nutzerverhalten betrifft.
+
+---
+
+### Elf Testabdeckungs-Lücken geschlossen
+
+Getriebe-Migration, Berechtigungsanfragen, Theme-Auswahl, Drehzahlbalken-Logik, Getriebe-
+Einstellungen, Fahrt-Historie, Fahrzeug-Info, Logging-Konfiguration, Dashboard-Konfiguration,
+App-Logs und die Theme-Auswahl haben jetzt automatisierte Tests. Dabei wurde ein echter Fehler im
+Testaufbau selbst gefunden und behoben (ein zu alter Testdaten-Zeitstempel, der von der eigenen
+90-Tage-Aufräumlogik sofort wieder gelöscht wurde) — kein Fehler in der App selbst.
+
+### Doku-Korrektur: Dark Mode
+
+„Dark Mode ist die einzige Realität" galt schon immer nur für die drei Cockpit-Farbschemata
+(Blau/Amber/Grün) — das Default-Farbschema bietet weiterhin bewusst Hell/Dunkel/System zur Wahl.
+
+### Tests
+
+483 Unit- und 59 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.11 (versionCode 57)
 
 Internes Test-Update — keine sichtbaren Änderungen für Nutzer.
