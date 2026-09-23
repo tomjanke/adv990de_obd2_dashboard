@@ -1,5 +1,25 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.4 (versionCode 50)
+
+Internes Code-Cleanup — keine sichtbaren Änderungen für Nutzer.
+
+---
+
+### Ungenutzte Composables entfernt, Lint-Funde behoben
+
+`ActionButton` und `HairlineDivider` waren seit Monaten ohne eine einzige Verwendung im Code und
+wurden entfernt. `SectionLabel` hatte ebenfalls keine Verwendung, ersetzt jetzt aber den
+1:1-duplizierten Überschriften-Text über der Dashboard-Vorschau. Außerdem zwei
+Lint-Hinweise (`ModifierParameter`) behoben, die eine falsche Reihenfolge von Compose-Parametern
+bemängelten.
+
+### Tests
+
+406 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.3 (versionCode 49)
 
 Testabdeckung und Vorschau-Bilder für die Getriebe-Einstellungen ergänzt — keine sichtbaren
