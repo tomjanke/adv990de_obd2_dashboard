@@ -14,6 +14,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 - **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
 - **Fahrzeug-Info** (VIN, ECU-Name, Kalibrier-IDs via Mode 09)
 - **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
+- **Virtuelle Ganganzeige** — errechnet den eingelegten Gang aus Motordrehzahl und Geschwindigkeit (Hysterese gegen Flackern), konfigurierbar über einen eigenen Getriebe-Einstellungsbildschirm (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
 - **Fahrt-Historie** — Sessions werden in Room persistiert, einzeln löschbar, mit CSV-Export
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
@@ -118,7 +119,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (368 Tests, < 30 Sekunden)
+# JVM Unit Tests (397 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -127,8 +128,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 368 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 13 (Dashboard, DTC, Settings, Freeze Frame) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 397 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 15 (Dashboard, DTC, Settings, Freeze Frame, Gear Ratio Field) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | 16 (AppLogDao, SensorReadingDao, SessionDao) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
@@ -156,7 +157,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── freezeframe/             # Snapshot-Daten
 │   ├── history/                 # Fahrt-Sessions
 │   ├── loggingconfig/           # Aufzeichnungs-Einstellungen
-│   ├── settings/                # Verbindung, Display, App-Logs
+│   ├── settings/                # Verbindung, Display, App-Logs, Getriebe-/Gangverhältnisse
 │   ├── vehicleinfo/             # Mode 09 (VIN etc.)
 │   ├── appinfo/                 # Über-Bildschirm
 │   ├── permission/              # Runtime-Permissions Gate
@@ -226,6 +227,7 @@ Persistiert via Jetpack DataStore:
 - Anzeige-Einheiten (metrisch/imperial)
 - Aufzeichnungs-Modus (immer / nur bei Fahrt / aus)
 - App-Log-Verbosity
+- Getriebe-Verhältnisse für die virtuelle Ganganzeige (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
 
 ---
 
@@ -267,8 +269,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (368) |
-| `app/src/androidTest/` | Instrumented Tests (40, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (397) |
+| `app/src/androidTest/` | Instrumented Tests (42, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

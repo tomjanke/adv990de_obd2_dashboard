@@ -61,6 +61,13 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 **ALL-CAPS-Labels** mit `letterSpacing = 0.12.em` für Cockpit-Charakter. Sparsam — nur Tile-Labels und Sektions-Überschriften.
 
+**Dokumentierte Abweichung von M3 / BIKE_SCALE:** `GearIndicatorStyle` (`ui/theme/AppTypography.kt`,
+Gang-Ziffer neben der RpmBar, s. „RPM-Balken" oben) wendet `BIKE_SCALE` bewusst **nicht** an, anders
+als jeder übrige Live-Value-Style. Ihre Größe (40 sp) richtet sich nach der festen Innenhöhe der
+`RpmBar` (72 dp Zeilenhöhe minus 2× 8 dp Padding), nicht nach allgemeiner Motorrad-Lesbarkeit — eine
+mit `BIKE_SCALE` mitwachsende Ziffer liefe aus der fest dimensionierten 32-dp-Box heraus. Würde
+`BIKE_SCALE` künftig erhöht, muss dieser Wert unabhängig nachgezogen werden.
+
 ### Layout-Patterns
 
 **`LiveValueTile`** (in `ui/components/LiveValueTile.kt`) ist das zentrale UI-Element. Verbindliche Anatomie (Stand 2026-05-15):
@@ -107,7 +114,15 @@ Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm über die volle 
 Abstand. Die unbeleuchteten Segmente bleiben in `surfaceVariant` sichtbar, damit die Skala auch
 bei 0 rpm lesbar ist — die Position der Drehzahl im Band erfasst man so, ohne die Zahl zu lesen.
 Segmente ab dem Blink-Schwellwert leuchten in `StatusColors.Critical` (Schaltblitz-Prinzip),
-darunter in `primary`. Ohne Verbindung: keine Alarmfarbe, kein Blinken, Wert „-- rpm".
+darunter in `primary`. Ohne Verbindung: keine Alarmfarbe, kein Blinken.
+
+Neben dem Balken steht seit der virtuellen Ganganzeige (Stand 2026-09-23) keine Drehzahl-Zahl
+mehr, sondern eine schmale Box (32 dp breit, volle Balkenhöhe) mit der aktuell erkannten
+Gangstufe als einzelne Ziffer (`GearIndicatorStyle`, Plex Mono, `tnum`) in `primary`. Ist der Gang
+nicht bestimmbar — keine Verbindung, oder verbunden aber z.B. im Stillstand — zeigt die Box „–“ in
+`onSurfaceVariant` statt einer Zahl. Die Berechnung selbst (`determineGear`, Hysterese via
+`STAY_TOLERANCE`/`ENTER_TOLERANCE`) liegt in `ui/dashboard/GearIndicator.kt`, domain-agnostisch und
+ohne Android-Bezug.
 
 ### Animation-Disziplin
 
