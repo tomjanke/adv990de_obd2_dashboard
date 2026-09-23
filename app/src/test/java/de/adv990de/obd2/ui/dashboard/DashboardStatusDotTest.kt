@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.dashboard
 
+import androidx.compose.ui.graphics.Color
 import de.adv990de.obd2.ui.components.StatusDotState
+import de.adv990de.obd2.ui.theme.StatusColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -40,5 +42,29 @@ class DashboardStatusDotTest {
             StatusDotState.Critical,
             dashboardStatusDotState(isConnected = false, isReconnecting = false, hasError = true)
         )
+    }
+
+    // --- connectionDotColor ---
+
+    @Test
+    fun `Ok is a real fixed green, not the theme-tinted default`() {
+        assertEquals(Color(0xFF22C55E), connectionDotColor(StatusDotState.Ok))
+    }
+
+    @Test
+    fun `Connecting is a real fixed yellow, not theme primary`() {
+        assertEquals(Color(0xFFEAB308), connectionDotColor(StatusDotState.Connecting))
+    }
+
+    @Test
+    fun `Critical reuses the existing StatusColors red, unchanged`() {
+        assertEquals(StatusColors.Critical, connectionDotColor(StatusDotState.Critical))
+    }
+
+    @Test
+    fun `Warning reuses the existing StatusColors amber, unchanged`() {
+        // Not reachable via dashboardStatusDotState() today, but connectionDotColor() must still
+        // return something sane for every StatusDotState value.
+        assertEquals(StatusColors.Warning, connectionDotColor(StatusDotState.Warning))
     }
 }

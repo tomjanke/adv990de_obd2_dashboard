@@ -45,6 +45,15 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
 - Form-Validation / Empty-State-Error-Texte: `MaterialTheme.colorScheme.error` (M3-Standard, andere Semantik als Dashboard-Critical)
 
+**Dokumentierte Ausnahme — Bluetooth-Verbindungs-Dot (Stand 2026-09-23, Nutzerwunsch):** Der
+Verbindungsstatus-Dot im Dashboard (neben dem Bluetooth-Icon in `DashboardScreen.kt`) nutzt
+entgegen der obigen Regel eine klassische Rot/Gelb/Grün-Ampel-Semantik statt theme-getönter
+Non-Alarm-Farben: `connectionDotColor()` (`ui/dashboard/DashboardStatusDot.kt`) liefert `Ok` →
+`#22C55E` (Tailwind Green 500), `Connecting` → `#EAB308` (Tailwind Yellow 500), `Critical` weiterhin
+`StatusColors.Critical`. Gilt **nur** für diesen einen Dot — `StatusDot()`s neuer optionaler
+`color`-Parameter ist ein Override; ohne ihn behält die Komponente ihre bisherige, nicht-alarmierte
+Standardfarbgebung für jede andere Verwendung.
+
 ### Typografie
 
 Display-Font: **Space Grotesk** (bereits geladen, `R.font.space_grotesk_*`).
@@ -156,7 +165,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 |---|---|
 | `LiveValueText(value, style, color, animated)` | Inline-Wert in Plex Mono + `tnum`; `animated=true` für langsam wechselnde Werte (Snapshots/VIN) |
 | `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
-| `StatusDot(state, size)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting" |
+| `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
 | `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
 | `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar |
 
@@ -190,7 +199,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 422 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 426 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 42 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

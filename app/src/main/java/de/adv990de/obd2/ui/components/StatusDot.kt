@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -50,14 +51,19 @@ enum class StatusDotState {
  * Intentionally compact and side-effect-free — drop into any Row/Box where a glanceable
  * health signal is needed (TopBar, list item trailing icon, dashboard chrome). For tile
  * accent coloring use [TileStatus] on a [LiveValueTile] instead, not this dot.
+ *
+ * [color] overrides the default per-[state] color when given — e.g. the dashboard's connection
+ * dot uses `connectionDotColor()` for a deliberate red/yellow/green exception (see its KDoc).
+ * Leave it `null` to keep this composable's own non-alarm-tinted defaults for every other caller.
  */
 @Composable
 fun StatusDot(
     state: StatusDotState,
     modifier: Modifier = Modifier,
     size: Dp = 8.dp,
+    color: Color? = null,
 ) {
-    val baseColor = when (state) {
+    val baseColor = color ?: when (state) {
         StatusDotState.Ok         -> MaterialTheme.colorScheme.tertiary
         StatusDotState.Warning    -> StatusColors.Warning
         StatusDotState.Critical   -> StatusColors.Critical

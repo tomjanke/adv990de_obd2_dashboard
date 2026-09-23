@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.dashboard
 
+import androidx.compose.ui.graphics.Color
 import de.adv990de.obd2.ui.components.StatusDotState
+import de.adv990de.obd2.ui.theme.StatusColors
 
 /**
  * Maps the dashboard's connection state to a [StatusDotState] for the RPM bar's trailing
@@ -24,4 +26,22 @@ fun dashboardStatusDotState(isConnected: Boolean, isReconnecting: Boolean, hasEr
     isReconnecting -> StatusDotState.Connecting
     hasError -> StatusDotState.Critical
     else -> null
+}
+
+/**
+ * Feste Ampel-Farben (Rot/Gelb/Gruen) ausschliesslich fuer den Bluetooth-Verbindungsstatus-Dot im
+ * Dashboard — auf Nutzerwunsch. Das ist eine bewusste Abweichung von [StatusDot]s sonstiger,
+ * theme-getönter Non-Alarm-Farbgebung fuer `Ok` (s. CLAUDE.md "OK ist kein Alarm-Signal"): Fuer
+ * genau diesen einen Dot soll Verbunden/Gruen, Verbindet.../Gelb, Fehler/Rot gelten. Nicht fuer
+ * andere `StatusDot`-Verwendungen wiederverwenden — die behalten die bestehende Semantik (s.
+ * [StatusDot]s eigenes `baseColor`, das nur greift, wenn kein `color`-Override uebergeben wird).
+ *
+ * `Critical`/`Warning` reichen die bereits vorhandenen [StatusColors]-Werte unveraendert durch —
+ * Rot war schon vorher StatusColors.Critical, keine Dopplung noetig.
+ */
+fun connectionDotColor(state: StatusDotState): Color = when (state) {
+    StatusDotState.Ok         -> Color(0xFF22C55E) // Tailwind Green 500
+    StatusDotState.Connecting -> Color(0xFFEAB308) // Tailwind Yellow 500
+    StatusDotState.Critical   -> StatusColors.Critical
+    StatusDotState.Warning    -> StatusColors.Warning
 }

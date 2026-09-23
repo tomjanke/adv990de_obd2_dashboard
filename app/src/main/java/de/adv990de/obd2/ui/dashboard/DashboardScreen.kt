@@ -158,11 +158,12 @@ fun DashboardScreen(
                         )
                         if (state.isConnected) {
                             Row(
+                                modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
                                 if (dotState != null) {
-                                    StatusDot(state = dotState)
+                                    StatusDot(state = dotState, color = connectionDotColor(dotState))
                                 }
                                 Icon(
                                     painterResource(R.drawable.ic_bluetooth),
@@ -172,11 +173,12 @@ fun DashboardScreen(
                             }
                         } else {
                             Row(
+                                modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
                                 if (dotState != null) {
-                                    StatusDot(state = dotState)
+                                    StatusDot(state = dotState, color = connectionDotColor(dotState))
                                 }
                                 IconButton(onClick = {
                                     navController.navigate(Screen.Settings.route) {
