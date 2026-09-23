@@ -107,4 +107,79 @@ class GearIndicatorTest {
         // Gang bleiben.
         assertNull(determineGear(engineRpm = 500f, speedKmh = 100f, lastGear = 5, ratios = ratios))
     }
+
+    // --- Test 9 ---
+
+    @Test
+    fun `at exactly the minimum speed the reading is still used, not rejected`() {
+        // MIN_SPEED_KMH ist 8.0f; der Vergleich im Code ist "< MIN_SPEED_KMH" — exakt 8.0 muss
+        // also noch als gueltig gelten, nicht als "zu langsam" verworfen werden.
+        val simpleRatios = GearRatios(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f),
+        )
+        val speedKmh = 8.0f
+        val rpm = 10f * wheelRpm(speedKmh, circumferenceMm = 2000f)
+
+        assertEquals(1, determineGear(engineRpm = rpm, speedKmh = speedKmh, lastGear = null, ratios = simpleRatios))
+    }
+
+    // --- Test 10 ---
+
+    @Test
+    fun `a deviation just under ENTER_TOLERANCE locks in a new gear, just over it does not`() {
+        // ENTER_TOLERANCE ist 0.04f (4 %). Ein exakter Bit-Treffer auf eine Float-Grenze laesst
+        // sich durch Multiplikation/Division nicht zuverlaessig herstellen (siehe Testverlauf:
+        // ein erster Versuch mit "genau 4 %"/"genau 6 %" lieferte bei 6 % durch Rundung ein
+        // Ergebnis knapp ueber der Grenze) — stattdessen wird die Grenze von beiden Seiten eng
+        // eingerahmt: 3,9 % muss noch einrasten, 4,1 % nicht mehr.
+        val simpleRatios = GearRatios(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f),
+        )
+        val speedKmh = 60f
+        val wheelRpmValue = wheelRpm(speedKmh, circumferenceMm = 2000f)
+
+        val justInside = determineGear(
+            engineRpm = 10.39f * wheelRpmValue, speedKmh = speedKmh, lastGear = null, ratios = simpleRatios
+        )
+        val justOutside = determineGear(
+            engineRpm = 10.41f * wheelRpmValue, speedKmh = speedKmh, lastGear = null, ratios = simpleRatios
+        )
+
+        assertEquals(1, justInside)
+        assertNull(justOutside)
+    }
+
+    // --- Test 11 ---
+
+    @Test
+    fun `a deviation just under STAY_TOLERANCE keeps the locked gear, just over it does not`() {
+        // STAY_TOLERANCE ist 0.06f (6 %), aus demselben Grund wie oben von beiden Seiten
+        // eingerahmt statt exakt getroffen: 5,9 % muss den 1. Gang halten, 6,1 % nicht mehr —
+        // kein anderer Gang existiert in dieser Fixture, der stattdessen ueber ENTER_TOLERANCE
+        // (4 %) einrasten koennte, das beweist, dass hier wirklich STAY_TOLERANCE greift.
+        val simpleRatios = GearRatios(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f),
+        )
+        val speedKmh = 60f
+        val wheelRpmValue = wheelRpm(speedKmh, circumferenceMm = 2000f)
+
+        val justInside = determineGear(
+            engineRpm = 10.59f * wheelRpmValue, speedKmh = speedKmh, lastGear = 1, ratios = simpleRatios
+        )
+        val justOutside = determineGear(
+            engineRpm = 10.61f * wheelRpmValue, speedKmh = speedKmh, lastGear = 1, ratios = simpleRatios
+        )
+
+        assertEquals(1, justInside)
+        assertNull(justOutside)
+    }
 }
