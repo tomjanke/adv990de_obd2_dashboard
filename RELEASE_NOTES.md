@@ -1,5 +1,23 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.8 (versionCode 54)
+
+Verbindungs-Status-Punkt: klassische Ampelfarben und etwas mehr Abstand zur Ganganzeige.
+
+---
+
+### Verbindungs-Dot in Rot/Gelb/Grün
+
+Der Punkt neben dem Bluetooth-Symbol zeigt den Verbindungsstatus jetzt in klassischer
+Ampel-Farbgebung: Grün für verbunden, Gelb für „verbindet", Rot für einen Fehler. Der Punkt sitzt
+außerdem etwas weiter von der Gang-Ziffer und näher am Bluetooth-Symbol.
+
+### Tests
+
+426 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.7 (versionCode 53)
 
 Ganganzeige: weniger Wegspringen auf „–" beim Fahren, basierend auf Rückmeldung aus einer
