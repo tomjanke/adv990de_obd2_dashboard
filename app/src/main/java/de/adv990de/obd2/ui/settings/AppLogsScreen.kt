@@ -77,9 +77,12 @@ fun AppLogsScreen(
     }
 }
 
+internal fun parseLogLevelOrDefault(raw: String): LogLevel =
+    runCatching { LogLevel.valueOf(raw) }.getOrDefault(LogLevel.INFO)
+
 @Composable
 private fun LogEntryRow(entry: AppLogEntity) {
-    val level = runCatching { LogLevel.valueOf(entry.level) }.getOrDefault(LogLevel.INFO)
+    val level = parseLogLevelOrDefault(entry.level)
     val chipColor = when (level) {
         LogLevel.INFO  -> MaterialTheme.colorScheme.primaryContainer
         LogLevel.WARN  -> MaterialTheme.colorScheme.tertiaryContainer
