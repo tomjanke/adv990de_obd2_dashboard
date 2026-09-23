@@ -1,5 +1,17 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.9 (versionCode 55)
+
+Feinjustierung: Verbindungs-Dot sitzt jetzt noch näher am Bluetooth-Symbol.
+
+---
+
+### Tests
+
+426 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.8 (versionCode 54)
 
 Verbindungs-Status-Punkt: klassische Ampelfarben und etwas mehr Abstand zur Ganganzeige.
