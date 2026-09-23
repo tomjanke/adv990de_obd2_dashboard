@@ -146,9 +146,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `LiveValueText(value, style, color, animated)` | Inline-Wert in Plex Mono + `tnum`; `animated=true` für langsam wechselnde Werte (Snapshots/VIN) |
 | `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
 | `StatusDot(state, size)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting" |
-| `SectionLabel(text)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
-| `ActionButton(label, onClick)` | min. 56 dp Höhe, full-width oder min. 160 dp, rectangular |
-| `HairlineDivider()` | 1-dp `outline`, vertikales Padding 8 dp |
+| `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
 | `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.

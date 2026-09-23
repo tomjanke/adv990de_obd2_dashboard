@@ -44,13 +44,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.LiveValueTile
+import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.GearIndicatorStyle
@@ -180,11 +180,11 @@ internal fun SensorCardSlot(
 ) {
     if (reading != null) {
         SensorCard(
-            reading,
-            sparklines[reading.pid.id] ?: emptyList(),
-            useImperial,
-            onLongPress,
-            modifier.fillMaxSize(),
+            value = reading,
+            modifier = modifier.fillMaxSize(),
+            sparkline = sparklines[reading.pid.id] ?: emptyList(),
+            useImperial = useImperial,
+            onLongPress = onLongPress,
             isLive = isLive,
         )
     } else {
@@ -234,10 +234,8 @@ internal fun PreviewBanner(modifier: Modifier = Modifier) {
         shadowElevation = 0.dp,
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        Text(
-            text = stringResource(R.string.dashboard_preview_banner).uppercase(),
-            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.12.em),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        SectionLabel(
+            text = stringResource(R.string.dashboard_preview_banner),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         )
@@ -253,10 +251,10 @@ internal fun PreviewBanner(modifier: Modifier = Modifier) {
 @Composable
 internal fun SensorCard(
     value: SensorValue,
+    modifier: Modifier = Modifier,
     sparkline: List<Float> = emptyList(),
     useImperial: Boolean = false,
     onLongPress: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
     /**
      * false bedeutet: Es gibt keine Verbindung, der Wert stammt aus der Vorschau-Belegung und ist
      * kein Messwert. Er wird dann als "--" gezeichnet — eine "0" liesse sich von einem echten

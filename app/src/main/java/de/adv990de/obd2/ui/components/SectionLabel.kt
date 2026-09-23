@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -31,6 +32,7 @@ fun SectionLabel(
     text: String,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    textAlign: TextAlign? = null,
 ) {
     Text(
         text = text.uppercase(),
@@ -39,6 +41,7 @@ fun SectionLabel(
             letterSpacing = 0.12.em,
         ),
         color = color,
+        textAlign = textAlign,
         modifier = modifier,
     )
 }

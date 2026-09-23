@@ -77,8 +77,8 @@ enum class TileStatus { Ok, Warning, Critical }
 fun LiveValueTile(
     label: String,
     value: String,
-    unit: String? = null,
     modifier: Modifier = Modifier,
+    unit: String? = null,
     sparkline: List<Float> = emptyList(),
     status: TileStatus = TileStatus.Ok,
     isPreview: Boolean = false,
@@ -267,14 +267,18 @@ private fun PreviewTileGrid() {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LiveValueTile("SPEED", "127", "km/h", Modifier.weight(1f).height(140.dp))
-                LiveValueTile("RPM", "2 840", "rpm", Modifier.weight(1f).height(140.dp),
-                    sparkline = listOf(2500f, 2700f, 2900f, 2840f, 2820f, 2840f))
+                LiveValueTile(label = "SPEED", value = "127", unit = "km/h", modifier = Modifier.weight(1f).height(140.dp))
+                LiveValueTile(
+                    label = "RPM", value = "2 840", unit = "rpm", modifier = Modifier.weight(1f).height(140.dp),
+                    sparkline = listOf(2500f, 2700f, 2900f, 2840f, 2820f, 2840f),
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LiveValueTile("COOLANT", "87", "°C", Modifier.weight(1f).height(140.dp))
-                LiveValueTile("LOAD", "42", "%", Modifier.weight(1f).height(140.dp),
-                    status = TileStatus.Warning)
+                LiveValueTile(label = "COOLANT", value = "87", unit = "°C", modifier = Modifier.weight(1f).height(140.dp))
+                LiveValueTile(
+                    label = "LOAD", value = "42", unit = "%", modifier = Modifier.weight(1f).height(140.dp),
+                    status = TileStatus.Warning,
+                )
             }
         }
     }
