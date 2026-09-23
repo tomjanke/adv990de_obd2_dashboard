@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.3 (versionCode 49)
+
+Testabdeckung und Vorschau-Bilder für die Getriebe-Einstellungen ergänzt — keine sichtbaren
+Änderungen für Nutzer.
+
+---
+
+### Grenzwert-Tests für die Ganganzeige
+
+Drei neue Tests für `determineGear()` decken die exakten Schwellwerte ab: die 8,0-km/h-Mindest-
+geschwindigkeit sowie die 4%- und 6%-Toleranzgrenzen beim Ein- und Ausrasten eines Gangs.
+
+### `@Preview` für die Getriebe-Einstellungen
+
+Das Eingabefeld für Radumfang/Übersetzungen hat jetzt eine Vorschau für den gültigen und den
+fehlerhaften Eingabezustand.
+
+### Tests
+
+406 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.2 (versionCode 48)
 
 Ein verlorenes GPS-Signal zeigt nicht mehr dauerhaft die letzte bekannte Geschwindigkeit.
