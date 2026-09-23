@@ -114,6 +114,16 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Hell</string>
     <string name="settings_theme_dark">Dunkel</string>
+
+    <!-- Getriebe-Einstellungen (virtuelle Ganganzeige) -->
+    <string name="settings_gear_ratios">Getriebe</string>
+    <string name="gear_settings_title">Getriebeübersetzungen</string>
+    <string name="gear_settings_back_desc">Zurück</string>
+    <string name="gear_settings_wheel_circumference">Radumfang (mm)</string>
+    <string name="gear_settings_primary_ratio">Primärübersetzung</string>
+    <string name="gear_settings_secondary_ratio">Sekundärübersetzung (Endantrieb)</string>
+    <string name="gear_settings_gear_n">Übersetzung %1$d. Gang</string>
+    <string name="gear_settings_invalid_value">Bitte eine positive Zahl eingeben</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App-Logs</string>
     <string name="app_logs_title">App-Logs</string>

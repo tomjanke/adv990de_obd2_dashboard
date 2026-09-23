@@ -288,6 +288,11 @@ fun SettingsScreen(
                 ) { Text(stringResource(R.string.settings_app_logs)) }
                 HorizontalDivider()
                 TextButton(
+                    onClick = { navController.navigate(Screen.GearSettings.route) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.settings_gear_ratios)) }
+                HorizontalDivider()
+                TextButton(
                     onClick = { navController.navigate(Screen.VehicleInfo.route) },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.settings_vehicle_info)) }

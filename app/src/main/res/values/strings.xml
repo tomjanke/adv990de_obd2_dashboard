@@ -114,6 +114,16 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+
+    <!-- Gear ratio settings screen (virtual gear indicator) -->
+    <string name="settings_gear_ratios">Gear ratios</string>
+    <string name="gear_settings_title">Gear Ratios</string>
+    <string name="gear_settings_back_desc">Back</string>
+    <string name="gear_settings_wheel_circumference">Wheel circumference (mm)</string>
+    <string name="gear_settings_primary_ratio">Primary reduction ratio</string>
+    <string name="gear_settings_secondary_ratio">Secondary (final drive) ratio</string>
+    <string name="gear_settings_gear_n">Gear %1$d ratio</string>
+    <string name="gear_settings_invalid_value">Enter a positive number</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App Logs</string>
     <string name="app_logs_title">App Logs</string>
