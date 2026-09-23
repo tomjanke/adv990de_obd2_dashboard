@@ -59,7 +59,11 @@ class DashboardViewModelTest {
         logOnlyDtc: Boolean = false,
         logOnlyDiscovered: Boolean = false,
         loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS,
-        useGpsSpeed: Boolean = false
+        useGpsSpeed: Boolean = false,
+        wheelCircumferenceMm: Float = AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
+        primaryRatio: Float = AppPreferences.DEFAULT_PRIMARY_RATIO,
+        secondaryRatio: Float = AppPreferences.DEFAULT_SECONDARY_RATIO,
+        gearRatios: List<Float> = AppPreferences.DEFAULT_GEAR_RATIOS,
     ): AppPreferences = mockk {
         every { slotPids }              returns flowOf(slotIds)
         every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
@@ -69,6 +73,10 @@ class DashboardViewModelTest {
         every { rpmDynamicThreshold }   returns flowOf(false)
         every { lastDevice }            returns flowOf(null)
         every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
+        every { this@mockk.wheelCircumferenceMm } returns flowOf(wheelCircumferenceMm)
+        every { this@mockk.primaryRatio }         returns flowOf(primaryRatio)
+        every { this@mockk.secondaryRatio }       returns flowOf(secondaryRatio)
+        every { this@mockk.gearRatios }           returns flowOf(gearRatios)
     }
 
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
@@ -373,6 +381,10 @@ class DashboardViewModelTest {
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
             every { rpmDynamicThreshold }   returns flowOf(false)
+            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
+            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
+            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
+            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
         }
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -789,6 +801,10 @@ class DashboardViewModelTest {
             every { rpmBlinkThreshold }     returns flowOf(0)
             every { rpmDynamicThreshold }   returns flowOf(false)
             every { lastDevice }            returns flowOf(null)
+            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
+            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
+            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
+            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
             coEvery { setSlotPid(any(), any()) } just Runs
         }
         val vm = makeVmFrom(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -831,6 +847,10 @@ class DashboardViewModelTest {
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
             every { rpmDynamicThreshold }   returns flowOf(false)
+            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
+            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
+            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
+            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
         }
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -902,6 +922,10 @@ class DashboardViewModelTest {
             every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
             every { rpmBlinkThreshold }     returns flowOf(0)
             every { rpmDynamicThreshold }   returns flowOf(false)
+            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
+            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
+            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
+            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
         }
 
         makeVm(obdRepo = obdRepo, sessionRepo = sessionRepo, prefs = prefs, appContext = ctx)
@@ -1152,6 +1176,70 @@ class DashboardViewModelTest {
 
         assertNull(vm.uiState.value.readings.firstOrNull { it.pid.id == PidRegistry.SPEED.id })
     }
+
+    // ── Virtuelle Ganganzeige ─────────────────────────────────────────────────
+
+    @Test
+    fun `speedKmh is extracted independent of slot assignment`() = runTest {
+        // Speed is NOT one of the default slot PIDs, so state.readings would never carry it —
+        // speedKmh must still be populated.
+        val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 42f, timestamp = 1000L)
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(listOf(speedReading))
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(42f, vm.uiState.value.speedKmh!!, 0.001f)
+    }
+
+    @Test
+    fun `gear is computed from rpm and speed using the configured ratios`() = runTest {
+        // 1x1 primary/secondary, wheel circumference 2000mm, single gear ratio 10 -> at 60 km/h
+        // (wheelRpm 500) an engine speed of 5000 rpm hits gear 1 exactly.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.gear)
+    }
+
     /**
      * Baut das ViewModel aus denselben Bausteinen wie Hilt.
      *

@@ -36,7 +36,9 @@ data class DashboardUiState(
     val error: UiText? = null,
     val sparklines: Map<String, List<Float>> = emptyMap(),
     val rpmValue: Float = 0f,
-    val engineTempC: Float? = null
+    val engineTempC: Float? = null,
+    val speedKmh: Float? = null,
+    val gear: Int? = null
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -79,6 +81,29 @@ class DashboardViewModel @Inject constructor(
     /** When true, the blink threshold is scaled down at low engine temperatures. */
     val rpmDynamicThreshold: StateFlow<Boolean> = appPreferences.rpmDynamicThreshold
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Fahrzeugspezifische Getriebedaten fuer die virtuelle Ganganzeige. `Eagerly`: wird
+     *  synchron ueber `.value` in [applyReadings] gelesen, nicht ueber einen Compose-Collector
+     *  gehalten — ohne `Eagerly` bliebe der Wert fuer immer auf dem Default stehen (derselbe
+     *  Fehler, der die GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen liess, siehe
+     *  `ReadingsPipeline.gpsSpeedKmh`). */
+    private val gearRatios: StateFlow<GearRatios> = combine(
+        appPreferences.wheelCircumferenceMm,
+        appPreferences.primaryRatio,
+        appPreferences.secondaryRatio,
+        appPreferences.gearRatios,
+    ) { wheelCircumferenceMm, primaryRatio, secondaryRatio, ratios ->
+        GearRatios(wheelCircumferenceMm, primaryRatio, secondaryRatio, ratios)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        GearRatios(
+            AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
+            AppPreferences.DEFAULT_PRIMARY_RATIO,
+            AppPreferences.DEFAULT_SECONDARY_RATIO,
+            AppPreferences.DEFAULT_GEAR_RATIOS,
+        )
+    )
 
     /** The 4 slot → PID-ID assignments, in slot order. */
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
@@ -145,11 +170,17 @@ class DashboardViewModel @Inject constructor(
             values.firstOrNull { it.pid.id == PidRegistry.ENGINE_OIL_TEMP.id && it.isPlausible() }?.value
                 ?: values.firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }?.value
         } else null
+        val newRpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
+            ?.value ?: _uiState.value.rpmValue
+        val newSpeedKmh = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id && it.isPlausible() }
+            ?.value ?: _uiState.value.speedKmh
+        val newGear = determineGear(newRpmValue, newSpeedKmh, _uiState.value.gear, gearRatios.value)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
-            rpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
-                           ?.value ?: _uiState.value.rpmValue,
+            rpmValue = newRpmValue,
             engineTempC = engineTempC,
+            speedKmh = newSpeedKmh,
+            gear = newGear,
             isConnected = true,
             isReconnecting = false,
             error = null,
