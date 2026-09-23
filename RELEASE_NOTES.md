@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.2 (versionCode 48)
+
+Ein verlorenes GPS-Signal zeigt nicht mehr dauerhaft die letzte bekannte Geschwindigkeit.
+
+---
+
+### GPS-Fix verfällt nach 2 Sekunden ohne Update
+
+Verlor das Gerät den GPS-Empfang — etwa im Tunnel oder in der Tiefgarage — blieb die zuletzt
+gemessene Geschwindigkeit unbegrenzt lange stehen, weil das Betriebssystem in diesem Fall weder
+einen neuen Fix noch ein „Anbieter deaktiviert"-Signal liefert. Zusammen mit der virtuellen
+Ganganzeige aus 1.16.0 konnte das im Stand einen falschen, aber überzeugend wirkenden Gang zeigen.
+Jeder echte GPS-Fix startet jetzt einen 2-Sekunden-Timer neu; bleibt der nächste Fix aus, gilt die
+Geschwindigkeit als unbekannt — genau wie bei fehlendem oder unplausiblem Signal.
+
+### Tests
+
+403 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.1 (versionCode 47)
 
 Der Verbindungs-Status-Punkt zeigt jetzt auch einen eigenen Fehler-Zustand.
