@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.7 (versionCode 53)
+
+Ganganzeige: weniger Wegspringen auf „–" beim Fahren, basierend auf Rückmeldung aus einer
+Testfahrt.
+
+---
+
+### Ganganzeige hält den letzten Gang bei kurzen Aussetzern
+
+Kupplung ziehen oder das Gas wegnehmen entkoppelt kurz die Motordrehzahl von der
+Geschwindigkeit — die Ganganzeige sprang dabei bisher sofort auf „–" und musste sich danach
+langsamer neu einpendeln, was sich auch beim Anfahren als Verzögerung bemerkbar machte. Die
+Anzeige hält jetzt den zuletzt erkannten Gang, solange das Fahrzeug erkennbar weiterrollt, und
+zeigt „–" erst wieder bei echtem Stillstand oder fehlendem GPS-Signal.
+
+### Tests
+
+422 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.6 (versionCode 52)
 
 Fehlerbehebung: Die Ganganzeige nutzte bislang teilweise die Fahrzeug-Geschwindigkeit statt GPS.
