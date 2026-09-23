@@ -160,7 +160,8 @@ fun DashboardScreen(
                             Row(
                                 modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                // 0dp: Dot soll so nah wie moeglich am Bluetooth-Icon sitzen.
+                                horizontalArrangement = Arrangement.spacedBy(0.dp),
                             ) {
                                 if (dotState != null) {
                                     StatusDot(state = dotState, color = connectionDotColor(dotState))
@@ -175,7 +176,11 @@ fun DashboardScreen(
                             Row(
                                 modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                // Negativer Abstand gleicht IconButtons eigenes ~12dp-Innenpolster
+                                // um sein 24dp-Icon aus (Default-Touch-Ziel 48dp) — sonst saehe der
+                                // Dot hier deutlich weiter vom Icon-Glyphen entfernt aus als bei der
+                                // verbundenen Variante oben, die ein reines Icon ohne Polster nutzt.
+                                horizontalArrangement = Arrangement.spacedBy((-12).dp),
                             ) {
                                 if (dotState != null) {
                                     StatusDot(state = dotState, color = connectionDotColor(dotState))
