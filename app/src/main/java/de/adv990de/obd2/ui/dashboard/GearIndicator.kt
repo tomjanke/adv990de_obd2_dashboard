@@ -61,3 +61,28 @@ fun determineGear(
     val best = deviations.minByOrNull { it.second } ?: return null
     return if (best.second <= ENTER_TOLERANCE) best.first else null
 }
+
+/**
+ * Findet Gangpaare, deren Gesamt-Uebersetzung so nah beieinander liegt (relative Abweichung
+ * <= [STAY_TOLERANCE]), dass die Hysterese in [determineGear] einen echten Wechsel zwischen ihnen
+ * nicht mehr zuverlaessig erkennen koennte — siehe deren KDoc: ein bereits gesperrter Gang bleibt
+ * stehen, solange seine EIGENE Abweichung darunter bleibt, unabhaengig davon, ob der tatsaechliche
+ * neue Gang naeher liegt. Prueft alle Paare, nicht nur indexbenachbarte, falls Gaenge nicht streng
+ * monoton eingetragen wurden.
+ *
+ * Rueckgabe als 1-basierte Gangnummern-Paare (kleinere Nummer zuerst), leer wenn alle Gaenge
+ * ausreichend Abstand haben.
+ */
+fun closeGearPairs(primaryRatio: Float, secondaryRatio: Float, gearRatios: List<Float>): List<Pair<Int, Int>> {
+    val totals = gearRatios.mapIndexed { index, gearRatio -> (index + 1) to primaryRatio * secondaryRatio * gearRatio }
+    val conflicts = mutableListOf<Pair<Int, Int>>()
+    for (i in totals.indices) {
+        for (j in i + 1 until totals.size) {
+            val (gearA, ratioA) = totals[i]
+            val (gearB, ratioB) = totals[j]
+            val deviation = abs(ratioA - ratioB) / maxOf(ratioA, ratioB)
+            if (deviation <= STAY_TOLERANCE) conflicts.add(gearA to gearB)
+        }
+    }
+    return conflicts
+}

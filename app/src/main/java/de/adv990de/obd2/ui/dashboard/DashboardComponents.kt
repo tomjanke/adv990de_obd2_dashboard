@@ -29,6 +29,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -38,11 +39,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
@@ -145,21 +148,35 @@ internal fun RpmBar(
                 }
             }
         }
+        val displayGear = if (isLive) gear else null
+        val gearDescription = if (displayGear != null) {
+            stringResource(R.string.dashboard_gear_desc, displayGear)
+        } else {
+            stringResource(R.string.dashboard_gear_unknown_desc)
+        }
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
                 .width(32.dp)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .semantics { contentDescription = gearDescription },
             contentAlignment = Alignment.Center,
         ) {
-            val displayGear = if (isLive) gear else null
-            LiveValueText(
-                value = displayGear?.toString() ?: "–",
-                style = GearIndicatorStyle,
-                color = if (displayGear != null) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
+            // Diese Ziffer lebt in einer fest dimensionierten 32dp-Box (s. GearIndicatorStyle-KDoc)
+            // — mit dem System-Schriftskalierungsfaktor mitzuwachsen wuerde sie darin abschneiden.
+            // fontScale hier lokal auf 1f zu fixieren betrifft nur diese eine Ziffer, nicht den Rest
+            // der App; der contentDescription oben bleibt unveraendert lesbar (TalkBack liest Text,
+            // nicht Pixelgroesse).
+            val fixedScaleDensity = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(fixedScaleDensity.density, fontScale = 1f)) {
+                LiveValueText(
+                    value = displayGear?.toString() ?: "–",
+                    style = GearIndicatorStyle,
+                    color = if (displayGear != null) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
         trailingContent?.invoke()
     }

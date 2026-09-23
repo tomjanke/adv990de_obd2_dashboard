@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.settings
 
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -41,10 +43,12 @@ class GearSettingsViewModelTest {
         every { this@mockk.gearRatios }           returns flowOf(gearRatios)
     }
 
+    private fun makeLogRepository(): AppLogRepository = mockk(relaxed = true)
+
     @Test
     fun `wheelCircumferenceMm reflects AppPreferences flow`() = runTest {
         val prefs = makePrefs(wheelCircumferenceMm = 2100f)
-        val vm = GearSettingsViewModel(prefs)
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         val job = launch { vm.wheelCircumferenceMm.collect {} }
         advanceUntilIdle()
@@ -54,10 +58,40 @@ class GearSettingsViewModelTest {
     }
 
     @Test
+    fun `gearRatioConflicts reflects close gear ratios from AppPreferences`() = runTest {
+        // 10x und 9.9x liegen ca. 1 Prozent auseinander -- klarer Konflikt, weit unter jeder
+        // Grenzwert-Unschaerfe.
+        val prefs = makePrefs(
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 9.9f, 5f, 4f, 3f, 2f),
+        )
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
+
+        val job = launch { vm.gearRatioConflicts.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(listOf(1 to 2), vm.gearRatioConflicts.value)
+    }
+
+    @Test
+    fun `gearRatioConflicts is empty for the default ratios`() = runTest {
+        val prefs = makePrefs()
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
+
+        val job = launch { vm.gearRatioConflicts.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(emptyList<Pair<Int, Int>>(), vm.gearRatioConflicts.value)
+    }
+
+    @Test
     fun `gearRatios reflects AppPreferences flow`() = runTest {
         val customRatios = listOf(3f, 2.2f, 1.7f, 1.4f, 1.1f, 1.0f)
         val prefs = makePrefs(gearRatios = customRatios)
-        val vm = GearSettingsViewModel(prefs)
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         val job = launch { vm.gearRatios.collect {} }
         advanceUntilIdle()
@@ -70,7 +104,7 @@ class GearSettingsViewModelTest {
     fun `setWheelCircumferenceMm delegates to AppPreferences`() = runTest {
         val prefs = makePrefs()
         coEvery { prefs.setWheelCircumferenceMm(any()) } just Runs
-        val vm = GearSettingsViewModel(prefs)
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         vm.setWheelCircumferenceMm(2100f)
         advanceUntilIdle()
@@ -83,7 +117,7 @@ class GearSettingsViewModelTest {
         val prefs = makePrefs()
         coEvery { prefs.setPrimaryRatio(any()) } just Runs
         coEvery { prefs.setSecondaryRatio(any()) } just Runs
-        val vm = GearSettingsViewModel(prefs)
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         vm.setPrimaryRatio(2.0f)
         vm.setSecondaryRatio(2.8f)
@@ -97,11 +131,25 @@ class GearSettingsViewModelTest {
     fun `setGearRatio delegates to AppPreferences with the given index`() = runTest {
         val prefs = makePrefs()
         coEvery { prefs.setGearRatio(any(), any()) } just Runs
-        val vm = GearSettingsViewModel(prefs)
+        val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         vm.setGearRatio(3, 6.5f)
         advanceUntilIdle()
 
         coVerify { prefs.setGearRatio(3, 6.5f) }
+    }
+
+    @Test
+    fun `a failed write is caught and logged instead of crashing`() = runTest {
+        val prefs = makePrefs()
+        val boom = RuntimeException("disk full")
+        coEvery { prefs.setGearRatio(any(), any()) } throws boom
+        val logRepository = makeLogRepository()
+        val vm = GearSettingsViewModel(prefs, logRepository)
+
+        vm.setGearRatio(0, 3.0f)
+        advanceUntilIdle()
+
+        coVerify { logRepository.log(LogLevel.ERROR, any()) }
     }
 }

@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.settings
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
 
@@ -45,6 +47,7 @@ fun GearSettingsScreen(
     val primaryRatio by vm.primaryRatio.collectAsState()
     val secondaryRatio by vm.secondaryRatio.collectAsState()
     val gearRatios by vm.gearRatios.collectAsState()
+    val gearRatioConflicts by vm.gearRatioConflicts.collectAsState()
 
     Scaffold(
         topBar = {
@@ -62,6 +65,23 @@ fun GearSettingsScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
+            if (gearRatioConflicts.isNotEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        gearRatioConflicts.forEach { (gearA, gearB) ->
+                            Text(
+                                text = stringResource(R.string.gear_settings_ratio_conflict, gearA, gearB),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = StatusColors.Warning,
+                            )
+                        }
+                    }
+                }
+            }
             item {
                 GearRatioField(
                     label = stringResource(R.string.gear_settings_wheel_circumference),
@@ -83,7 +103,7 @@ fun GearSettingsScreen(
                     onValueChange = vm::setSecondaryRatio,
                 )
             }
-            items(gearRatios.size) { index ->
+            items(count = gearRatios.size, key = { it }) { index ->
                 GearRatioField(
                     label = stringResource(R.string.gear_settings_gear_n, index + 1),
                     value = gearRatios[index],
@@ -96,7 +116,9 @@ fun GearSettingsScreen(
 
 /**
  * Parst eine Nutzereingabe als positive Gleitkommazahl, oder `null` bei ungueltiger Eingabe
- * (nicht parsebar, negativ, oder exakt 0). Eigene Top-Level-Funktion statt Inline-Lambda, damit
+ * (nicht parsebar, negativ, exakt 0, oder "Infinity"/"NaN" — `Float.POSITIVE_INFINITY > 0f` ist
+ * `true`, ein reiner Positiv-Check allein liesse diese Werte sonst durch). Eigene Top-Level-Funktion
+ * statt Inline-Lambda, damit
  * die Validierungsregel unabhaengig vom Composable testbar ist (s. `GearSettingsScreenTest`).
  *
  * Ersetzt `,` durch `.` vor dem Parsen: `String.toFloatOrNull()` akzeptiert ausschliesslich `.`
@@ -107,7 +129,7 @@ fun GearSettingsScreen(
  * der neun Felder auf diesem Screen einen Dezimalpunkt braucht.
  */
 internal fun parsePositiveFloat(text: String): Float? =
-    text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it > 0f }
+    text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() && it > 0f }
 
 /**
  * Ein Zahlen-Eingabefeld fuer einen Getriebe-Wert. Haelt einen lokalen Text-Puffer, der nur bei

@@ -14,6 +14,8 @@
     <string name="dashboard_bt_connected_desc">Bluetooth connected</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth disconnected</string>
     <string name="dashboard_bt_connecting_desc">Bluetooth connecting</string>
+    <string name="dashboard_gear_desc">Gear %1$d</string>
+    <string name="dashboard_gear_unknown_desc">Gear unknown</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
@@ -124,6 +126,7 @@
     <string name="gear_settings_secondary_ratio">Secondary (final drive) ratio</string>
     <string name="gear_settings_gear_n">Gear %1$d ratio</string>
     <string name="gear_settings_invalid_value">Enter a positive number</string>
+    <string name="gear_settings_ratio_conflict">Gear %1$d and gear %2$d are so close together that the gear indicator may not tell them apart reliably.</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App Logs</string>
     <string name="app_logs_title">App Logs</string>

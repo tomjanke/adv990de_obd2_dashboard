@@ -231,7 +231,7 @@ class AppPreferences @Inject constructor(
 
     val wheelCircumferenceMm: Flow<Float> = dataStore.data.map { prefs ->
         prefs[KEY_WHEEL_CIRCUMFERENCE_MM] ?: DEFAULT_WHEEL_CIRCUMFERENCE_MM
-    }
+    }.distinctUntilChanged() // DataStore emits on every write; suppress value-equal emissions
 
     suspend fun setWheelCircumferenceMm(value: Float) {
         dataStore.edit { it[KEY_WHEEL_CIRCUMFERENCE_MM] = value }
@@ -239,7 +239,7 @@ class AppPreferences @Inject constructor(
 
     val primaryRatio: Flow<Float> = dataStore.data.map { prefs ->
         prefs[KEY_PRIMARY_RATIO] ?: DEFAULT_PRIMARY_RATIO
-    }
+    }.distinctUntilChanged()
 
     suspend fun setPrimaryRatio(value: Float) {
         dataStore.edit { it[KEY_PRIMARY_RATIO] = value }
@@ -247,7 +247,7 @@ class AppPreferences @Inject constructor(
 
     val secondaryRatio: Flow<Float> = dataStore.data.map { prefs ->
         prefs[KEY_SECONDARY_RATIO] ?: DEFAULT_SECONDARY_RATIO
-    }
+    }.distinctUntilChanged()
 
     suspend fun setSecondaryRatio(value: Float) {
         dataStore.edit { it[KEY_SECONDARY_RATIO] = value }
@@ -258,7 +258,7 @@ class AppPreferences @Inject constructor(
      *  unabhaengig von den anderen fuenf geschrieben werden kann. */
     val gearRatios: Flow<List<Float>> = dataStore.data.map { prefs ->
         GEAR_RATIO_KEYS.mapIndexed { i, key -> prefs[key] ?: DEFAULT_GEAR_RATIOS[i] }
-    }
+    }.distinctUntilChanged()
 
     suspend fun setGearRatio(index: Int, value: Float) {
         require(index in 0..5) { "index must be 0..5" }

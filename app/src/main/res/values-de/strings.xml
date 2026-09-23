@@ -14,6 +14,8 @@
     <string name="dashboard_bt_connected_desc">Bluetooth verbunden</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth getrennt</string>
     <string name="dashboard_bt_connecting_desc">Bluetooth verbindet</string>
+    <string name="dashboard_gear_desc">Gang %1$d</string>
+    <string name="dashboard_gear_unknown_desc">Gang unbekannt</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Einstellungen</string>
@@ -124,6 +126,7 @@
     <string name="gear_settings_secondary_ratio">Sekundärübersetzung (Endantrieb)</string>
     <string name="gear_settings_gear_n">Übersetzung %1$d. Gang</string>
     <string name="gear_settings_invalid_value">Bitte eine positive Zahl eingeben</string>
+    <string name="gear_settings_ratio_conflict">Gang %1$d und Gang %2$d liegen so nah beieinander, dass die Ganganzeige nicht mehr zuverlässig zwischen ihnen unterscheiden kann.</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App-Logs</string>
     <string name="app_logs_title">App-Logs</string>

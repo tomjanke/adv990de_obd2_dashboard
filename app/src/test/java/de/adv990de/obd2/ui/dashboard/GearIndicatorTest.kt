@@ -182,4 +182,38 @@ class GearIndicatorTest {
         assertEquals(1, justInside)
         assertNull(justOutside)
     }
+
+    // --- closeGearPairs ---
+
+    @Test
+    fun `the real vehicle's default ratios have no conflicting pairs`() {
+        // Naechster Fall im echten Fahrzeug ist 5./6. Gang mit ca. 7.5% Abstand — ueber
+        // STAY_TOLERANCE (6%), also kein Konflikt. Regressionstest gegen die Produktivwerte.
+        assertEquals(emptyList<Pair<Int, Int>>(), closeGearPairs(ratios.primaryRatio, ratios.secondaryRatio, ratios.gearRatios))
+    }
+
+    @Test
+    fun `two identical gear ratios are reported as a conflicting pair`() {
+        val gearRatios = listOf(10f, 10f, 5f)
+        assertEquals(listOf(1 to 2), closeGearPairs(primaryRatio = 1f, secondaryRatio = 1f, gearRatios = gearRatios))
+    }
+
+    @Test
+    fun `a deviation just under STAY_TOLERANCE is a conflict, just over it is not`() {
+        // deviation = |a-b| / max(a,b); die exakte 6%-Grenze liegt hier bei a=10.6383 (b=10) —
+        // wie bei determineGear von beiden Seiten mit Abstand eingerahmt statt exakt getroffen.
+        val justInside = closeGearPairs(primaryRatio = 1f, secondaryRatio = 1f, gearRatios = listOf(10.63f, 10f))
+        val justOutside = closeGearPairs(primaryRatio = 1f, secondaryRatio = 1f, gearRatios = listOf(10.65f, 10f))
+
+        assertEquals(listOf(1 to 2), justInside)
+        assertEquals(emptyList<Pair<Int, Int>>(), justOutside)
+    }
+
+    @Test
+    fun `a non-adjacent conflicting pair is still found`() {
+        // Gang 1 und Gang 3 liegen nah beieinander, Gang 2 liegt dazwischen aber weit genug weg
+        // von beiden — die Pruefung darf sich nicht auf indexbenachbarte Paare beschraenken.
+        val gearRatios = listOf(10f, 7f, 9.8f)
+        assertEquals(listOf(1 to 3), closeGearPairs(primaryRatio = 1f, secondaryRatio = 1f, gearRatios = gearRatios))
+    }
 }

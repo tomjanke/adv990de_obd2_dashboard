@@ -35,4 +35,13 @@ class GearSettingsScreenTest {
         assertNull(parsePositiveFloat("abc"))
         assertNull(parsePositiveFloat(""))
     }
+
+    @Test
+    fun `Infinity and NaN are rejected`() {
+        // Float.POSITIVE_INFINITY > 0f is true, so the original `it > 0f` check alone let
+        // "Infinity" through — a value no gear-ratio math should ever receive.
+        assertNull(parsePositiveFloat("Infinity"))
+        assertNull(parsePositiveFloat("-Infinity"))
+        assertNull(parsePositiveFloat("NaN"))
+    }
 }

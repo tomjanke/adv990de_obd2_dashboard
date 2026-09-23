@@ -66,7 +66,11 @@ Gang-Ziffer neben der RpmBar, s. „RPM-Balken" oben) wendet `BIKE_SCALE` bewuss
 als jeder übrige Live-Value-Style. Ihre Größe (40 sp) richtet sich nach der festen Innenhöhe der
 `RpmBar` (72 dp Zeilenhöhe minus 2× 8 dp Padding), nicht nach allgemeiner Motorrad-Lesbarkeit — eine
 mit `BIKE_SCALE` mitwachsende Ziffer liefe aus der fest dimensionierten 32-dp-Box heraus. Würde
-`BIKE_SCALE` künftig erhöht, muss dieser Wert unabhängig nachgezogen werden.
+`BIKE_SCALE` künftig erhöht, muss dieser Wert unabhängig nachgezogen werden. Aus demselben Grund
+wird in `RpmBar` (`ui/dashboard/DashboardComponents.kt`) auch die System-Schriftskalierung
+(`fontScale`) für genau diese Ziffer lokal auf `1f` fixiert (`CompositionLocalProvider`/`LocalDensity`)
+— eine mit der Bedienungshilfe „Große Schrift" mitwachsende Ziffer würde sonst in derselben Box
+abgeschnitten. Die `contentDescription` der Box bleibt davon unberührt lesbar.
 
 ### Layout-Patterns
 
@@ -179,7 +183,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 406 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 412 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 42 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
