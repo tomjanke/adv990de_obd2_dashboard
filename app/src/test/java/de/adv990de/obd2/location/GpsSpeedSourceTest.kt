@@ -3,7 +3,9 @@ package de.adv990de.obd2.location
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -90,7 +92,10 @@ class GpsSpeedSourceTest {
         advanceUntilIdle()
         assertNotNull("Der Provider wurde nicht registriert", provider.onSpeed)
         provider.onSpeed!!(10f)   // 10 m/s = 36 km/h
-        advanceUntilIdle()
+        // runCurrent() statt advanceUntilIdle(): Ein echter Fix startet jetzt einen
+        // Staleness-Timer (Test 7/8) — advanceUntilIdle() wuerde die virtuelle Zeit bis zu
+        // dessen Ablauf vorspulen und den frischen Fix hier faelschlich wieder auf null setzen.
+        runCurrent()
         job.cancel()
 
         assertEquals(36f, received.last()!!, 0.001f)
@@ -147,5 +152,58 @@ class GpsSpeedSourceTest {
         advanceUntilIdle()
 
         assertTrue("Der Empfaenger blieb registriert — das haette das GPS weiterlaufen lassen", provider.stopped)
+    }
+
+    // --- Test 7 ---
+
+    @Test
+    fun `a fix becomes stale and reverts to null after the timeout`() = runTest {
+        val provider = FakeProvider()
+        val received = mutableListOf<Float?>()
+
+        val job = launch { GpsSpeedSource(provider).speedKmh.toList(received) }
+        advanceUntilIdle()
+        provider.onSpeed!!(10f)   // 36 km/h
+        runCurrent()
+        assertEquals(36f, received.last()!!, 0.001f)
+
+        advanceTimeBy(GpsSpeedSource.STALE_AFTER_MS + 1)   // just past the timeout, no new fix
+        advanceUntilIdle()
+        job.cancel()
+
+        assertNull(
+            "Ein Fix, der laenger als das Timeout her ist, muss als unbekannt gelten, nicht als" +
+                " zuletzt bekannte Geschwindigkeit weiterlaufen",
+            received.last()
+        )
+    }
+
+    // --- Test 8 ---
+
+    @Test
+    fun `a fresh fix resets the staleness timer instead of the old one firing`() = runTest {
+        val provider = FakeProvider()
+        val received = mutableListOf<Float?>()
+
+        val job = launch { GpsSpeedSource(provider).speedKmh.toList(received) }
+        advanceUntilIdle()
+        provider.onSpeed!!(10f)   // 36 km/h
+        runCurrent()
+        advanceTimeBy(GpsSpeedSource.STALE_AFTER_MS - 500L)   // still within the first timeout
+        provider.onSpeed!!(12f)  // 43.2 km/h — a fresh fix arrives in time
+        runCurrent()
+        advanceTimeBy(GpsSpeedSource.STALE_AFTER_MS - 500L)   // within the SECOND timeout only
+        // runCurrent(), nicht advanceUntilIdle(): Der zweite Staleness-Timer ist zu diesem
+        // Zeitpunkt bewusst noch nicht abgelaufen — advanceUntilIdle() wuerde die virtuelle Zeit
+        // bis zu seinem Ablauf vorspulen und genau das Verhalten verdecken, das dieser Test
+        // pruefen soll.
+        runCurrent()
+        job.cancel()
+
+        assertEquals(
+            "Der zweite Fix haette den Timer zuruecksetzen muessen, statt nur den ersten " +
+                "Timer unveraendert weiterlaufen zu lassen",
+            43.2f, received.last()!!, 0.001f
+        )
     }
 }

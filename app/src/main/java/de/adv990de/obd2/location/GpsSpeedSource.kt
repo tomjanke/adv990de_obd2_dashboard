@@ -1,8 +1,11 @@
 package de.adv990de.obd2.location
 
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -13,12 +16,22 @@ import javax.inject.Singleton
  * die Geschwindigkeit dort vom ABS-Steuergeraet oder dem Kombiinstrument kommt und nicht auf dem
  * OBD2-Bus liegt. Das GPS-Signal schliesst diese Luecke.
  *
- * Der Flow liefert `null`, solange keine Berechtigung erteilt ist, kein Fix vorliegt oder der Fix
- * keine Geschwindigkeit enthaelt. Er fragt nichts ab, solange ihn niemand sammelt.
+ * Der Flow liefert `null`, solange keine Berechtigung erteilt ist, kein Fix vorliegt, der Fix
+ * keine Geschwindigkeit enthaelt, oder der letzte Fix laenger als [STALE_AFTER_MS] her ist (s.u.).
+ * Er fragt nichts ab, solange ihn niemand sammelt.
  *
  * Seit 1.13.0 haengt die Klasse an [LocationSpeedProvider] statt direkt am `LocationManager` —
  * damit ist sie im JVM-Test pruefbar. Was hier steht, ist genau das, was zu pruefen war:
- * Berechtigung, fehlgeschlagene Registrierung, Umrechnung, unplausible Werte und das Abmelden.
+ * Berechtigung, fehlgeschlagene Registrierung, Umrechnung, unplausible Werte, Staleness und das
+ * Abmelden.
+ *
+ * **Staleness:** `LocationManager.requestLocationUpdates`s Intervall ist eine Untergrenze, keine
+ * Zusage — verliert das Geraet den Empfang (Tunnel, Tiefgarage), bleibt [LocationSpeedProvider]
+ * einfach still, `onProviderDisabled` feuert nicht (der Anbieter ist ja nicht abgeschaltet, nur
+ * ohne Empfang). Ohne Gegenmassnahme wuerde der letzte bekannte Wert unbegrenzt weiterlaufen — und
+ * mit ihm ein daraus abgeleiteter Gang in der virtuellen Ganganzeige, obwohl das Fahrzeug laengst
+ * steht. Jeder echte Fix startet deshalb einen Timer neu; laeuft er ab, bevor der naechste Fix
+ * eintrifft, gilt die Geschwindigkeit als unbekannt.
  */
 @Singleton
 class GpsSpeedSource @Inject constructor(
@@ -32,8 +45,17 @@ class GpsSpeedSource @Inject constructor(
             return@callbackFlow
         }
 
+        var staleJob: Job? = null
         val stopUpdates = provider.startUpdates { metersPerSecond ->
-            trySend(metersPerSecond.toKmh())
+            val kmh = metersPerSecond.toKmh()
+            trySend(kmh)
+            staleJob?.cancel()
+            staleJob = if (kmh != null) {
+                launch {
+                    delay(STALE_AFTER_MS)
+                    trySend(null)
+                }
+            } else null
         }
         if (stopUpdates == null) {
             trySend(null)
@@ -41,7 +63,10 @@ class GpsSpeedSource @Inject constructor(
             return@callbackFlow
         }
 
-        awaitClose { stopUpdates() }
+        awaitClose {
+            staleJob?.cancel()
+            stopUpdates()
+        }
     }
 
     /**
@@ -54,7 +79,14 @@ class GpsSpeedSource @Inject constructor(
         return this * MS_TO_KMH
     }
 
-    private companion object {
+    internal companion object {
         const val MS_TO_KMH = 3.6f
+
+        /** Grosszuegig ueber dem 200ms-Anfrageintervall (siehe `AndroidLocationSpeedProvider`),
+         *  damit ein einzelner ausgelassener Zyklus nicht faelschlich als Signalverlust zaehlt —
+         *  aber knapp genug, dass ein echter Empfangsabriss (Tunnel, Tiefgarage) innerhalb
+         *  weniger Sekunden erkannt wird, statt eine veraltete Geschwindigkeit unbegrenzt lange
+         *  weiterzureichen. */
+        const val STALE_AFTER_MS = 2_000L
     }
 }
