@@ -46,6 +46,21 @@ enum class StatusDotState {
 }
 
 /**
+ * Reine Farbauswahl fuer [StatusDot]: [color], wenn gegeben, sonst die Standardfarbe je [state].
+ * Extrahiert, damit die Override-Logik ohne Compose-Rendering testbar ist (Projekt-Konvention fuer
+ * Entscheidungslogik, vgl. `determineGear`, `connectionDotColor`) — [tertiary]/[primary] werden von
+ * der Composable hereingereicht, da sie nur innerhalb der Komposition aus `MaterialTheme` lesbar
+ * sind, diese Funktion selbst aber keinen Compose-Bezug haben soll.
+ */
+internal fun statusDotColor(state: StatusDotState, color: Color?, tertiary: Color, primary: Color): Color =
+    color ?: when (state) {
+        StatusDotState.Ok         -> tertiary
+        StatusDotState.Warning    -> StatusColors.Warning
+        StatusDotState.Critical   -> StatusColors.Critical
+        StatusDotState.Connecting -> primary
+    }
+
+/**
  * Small circular status indicator (default 8 dp), color and animation driven by [state].
  *
  * Intentionally compact and side-effect-free — drop into any Row/Box where a glanceable
@@ -63,12 +78,12 @@ fun StatusDot(
     size: Dp = 8.dp,
     color: Color? = null,
 ) {
-    val baseColor = color ?: when (state) {
-        StatusDotState.Ok         -> MaterialTheme.colorScheme.tertiary
-        StatusDotState.Warning    -> StatusColors.Warning
-        StatusDotState.Critical   -> StatusColors.Critical
-        StatusDotState.Connecting -> MaterialTheme.colorScheme.primary
-    }
+    val baseColor = statusDotColor(
+        state = state,
+        color = color,
+        tertiary = MaterialTheme.colorScheme.tertiary,
+        primary = MaterialTheme.colorScheme.primary,
+    )
     val alpha = if (state == StatusDotState.Connecting) {
         val infinite = rememberInfiniteTransition(label = "status-dot-pulse")
         val a by infinite.animateFloat(
