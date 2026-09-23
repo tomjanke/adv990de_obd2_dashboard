@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -69,6 +70,48 @@ private const val RPM_BAR_MAX = 10_000f
 /** Eine Stufe der Segmentanzeige. 200 rpm ergeben 50 Segmente ueber die volle Breite. */
 private const val RPM_SEGMENT = 200f
 
+/**
+ * Blinkperiode des Schaltblitzes: 0 (kein Blinken) ausser wenn live verbunden, ein Schwellwert
+ * gesetzt ist ([threshold] > 0) und die aktuelle Drehzahl ihn ueberschritten hat. Dann skaliert
+ * die Periode linear von 500ms (an der Schwelle) auf 80ms (bei [RPM_BAR_MAX]) — je naeher am
+ * Limit, desto hektischer der Blitz.
+ *
+ * Reine Funktion ohne Compose-Bezug, direkt JVM-testbar (Projekt-Konvention fuer Entscheidungslogik,
+ * vgl. `determineGear`, `statusDotColor`). Aus [RpmBar] extrahiert, das sie pro Frame innerhalb der
+ * Blink-Coroutine aufruft.
+ */
+internal fun rpmBlinkPeriodMs(rpm: Float, threshold: Int, isLive: Boolean): Long {
+    if (!isLive || threshold <= 0 || rpm <= threshold) return 0L
+    val f = if (threshold >= 10000) 1f
+            else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
+    return (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
+}
+
+/**
+ * Farbe eines einzelnen Segments der [RpmBar]-Skala: unbeleuchtet ([idleColor]), wenn
+ * [segmentIndex] >= [litSegments]; sonst beleuchtet — [redlineColor], wenn die Segmentposition
+ * [segmentStartRpm] in der Redline-Zone liegt ([redlineFromRpm] oder darueber), sonst [litColor].
+ * Die Redline-Zone-Pruefung greift nur fuer bereits beleuchtete Segmente — ein unbeleuchtetes
+ * Segment jenseits der Schwelle bleibt [idleColor], nicht rot.
+ *
+ * Reine Funktion ohne Compose-Bezug (vgl. [rpmBlinkPeriodMs], `statusDotColor`) — die Farben selbst
+ * kommen als Parameter herein, weil sie nur innerhalb der Komposition aus `MaterialTheme` bzw.
+ * `StatusColors` lesbar sind.
+ */
+internal fun rpmSegmentColor(
+    segmentIndex: Int,
+    litSegments: Int,
+    segmentStartRpm: Float,
+    redlineFromRpm: Float,
+    litColor: Color,
+    redlineColor: Color,
+    idleColor: Color,
+): Color = when {
+    segmentIndex < litSegments && segmentStartRpm >= redlineFromRpm -> redlineColor
+    segmentIndex < litSegments                                     -> litColor
+    else                                                            -> idleColor
+}
+
 @Composable
 internal fun RpmBar(
     rpm: Float,
@@ -80,11 +123,7 @@ internal fun RpmBar(
     isLive: Boolean = true,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
-    val blinkPeriodMs: Long = if (isLive && threshold > 0 && rpm > threshold) {
-        val f = if (threshold >= 10000) 1f
-                else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
-        (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
-    } else 0L
+    val blinkPeriodMs: Long = rpmBlinkPeriodMs(rpm, threshold, isLive)
 
     // rememberUpdatedState lets the coroutine read the latest period on each iteration
     // without restarting the effect — crucial during animated RPM sweeps where blinkPeriodMs
@@ -134,12 +173,15 @@ internal fun RpmBar(
                     ceil(rpm / RPM_SEGMENT).toInt().coerceIn(0, count)
                 } else 0
                 for (i in 0 until count) {
-                    val segmentStartRpm = i * RPM_SEGMENT
-                    val color = when {
-                        i < lit && segmentStartRpm >= redlineFrom -> redlineColor
-                        i < lit                                   -> litColor
-                        else                                      -> idleColor
-                    }
+                    val color = rpmSegmentColor(
+                        segmentIndex = i,
+                        litSegments = lit,
+                        segmentStartRpm = i * RPM_SEGMENT,
+                        redlineFromRpm = redlineFrom,
+                        litColor = litColor,
+                        redlineColor = redlineColor,
+                        idleColor = idleColor,
+                    )
                     drawRect(
                         color = color,
                         topLeft = Offset(i * (segmentWidth + gap), 0f),
