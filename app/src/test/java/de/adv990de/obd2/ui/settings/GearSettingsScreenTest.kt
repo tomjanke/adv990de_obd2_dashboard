@@ -13,6 +13,14 @@ class GearSettingsScreenTest {
     }
 
     @Test
+    fun `a decimal comma parses the same as a decimal point`() {
+        // German-locale keyboards (e.g. Samsung's) can offer only "," as the decimal key on a
+        // KeyboardType.Decimal pad — without normalization a German-speaking user could not type
+        // a fractional value like this at all.
+        assertEquals(parsePositiveFloat("1.9143"), parsePositiveFloat("1,9143"))
+    }
+
+    @Test
     fun `zero is rejected`() {
         assertNull(parsePositiveFloat("0"))
     }

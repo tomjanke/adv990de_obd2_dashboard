@@ -93,8 +93,16 @@ fun GearSettingsScreen(
  * Parst eine Nutzereingabe als positive Gleitkommazahl, oder `null` bei ungueltiger Eingabe
  * (nicht parsebar, negativ, oder exakt 0). Eigene Top-Level-Funktion statt Inline-Lambda, damit
  * die Validierungsregel unabhaengig vom Composable testbar ist (s. `GearSettingsScreenTest`).
+ *
+ * Ersetzt `,` durch `.` vor dem Parsen: `String.toFloatOrNull()` akzeptiert ausschliesslich `.`
+ * als Dezimaltrenner, aber diese App ist zweisprachig (Deutsch/Englisch) und manche
+ * Android-Tastaturen bieten bei deutscher Locale auf einem `KeyboardType.Decimal`-Ziffernblock
+ * nur `,` als Dezimaltaste an (bestaetigt fuer Samsungs Tastatur) — ohne Normalisierung koennte
+ * ein deutschsprachiger Nutzer auf so einer Tastatur gar keinen Kommawert eintippen, obwohl jedes
+ * der neun Felder auf diesem Screen einen Dezimalpunkt braucht.
  */
-internal fun parsePositiveFloat(text: String): Float? = text.toFloatOrNull()?.takeIf { it > 0f }
+internal fun parsePositiveFloat(text: String): Float? =
+    text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it > 0f }
 
 /**
  * Ein Zahlen-Eingabefeld fuer einen Getriebe-Wert. Haelt einen lokalen Text-Puffer, der nur bei
