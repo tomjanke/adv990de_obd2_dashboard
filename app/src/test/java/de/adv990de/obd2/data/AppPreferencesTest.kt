@@ -248,4 +248,70 @@ class AppPreferencesTest {
         prefs.setTheme("dark")
         assertEquals("dark", prefs.theme.first())
     }
+
+    // ── Getriebe-Einstellungen (virtuelle Ganganzeige) ────────────────────────
+
+    @Test
+    fun `wheelCircumferenceMm returns the default when nothing is stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(
+            AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
+            prefs.wheelCircumferenceMm.first(),
+            0.001f
+        )
+    }
+
+    @Test
+    fun `setWheelCircumferenceMm persists the value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setWheelCircumferenceMm(2100f)
+        assertEquals(2100f, prefs.wheelCircumferenceMm.first(), 0.001f)
+    }
+
+    @Test
+    fun `primaryRatio and secondaryRatio return their defaults when nothing is stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(AppPreferences.DEFAULT_PRIMARY_RATIO, prefs.primaryRatio.first(), 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_SECONDARY_RATIO, prefs.secondaryRatio.first(), 0.0001f)
+    }
+
+    @Test
+    fun `setPrimaryRatio and setSecondaryRatio persist independently`() = runTest {
+        val prefs = makePreferences()
+        prefs.setPrimaryRatio(2.0f)
+        assertEquals(2.0f, prefs.primaryRatio.first(), 0.0001f)
+        // secondaryRatio must be untouched by the primaryRatio write
+        assertEquals(AppPreferences.DEFAULT_SECONDARY_RATIO, prefs.secondaryRatio.first(), 0.0001f)
+    }
+
+    @Test
+    fun `gearRatios returns the six defaults when nothing is stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS, prefs.gearRatios.first())
+    }
+
+    @Test
+    fun `setGearRatio updates only the targeted gear`() = runTest {
+        val prefs = makePreferences()
+        prefs.setGearRatio(2, 8.0f)
+
+        val ratios = prefs.gearRatios.first()
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS[0], ratios[0], 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS[1], ratios[1], 0.0001f)
+        assertEquals(8.0f, ratios[2], 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS[3], ratios[3], 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS[4], ratios[4], 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS[5], ratios[5], 0.0001f)
+    }
+
+    @Test
+    fun `setGearRatio rejects an out-of-range index`() = runTest {
+        val prefs = makePreferences()
+        try {
+            prefs.setGearRatio(6, 5f)
+            org.junit.Assert.fail("Expected IllegalArgumentException for index 6")
+        } catch (_: IllegalArgumentException) {
+            // expected
+        }
+    }
 }

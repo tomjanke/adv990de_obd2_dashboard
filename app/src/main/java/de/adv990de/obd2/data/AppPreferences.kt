@@ -7,6 +7,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -44,6 +45,19 @@ class AppPreferences @Inject constructor(
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
         private val KEY_RPM_DYNAMIC_THRESHOLD = booleanPreferencesKey("rpm_dynamic_threshold")
+        private val KEY_WHEEL_CIRCUMFERENCE_MM = floatPreferencesKey("wheel_circumference_mm")
+        private val KEY_PRIMARY_RATIO   = floatPreferencesKey("primary_ratio")
+        private val KEY_SECONDARY_RATIO = floatPreferencesKey("secondary_ratio")
+        private val KEY_GEAR_RATIO_1 = floatPreferencesKey("gear_ratio_1")
+        private val KEY_GEAR_RATIO_2 = floatPreferencesKey("gear_ratio_2")
+        private val KEY_GEAR_RATIO_3 = floatPreferencesKey("gear_ratio_3")
+        private val KEY_GEAR_RATIO_4 = floatPreferencesKey("gear_ratio_4")
+        private val KEY_GEAR_RATIO_5 = floatPreferencesKey("gear_ratio_5")
+        private val KEY_GEAR_RATIO_6 = floatPreferencesKey("gear_ratio_6")
+        private val GEAR_RATIO_KEYS = listOf(
+            KEY_GEAR_RATIO_1, KEY_GEAR_RATIO_2, KEY_GEAR_RATIO_3,
+            KEY_GEAR_RATIO_4, KEY_GEAR_RATIO_5, KEY_GEAR_RATIO_6,
+        )
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
@@ -52,6 +66,12 @@ class AppPreferences @Inject constructor(
         const val THEME_BLUE  = "blue"
         const val THEME_AMBER = "amber"
         const val THEME_GREEN = "green"
+        // Aus Reifengroesse 150/70-18 berechnet (siehe Design-Spec): (18*25.4 + 2*150*0.70) * PI
+        const val DEFAULT_WHEEL_CIRCUMFERENCE_MM = 2096f
+        const val DEFAULT_PRIMARY_RATIO = 1.9143f    // 67/35
+        const val DEFAULT_SECONDARY_RATIO = 2.625f   // 42/16
+        val DEFAULT_GEAR_RATIOS: List<Float> =
+            listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 1.04f)
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -205,5 +225,43 @@ class AppPreferences @Inject constructor(
             }
             prefs[KEY_SLOT_PIDS] = updated.joinToString(",")
         }
+    }
+
+    // ── Getriebe-Einstellungen (virtuelle Ganganzeige) ────────────────────────
+
+    val wheelCircumferenceMm: Flow<Float> = dataStore.data.map { prefs ->
+        prefs[KEY_WHEEL_CIRCUMFERENCE_MM] ?: DEFAULT_WHEEL_CIRCUMFERENCE_MM
+    }
+
+    suspend fun setWheelCircumferenceMm(value: Float) {
+        dataStore.edit { it[KEY_WHEEL_CIRCUMFERENCE_MM] = value }
+    }
+
+    val primaryRatio: Flow<Float> = dataStore.data.map { prefs ->
+        prefs[KEY_PRIMARY_RATIO] ?: DEFAULT_PRIMARY_RATIO
+    }
+
+    suspend fun setPrimaryRatio(value: Float) {
+        dataStore.edit { it[KEY_PRIMARY_RATIO] = value }
+    }
+
+    val secondaryRatio: Flow<Float> = dataStore.data.map { prefs ->
+        prefs[KEY_SECONDARY_RATIO] ?: DEFAULT_SECONDARY_RATIO
+    }
+
+    suspend fun setSecondaryRatio(value: Float) {
+        dataStore.edit { it[KEY_SECONDARY_RATIO] = value }
+    }
+
+    /** Gesamt-Getriebeuebersetzung je Gang (Index 0 = 1. Gang ... Index 5 = 6. Gang). Sechs
+     *  einzelne Keys statt einer CSV-kodierten Liste, damit jedes Settings-Eingabefeld
+     *  unabhaengig von den anderen fuenf geschrieben werden kann. */
+    val gearRatios: Flow<List<Float>> = dataStore.data.map { prefs ->
+        GEAR_RATIO_KEYS.mapIndexed { i, key -> prefs[key] ?: DEFAULT_GEAR_RATIOS[i] }
+    }
+
+    suspend fun setGearRatio(index: Int, value: Float) {
+        require(index in 0..5) { "index must be 0..5" }
+        dataStore.edit { it[GEAR_RATIO_KEYS[index]] = value }
     }
 }
