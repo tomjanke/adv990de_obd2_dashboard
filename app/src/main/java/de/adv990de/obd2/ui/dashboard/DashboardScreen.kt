@@ -160,7 +160,7 @@ fun DashboardScreen(
                             Row(
                                 modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 if (dotState != null) {
                                     StatusDot(state = dotState, color = connectionDotColor(dotState))
@@ -175,7 +175,7 @@ fun DashboardScreen(
                             Row(
                                 modifier = Modifier.padding(start = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 if (dotState != null) {
                                     StatusDot(state = dotState, color = connectionDotColor(dotState))
