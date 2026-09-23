@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.6 (versionCode 52)
+
+Fehlerbehebung: Die Ganganzeige nutzte bislang teilweise die Fahrzeug-Geschwindigkeit statt GPS.
+
+---
+
+### Ganganzeige nutzt jetzt ausschließlich GPS-Geschwindigkeit
+
+Meldete das Fahrzeug selbst eine Geschwindigkeit über OBD2, hatte diese bisher Vorrang vor der
+GPS-Geschwindigkeit — auch für die virtuelle Ganganzeige. Das widersprach der ursprünglichen
+Design-Entscheidung: Die Ganganzeige soll ausschließlich auf GPS beruhen, da ihre
+Toleranzschwellen (u. a. die Mindestgeschwindigkeit) auf die Eigenheiten von GPS-Messungen
+abgestimmt sind. Die Ganganzeige verwendet jetzt in jedem Fall die GPS-Geschwindigkeit; liegt kein
+GPS-Fix vor, bleibt der Gang „–“, unabhängig davon, ob das Fahrzeug selbst eine Geschwindigkeit
+meldet. Die normale Geschwindigkeitsanzeige und Aufzeichnung sind von dieser Änderung nicht
+betroffen — dort hat die Fahrzeug-Geschwindigkeit weiterhin bewusst Vorrang.
+
+### Tests
+
+414 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.5 (versionCode 51)
 
 Robustheits- und Barrierefreiheits-Verbesserungen an der Ganganzeige und den Getriebe-Einstellungen.
