@@ -99,8 +99,11 @@ class SimulatedDashboardTest {
     @Test
     fun readings_from_the_simulator_reach_the_dashboard() {
         launchDashboard()
-        // Ausgangszustand ohne Verbindung: die RpmBar zeigt "-- rpm" statt einer Zahl.
-        composeRule.onNodeWithText(NO_RPM).assertIsDisplayed()
+        // Ausgangszustand ohne Verbindung: das Vorschau-Band ist sichtbar. Es war bis zur
+        // Gang-Ziffer (Task 5) an "-- rpm" verankert, aber die RpmBar zeigt seither keine
+        // Drehzahl-Zahl mehr — der Banner ist exklusiv an isConnected=false gebunden und bleibt
+        // damit der zuverlaessige "nicht live"-Anker.
+        composeRule.onNodeWithText(previewBannerText()).assertIsDisplayed()
 
         runBlocking { obdRepository.connect(simulator) }
 
@@ -119,18 +122,25 @@ class SimulatedDashboardTest {
     }
 
     /**
-     * Wartet auf den einzigen Zustand, in dem beides zugleich gilt: Der Drehzahl-Platzhalter ist
+     * Wartet auf den einzigen Zustand, in dem beides zugleich gilt: Das Vorschau-Band ist
      * verschwunden *und* die Kacheln sind gezeichnet.
      *
      * Beides einzeln waere zu schwach. Zwischen Verbindungsaufbau und erstem Messwert zeigt der
-     * Screen einen Vollbild-Spinner — dann fehlt "-- rpm" ebenfalls, ohne dass ein Wert geflossen
-     * waere. Und die Kachel-Labels stehen auch ohne Verbindung da, weil das Dashboard dann
-     * Demo-Kacheln mit dem Wert 0 zeichnet.
+     * Screen einen Vollbild-Spinner — dann fehlt das Band zwar ebenfalls (es haengt exklusiv an
+     * isConnected=false, und die Verbindung steht ja schon), aber es sind in dieser Phase auch gar
+     * keine Kachel-Labels im Baum: der Spinner ersetzt die gesamte Spalte. Und die Kachel-Labels
+     * stehen auch ohne Verbindung da, weil das Dashboard dann Demo-Kacheln mit dem Wert 0
+     * zeichnet — deshalb muss das Band-Kriterium zusaetzlich zum Label-Kriterium erfuellt sein,
+     * sonst waere ein Offline-Demo-Zustand nicht von echten Live-Daten zu unterscheiden.
+     *
+     * Anchor bis zur Gang-Ziffer (Task 5) war "-- rpm" statt einer Drehzahl-Zahl in der RpmBar;
+     * die RpmBar zeigt seither gar keine Zahl mehr, daher der Wechsel auf den Vorschau-Banner.
      */
     private fun awaitLiveTiles() {
         val label = speedLabel()
+        val banner = previewBannerText()
         composeRule.waitUntil(TIMEOUT_MS) {
-            composeRule.onAllNodesWithText(NO_RPM).fetchSemanticsNodes().isEmpty() &&
+            composeRule.onAllNodesWithText(banner).fetchSemanticsNodes().isEmpty() &&
                 composeRule.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -140,9 +150,11 @@ class SimulatedDashboardTest {
     private fun speedLabel(): String =
         composeRule.activity.getString(R.string.pid_speed).uppercase()
 
-    private companion object {
-        const val NO_RPM = "-- rpm"
+    /** Ebenfalls aus den Ressourcen und ALL-CAPS gezeichnet (s. [PreviewBanner]). */
+    private fun previewBannerText(): String =
+        composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase()
 
+    private companion object {
         /** Verbindungsaufbau, Discovery und der erste Poll-Zyklus laufen ueber Pipes im Prozess. */
         const val TIMEOUT_MS = 15_000L
     }

@@ -88,16 +88,23 @@ class DashboardScreenTest {
 
     /**
      * Smoke test: the dashboard renders without crashing when the OBD adapter is disconnected.
-     * A non-empty RpmBar ("0 rpm") and the placeholder sensor cards must be present.
+     * The disconnected state must be visibly marked and the placeholder sensor cards must be
+     * present.
      */
     @Test
     fun dashboard_rendersWithoutCrash_whenDisconnected() {
         launchDashboardScreen()
-        // Ohne Verbindung zeigt die RpmBar "-- rpm" statt einer Zahl: die Demo-Animation
-        // bewegt zwar den Balken, darf aber keine Drehzahl vortaeuschen. Das waitForIdle()
-        // oben stellt sicher, dass alle Animationen stehen und der Knoten im Baum ist;
-        // assertIsDisplayed() prueft zusaetzlich, dass er nicht verdeckt ist.
-        composeRule.onNodeWithText("-- rpm").assertIsDisplayed()
+        // Seit Task 5 zeigt die RpmBar keine Drehzahl-Zahl mehr, sondern eine Gang-Ziffer neben
+        // dem Balken; die Demo-Animation bewegt zwar den Balken, darf aber keine Drehzahl
+        // vortaeuschen. Die Gang-Ziffer selbst ("–") ist als "nicht live"-Anker ungeeignet: sie
+        // erscheint auch VERBUNDEN, sobald der Gang unbekannt ist (z.B. Stillstand). Der
+        // Vorschau-Banner ist dagegen exklusiv an isConnected=false gebunden und damit der
+        // zuverlaessige Anker. Das waitForIdle() oben stellt sicher, dass alle Animationen stehen
+        // und der Knoten im Baum ist; assertIsDisplayed() prueft zusaetzlich, dass er nicht
+        // verdeckt ist.
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase())
+            .assertIsDisplayed()
     }
 
     /**
