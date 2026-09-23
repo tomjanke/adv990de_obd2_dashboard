@@ -21,7 +21,7 @@ Diese drei Worte sind **gleichberechtigt** — verletze keines davon:
 ### Design-Prinzipien (Top-Down)
 
 1. **Glanceability First.** Der Fahrer schaut max. 0.5 s aufs Display. Primäre Werte müssen ohne Lesen erfassbar sein — Größe + Position + Farbe transportieren Bedeutung, nicht Text.
-2. **Dark Mode ist die einzige Realität.** Keine Light-Theme-Varianten. Ambient-Light-Probleme im Auto/Motorrad bei Tag → wir lösen das über *Kontrast*, nicht über Helligkeit. Background ist immer fast-schwarz mit Farbhauch (`#050D1A` Blau, `#110A02` Amber, `#030F08` Grün — siehe `ui/theme/ColorSchemes.kt`).
+2. **Die drei Cockpit-Farbschemata (Blau/Amber/Grün) sind dark-only.** Keine Light-Variante für diese drei — Ambient-Light-Probleme im Auto/Motorrad bei Tag lösen sie über *Kontrast*, nicht über Helligkeit. Background ist immer fast-schwarz mit Farbhauch (`#050D1A` Blau, `#110A02` Amber, `#030F08` Grün — siehe `ui/theme/ColorSchemes.kt`). **Korrektur (2026-09-23):** Das gilt NUR für diese drei Cockpit-Schemata, nicht für die App insgesamt — das „Default"-Farbschema (M3-Standardfarben, keines der drei Cockpit-Schemata) bietet bewusst zusätzlich Hell/Dunkel/System zur Wahl (`AppPreferences.THEME_LIGHT`/`THEME_DARK`/`THEME_SYSTEM`, s. `SettingsComponents.kt`/`MainActivity.kt`) — Light Mode ist dort eine unterstützte, reguläre Option, kein Fehler. Eine frühere Version dieser Datei behauptete fälschlich „Dark Mode ist die einzige Realität" für die ganze App.
 3. **Tabular Numerals immer.** Wo Zahlen sich ändern (RPM, Speed, Temp, alle Sensorwerte), MUSS die Schrift `fontFeatureSettings = "tnum"` setzen. **IBM Plex Mono** ist als Live-Wert-Schrift in `R.font.ibm_plex_mono_{regular,medium,bold}` geladen; verwenden über `LiveValueText` Composable (`ui/components/LiveValueText.kt`) oder `TextStyle.asLiveValue()` Extension (`ui/theme/AppTypography.kt`). Space Grotesk bleibt für UI-Text (Labels, Body, Headlines).
 4. **Glove-Friendly Tap-Targets.** Minimum 56 dp × 56 dp für jeden Touch. Bei Settings-Listen mind. 64 dp Zeilenhöhe. Keine Swipe-Only-Gesten an kritischen Stellen (DMD2-Regel: „avoid swipes while wearing gloves").
 5. **Information Density ≥ Decoration.** Karte ohne Daten ist verloren. Wenn ein Tile leerer Raum ist, dann mit Absicht (Atemraum), nicht aus Faulheit.
@@ -175,7 +175,7 @@ Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
 
 - ❌ Default Material `Card`-Elevation > 0 (wir nutzen 0)
 - ❌ `Inter`, `Roboto`, `Arial`, System-Fonts irgendwo im UI
-- ❌ Light Theme („irgendwann mal nice to have" zählt nicht)
+- ❌ Light-Variante der drei Cockpit-Farbschemata Blau/Amber/Grün — die bleiben dark-only. (Das „Default"-Farbschema selbst darf Hell/Dunkel/System anbieten, s. Design-Prinzip 2 oben — das ist keine Ausnahme von dieser Regel, sondern ein eigenes, separates Farbschema.)
 - ❌ Lineare lila/pink Gradients oder generische „Material You" Auto-Farben
 - ❌ Lottie-Animationen (Bloat + Off-Brand)
 - ❌ Bottom Sheets für kritische Aktionen während Fahrt (zu klein, schwer zu treffen)
@@ -199,8 +199,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 432 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 42 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 483 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 59 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

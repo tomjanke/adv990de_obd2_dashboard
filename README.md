@@ -22,7 +22,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
   - **Klassisches Bluetooth (RFCOMM)** für ältere ELM327-Clones
   - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
 - **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit, durchsuchbar im Settings-Bereich
-- **Material 3** UI, drei wählbare Dark-Themes (Blau/Amber/Grün — kein Light-Theme, s. Design-Profil), deutsch und englisch lokalisiert
+- **Material 3** UI mit drei dark-only Cockpit-Farbschemata (Blau/Amber/Grün, s. Design-Profil) sowie einem Default-Farbschema mit Hell/Dunkel/System-Wahl, deutsch und englisch lokalisiert
 - **Crash-Reporting** über Sentry (optional, deaktivierbar)
 
 ---
@@ -119,7 +119,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (432 Tests, < 30 Sekunden)
+# JVM Unit Tests (483 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -128,9 +128,9 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 432 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 15 (Dashboard, DTC, Settings, Freeze Frame, Gear Ratio Field) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` | 16 (AppLogDao, SensorReadingDao, SessionDao) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 483 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 30 (Dashboard, DTC, Settings, Freeze Frame, Gear Ratio Field, Slot Picker, Vehicle Info, History, Dashboard Config) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 18 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
 
@@ -269,7 +269,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (432) |
+| `app/src/test/` | JVM-Unit-Tests (483) |
 | `app/src/androidTest/` | Instrumented Tests (42, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
