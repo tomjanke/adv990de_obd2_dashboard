@@ -22,7 +22,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
   - **Klassisches Bluetooth (RFCOMM)** für ältere ELM327-Clones
   - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
 - **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit, durchsuchbar im Settings-Bereich
-- **Material 3** UI mit Light/Dark-Theme, deutsch und englisch lokalisiert
+- **Material 3** UI, drei wählbare Dark-Themes (Blau/Amber/Grün — kein Light-Theme, s. Design-Profil), deutsch und englisch lokalisiert
 - **Crash-Reporting** über Sentry (optional, deaktivierbar)
 
 ---
