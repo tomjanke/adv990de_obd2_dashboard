@@ -147,6 +147,7 @@ fun DashboardScreen(
                 RpmBar(
                     rpm = displayRpm,
                     threshold = displayThreshold,
+                    gear = state.gear,
                     modifier = Modifier.fillMaxWidth(),
                     isLive = state.isConnected,
                     trailingContent = {

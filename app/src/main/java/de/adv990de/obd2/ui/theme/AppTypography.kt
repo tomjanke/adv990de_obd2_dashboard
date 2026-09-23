@@ -50,6 +50,21 @@ val ValueTileStyle = TextStyle(
 )
 
 /**
+ * Ziffer der virtuellen Ganganzeige neben dem RPM-Balken. Bewusst NICHT mit BIKE_SCALE skaliert
+ * wie die uebrigen Live-Value-Styles: Die Groesse richtet sich nach der festen Innenhoehe von
+ * `RpmBar` (56dp bei 72dp Zeilenhoehe minus 2x8dp Padding), nicht nach allgemeiner
+ * Motorrad-Lesbarkeit. Wuerde BIKE_SCALE erhoeht, muesste dieser Wert unabhaengig nachgezogen
+ * werden, sonst liefe die Ziffer aus der fest dimensionierten Box heraus.
+ */
+val GearIndicatorStyle = TextStyle(
+    fontFamily = PlexMonoFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 40.sp,
+    lineHeight = 48.sp,
+    fontFeatureSettings = "tnum",
+)
+
+/**
  * Adapter for any existing M3 [TextStyle] that should be promoted to a live-value style without
  * changing its size: swaps in IBM Plex Mono and enables tabular numerals. Use sparingly — prefer
  * [ValueDisplayStyle] / [ValueTileStyle] for canonical uses.

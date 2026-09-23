@@ -6,7 +6,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import de.adv990de.obd2.R
@@ -49,8 +52,11 @@ import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.LiveValueTile
 import de.adv990de.obd2.ui.components.TileStatus
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.GearIndicatorStyle
 import de.adv990de.obd2.ui.theme.StatusColors
-import de.adv990de.obd2.ui.theme.asLiveValue
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
 import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
@@ -64,6 +70,7 @@ private const val RPM_SEGMENT = 200f
 internal fun RpmBar(
     rpm: Float,
     threshold: Int,
+    gear: Int?,
     modifier: Modifier = Modifier,
     /** Ohne Verbindung zeigt der Balken nur die Demo-Bewegung: kein Alarmrot, kein Blinken
      *  und keine Zahl, die eine Drehzahl vortaeuscht, die es nicht gibt. */
@@ -138,14 +145,22 @@ internal fun RpmBar(
                 }
             }
         }
-        LiveValueText(
-            value = if (isLive) "%.0f rpm".format(rpm) else "-- rpm",
-            style = MaterialTheme.typography.titleSmall.asLiveValue(),
-            color = MaterialTheme.colorScheme.onSurface,
+        Box(
             modifier = Modifier
                 .padding(start = 8.dp)
-                .width(90.dp)
-        )
+                .width(32.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center,
+        ) {
+            val displayGear = if (isLive) gear else null
+            LiveValueText(
+                value = displayGear?.toString() ?: "–",
+                style = GearIndicatorStyle,
+                color = if (displayGear != null) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         trailingContent?.invoke()
     }
 }
@@ -315,6 +330,35 @@ internal fun SlotPickerSheet(
                     } else null
                 )
                 HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Preview(name = "RpmBar · gear locked (blue)", showBackground = true)
+@Composable
+private fun PreviewRpmBarGearLocked() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RpmBar(rpm = 4500f, threshold = 7000, gear = 3, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 4500f, threshold = 7000, gear = null, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 0f, threshold = 7000, gear = null, isLive = false, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Preview(name = "RpmBar · gear locked (amber)", showBackground = true)
+@Composable
+private fun PreviewRpmBarGearLockedAmber() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                RpmBar(rpm = 6200f, threshold = 7000, gear = 5, modifier = Modifier.fillMaxWidth())
             }
         }
     }
