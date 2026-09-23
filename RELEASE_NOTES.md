@@ -1,5 +1,35 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.5 (versionCode 51)
+
+Robustheits- und Barrierefreiheits-Verbesserungen an der Ganganzeige und den Getriebe-Einstellungen.
+
+---
+
+### Warnung bei zu eng beieinanderliegenden Gangübersetzungen
+
+Die Getriebe-Einstellungen zeigen jetzt einen Hinweis, wenn zwei eingetragene Gänge so nah
+beieinander liegen, dass die Ganganzeige nicht mehr zuverlässig zwischen ihnen unterscheiden kann.
+Die Werte bleiben trotzdem speicherbar — der Hinweis ist informativ, keine Sperre.
+
+### Ganganzeige: Barrierefreiheit und Robustheit
+
+Die Gang-Ziffer neben dem Drehzahlbalken hat jetzt eine Sprachausgabe-Beschreibung für TalkBack und
+bleibt bei aktivierter Bedienungshilfe „Große Schrift" lesbar, statt in ihrer Box abgeschnitten zu
+werden.
+
+### Kleinere Robustheits-Fixes
+
+Die Getriebe-Einstellungen lehnen jetzt auch „Infinity“ und „NaN“ als Eingabe ab. Ein
+fehlgeschlagenes Speichern einer Getriebe-Einstellung stürzt die App nicht mehr ab, sondern wird
+protokolliert.
+
+### Tests
+
+412 Unit- und 42 Instrumentation-Tests grün.
+
+---
+
 ## Version 1.16.4 (versionCode 50)
 
 Internes Code-Cleanup — keine sichtbaren Änderungen für Nutzer.
