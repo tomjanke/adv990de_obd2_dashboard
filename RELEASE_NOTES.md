@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.13 (versionCode 59)
+
+Wieder ein reines internes Test-Update — keine sichtbaren Änderungen für Nutzer.
+
+---
+
+### 24 Teillücken der Testabdeckung geschlossen
+
+Nach dem letzten Sweep (v1.16.12) blieben 24 Dateien mit nur teilweiser Testabdeckung übrig —
+alle einzeln, nacheinander bearbeitet: DTC-/PID-Parser-Fehlerfälle, Bluetooth-Verbindungsaufbau
+(inkl. aller SecurityException-Pfade), Geräte-Scan, App-Logs, Einstellungen-Persistenz,
+OBD-Repository-Lesepfade, CSV-Export, Standortberechtigungen, GPS-Geschwindigkeitsanbieter,
+Drehzahlbalken-Schwellwertskalierung, Motortemperatur-Ableitung, PID-Auswahl-Logik,
+Hintergrund-Standort-Eskalation, Fehlercode-Anzeige, Freeze-Frame-Anzeige, Lösch-Bestätigung im
+Verlauf, Kachel-Statusfarben samt Long-Press (neues Testmuster für diese Geste), Sektions-Label
+und der Vordergrunddienst-Fallback für ältere Android-Versionen.
+
+### Tests
+
+606 Unit- und 75 Instrumentation-Tests grün (vorher 483 / 59).
+
+---
+
 ## Version 1.16.12 (versionCode 58)
 
 Großes internes Test-Update — keine sichtbaren Änderungen für Nutzer, mit einer Ausnahme: einer
