@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +42,28 @@ import de.adv990de.obd2.ui.theme.blueColorScheme
  *  - [Critical] → StatusColors.Critical (cross-theme red)
  */
 enum class TileStatus { Ok, Warning, Critical }
+
+/**
+ * Reine Farbauswahl fuer die Status-Side-Bar (und den Wert-Text) von [LiveValueTile]: bei
+ * [isPreview] eine gedaempfte, statusfreie Farbe (s. KDoc zu `isPreview` dort), sonst die
+ * Statusfarbe je [status]. Extrahiert, damit die Zuordnung ohne Compose-Rendering testbar ist
+ * (Projekt-Konvention fuer Entscheidungslogik, vgl. `statusDotColor`, `connectionDotColor`) —
+ * [onSurfaceVariant]/[primary] werden von der Composable hereingereicht, da sie nur innerhalb der
+ * Komposition aus `MaterialTheme` lesbar sind, diese Funktion selbst aber keinen Compose-Bezug
+ * haben soll.
+ */
+internal fun liveValueTileAccentColor(
+    status: TileStatus,
+    isPreview: Boolean,
+    onSurfaceVariant: Color,
+    primary: Color,
+): Color = if (isPreview) {
+    onSurfaceVariant.copy(alpha = 0.35f)
+} else when (status) {
+    TileStatus.Ok       -> primary
+    TileStatus.Warning  -> StatusColors.Warning
+    TileStatus.Critical -> StatusColors.Critical
+}
 
 /**
  * Canonical dashboard tile for a single live readout. Anatomy:
@@ -87,13 +110,12 @@ fun LiveValueTile(
 ) {
     // Im Vorschau-Zustand traegt die Kachel keine Statusfarbe: Eine gruene oder rote Akzentleiste
     // ueber einem Wert, den kein Fahrzeug geliefert hat, waere eine Aussage ohne Grundlage.
-    val accentColor = if (isPreview) {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-    } else when (status) {
-        TileStatus.Ok       -> MaterialTheme.colorScheme.primary
-        TileStatus.Warning  -> StatusColors.Warning
-        TileStatus.Critical -> StatusColors.Critical
-    }
+    val accentColor = liveValueTileAccentColor(
+        status = status,
+        isPreview = isPreview,
+        onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant,
+        primary = MaterialTheme.colorScheme.primary,
+    )
     val interactive = onClick != null || onLongPress != null
     val finalModifier = if (interactive) {
         modifier.combinedClickable(
