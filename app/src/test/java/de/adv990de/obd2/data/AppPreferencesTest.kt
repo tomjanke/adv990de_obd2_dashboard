@@ -3,7 +3,11 @@ package de.adv990de.obd2.data
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.PidRegistry
@@ -26,7 +30,18 @@ class AppPreferencesTest {
 
     @get:Rule val tempFolder = TemporaryFolder()
 
-    private fun makePreferences(): AppPreferences {
+    private fun makePreferences(): AppPreferences = makePreferencesWithDataStore().first
+
+    // Same setup as makePreferences(), but also returns the underlying DataStore so tests can
+    // write raw/corrupt values directly (bypassing persistDevice's BtType.name encoding) and an
+    // overridable bluetoothAdapter so tests can force getRemoteDevice(...) to throw.
+    private fun makePreferencesWithDataStore(
+        btAdapter: BluetoothAdapter = mockk<BluetoothAdapter> {
+            every { getRemoteDevice("AA:BB:CC:DD:EE:FF") } returns mockk<BluetoothDevice> {
+                every { address } returns "AA:BB:CC:DD:EE:FF"
+            }
+        }
+    ): Pair<AppPreferences, DataStore<Preferences>> {
         // UnconfinedTestDispatcher is required: DataStore launches internal coroutines tied to its
         // own TestScope. Using StandardTestDispatcher would cause a scheduler deadlock because
         // DataStore's scope and runTest's scheduler are separate — DataStore's work never runs.
@@ -36,12 +51,7 @@ class AppPreferencesTest {
             scope = TestScope(testDispatcher),
             produceFile = { tempFolder.newFile("test.preferences_pb") }
         )
-        val btAdapter = mockk<BluetoothAdapter> {
-            every { getRemoteDevice("AA:BB:CC:DD:EE:FF") } returns mockk<BluetoothDevice> {
-                every { address } returns "AA:BB:CC:DD:EE:FF"
-            }
-        }
-        return AppPreferences(dataStore, btAdapter)
+        return AppPreferences(dataStore, btAdapter) to dataStore
     }
 
     // ── slotPids / setSlotPid ─────────────────────────────────────────────────
@@ -108,6 +118,37 @@ class AppPreferencesTest {
         assertEquals("AA:BB:CC:DD:EE:FF", last.device!!.address)
     }
 
+    @Test
+    fun `lastDevice is null when stored device type is unrecognized`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        // Write directly to the DataStore (not via persistDevice) to simulate a corrupt/stale
+        // device_type string that no longer matches any BtType enum constant, e.g. after an
+        // app downgrade or a renamed enum value.
+        dataStore.edit { p ->
+            p[stringPreferencesKey("device_address")] = "AA:BB:CC:DD:EE:FF"
+            p[stringPreferencesKey("device_name")]    = "Weird Device"
+            p[stringPreferencesKey("device_type")]    = "NOT_A_REAL_BT_TYPE"
+        }
+
+        assertNull(prefs.lastDevice.first())
+    }
+
+    @Test
+    fun `lastDevice is null when stored MAC address is invalid`() = runTest {
+        val btAdapter = mockk<BluetoothAdapter> {
+            every { getRemoteDevice("INVALID_MAC") } throws
+                IllegalArgumentException("Invalid Bluetooth address")
+        }
+        val (prefs, dataStore) = makePreferencesWithDataStore(btAdapter)
+        dataStore.edit { p ->
+            p[stringPreferencesKey("device_address")] = "INVALID_MAC"
+            p[stringPreferencesKey("device_name")]    = "Some Device"
+            p[stringPreferencesKey("device_type")]    = BtType.CLASSIC.name
+        }
+
+        assertNull(prefs.lastDevice.first())
+    }
+
     // ── persistDevice SIMULATOR guard ────────────────────────────────────────
 
     @Test
@@ -116,6 +157,34 @@ class AppPreferencesTest {
         val simDevice = ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")
         prefs.persistDevice(simDevice)
         assertNull(prefs.lastDevice.first())
+    }
+
+    // ── logOnlyDtcSessions ────────────────────────────────────────────────────
+
+    @Test
+    fun `logOnlyDtcSessions defaults to false`() = runTest {
+        assertEquals(false, makePreferences().logOnlyDtcSessions.first())
+    }
+
+    @Test
+    fun `setLogOnlyDtcSessions persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setLogOnlyDtcSessions(true)
+        assertEquals(true, prefs.logOnlyDtcSessions.first())
+    }
+
+    // ── logOnlyDiscoveredPids ─────────────────────────────────────────────────
+
+    @Test
+    fun `logOnlyDiscoveredPids defaults to false`() = runTest {
+        assertEquals(false, makePreferences().logOnlyDiscoveredPids.first())
+    }
+
+    @Test
+    fun `setLogOnlyDiscoveredPids persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setLogOnlyDiscoveredPids(true)
+        assertEquals(true, prefs.logOnlyDiscoveredPids.first())
     }
 
     // ── loggedPidIds / toggleLoggedPid / setLoggedPids ────────────────────────
