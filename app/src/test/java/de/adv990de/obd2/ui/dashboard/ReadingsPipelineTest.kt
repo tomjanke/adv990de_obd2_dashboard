@@ -308,4 +308,28 @@ class ReadingsPipelineTest {
 
         coVerify { sessionRepo.writeReadings(7L, readings) }
     }
+
+    // --- Test 13 ---
+
+    @Test
+    fun `a failing readDtcs does not crash the session and keeps it under logOnlyDtc as a fail-safe`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } throws IllegalStateException("ELM327 timeout")
+        val sessionRepo = makeSessionRepo()
+
+        val events = makePipeline(
+            repo,
+            sessionRepo = sessionRepo,
+            prefs = makePrefs(logOnlyDtc = true),
+        ).events(backgroundScope).take(1).toList()
+
+        // readDtcs() throwing is caught inside runSession()'s own try/catch: the session still runs
+        // and emits its readings normally, it does not surface as SessionEvent.Failed.
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+        coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
+        // dtcList becomes null, so hasDtcForRecording falls back to true (fail-safe) — even with
+        // logOnlyDtc enabled, the session must be kept, not discarded as a "no DTC" drive.
+        coVerify(exactly = 0) { sessionRepo.deleteSession(any()) }
+        coVerify { sessionRepo.endSession(7L) }
+    }
 }
