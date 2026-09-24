@@ -72,13 +72,14 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 **Dokumentierte Abweichung von M3 / BIKE_SCALE:** `GearIndicatorStyle` (`ui/theme/AppTypography.kt`,
 Gang-Ziffer neben der RpmBar, s. „RPM-Balken" oben) wendet `BIKE_SCALE` bewusst **nicht** an, anders
-als jeder übrige Live-Value-Style. Ihre Größe (45 sp, Stand 2026-09-24 — zuvor 40 sp) richtet sich
-nach der festen Innenhöhe der `RpmBar` (72 dp Zeilenhöhe minus 2× 8 dp Padding), nicht nach
-allgemeiner Motorrad-Lesbarkeit — eine mit `BIKE_SCALE` mitwachsende Ziffer liefe aus der fest
-dimensionierten 32-dp-Box heraus. 45 sp/54 sp ist bewusst nicht identisch mit `ValueTileStyle`
-(53,1 sp/61,36 sp): Letzteres würde die 56-dp-Box um ca. 5 dp überschreiten; 45 sp/54 sp ist das
-Maximum mit noch 2 dp Sicherheitsabstand zur Boxkante. Würde `BIKE_SCALE` künftig erhöht, muss
-dieser Wert unabhängig nachgezogen werden. Aus demselben Grund
+als jeder übrige Live-Value-Style. Ihre Größe (46 sp, Stand 2026-09-24 — zuvor 40 sp, dann kurz
+45 sp) richtet sich nach der festen Innenhöhe der `RpmBar` (72 dp Zeilenhöhe minus 2× 8 dp
+Padding), nicht nach allgemeiner Motorrad-Lesbarkeit — eine mit `BIKE_SCALE` mitwachsende Ziffer
+liefe aus der fest dimensionierten 32-dp-Box heraus. 46 sp/56 sp ist explizites Nutzer-Maximum:
+`lineHeight` trifft die 56-dp-Box exakt, ohne die `RpmBar`-Zeilenhöhe selbst anzufassen — mehr gibt
+die Box ohne Änderung von deren 72 dp/Padding nicht her. Bewusst nicht identisch mit
+`ValueTileStyle` (53,1 sp/61,36 sp): Letzteres würde die Box um ca. 5 dp überschreiten. Würde
+`BIKE_SCALE` künftig erhöht, muss dieser Wert unabhängig nachgezogen werden. Aus demselben Grund
 wird in `RpmBar` (`ui/dashboard/DashboardComponents.kt`) auch die System-Schriftskalierung
 (`fontScale`) für genau diese Ziffer lokal auf `1f` fixiert (`CompositionLocalProvider`/`LocalDensity`)
 — eine mit der Bedienungshilfe „Große Schrift" mitwachsende Ziffer würde sonst in derselben Box
