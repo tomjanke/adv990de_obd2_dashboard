@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -32,6 +33,11 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.theme.asLiveValue
+
+/** Test-only selector for the loading [LinearProgressIndicator] — it carries no text and no
+ *  other stable anchor to distinguish it from the rest of the screen. Purely a semantics marker,
+ *  no effect on production behavior. */
+internal const val FREEZE_FRAME_LOADING_TEST_TAG = "freeze_frame_loading_indicator"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +60,13 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (isLoading) {
+                LinearProgressIndicator(
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(FREEZE_FRAME_LOADING_TEST_TAG)
+                )
+            }
             Column(
                 Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
