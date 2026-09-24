@@ -10,6 +10,7 @@ import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -175,6 +176,33 @@ class ObdRepositoryTest {
     // ── DTC read ─────────────────────────────────────────────────────────────
 
     @Test
+    fun `readDtcs returns empty list when not connected`() = runTest {
+        val factory = mockk<ConnectionFactory>()
+        val repo = makeRepo(factory)
+
+        assertTrue(repo.readDtcs().isEmpty())
+        verify(exactly = 0) { factory.create(any()) }
+    }
+
+    @Test
+    fun `readDtcs parses confirmed and pending DTCs when connected`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        // "43 01 33" → confirmed DTC P0133; "47 01 34" → pending DTC P0134
+        coEvery { elmCtrl.sendCommand("03") } returns "43 01 33"
+        coEvery { elmCtrl.sendCommand("07") } returns "47 01 34"
+        // Use a real DtcParser so the actual parsing logic is exercised end-to-end.
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val result = repo.readDtcs()
+
+        assertEquals(2, result.size)
+        assertEquals("P0133", result[0].code)
+        assertFalse(result[0].isPending)
+        assertEquals("P0134", result[1].code)
+        assertTrue(result[1].isPending)
+    }
+
+    @Test
     fun `readDtcs disconnects when sendCommand times out to prevent stream desync`() = runTest {
         val elmCtrl = mockk<ElmController>()
         // "03" times out — stale response may arrive during the "07" command if we continue
@@ -190,6 +218,15 @@ class ObdRepositoryTest {
     }
 
     // ── Freeze frame ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `readFreezeFrame returns empty map when not connected`() = runTest {
+        val factory = mockk<ConnectionFactory>()
+        val repo = makeRepo(factory)
+
+        assertTrue(repo.readFreezeFrame().isEmpty())
+        verify(exactly = 0) { factory.create(any()) }
+    }
 
     @Test
     fun `readFreezeFrame sends correct mode-02 command format and parses response`() = runTest {
@@ -216,7 +253,8 @@ class ObdRepositoryTest {
     private suspend fun makeConnectedRepo(
         elmCtrl: ElmController,
         pidParser: PidParser = mockk(),
-        device: ScannedDevice = mockk()
+        device: ScannedDevice = mockk(),
+        dtcParser: DtcParser = mockk()
     ): ObdRepository {
         val conn = mockk<ObdConnection> {
             every { isConnected } returns true
@@ -232,7 +270,7 @@ class ObdRepositoryTest {
         coEvery { elmCtrl.sendCommand("0100") } throws ObdException.NoData("0100")
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
         coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
-        return ObdRepository(factory, pidParser, mockk<DtcParser>()).also { it.connect(device) }
+        return ObdRepository(factory, pidParser, dtcParser).also { it.connect(device) }
     }
 
     @Test
@@ -510,6 +548,15 @@ class ObdRepositoryTest {
     }
 
     @Test
+    fun `readVin returns raw sendCommand response when connected`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("0902") } returns "49 02 01 57 50 30"
+        val repo = makeConnectedRepo(elmCtrl)
+
+        assertEquals("49 02 01 57 50 30", repo.readVin())
+    }
+
+    @Test
     fun `integration - disconnect clears state after FakeObdConnection connect`() = runTest {
         val fake    = FakeObdConnection()
         val device  = mockk<ScannedDevice>()
@@ -527,5 +574,24 @@ class ObdRepositoryTest {
 
         assertFalse("isConnectedFlow should be false after disconnect", repo.isConnectedFlow.value)
         assertNull("supportedPidIds should be null after disconnect", repo.supportedPidIds.value)
+    }
+
+    // ── latestReadings ────────────────────────────────────────────────────────
+
+    @Test
+    fun `latestReadings starts empty`() = runTest {
+        val repo = makeRepo()
+        assertTrue(repo.latestReadings.value.isEmpty())
+    }
+
+    @Test
+    fun `updateLatestReadings updates the exposed latestReadings flow`() = runTest {
+        val repo = makeRepo()
+        val pid = PidRegistry.defaults.first()
+        val readings = listOf(SensorValue(pid = pid, value = 42f))
+
+        repo.updateLatestReadings(readings)
+
+        assertEquals(readings, repo.latestReadings.value)
     }
 }
