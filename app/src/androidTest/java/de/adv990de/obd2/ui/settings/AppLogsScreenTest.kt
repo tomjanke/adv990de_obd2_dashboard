@@ -1,0 +1,200 @@
+package de.adv990de.obd2.ui.settings
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.navigation.compose.rememberNavController
+import androidx.room.Room
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import dagger.hilt.android.testing.BindValue
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import de.adv990de.obd2.HiltTestActivity
+import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppLogRepository
+import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.data.db.AppDatabase
+import de.adv990de.obd2.data.db.entity.AppLogEntity
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.spyk
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Compose UI tests for [AppLogsScreen] — previously untested (documented coverage gap:
+ * `parseLogLevelOrDefault()` is covered by the JVM `AppLogsScreenTest`, but the Composable itself,
+ * including the empty-state/populated-list branch and `LogEntryRow`'s chip color `when`-mapping,
+ * had zero instrumentation coverage).
+ *
+ * Strategy, mirroring [de.adv990de.obd2.ui.history.HistoryScreenTest]: [AppLogRepository] is a concrete
+ * `@Inject constructor` class (not an interface), so instead of a bare relaxed mock — which would
+ * make `logs` emit nothing and leave every test stuck on the empty state — a *second*, test-local
+ * in-memory [AppDatabase] is wired into a real `AppLogRepository(dao)` instance, then wrapped with
+ * [spyk] via `@BindValue`. Real Room query/Flow behavior stays intact; rows are inserted directly
+ * through the test database's own `AppLogDao` before each test that needs a populated list.
+ * `AppLogsViewModel.init` calls `pruneOlderThan()` unconditionally (30-day cutoff), so every
+ * inserted row uses `System.currentTimeMillis()` rather than a fixed past timestamp — the same
+ * pitfall `HistoryScreenTest`'s KDoc documents for `SessionRepository.deleteOldSessions()`.
+ *
+ * `ObdRepository` is still replaced via `@BindValue` even though `AppLogsScreen` never touches it:
+ * it is reached through `ObdForegroundService`'s Hilt entry point, and Hilt validates the whole app
+ * graph per test class, not just what the test touches under test — same requirement as every other
+ * Compose UI test in this module (`DtcScreenTest`, `HistoryScreenTest`, `SectionLabelTest`, etc.).
+ *
+ * Room's Flow-returning queries dispatch to Room's query executor on a background thread regardless
+ * of `allowMainThreadQueries()` (that flag only covers direct suspend/blocking DAO calls), so
+ * `logs` updates asynchronously after `setContent` — hence `waitUntil` polling for the expected text
+ * rather than a single `waitForIdle()`, matching `HistoryScreenTest`'s paging-load wait.
+ *
+ * ## Color-assertion ceiling
+ * `LogEntryRow`'s `chipColor`/`chipOnColor` `when`-mapping (3 levels × background/content color
+ * pairs) has no precedent for pixel/color assertions anywhere in this codebase (`SectionLabelTest`
+ * and `LiveValueTextTest` both document the same check and the same absence — no `captureToImage`
+ * anywhere). Matching that established ceiling, the level-distinguishability tests below assert the
+ * chip's visible label text (`level.name`, e.g. "INFO"/"WARN"/"ERROR" — rendered literally, not via
+ * a string resource) rather than the resolved `Color` value: the label only renders correctly if
+ * `parseLogLevelOrDefault` resolved the intended enum constant and the corresponding `when` branch
+ * was hit, so this still exercises the real per-level branch, just not the specific color value.
+ */
+@HiltAndroidTest
+@RunWith(AndroidJUnit4::class)
+class AppLogsScreenTest {
+
+    @get:Rule(order = 0)
+    val hiltRule = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val composeRule = createAndroidComposeRule<HiltTestActivity>()
+
+    private val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+
+    /** Test-local in-memory database, separate from TestAppModule's — only AppLogRepository uses it. */
+    private val testDb = Room.inMemoryDatabaseBuilder(targetContext, AppDatabase::class.java)
+        .allowMainThreadQueries()
+        .build()
+
+    @BindValue
+    @JvmField
+    val appLogRepository: AppLogRepository = spyk(AppLogRepository(testDb.appLogDao()))
+
+    /**
+     * AppLogsScreen never touches ObdRepository, but it is still part of the Hilt component graph
+     * (ObdForegroundService's entry point, other HiltViewModels' constructors) — real ObdRepository
+     * has hardware-coupled deps (ConnectionFactory/PidParser/DtcParser) unavailable here, so it must
+     * be replaced exactly like in DtcScreenTest/HistoryScreenTest/SectionLabelTest.
+     */
+    @BindValue
+    @JvmField
+    val obdRepository: ObdRepository = mockk(relaxed = true) {
+        every { isConnectedFlow } returns MutableStateFlow(false)
+        every { isMovingFlow } returns MutableStateFlow(false)
+    }
+
+    @Before
+    fun setup() {
+        hiltRule.inject()
+    }
+
+    @After
+    fun tearDown() {
+        testDb.close()
+    }
+
+    // --- helpers ---
+
+    private fun insertLog(level: String, message: String) = runBlocking {
+        testDb.appLogDao().insert(
+            AppLogEntity(timestamp = System.currentTimeMillis(), level = level, message = message)
+        )
+    }
+
+    private fun launchAppLogsScreen() {
+        composeRule.setContent {
+            val navController = rememberNavController()
+            AppLogsScreen(navController = navController)
+        }
+    }
+
+    private fun waitForText(text: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    // --- tests ---
+
+    @Test
+    fun emptyLogList_showsEmptyStateText() {
+        // No rows inserted into testDb — logs stays emptyList() (the ViewModel's stateIn default).
+        launchAppLogsScreen()
+        composeRule.waitForIdle()
+
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.app_logs_empty))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun populatedLogList_showsLogMessageInLazyColumn() {
+        insertLog(level = "INFO", message = "Bluetooth connected")
+
+        launchAppLogsScreen()
+        waitForText("Bluetooth connected")
+
+        composeRule.onNodeWithText("Bluetooth connected").assertIsDisplayed()
+    }
+
+    @Test
+    fun infoLevelEntry_rendersInfoChipLabel() {
+        insertLog(level = "INFO", message = "Info entry message")
+
+        launchAppLogsScreen()
+        waitForText("INFO")
+
+        composeRule.onNodeWithText("INFO").assertIsDisplayed()
+    }
+
+    @Test
+    fun warnLevelEntry_rendersWarnChipLabel() {
+        insertLog(level = "WARN", message = "Warn entry message")
+
+        launchAppLogsScreen()
+        waitForText("WARN")
+
+        composeRule.onNodeWithText("WARN").assertIsDisplayed()
+    }
+
+    @Test
+    fun errorLevelEntry_rendersErrorChipLabel() {
+        insertLog(level = "ERROR", message = "Error entry message")
+
+        launchAppLogsScreen()
+        waitForText("ERROR")
+
+        composeRule.onNodeWithText("ERROR").assertIsDisplayed()
+    }
+
+    @Test
+    fun mixedLevelEntries_eachRendersItsOwnDistinctChipLabel() {
+        // All three levels in one populated list: proves the when-mapping picks a different label
+        // per row rather than one branch leaking into the others.
+        insertLog(level = "INFO", message = "Info row")
+        insertLog(level = "WARN", message = "Warn row")
+        insertLog(level = "ERROR", message = "Error row")
+
+        launchAppLogsScreen()
+        waitForText("Info row")
+
+        composeRule.onNodeWithText("INFO").assertIsDisplayed()
+        composeRule.onNodeWithText("WARN").assertIsDisplayed()
+        composeRule.onNodeWithText("ERROR").assertIsDisplayed()
+    }
+}
