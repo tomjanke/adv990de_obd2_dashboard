@@ -95,6 +95,17 @@ class AppPreferencesTest {
         assertEquals(4, prefs.slotPids.first().size)
     }
 
+    @Test
+    fun `setSlotPid rejects an out-of-range slot`() = runTest {
+        val prefs = makePreferences()
+        try {
+            prefs.setSlotPid(4, PidRegistry.defaults[0].id)
+            org.junit.Assert.fail("Expected IllegalArgumentException for slot 4")
+        } catch (_: IllegalArgumentException) {
+            // expected
+        }
+    }
+
     // ── lastDevice ────────────────────────────────────────────────────────────
 
     @Test
@@ -248,6 +259,20 @@ class AppPreferencesTest {
         val prefs = makePreferences()
         prefs.setHideNavOnDrive(true)
         assertEquals(true, prefs.hideNavOnDrive.first())
+    }
+
+    // ── useGpsSpeed ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `useGpsSpeed defaults to false`() = runTest {
+        assertEquals(false, makePreferences().useGpsSpeed.first())
+    }
+
+    @Test
+    fun `setUseGpsSpeed persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setUseGpsSpeed(true)
+        assertEquals(true, prefs.useGpsSpeed.first())
     }
 
     // ── backgroundLocationPrompted ───────────────────────────────────────────
