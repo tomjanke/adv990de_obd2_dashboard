@@ -8,6 +8,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -15,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -44,6 +46,7 @@ import org.junit.Test
 class ReadingsPipelineTest {
 
     private val rpm = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
+    private val coolantTemp = SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 90f, timestamp = 1000L)
 
     private fun makeRepo(
         connected: Boolean,
@@ -69,11 +72,14 @@ class ReadingsPipelineTest {
     private fun makePrefs(
         useGpsSpeed: Boolean = false,
         logOnlyDtc: Boolean = false,
+        rpmDynamicThreshold: Boolean = false,
+        logOnlyDiscoveredPids: Boolean = false,
+        slotPids: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
     ): AppPreferences = mockk {
-        every { slotPids } returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
-        every { rpmDynamicThreshold } returns flowOf(false)
+        every { this@mockk.slotPids } returns flowOf(slotPids)
+        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
         every { logOnlyDtcSessions } returns flowOf(logOnlyDtc)
-        every { logOnlyDiscoveredPids } returns flowOf(false)
+        every { this@mockk.logOnlyDiscoveredPids } returns flowOf(logOnlyDiscoveredPids)
         every { loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
         every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
     }
@@ -221,5 +227,85 @@ class ReadingsPipelineTest {
             .mapNotNull { evt -> evt.values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }?.value }
         assertEquals(listOf(10f, 20f), speeds)
         coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }
+    }
+
+    // --- Test 9 ---
+
+    @Test
+    fun `dynamic RPM threshold forces oil and coolant temp PIDs into the selection`() = runTest {
+        val repo = makeRepo(connected = true)
+        val pidsSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
+        val prefs = makePrefs(
+            rpmDynamicThreshold = true,
+            slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
+        )
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        val selectedIds = pidsSlot.captured.map { it.id }
+        assertEquals(
+            setOf(
+                PidRegistry.THROTTLE.id,
+                PidRegistry.ENGINE_LOAD.id,
+                PidRegistry.RPM.id,
+                PidRegistry.ENGINE_OIL_TEMP.id,
+                PidRegistry.COOLANT_TEMP.id,
+            ),
+            selectedIds.toSet(),
+        )
+    }
+
+    // --- Test 10 ---
+
+    @Test
+    fun `without the dynamic RPM threshold, oil and coolant temp are not force-included`() = runTest {
+        val repo = makeRepo(connected = true)
+        val pidsSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
+        val prefs = makePrefs(
+            rpmDynamicThreshold = false,
+            slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
+        )
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        val selectedIds = pidsSlot.captured.map { it.id }
+        assertEquals(
+            setOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id, PidRegistry.RPM.id),
+            selectedIds.toSet(),
+        )
+        assertTrue(PidRegistry.ENGINE_OIL_TEMP.id !in selectedIds)
+        assertTrue(PidRegistry.COOLANT_TEMP.id !in selectedIds)
+    }
+
+    // --- Test 11 ---
+
+    @Test
+    fun `logOnlyDiscoveredPids filters recorded readings down to supported PIDs`() = runTest {
+        val readings = listOf(rpm, coolantTemp)
+        val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
+        val sessionRepo = makeSessionRepo()
+        val prefs = makePrefs(logOnlyDiscoveredPids = true)
+
+        makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
+            .events(backgroundScope).take(1).toList()
+
+        coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
+    }
+
+    // --- Test 12 ---
+
+    @Test
+    fun `without logOnlyDiscoveredPids, unsupported readings are still recorded`() = runTest {
+        val readings = listOf(rpm, coolantTemp)
+        val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
+        val sessionRepo = makeSessionRepo()
+        val prefs = makePrefs(logOnlyDiscoveredPids = false)
+
+        makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
+            .events(backgroundScope).take(1).toList()
+
+        coVerify { sessionRepo.writeReadings(7L, readings) }
     }
 }
