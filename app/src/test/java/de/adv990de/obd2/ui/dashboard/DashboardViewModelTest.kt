@@ -30,6 +30,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -65,13 +66,14 @@ class DashboardViewModelTest {
         primaryRatio: Float = AppPreferences.DEFAULT_PRIMARY_RATIO,
         secondaryRatio: Float = AppPreferences.DEFAULT_SECONDARY_RATIO,
         gearRatios: List<Float> = AppPreferences.DEFAULT_GEAR_RATIOS,
+        rpmDynamicThreshold: Boolean = false,
     ): AppPreferences = mockk {
         every { slotPids }              returns flowOf(slotIds)
         every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
         every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
         every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
         every { rpmBlinkThreshold }     returns flowOf(0)
-        every { rpmDynamicThreshold }   returns flowOf(false)
+        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
         every { lastDevice }            returns flowOf(null)
         every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
         every { this@mockk.wheelCircumferenceMm } returns flowOf(wheelCircumferenceMm)
@@ -1593,6 +1595,191 @@ class DashboardViewModelTest {
 
         assertNull(vm.uiState.value.speedKmh)
         assertNull(vm.uiState.value.gear)
+    }
+
+    // ── Motortemperatur-Ableitung (rpmDynamicThreshold) ─────────────────────────
+    // rpmDynamicThreshold ist ein WhileSubscribed(5_000)-StateFlow (anders als gearRatios,
+    // s. dessen Kommentar oben) — ohne aktiven Collector bliebe `.value` fuer immer auf dem
+    // Default (false) stehen, egal was AppPreferences liefert. Denselben Trick nutzt bereits
+    // `DashboardConfigViewModelTest` ("rpmDynamicThreshold reflects AppPreferences flow"):
+    // die StateFlow selbst kollektieren, bevor der Messwert-Zyklus laeuft.
+
+    @Test
+    fun `engineTempC stays null when rpmDynamicThreshold is disabled`() = runTest {
+        // rpmDynamicThreshold=false: applyReadings() darf engineTempC gar nicht erst berechnen,
+        // selbst wenn sowohl ein plausibler Oel- als auch Kuehlwasserwert vorliegen.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.ENGINE_OIL_TEMP, value = 95f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
+        )
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(rpmDynamicThreshold = false)
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        job.cancel()
+
+        assertNull(vm.uiState.value.engineTempC)
+    }
+
+    @Test
+    fun `engineTempC uses coolant temp when it is the only plausible reading`() = runTest {
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
+        )
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(rpmDynamicThreshold = true)
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(88f, vm.uiState.value.engineTempC!!, 0.001f)
+    }
+
+    @Test
+    fun `engineTempC prefers oil temp over coolant temp when both are present and plausible`() = runTest {
+        // Beide Werte plausibel und unterscheidbar (95 vs. 88) — die Assertion belegt damit
+        // konkret, welcher der beiden gewinnt, nicht nur dass irgendein Wert ankommt.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.ENGINE_OIL_TEMP, value = 95f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
+        )
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(rpmDynamicThreshold = true)
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(95f, vm.uiState.value.engineTempC!!, 0.001f)
+    }
+
+    @Test
+    fun `engineTempC falls back to coolant temp when oil temp reading is not finite`() = runTest {
+        // NaN ist der Sentinel, den isPlausible() (value.isFinite()) ablehnt — z.B. eine
+        // fehlerhaft geparste PID-Antwort. Der Oelwert liegt zwar vor, zaehlt aber nicht als
+        // plausibel, daher muss der Kuehlwasserwert greifen statt null.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.ENGINE_OIL_TEMP, value = Float.NaN, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
+        )
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(rpmDynamicThreshold = true)
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(88f, vm.uiState.value.engineTempC!!, 0.001f)
+    }
+
+    @Test
+    fun `engineTempC is null when neither oil nor coolant temp reading is plausible`() = runTest {
+        // Beide Werte liegen vor, sind aber beide NaN (implausibel) — der letzte Fallback ist
+        // null, nicht etwa ein stehen gebliebener alter Wert.
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.ENGINE_OIL_TEMP, value = Float.NaN, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = Float.NaN, timestamp = 1000L),
+        )
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs(rpmDynamicThreshold = true)
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+        job.cancel()
+
+        assertNull(vm.uiState.value.engineTempC)
     }
 
     /**
