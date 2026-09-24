@@ -55,12 +55,17 @@ val ValueTileStyle = TextStyle(
  * `RpmBar` (56dp bei 72dp Zeilenhoehe minus 2x8dp Padding), nicht nach allgemeiner
  * Motorrad-Lesbarkeit. Wuerde BIKE_SCALE erhoeht, muesste dieser Wert unabhaengig nachgezogen
  * werden, sonst liefe die Ziffer aus der fest dimensionierten Box heraus.
+ *
+ * 45sp/54sp (Stand 2026-09-24, User-Wunsch: Ziffer so gross wie moeglich Richtung
+ * `ValueTileStyle`-Groesse, ohne die 32x56dp-Box selbst zu vergroessern): `ValueTileStyle`s
+ * 53.1sp/61.36sp passen NICHT in die 56dp-Box (lineHeight ueberschreitet sie um ~5dp) — 45sp/54sp
+ * ist das Maximum mit noch 2dp Sicherheitsabstand zur Boxkante (56dp - 54dp lineHeight).
  */
 val GearIndicatorStyle = TextStyle(
     fontFamily = PlexMonoFamily,
     fontWeight = FontWeight.Medium,
-    fontSize = 40.sp,
-    lineHeight = 48.sp,
+    fontSize = 45.sp,
+    lineHeight = 54.sp,
     fontFeatureSettings = "tnum",
 )
 
