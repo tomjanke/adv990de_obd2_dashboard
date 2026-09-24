@@ -248,6 +248,20 @@ class ObdRepositoryTest {
         assertTrue("RPM value should contain decimal point: ${result["010C"]}", result["010C"]!!.contains("."))
     }
 
+    @Test
+    fun `readFreezeFrame disconnects and rethrows when sendCommand throws ConnectionLost`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.ConnectionLost()
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try { repo.readFreezeFrame() } catch (_: ObdException.ConnectionLost) { threw = true }
+
+        assertTrue(threw)
+        // Same fatal handling as the identical catch block elsewhere: disconnect before rethrow
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
     // ── BusInit escalation ────────────────────────────────────────────────────
 
     private suspend fun makeConnectedRepo(
@@ -354,6 +368,25 @@ class ObdRepositoryTest {
 
         assertEquals(1, emissionCount)  // one emission on cycle 5
         assertTrue(threw)               // ConnectionLost after 5 more BusInit cycles (6-10)
+    }
+
+    @Test
+    fun `livePids disconnects and rethrows when sendCommand throws ConnectionLost directly`() = runTest {
+        // Distinct from the BusInit-escalation path above: here sendCommand throws
+        // ConnectionLost itself on the very first cycle, hitting livePids' own
+        // `catch (e: ObdException.ConnectionLost)` block directly rather than via the
+        // 5-consecutive-BusInit escalation that synthesizes a ConnectionLost.
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.ConnectionLost()
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try {
+            repo.livePids(listOf(PidRegistry.defaults.first()), pollIntervalMs = 0).collect {}
+        } catch (_: ObdException.ConnectionLost) { threw = true }
+
+        assertTrue(threw)
+        assertEquals(false, repo.isConnectedFlow.value)
     }
 
     // ── PID Discovery ─────────────────────────────────────────────────────────
@@ -465,6 +498,101 @@ class ObdRepositoryTest {
         assertNotNull("partial discovery result should not be null", supported)
         assertTrue("010C should be discovered", "010C" in supported!!)
         assertTrue("010D should be discovered", "010D" in supported)
+    }
+
+    @Test
+    fun `discoverSupportedPids skips range when response has too few tokens`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        // Malformed: only 3 tokens, below the "41 XX B1 B2 B3 B4" minimum of 6 — the
+        // tokens.size < 6 guard must skip this range silently instead of throwing.
+        coEvery { elmCtrl.sendCommand("0120") } returns "41 20 00"
+        // Bitmap 0x40000000 → bit 30 → pidNum 0x40 + 2 = 0x42 → "0142" (Control Module Voltage)
+        coEvery { elmCtrl.sendCommand("0140") } returns "41 40 40 00 00 00"
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull("discovery should still succeed using the other two ranges", supported)
+        assertTrue("010C (RPM) from range 0100 should be in supported", "010C" in supported!!)
+        assertTrue("010D (Speed) from range 0100 should be in supported", "010D" in supported)
+        assertTrue(
+            "0142 from range 0140 should still be discovered after the malformed 0120 response",
+            "0142" in supported
+        )
+    }
+
+    @Test
+    fun `discoverSupportedPids skips range when response header byte is not 41`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        // 6 tokens (passes the size check) but the header byte is not "41" — the
+        // tokens[0] != "41" guard must skip this range silently instead of decoding garbage.
+        coEvery { elmCtrl.sendCommand("0120") } returns "51 20 00 00 00 00"
+        // Bitmap 0x40000000 → bit 30 → pidNum 0x40 + 2 = 0x42 → "0142" (Control Module Voltage)
+        coEvery { elmCtrl.sendCommand("0140") } returns "41 40 40 00 00 00"
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull("discovery should still succeed using the other two ranges", supported)
+        assertTrue("010C (RPM) from range 0100 should be in supported", "010C" in supported!!)
+        assertTrue("010D (Speed) from range 0100 should be in supported", "010D" in supported)
+        assertTrue(
+            "0142 from range 0140 should still be discovered after the malformed 0120 response",
+            "0142" in supported
+        )
+    }
+
+    @Test
+    fun `discoverSupportedPids skips range when bitmap bytes are not valid hex`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
+        // "ZZ" is not a valid hex byte — the bitmap fold's toLong(16) throws
+        // NumberFormatException, which the guard must catch and skip, not propagate
+        // (an uncaught throw here would also wipe out 0100's already-discovered PIDs,
+        // since the outer catch in connectLocked() discards the whole result on failure).
+        coEvery { elmCtrl.sendCommand("0120") } returns "41 20 ZZ 00 00 00"
+        // Bitmap 0x40000000 → bit 30 → pidNum 0x40 + 2 = 0x42 → "0142" (Control Module Voltage)
+        coEvery { elmCtrl.sendCommand("0140") } returns "41 40 40 00 00 00"
+
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+
+        val supported = repo.supportedPidIds.value
+        assertNotNull("discovery should still succeed using the other two ranges", supported)
+        assertTrue("010C (RPM) from range 0100 should be in supported", "010C" in supported!!)
+        assertTrue("010D (Speed) from range 0100 should be in supported", "010D" in supported)
+        assertTrue(
+            "0142 from range 0140 should still be discovered after the malformed 0120 response",
+            "0142" in supported
+        )
     }
 
     // ── Integration tests with FakeObdConnection ──────────────────────────────
