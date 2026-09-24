@@ -159,6 +159,31 @@ class BluetoothDeviceScannerTest {
         assertEquals("Unknown", classicDevices[0].name)
     }
 
+    // --- Test 8 ---
+
+    @Test
+    fun `bondedDevices throws PermissionDenied when BLUETOOTH_CONNECT is missing`() {
+        mockkObject(BluetoothPermissions)
+        every { BluetoothPermissions.hasConnect(any()) } returns false
+
+        val ex = assertFailsWith<BluetoothException.PermissionDenied> {
+            scanner.bondedDevices()
+        }
+        assertTrue(ex.message!!.contains("BLUETOOTH_CONNECT"))
+    }
+
+    // --- Test 9 ---
+
+    @Test
+    fun `bondedDevices wraps a SecurityException from the adapter as PermissionDenied`() {
+        every { btAdapter.bondedDevices } throws SecurityException("permission denied")
+
+        val ex = assertFailsWith<BluetoothException.PermissionDenied> {
+            scanner.bondedDevices()
+        }
+        assertTrue(ex.message!!.contains("BLUETOOTH_CONNECT"))
+    }
+
     // --- scanBle(): success path via the real ScanCallback ---
 
     @Test
