@@ -14,8 +14,14 @@ object LocationPermissions {
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    fun hasBackgroundLocation(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+    // InlinedApi: ACCESS_BACKGROUND_LOCATION ist eine reine String-Konstante, die der Compiler
+    // einbettet. Lint's InlinedApi-Guard erkennt nur einen direkten
+    // `Build.VERSION.SDK_INT >= ...`-Vergleich — es sieht den Guard nicht durch den
+    // `sdkInt`-Parameter hindurch, obwohl alle echten Call-Sites unten den Default (das echte
+    // Build.VERSION.SDK_INT) nutzen und nur Tests ihn ueberschreiben (gleiches Pattern wie
+    // BluetoothPermissions.kt / PermissionGate.kt).
+    fun hasBackgroundLocation(context: Context, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+        sdkInt < Build.VERSION_CODES.Q ||
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
 
