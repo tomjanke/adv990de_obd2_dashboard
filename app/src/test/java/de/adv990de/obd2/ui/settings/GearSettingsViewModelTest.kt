@@ -9,6 +9,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -151,5 +152,20 @@ class GearSettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify { logRepository.log(LogLevel.ERROR, any()) }
+    }
+
+    @Test
+    fun `a CancellationException is rethrown instead of caught and logged`() = runTest {
+        val prefs = makePrefs()
+        coEvery { prefs.setGearRatio(any(), any()) } throws CancellationException("cancelled")
+        val logRepository = makeLogRepository()
+        val vm = GearSettingsViewModel(prefs, logRepository)
+
+        vm.setGearRatio(0, 3.0f)
+        advanceUntilIdle()
+
+        // CancellationException was rethrown out of persist()'s catch block, so -- unlike
+        // an ordinary exception -- it must never reach AppLogRepository.
+        coVerify(exactly = 0) { logRepository.log(any(), any()) }
     }
 }
