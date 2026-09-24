@@ -1,23 +1,34 @@
 package de.adv990de.obd2.ui.settings
 
+import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.rule.GrantPermissionRule
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import javax.inject.Inject
 
 /**
  * Compose UI tests for [SettingsScreen].
@@ -31,6 +42,17 @@ import org.junit.runner.RunWith
  * - The four @HiltViewModels (SettingsViewModel, RecordingSettingsViewModel,
  *   DisplaySettingsViewModel, DriveStateViewModel) are constructed by Hilt automatically once
  *   all their transitive dependencies are satisfied.
+ *
+ * GPS-speed switch / background-location escalation tests below pre-grant ACCESS_FINE_LOCATION
+ * and ACCESS_BACKGROUND_LOCATION via [GrantPermissionRule] (the same precedent
+ * `ObdForegroundServiceTest`/`GearRatioFieldUiTest` use for permission-gated instrumentation
+ * tests) so that toggling the switch to "on" never has to open a real system permission dialog —
+ * there is no established pattern in this codebase for driving or dismissing one mid-test, and a
+ * lingering dialog would risk breaking whichever test runs next. That constraint means the
+ * "permission not yet granted -> request launched" branch and the "escalation actually fires" path
+ * cannot be exercised end-to-end here; see `SettingsScreenTest` in `test` (JVM) for full coverage
+ * of those branches via the extracted pure functions `determineGpsSpeedSwitchAction` and
+ * `shouldEscalateToBackgroundLocation`.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -40,6 +62,12 @@ class SettingsScreenTest {
     val hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
+    val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+    )
+
+    @get:Rule(order = 2)
     val composeRule = createAndroidComposeRule<HiltTestActivity>()
 
     /**
@@ -55,6 +83,16 @@ class SettingsScreenTest {
         every { isMovingFlow } returns MutableStateFlow(false)
     }
 
+    /**
+     * The real DataStore-backed instance (see `TestAppModule`) — same direct-injection precedent
+     * as `SimulatedDashboardTest.appPreferences`. Used to pre-seed `useGpsSpeed` /
+     * `backgroundLocationPrompted` to a known state before each test and to read back
+     * `backgroundLocationPrompted` afterwards, since the DataStore file persists across test runs
+     * on a real device/emulator and must not be trusted to already be at its default.
+     */
+    @Inject
+    lateinit var appPreferences: AppPreferences
+
     @Before
     fun setup() {
         hiltRule.inject()
@@ -66,6 +104,21 @@ class SettingsScreenTest {
             SettingsScreen(navController = navController)
         }
         composeRule.waitForIdle()
+    }
+
+    /** Polls (like `SimulatedDashboardTest.awaitLiveTiles()`) instead of a single `waitForIdle()`:
+     *  `useGpsSpeed`/`backgroundLocationPrompted` are StateFlows seeded from AppPreferences/
+     *  DataStore, whose real value can arrive a beat after the frame Compose considers idle. */
+    private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                if (expected) {
+                    composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).assertIsOn()
+                } else {
+                    composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).assertIsOff()
+                }
+            }.isSuccess
+        }
     }
 
     @Test
@@ -93,5 +146,60 @@ class SettingsScreenTest {
         composeRule
             .onNodeWithText(composeRule.activity.getString(R.string.settings_no_paired_devices))
             .assertIsDisplayed()
+    }
+
+    // ── GPS-speed switch: granted / off branches (see class KDoc for what's out of scope) ────
+
+    @Test
+    fun gpsSpeedSwitch_turnsOn_whenFineLocationIsAlreadyGranted() = runBlocking {
+        // Starts from the StateFlow's own default (false) — no DataStore pre-seed/wait needed.
+        appPreferences.setUseGpsSpeed(false)
+
+        launchSettingsScreen()
+        waitUntilGpsSpeedSwitchIsOn(expected = false)
+
+        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
+        waitUntilGpsSpeedSwitchIsOn(expected = true)
+
+        // ACCESS_FINE_LOCATION is pre-granted by permissionRule, so this must have taken the
+        // `granted -> displayVm.setUseGpsSpeed(true)` branch directly, never the permission
+        // request branch.
+        assertEquals(true, appPreferences.useGpsSpeed.first())
+    }
+
+    @Test
+    fun gpsSpeedSwitch_turnsOff_regardlessOfPermissionGrant() = runBlocking {
+        appPreferences.setUseGpsSpeed(true)
+
+        launchSettingsScreen()
+        waitUntilGpsSpeedSwitchIsOn(expected = true)
+
+        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
+        waitUntilGpsSpeedSwitchIsOn(expected = false)
+
+        assertEquals(false, appPreferences.useGpsSpeed.first())
+    }
+
+    // ── escalateToBackgroundLocationIfNeeded(): the one branch safe to drive end-to-end ───────
+
+    @Test
+    fun escalateToBackgroundLocation_doesNotPrompt_whenBackgroundLocationAlreadyGranted() = runBlocking {
+        // permissionRule grants ACCESS_BACKGROUND_LOCATION for this whole class, so
+        // shouldEscalateToBackgroundLocation()'s needsBackgroundLocationRequest(...) check is
+        // false regardless of backgroundLocationPrompted — the real, safe-to-drive case.
+        appPreferences.setUseGpsSpeed(false)
+        appPreferences.setBackgroundLocationPrompted(false)
+
+        launchSettingsScreen()
+        waitUntilGpsSpeedSwitchIsOn(expected = false)
+
+        // Flips useGpsSpeed true, which re-runs the screen's LaunchedEffect(useGpsSpeed) and
+        // therefore escalateToBackgroundLocationIfNeeded() for real.
+        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
+        waitUntilGpsSpeedSwitchIsOn(expected = true)
+        composeRule.waitForIdle()
+
+        // Had escalation incorrectly fired despite the grant, this would have flipped to true.
+        assertEquals(false, appPreferences.backgroundLocationPrompted.first())
     }
 }

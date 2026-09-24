@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,6 +46,35 @@ import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+
+/** Test-only selector for the GPS-speed [Switch] — its [ListItem] siblings have no other stable
+ *  anchor to distinguish it from the other switches on this screen. Purely a semantics marker,
+ *  no effect on production behavior. */
+internal const val GPS_SPEED_SWITCH_TEST_TAG = "settings_gps_speed_switch"
+
+/** The GPS-speed switch's three-way outcome once the user toggles it, decided purely from the
+ *  requested state and the current fine-location grant — extracted so the branch is directly
+ *  unit-testable without Compose/instrumentation (same convention as the internal decision
+ *  functions in `DashboardComponents.kt`, e.g. `rpmThresholdTempScale`). */
+internal enum class GpsSpeedSwitchAction { SET_OFF, SET_ON, REQUEST_PERMISSION }
+
+internal fun determineGpsSpeedSwitchAction(wanted: Boolean, granted: Boolean): GpsSpeedSwitchAction =
+    when {
+        !wanted -> GpsSpeedSwitchAction.SET_OFF
+        granted -> GpsSpeedSwitchAction.SET_ON
+        else -> GpsSpeedSwitchAction.REQUEST_PERMISSION
+    }
+
+/** Pure trigger condition for [SettingsScreen]'s background-location escalation — extracted out of
+ *  `escalateToBackgroundLocationIfNeeded()` so it is directly unit-testable. Mirrors the exact
+ *  boolean expression that function evaluated inline before this extraction (no behavior change):
+ *  short-circuits on `alreadyPrompted` before ever consulting [LocationPermissions.hasBackgroundLocation]. */
+internal fun shouldEscalateToBackgroundLocation(
+    alreadyPrompted: Boolean,
+    sdkInt: Int,
+    backgroundLocationGranted: Boolean
+): Boolean = !alreadyPrompted &&
+    LocationPermissions.needsBackgroundLocationRequest(sdkInt, backgroundLocationGranted)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,9 +105,8 @@ fun SettingsScreen(
 
     @SuppressLint("InlinedApi")
     fun escalateToBackgroundLocationIfNeeded() {
-        if (!backgroundLocationPrompted &&
-            LocationPermissions.needsBackgroundLocationRequest(
-                Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
+        if (shouldEscalateToBackgroundLocation(
+                backgroundLocationPrompted, Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
             )
         ) {
             displayVm.setBackgroundLocationPrompted(true)
@@ -236,17 +265,18 @@ fun SettingsScreen(
                                 val granted = ContextCompat.checkSelfPermission(
                                     context, Manifest.permission.ACCESS_FINE_LOCATION
                                 ) == PackageManager.PERMISSION_GRANTED
-                                when {
-                                    !wanted -> displayVm.setUseGpsSpeed(false)
-                                    granted -> displayVm.setUseGpsSpeed(true)
-                                    else -> locationPermissionLauncher.launch(
+                                when (determineGpsSpeedSwitchAction(wanted, granted)) {
+                                    GpsSpeedSwitchAction.SET_OFF -> displayVm.setUseGpsSpeed(false)
+                                    GpsSpeedSwitchAction.SET_ON -> displayVm.setUseGpsSpeed(true)
+                                    GpsSpeedSwitchAction.REQUEST_PERMISSION -> locationPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.ACCESS_FINE_LOCATION,
                                             Manifest.permission.ACCESS_COARSE_LOCATION,
                                         )
                                     )
                                 }
-                            }
+                            },
+                            modifier = Modifier.testTag(GPS_SPEED_SWITCH_TEST_TAG)
                         )
                     }
                 )
