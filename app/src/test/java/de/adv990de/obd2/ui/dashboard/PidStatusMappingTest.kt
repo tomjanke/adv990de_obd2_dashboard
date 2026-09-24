@@ -51,6 +51,14 @@ class PidStatusMappingTest {
     @Test fun fuel_veryLow_isCrit()          = check(PidRegistry.FUEL_TANK_LEVEL.id,  5f, TileStatus.Critical)
     // endregion
 
+    // region — Catalyst Temp B1S1 (Warning > 750°C, Critical > 850°C)
+    @Test fun catalyst_nominal_isOk()          = check(PidRegistry.CATALYST_TEMP_B1S1.id, 600f,   TileStatus.Ok)
+    @Test fun catalyst_atWarningEdge_isOk()    = check(PidRegistry.CATALYST_TEMP_B1S1.id, 750f,   TileStatus.Ok)  // strictly greater than
+    @Test fun catalyst_aboveWarning_isWarn()   = check(PidRegistry.CATALYST_TEMP_B1S1.id, 750.1f, TileStatus.Warning)
+    @Test fun catalyst_atCriticalEdge_isWarn() = check(PidRegistry.CATALYST_TEMP_B1S1.id, 850f,   TileStatus.Warning)
+    @Test fun catalyst_aboveCritical_isCrit()  = check(PidRegistry.CATALYST_TEMP_B1S1.id, 850.1f, TileStatus.Critical)
+    // endregion
+
     // region — Edge / unknown PIDs
     @Test fun nan_isOk()                     = check(PidRegistry.COOLANT_TEMP.id, Float.NaN, TileStatus.Ok)
     @Test fun positiveInfinity_isOk()        = check(PidRegistry.RPM.id, Float.POSITIVE_INFINITY, TileStatus.Ok)
