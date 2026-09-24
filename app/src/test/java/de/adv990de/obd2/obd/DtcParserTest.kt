@@ -92,4 +92,16 @@ class DtcParserTest {
         assertEquals(1, dtcs.size)
         assertEquals("P0301", dtcs[0].code)
     }
+
+    // "43 03 01 00 00 04 20" → 0x03,0x01 → P0301; 0x00,0x00 → an empty DTC slot
+    // (e.g. padding between real codes) that must be skipped via the
+    // "high == 0 && low == 0" branch, not the loop's i+1<size bound — there are
+    // still two more real bytes ("04 20" → P0420) after it.
+    @Test
+    fun `parse skips a genuine empty DTC slot interspersed between real DTCs`() {
+        val dtcs = parser.parse("43 03 01 00 00 04 20", isPending = false)
+        assertEquals(2, dtcs.size)
+        assertEquals("P0301", dtcs[0].code)
+        assertEquals("P0420", dtcs[1].code)
+    }
 }
