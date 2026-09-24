@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,6 +54,20 @@ class ClassicBtConnectionTest {
         }
         val conn = ClassicBtConnection(device)
         assertFailsWith<BluetoothException.ConnectionFailed> {
+            runBlocking { conn.connect() }
+        }
+    }
+
+    @Test
+    fun `connect rethrows CancellationException without wrapping`() {
+        val socket = mockk<BluetoothSocket>(relaxed = true) {
+            every { connect() } throws CancellationException("cancelled")
+        }
+        val device = mockk<BluetoothDevice> {
+            every { createRfcommSocketToServiceRecord(any()) } returns socket
+        }
+        val conn = ClassicBtConnection(device)
+        assertFailsWith<CancellationException> {
             runBlocking { conn.connect() }
         }
     }
