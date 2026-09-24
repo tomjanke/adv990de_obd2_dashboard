@@ -1,10 +1,20 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.content.res.Configuration
+import android.view.WindowManager
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
@@ -13,17 +23,24 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import javax.inject.Inject
 
 /**
  * Compose UI tests for [DashboardScreen].
@@ -73,9 +90,27 @@ class DashboardScreenTest {
         every { latestReadings }       returns MutableStateFlow(emptyList())
     }
 
+    /**
+     * Echtes AppPreferences (In-Process-DataStore, ueber Hilt injiziert) — gebraucht fuer die drei
+     * neuen Tests unten (Long-Press/SlotPicker-Verdrahtung, Keep-Screen-On, Landscape-Grid), um
+     * Slot-Zuordnungen deterministisch vorzugeben und `setSlotPid()`s Persistenz direkt am
+     * DataStore zu verifizieren statt nur indirekt ueber die Oberflaeche. Gleiches Muster wie
+     * [de.adv990de.obd2.simulator.SimulatedDashboardTest].
+     */
+    @Inject
+    lateinit var appPreferences: AppPreferences
+
     @Before
     fun setup() {
         hiltRule.inject()
+        // Der DataStore in diesem Testlauf ist der echte, geraeteweite Debug-DataStore (s.
+        // resetSlotPidsToDefault()-KDoc unten) und persistiert damit ueber Testklassen und -laeufe
+        // hinweg. Alle Tests dieser Klasse setzten die Default-Belegung (RPM/SPEED/COOLANT_TEMP)
+        // bereits stillschweigend voraus (z.B. dashboard_showsSlotCards); dieser Reset macht die
+        // Annahme explizit und deterministisch statt sie vom Zufall der Testausfuehrungsreihenfolge
+        // bzw. einer vorherigen manuellen Geraetenutzung abhaengig zu machen. Noetig wurde das erst
+        // mit dashboard_longPressOnTile_..., das die Belegung selbst absichtlich dauerhaft aendert.
+        resetSlotPidsToDefault()
     }
 
     private fun launchDashboardScreen() {
@@ -84,6 +119,60 @@ class DashboardScreenTest {
             DashboardScreen(navController = navController)
         }
         composeRule.waitForIdle()
+    }
+
+    /**
+     * Rendert DashboardScreen mit einer ueberschriebenen [LocalConfiguration], deren `orientation`
+     * auf [Configuration.ORIENTATION_LANDSCAPE] steht — DashboardScreen liest fuer seinen
+     * `isLandscape`-Zweig ausschliesslich `LocalConfiguration.current.orientation` (s.
+     * DashboardScreen.kt), alles andere (Ressourcen-Strings etc.) haengt nicht daran. Vermeidet
+     * eine echte Geraete-Rotation ueber `Activity.setRequestedOrientation()`, die auf dem
+     * angeschlossenen physischen Geraet eine echte Aktivitaets-Neuerstellung ausloesen wuerde —
+     * unnoetiges Risiko fuer einen reinen Layout-Zweig, der keine Konfigurationsaenderungs-Logik
+     * enthaelt. Kein Praezedenzfall fuer echte Rotation existiert in diesem Projekt (kein
+     * UiAutomator als Dependency), diese Technik ist die uebliche Compose-Alternative (vgl. wie
+     * `@Preview`-Funktionen unterschiedliche Konfigurationen simulieren).
+     */
+    private fun launchDashboardScreenInLandscape() {
+        composeRule.setContent {
+            val navController = rememberNavController()
+            val landscapeConfiguration = Configuration(LocalConfiguration.current).apply {
+                orientation = Configuration.ORIENTATION_LANDSCAPE
+            }
+            CompositionLocalProvider(LocalConfiguration provides landscapeConfiguration) {
+                DashboardScreen(navController = navController)
+            }
+        }
+        composeRule.waitForIdle()
+    }
+
+    /**
+     * Setzt die Slot-Belegung auf die Registry-Defaults zurueck (RPM/SPEED/COOLANT_TEMP/leer).
+     * Der DataStore in diesem Testlauf ist der echte, geraeteweite Debug-DataStore (s.
+     * [de.adv990de.obd2.simulator.SimulatedDashboardTest]) und persistiert damit ueber Testklassen und
+     * -laeufe hinweg. Ohne diesen Reset waeren die drei neuen Tests unten von der
+     * Ausfuehrungsreihenfolge abhaengig — einer von ihnen aendert die Belegung selbst absichtlich
+     * dauerhaft.
+     */
+    private fun resetSlotPidsToDefault() = runBlocking {
+        appPreferences.setSlotPid(0, PidRegistry.RPM.id)
+        appPreferences.setSlotPid(1, PidRegistry.SPEED.id)
+        appPreferences.setSlotPid(2, PidRegistry.COOLANT_TEMP.id)
+        appPreferences.setSlotPid(3, "")
+    }
+
+    /** Ein einzelner, feststehender Messwertzyklus mit den drei Default-Slot-PIDs — genug, damit
+     *  echte Kacheln (nicht die Vorschau-Platzhalter) im Baum stehen. */
+    private fun stubConnectedSessionWithRealReadings() {
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flowOf(
+            listOf(
+                SensorValue(PidRegistry.RPM, 2500f),
+                SensorValue(PidRegistry.SPEED, 87f),
+                SensorValue(PidRegistry.COOLANT_TEMP, 90f),
+            )
+        )
     }
 
     /**
@@ -209,5 +298,161 @@ class DashboardScreenTest {
         composeRule
             .onNodeWithContentDescription(connectingDesc)
             .assertIsDisplayed()
+    }
+
+    // ── Backlog-Sweep 2026-09-24: verbleibende Teilabdeckungs-Luecken ───────────────────────────
+    //
+    // Prioritaet 4 (RPM-Demo-Sweep-Animation, die displayRpm/displayThreshold im komponierten Baum
+    // treibt) ist bewusst NICHT als Test unten vertreten: Die `RpmBar` zeichnet ihre Segmente in
+    // einem `Canvas` (reine Pixel, kein Text/keine Semantics-Property) — es gibt in diesem Baum
+    // nichts, an dem eine Compose-Assertion den animierten Zwischenwert ablesen koennte, ohne
+    // entweder (a) Screenshot-Diffing einzufuehren (kein Praezedenzfall, keine Dependency in
+    // diesem Projekt), (b) eine rein testgetriebene Semantics-Eigenschaft in Produktionscode zu
+    // ergaenzen (mehr als der erlaubte "minimale testTag fuer einen stabilen Selektor" — hier ginge
+    // es um das Freilegen eines internen Animationszustands, nicht um Adressierbarkeit), oder (c)
+    // echte Zeit-Sleeps mit Naeherungs-Fenstern zu verwenden (die dieses Projekt an anderer Stelle
+    // bewusst vermeidet, s. Auftrag, und auf einem echten Geraet mit variabler Frame-Timing anfaellig
+    // fuer Flakiness waeren). Die reine Entscheidungslogik (`shouldStartRpmDemoSweep`) ist bereits
+    // separat JVM-getestet (DashboardComponentsTest.kt) — was hier fehlt, ist ausschliesslich die
+    // Verdrahtung dieser Entscheidung mit dem echten `Animatable` im komponierten Baum, und die ist
+    // aus obigen Gruenden mit den in diesem Projekt verfuegbaren Werkzeugen nicht sinnvoll pruefbar.
+
+    /**
+     * Prioritaet 1 (Hauptaufgabe dieses Sweeps): SlotPickerSheetTest deckt die Composable bisher
+     * nur isoliert mit einer statischen Liste ab, nie die echte Verdrahtung ab DashboardScreen
+     * selbst — Long-Press auf eine Kachel → `pickerSlot`-State → `SlotPickerSheet` erscheint →
+     * Auswahl → `vm.setSlotPid()`.
+     *
+     * Bewusste Abweichung von der im Auftrag vorgeschlagenen Verifikation ueber ein
+     * gemocktes/gespietes ViewModel bzw. ein gemocktes AppPreferences: DashboardViewModel und
+     * AppPreferences bleiben echt (wie in [de.adv990de.obd2.simulator.SimulatedDashboardTest]), nur
+     * ObdRepository bleibt gemockt (wie in der gesamten uebrigen Klasse hier). Die Persistenz wird
+     * direkt am echten, In-Process-DataStore verifiziert — das ist der staerkere Beweis: ein Mock
+     * haette nur gezeigt, dass `setSlotPid` mit den erwarteten Argumenten AUFGERUFEN wurde, nicht
+     * dass die Slot-Zuordnung dadurch TATSAECHLICH persistiert. AppPreferences komplett zu mocken
+     * haette zudem bedeutet, jeden der zahlreichen in `DashboardViewModel.init{}`/`stateIn(Eagerly)`
+     * gelesenen Flows (slotPids, rpmBlinkThreshold, rpmDynamicThreshold, wheelCircumferenceMm,
+     * primaryRatio, secondaryRatio, gearRatios, useGpsSpeed, …) manuell zu stubben — ein fragiles
+     * Duplikat der echten Klasse ohne Mehrwert gegenueber dem ohnehin vorhandenen In-Process-Fake.
+     */
+    @Test
+    fun dashboard_longPressOnTile_opensSlotPicker_andSelectionPersistsViaSetSlotPid() {
+        // Slot-Defaults sind bereits durch @Before/setup() garantiert.
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        stubConnectedSessionWithRealReadings()
+
+        launchDashboardScreen()
+
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        // Erster Beweis, dass echte (nicht Platzhalter-)Kacheln stehen: die contentDescription
+        // traegt den echten Messwert, nicht "--" (vgl. dashboard_showsDashesInsteadOfZeroWhenDisconnected).
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Long-Press auf die RPM-Kachel (Slot 0) — dasselbe Gestenmuster wie LiveValueTileTest
+        // (performTouchInput { longClick() }), hier gegen die echte Verdrahtung in DashboardScreen
+        // statt gegen eine isoliert instanziierte LiveValueTile.
+        composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        // Der Picker zeigt echte Daten aus dem ViewModel: der aktuelle Coolant-Messwert (90) taucht
+        // als eigener Listeneintrag auf — das beweist, dass SlotPickerSheet tatsaechlich mit
+        // state.readings/availablePids aus DashboardScreen komponiert wurde, nicht nur irgendein
+        // Bottom Sheet offen ist. availablePids ist hier (supportedPidIds=null) die volle, nach
+        // Name alphabetisch sortierte PidRegistry (19 Eintraege) — RPM selbst stuende als "RPM"
+        // erst an 15. Stelle und waere ohne Scrollen nicht sichtbar; "Coolant Temp" (6. Stelle)
+        // ist ein verlässlicherer Anker. performScrollTo() macht die Pruefung unabhaengig davon,
+        // wie viele Zeilen das Bottom Sheet initial zeigt.
+        val coolantLabel = composeRule.activity.getString(R.string.pid_coolant_temp)
+        composeRule.onNodeWithText("$coolantLabel: 90 (°C)").performScrollTo().assertIsDisplayed()
+
+        // Intake Air Temp ist in keinem Slot belegt und liefert in diesem Zyklus auch keinen
+        // Messwert → "--"-Fallback, identisches Format wie
+        // SlotPickerSheetTest.showsDashFallback_forNaNAndInfiniteReadings.
+        val intakeLabel = composeRule.activity.getString(R.string.pid_intake_air_temp)
+        composeRule.onNodeWithText("$intakeLabel: -- (°C)").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        // Der eigentliche Beweis: vm.setSlotPid(0, INTAKE_AIR_TEMP.id) wurde nicht nur aufgerufen,
+        // sondern hat auch tatsaechlich persistiert — am echten DataStore gelesen, nicht am Mock
+        // verifiziert. waitUntil statt einer einzelnen Pruefung, weil setSlotPid() den DataStore-
+        // Write asynchron in viewModelScope anstoesst (vgl. Kommentar bei
+        // dashboard_showsConnectingDot_whenReconnecting oben).
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { appPreferences.slotPids.first() }[0] == PidRegistry.INTAKE_AIR_TEMP.id
+        }
+    }
+
+    /**
+     * Prioritaet 2: die `DisposableEffect(isConnected)`-Verdrahtung in DashboardScreen setzt bzw.
+     * loescht `FLAG_KEEP_SCREEN_ON` auf dem Activity-Window, abhaengig vom Verbindungsstatus —
+     * bislang ungetestet. Prueft beide Zweige der Bedingung in einem Durchlauf: verbunden → Flag
+     * gesetzt; danach getrennt → Flag wieder geloescht (deckt sowohl den `if`- als auch den
+     * `else`-Zweig der Effect-Lambda ab, nicht nur das `onDispose`).
+     */
+    @Test
+    fun dashboard_keepsScreenOnWhileConnected_andClearsFlagWhenDisconnected() {
+        // Slot-Defaults sind bereits durch @Before/setup() garantiert.
+        val isConnectedFlow = MutableStateFlow(false)
+        every { obdRepository.isConnectedFlow } returns isConnectedFlow
+        stubConnectedSessionWithRealReadings()
+
+        launchDashboardScreen()
+
+        assert(
+            composeRule.activity.window.attributes.flags and
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0
+        ) { "expected FLAG_KEEP_SCREEN_ON to be unset while disconnected" }
+
+        isConnectedFlow.value = true
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assert(
+            composeRule.activity.window.attributes.flags and
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+        ) { "expected FLAG_KEEP_SCREEN_ON to be set while connected" }
+
+        isConnectedFlow.value = false
+        val bannerText = composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(bannerText).fetchSemanticsNodes().isNotEmpty()
+        }
+        assert(
+            composeRule.activity.window.attributes.flags and
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0
+        ) { "expected FLAG_KEEP_SCREEN_ON to be cleared again after disconnecting" }
+    }
+
+    /**
+     * Prioritaet 3: der `isLandscape`-Zweig (vier Kacheln in einer Reihe statt 2×2) lief bisher nie
+     * in Instrumentation-Tests, da diese durchgehend im Standard-Portrait der Test-Umgebung laufen
+     * (kein Rotations-Praezedenzfall/-Tooling in diesem Projekt, s. [launchDashboardScreenInLandscape]).
+     *
+     * Unterscheidungsmerkmal Portrait vs. Landscape: Slot 0 (RPM) und Slot 2 (COOLANT_TEMP) liegen
+     * im Portrait-2×2-Raster in unterschiedlichen Zeilen (unterschiedliches `top`), im
+     * Landscape-4er-Raster dagegen in derselben Zeile (gleiches `top`). Slot 0 vs. Slot 1 waere
+     * kein geeigneter Anker, weil beide Layouts sie in derselben Zeile zeigen.
+     */
+    @Test
+    fun dashboard_landscape_showsAllFourSlotsInOneRow() {
+        // Slot-Defaults sind bereits durch @Before/setup() garantiert.
+        launchDashboardScreenInLandscape()
+
+        val rpmTop = composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.pid_rpm).uppercase())
+            .getBoundsInRoot().top
+        val coolantTop = composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.pid_coolant_temp).uppercase())
+            .getBoundsInRoot().top
+
+        assert(rpmTop == coolantTop) {
+            "expected slot 0 (RPM) and slot 2 (COOLANT_TEMP) to share one row in landscape, " +
+                "was RPM top=$rpmTop COOLANT top=$coolantTop"
+        }
     }
 }
