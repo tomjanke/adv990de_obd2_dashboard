@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.os.Build
 import de.adv990de.obd2.obd.ElmController
 import io.mockk.CapturingSlot
 import io.mockk.every
@@ -45,6 +46,7 @@ private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 /** A fully wired gatt/service/characteristic/descriptor tree mirroring a healthy OBD2 BLE adapter. */
 private class GattFixture(
     val gatt: BluetoothGatt,
+    val service: BluetoothGattService,
     val notifyChar: BluetoothGattCharacteristic,
     val writeChar: BluetoothGattCharacteristic,
     val cccd: BluetoothGattDescriptor,
@@ -63,7 +65,7 @@ private fun fullGattFixture(): GattFixture {
     val gatt = mockk<BluetoothGatt>(relaxed = true) {
         every { getService(SERVICE_UUID) } returns service
     }
-    return GattFixture(gatt, notifyChar, writeChar, cccd)
+    return GattFixture(gatt, service, notifyChar, writeChar, cccd)
 }
 
 /**
@@ -128,6 +130,31 @@ class BleConnectionTest {
         conn.close()
         conn.close() // second call must not throw
         assertFalse(conn.isConnected)
+    }
+
+    @Test
+    fun `close swallows a SecurityException from gatt-close and still clears connection state`() {
+        // Documents close()'s actual behavior: unlike the quirk covered above for
+        // onDescriptorWrite's failure branch (where a close()-thrown SecurityException gets
+        // caught by the SAME try/catch guarding the "real" outcome and masks it), close() itself
+        // wraps only `gatt?.close()` in its own dedicated try/catch. A SecurityException there is
+        // silently swallowed and every subsequent cleanup step (gatt = null, closing both piped
+        // streams) still runs — close() never throws and never surfaces the exception.
+        val fx = fullGattFixture()
+        every { fx.gatt.close() } throws SecurityException("revoked before close")
+        device.stubConnectGatt(fx.gatt) { cb ->
+            cb.onConnectionStateChange(fx.gatt, BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+            cb.onServicesDiscovered(fx.gatt, BluetoothGatt.GATT_SUCCESS)
+            cb.onDescriptorWrite(fx.gatt, fx.cccd, BluetoothGatt.GATT_SUCCESS)
+        }
+        val conn = makeConn()
+        runBlocking { conn.connect() }
+        assertTrue(conn.isConnected)
+
+        conn.close() // must not throw despite gatt.close() throwing SecurityException
+
+        assertFalse(conn.isConnected)
+        verify { fx.gatt.close() }
     }
 
     // --- guards before any GATT interaction ---
@@ -339,6 +366,43 @@ class BleConnectionTest {
         }
     }
 
+    // --- writeCccdDescriptor / writeCommandCharacteristic: API 33+ branches ---
+    //
+    // JVM unit tests run with Build.VERSION.SDK_INT == 0 (see the file-level @Suppress note
+    // above), so every test above that drives connect()/write() through their real call sites
+    // only ever exercises the pre-API-33 branch. writeCccdDescriptor and writeCommandCharacteristic
+    // are internal, sdkInt-parameterized extractions of the two dual-overload calls in
+    // BleConnection.kt (onServicesDiscovered's writeDescriptor call and the OutputStream's
+    // writeCharacteristic call) — same convention as BluetoothPermissions/LocationPermissions/
+    // ObdForegroundService.resolveForegroundStartMode(). Real call sites use the default
+    // parameter (the real Build.VERSION.SDK_INT), so calling these directly with an explicit
+    // sdkInt below exercises the API-33+ branch without needing Robolectric or a real device.
+
+    @Test
+    fun `writeCccdDescriptor uses the API 33+ overload when sdkInt is Tiramisu or above`() {
+        val fx = fullGattFixture()
+
+        writeCccdDescriptor(fx.gatt, fx.cccd, sdkInt = Build.VERSION_CODES.TIRAMISU)
+
+        verify { fx.gatt.writeDescriptor(fx.cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) }
+        verify(exactly = 0) { fx.cccd.setValue(any()) }
+        verify(exactly = 0) { fx.gatt.writeDescriptor(fx.cccd) }
+    }
+
+    @Test
+    fun `writeCommandCharacteristic uses the API 33+ overload when sdkInt is Tiramisu or above`() {
+        val fx = fullGattFixture()
+        val payload = "010C\r".toByteArray()
+
+        writeCommandCharacteristic(fx.gatt, fx.writeChar, payload, sdkInt = Build.VERSION_CODES.TIRAMISU)
+
+        verify {
+            fx.gatt.writeCharacteristic(fx.writeChar, payload, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        }
+        verify(exactly = 0) { fx.writeChar.value = any() }
+        verify(exactly = 0) { fx.gatt.writeCharacteristic(fx.writeChar) }
+    }
+
     // --- onCharacteristicChanged: notification plumbing into the piped input stream ---
 
     @Test
@@ -458,6 +522,44 @@ class BleConnectionTest {
 
         val ex = assertFailsWith<IOException> { outputStream.write("010C\r".toByteArray()) }
         assertEquals("Bluetooth permission revoked", ex.message)
+    }
+
+    @Test
+    fun `output stream write is a no-op when the OBD2 service is no longer found`() {
+        val fx = fullGattFixture()
+        device.stubConnectGatt(fx.gatt) { cb ->
+            cb.onConnectionStateChange(fx.gatt, BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+            cb.onServicesDiscovered(fx.gatt, BluetoothGatt.GATT_SUCCESS)
+            cb.onDescriptorWrite(fx.gatt, fx.cccd, BluetoothGatt.GATT_SUCCESS)
+        }
+        val controller = runBlocking { makeConn().connect() }
+        val outputStream = outputStreamOf(controller)
+        // write() re-fetches the service on every call via currentGatt.getService(SERVICE_UUID);
+        // simulate it having disappeared after connect() succeeded.
+        every { fx.gatt.getService(SERVICE_UUID) } returns null
+
+        outputStream.write("010C\r".toByteArray()) // must not throw and must not touch the GATT
+
+        verify(exactly = 0) { fx.gatt.writeCharacteristic(any<BluetoothGattCharacteristic>()) }
+    }
+
+    @Test
+    fun `output stream write is a no-op when the write characteristic is no longer found`() {
+        val fx = fullGattFixture()
+        device.stubConnectGatt(fx.gatt) { cb ->
+            cb.onConnectionStateChange(fx.gatt, BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+            cb.onServicesDiscovered(fx.gatt, BluetoothGatt.GATT_SUCCESS)
+            cb.onDescriptorWrite(fx.gatt, fx.cccd, BluetoothGatt.GATT_SUCCESS)
+        }
+        val controller = runBlocking { makeConn().connect() }
+        val outputStream = outputStreamOf(controller)
+        // write() re-fetches the characteristic on every call via service.getCharacteristic(...);
+        // simulate it having disappeared after connect() succeeded.
+        every { fx.service.getCharacteristic(WRITE_CHAR_UUID) } returns null
+
+        outputStream.write("010C\r".toByteArray()) // must not throw and must not touch the GATT
+
+        verify(exactly = 0) { fx.gatt.writeCharacteristic(any<BluetoothGattCharacteristic>()) }
     }
 
     @Test

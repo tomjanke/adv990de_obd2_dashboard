@@ -1,5 +1,6 @@
 package de.adv990de.obd2.bluetooth
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -24,6 +25,71 @@ private val SERVICE_UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb
 private val WRITE_CHAR_UUID = UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")
 private val NOTIFY_CHAR_UUID = UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")
 private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+
+/**
+ * Enables CCCD notifications via the SDK-appropriate `writeDescriptor` overload. The 2-arg
+ * overload that returns a status code exists only from API 33 (TIRAMISU) onward; below that,
+ * only the deprecated set-value-then-write pattern is available. Extracted with an explicit
+ * `sdkInt` parameter (default: the real `Build.VERSION.SDK_INT`) so the real call site in
+ * `BleConnection.connect()` is unchanged while `BleConnectionTest` can drive both branches
+ * directly — same convention as `BluetoothPermissions`/`LocationPermissions`/
+ * `ObdForegroundService.resolveForegroundStartMode()`.
+ */
+// NewApi: the 2-arg writeDescriptor(descriptor, value) overload requires API 33+. Lint's
+// version-guard check only recognizes a direct `Build.VERSION.SDK_INT >= ...` comparison at the
+// call site — it doesn't see through the `sdkInt` parameter, even though the guard is exactly as
+// real (every production call site below uses the default, i.e. the real Build.VERSION.SDK_INT;
+// only tests override it). Same limitation/suppression as
+// BluetoothPermissions.kt/LocationPermissions.kt/ObdForegroundService.startForegroundTyped().
+// MissingPermission: both writeDescriptor overloads require BLUETOOTH_CONNECT and can throw
+// SecurityException at runtime. Before this extraction, the calls sat directly inside
+// onServicesDiscovered's try/catch(SecurityException), which Lint recognizes as "explicitly
+// handled". Now that they live in this separate function, Lint's intraprocedural check no longer
+// sees the handler — but it is still there: onServicesDiscovered (BleConnection.kt) wraps its
+// call to writeCccdDescriptor() in the same try/catch(SecurityException) it always had, so the
+// real behavior — completeExceptionally(PermissionDenied) on revoke — is unchanged.
+@SuppressLint("NewApi", "MissingPermission")
+internal fun writeCccdDescriptor(
+    gatt: BluetoothGatt,
+    cccd: BluetoothGattDescriptor,
+    sdkInt: Int = Build.VERSION.SDK_INT
+) {
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
+        gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+    } else {
+        @Suppress("DEPRECATION")
+        cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+        @Suppress("DEPRECATION")
+        gatt.writeDescriptor(cccd)
+    }
+}
+
+/**
+ * Sends command bytes via the SDK-appropriate `writeCharacteristic` overload. The 3-arg overload
+ * that takes the payload and write type directly exists only from API 33 (TIRAMISU) onward;
+ * below that, only the deprecated set-value-then-write pattern is available. Same `sdkInt`
+ * extraction/rationale as [writeCccdDescriptor].
+ */
+// NewApi/MissingPermission: see writeCccdDescriptor above — same Lint limitations, same
+// suppressions. Here the real try/catch(SecurityException) that still guards this function's
+// call site lives in the OutputStream.write(ByteArray) override (BleConnection.kt), which wraps
+// its call to writeCommandCharacteristic() and rethrows as IOException on revoke.
+@SuppressLint("NewApi", "MissingPermission")
+internal fun writeCommandCharacteristic(
+    gatt: BluetoothGatt,
+    writeChar: BluetoothGattCharacteristic,
+    bytes: ByteArray,
+    sdkInt: Int = Build.VERSION.SDK_INT
+) {
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
+        gatt.writeCharacteristic(writeChar, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+    } else {
+        @Suppress("DEPRECATION")
+        writeChar.value = bytes
+        @Suppress("DEPRECATION")
+        gatt.writeCharacteristic(writeChar)
+    }
+}
 
 class BleConnection(
     private val context: Context,
@@ -105,14 +171,7 @@ class BleConnection(
                         return
                     }
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        cccd.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                        @Suppress("DEPRECATION")
-                        g.writeDescriptor(cccd)
-                    }
+                    writeCccdDescriptor(g, cccd)
                     // gatt assignment and deferred completion happen in onDescriptorWrite
                     // to ensure notifications are active before the caller gets ElmController
                 } catch (_: SecurityException) {
@@ -204,18 +263,7 @@ class BleConnection(
                 val service = currentGatt.getService(SERVICE_UUID) ?: return
                 val writeChar = service.getCharacteristic(WRITE_CHAR_UUID) ?: return
                 try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        currentGatt.writeCharacteristic(
-                            writeChar,
-                            b,
-                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                        )
-                    } else {
-                        @Suppress("DEPRECATION")
-                        writeChar.value = b
-                        @Suppress("DEPRECATION")
-                        currentGatt.writeCharacteristic(writeChar)
-                    }
+                    writeCommandCharacteristic(currentGatt, writeChar, b)
                 } catch (_: SecurityException) {
                     // Berechtigung mitten in der Sitzung entzogen: als IOException melden, damit
                     // ElmController und ObdRepository das wie einen Verbindungsabbruch behandeln.
