@@ -70,20 +70,27 @@ Globaler Scale: `BIKE_SCALE = 1.18f` (motorcycle readability) — nicht ändern 
 
 **ALL-CAPS-Labels** mit `letterSpacing = 0.12.em` für Cockpit-Charakter. Sparsam — nur Tile-Labels und Sektions-Überschriften.
 
-**Dokumentierte Abweichung von M3 / BIKE_SCALE:** `GearIndicatorStyle` (`ui/theme/AppTypography.kt`,
-Gang-Ziffer neben der RpmBar, s. „RPM-Balken" oben) wendet `BIKE_SCALE` bewusst **nicht** an, anders
-als jeder übrige Live-Value-Style. Ihre Größe (46 sp, Stand 2026-09-24 — zuvor 40 sp, dann kurz
-45 sp) richtet sich nach der festen Innenhöhe der `RpmBar` (72 dp Zeilenhöhe minus 2× 8 dp
-Padding), nicht nach allgemeiner Motorrad-Lesbarkeit — eine mit `BIKE_SCALE` mitwachsende Ziffer
-liefe aus der fest dimensionierten 32-dp-Box heraus. 46 sp/56 sp ist explizites Nutzer-Maximum:
-`lineHeight` trifft die 56-dp-Box exakt, ohne die `RpmBar`-Zeilenhöhe selbst anzufassen — mehr gibt
-die Box ohne Änderung von deren 72 dp/Padding nicht her. Bewusst nicht identisch mit
-`ValueTileStyle` (53,1 sp/61,36 sp): Letzteres würde die Box um ca. 5 dp überschreiten. Würde
-`BIKE_SCALE` künftig erhöht, muss dieser Wert unabhängig nachgezogen werden. Aus demselben Grund
-wird in `RpmBar` (`ui/dashboard/DashboardComponents.kt`) auch die System-Schriftskalierung
-(`fontScale`) für genau diese Ziffer lokal auf `1f` fixiert (`CompositionLocalProvider`/`LocalDensity`)
-— eine mit der Bedienungshilfe „Große Schrift" mitwachsende Ziffer würde sonst in derselben Box
-abgeschnitten. Die `contentDescription` der Box bleibt davon unberührt lesbar.
+**`GearIndicatorStyle` == `ValueTileStyle` (Stand 2026-09-24, User-Wunsch):** Die Gang-Ziffer neben
+der RpmBar (`ui/theme/AppTypography.kt`) ist jetzt bewusst identisch mit dem Kachel-Wert-Style —
+optisch exakt so groß wie die Sensorwerte in den Dashboard-Kacheln. Damit sie hineinpasst, wurden
+zwei zuvor feste Maße in `RpmBar` (`ui/dashboard/DashboardComponents.kt`) vergrößert: die
+Zeilenhöhe von 72 dp auf **78 dp** (Innenhöhe der Gang-Box 56 dp → 62 dp, für
+`ValueTileStyle.lineHeight` 61,36 dp) und die Gang-Box-Breite von 32 dp auf **40 dp** (für
+`ValueTileStyle.fontSize` 53,1 sp — breiter als die vorherige, auf 46 sp zugeschnittene Box
+erlaubte). Beides visuell auf dem Pixel 8 Pro verifiziert (schmale und breite Ziffer, kein
+Clipping, kein Überlappen mit Balken/Icon).
+
+**Historie dieser Ziffer** (frühere, jetzt überholte Zwischenstände): 40 sp (ursprünglich, bewusst
+NICHT mit `BIKE_SCALE` skaliert) → 45 sp → 46 sp (jeweils an die feste RpmBar-Innenhöhe angepasst,
+ohne `ValueTileStyle` zu erreichen) → jetzt `ValueTileStyle` exakt, mit vergrößerter Box statt
+weiterer eigener Größenpflege. Da `GearIndicatorStyle` nun eine reine Referenz auf `ValueTileStyle`
+ist, zieht eine künftige `BIKE_SCALE`-Änderung automatisch nach — keine unabhängige Nachpflege mehr
+nötig (anders als bei den früheren Zwischenständen).
+
+Die System-Schriftskalierung (`fontScale`) bleibt für diese Ziffer weiterhin lokal auf `1f` fixiert
+(`CompositionLocalProvider`/`LocalDensity` in `RpmBar`) — auch die jetzt größere, feste 40×62dp-Box
+würde bei der Bedienungshilfe „Große Schrift" sonst zu klein. Die `contentDescription` der Box
+bleibt davon unberührt lesbar.
 
 ### Layout-Patterns
 
@@ -134,7 +141,8 @@ Segmente ab dem Blink-Schwellwert leuchten in `StatusColors.Critical` (Schaltbli
 darunter in `primary`. Ohne Verbindung: keine Alarmfarbe, kein Blinken.
 
 Neben dem Balken steht seit der virtuellen Ganganzeige (Stand 2026-09-23) keine Drehzahl-Zahl
-mehr, sondern eine schmale Box (32 dp breit, volle Balkenhöhe) mit der aktuell erkannten
+mehr, sondern eine schmale Box (40 dp breit, volle Balkenhöhe — Stand 2026-09-24, zuvor 32 dp,
+s. „`GearIndicatorStyle` == `ValueTileStyle`" oben) mit der aktuell erkannten
 Gangstufe als einzelne Ziffer (`GearIndicatorStyle`, Plex Mono, `tnum`) in `primary`. Ist der Gang
 nicht bestimmbar — keine Verbindung, oder verbunden aber z.B. im Stillstand — zeigt die Box „–“ in
 `onSurfaceVariant` statt einer Zahl. Die Berechnung selbst (`determineGear`, Hysterese via

@@ -182,7 +182,10 @@ internal fun RpmBar(
 
     Row(
         modifier = modifier
-            .height(72.dp)
+            // 78dp (zuvor 72dp): die Gang-Box daneben braucht seit 2026-09-24 (User-Wunsch,
+            // Ganganzeige == ValueTileStyle) eine Innenhoehe von mind. 61,36dp
+            // (ValueTileStyle.lineHeight bei fixiertem fontScale=1f) statt der zuvor 56dp.
+            .height(78.dp)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -229,7 +232,9 @@ internal fun RpmBar(
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
-                .width(32.dp)
+                // 40dp (zuvor 32dp): ValueTileStyle.fontSize (53,1sp bei fixiertem fontScale=1f)
+                // ist breiter als die vorherige, auf 46sp zugeschnittene Box erlaubte.
+                .width(40.dp)
                 .fillMaxHeight()
                 .semantics { contentDescription = gearDescription },
             contentAlignment = Alignment.Center,

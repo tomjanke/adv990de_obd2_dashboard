@@ -50,24 +50,18 @@ val ValueTileStyle = TextStyle(
 )
 
 /**
- * Ziffer der virtuellen Ganganzeige neben dem RPM-Balken. Bewusst NICHT mit BIKE_SCALE skaliert
- * wie die uebrigen Live-Value-Styles: Die Groesse richtet sich nach der festen Innenhoehe von
- * `RpmBar` (56dp bei 72dp Zeilenhoehe minus 2x8dp Padding), nicht nach allgemeiner
- * Motorrad-Lesbarkeit. Wuerde BIKE_SCALE erhoeht, muesste dieser Wert unabhaengig nachgezogen
- * werden, sonst liefe die Ziffer aus der fest dimensionierten Box heraus.
+ * Ziffer der virtuellen Ganganzeige neben dem RPM-Balken.
  *
- * 46sp/56sp (Stand 2026-09-24, User-Wunsch: maximale Groesse OHNE die RpmBar-Zeilenhoehe
- * (72dp) anzupassen): lineHeight trifft exakt die 56dp-Boxhoehe — mehr Spielraum gibt die
- * Box ohne Aenderung der RpmBar-Zeilenhoehe/-Paddings nicht her. Visuell auf dem Pixel 8 Pro
- * verifiziert (kein Clipping, kein Ueberlappen mit Balken/Icon).
+ * Stand 2026-09-24 (User-Wunsch): identisch mit [ValueTileStyle], damit die Gang-Ziffer optisch
+ * exakt so gross ist wie die Sensorwerte in den Dashboard-Kacheln. Zuvor war dieser Style bewusst
+ * NICHT mit BIKE_SCALE skaliert (Groesse 40sp, dann 45sp, dann 46sp, jeweils an die feste
+ * Innenhoehe von `RpmBar` angepasst) — diese Entkopplung ist jetzt aufgehoben: `RpmBar`s
+ * Zeilenhoehe (72dp→78dp) und die Gang-Box (32dp→40dp breit) wurden stattdessen vergroessert,
+ * damit die Box [ValueTileStyle] unveraendert aufnehmen kann. Wuerde BIKE_SCALE kuenftig geaendert,
+ * wächst diese Ziffer automatisch mit — keine unabhaengige Nachpflege mehr noetig, im Gegensatz
+ * zur vorherigen fest-verdrahteten Groesse.
  */
-val GearIndicatorStyle = TextStyle(
-    fontFamily = PlexMonoFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 46.sp,
-    lineHeight = 56.sp,
-    fontFeatureSettings = "tnum",
-)
+val GearIndicatorStyle = ValueTileStyle
 
 /**
  * Adapter for any existing M3 [TextStyle] that should be promoted to a live-value style without
