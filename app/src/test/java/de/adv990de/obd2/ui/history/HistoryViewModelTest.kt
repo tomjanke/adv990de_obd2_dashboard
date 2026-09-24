@@ -2,7 +2,9 @@ package de.adv990de.obd2.ui.history
 
 import android.net.Uri
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.data.db.entity.SessionEntity
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,5 +92,57 @@ class HistoryViewModelTest {
         vm.consumeExportError()
 
         assertNull(vm.exportError.value)
+    }
+
+    @Test
+    fun `requestDelete sets deleteConfirmation to the given session`() = runTest {
+        val repo = makeRepo()
+        val vm = HistoryViewModel(repo)
+        val session = SessionEntity(id = 7L, startTime = 1_000L)
+
+        vm.requestDelete(session)
+
+        assertEquals(session, vm.deleteConfirmation.value)
+    }
+
+    @Test
+    fun `cancelDelete clears deleteConfirmation without deleting`() = runTest {
+        val repo = makeRepo()
+        val vm = HistoryViewModel(repo)
+        val session = SessionEntity(id = 7L, startTime = 1_000L)
+        vm.requestDelete(session)
+
+        vm.cancelDelete()
+        advanceUntilIdle()
+
+        assertNull(vm.deleteConfirmation.value)
+        coVerify(exactly = 0) { repo.deleteSession(any()) }
+    }
+
+    @Test
+    fun `confirmDelete deletes the pending session and clears deleteConfirmation`() = runTest {
+        val repo = makeRepo()
+        val vm = HistoryViewModel(repo)
+        val session = SessionEntity(id = 7L, startTime = 1_000L)
+        vm.requestDelete(session)
+
+        vm.confirmDelete()
+
+        // deleteConfirmation is cleared synchronously, before the coroutine runs.
+        assertNull(vm.deleteConfirmation.value)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repo.deleteSession(7L) }
+    }
+
+    @Test
+    fun `confirmDelete without a pending delete does not call the repository`() = runTest {
+        val repo = makeRepo()
+        val vm = HistoryViewModel(repo)
+
+        vm.confirmDelete()
+        advanceUntilIdle()
+
+        assertNull(vm.deleteConfirmation.value)
+        coVerify(exactly = 0) { repo.deleteSession(any()) }
     }
 }
