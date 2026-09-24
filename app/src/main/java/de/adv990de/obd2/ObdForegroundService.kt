@@ -1,6 +1,7 @@
 package de.adv990de.obd2
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -20,12 +21,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+/** Which `startForeground` overload [ObdForegroundService.onStartCommand] must call. */
+internal enum class ForegroundStartMode { TYPED, LEGACY }
+
 @AndroidEntryPoint
 class ObdForegroundService : Service() {
 
     @Inject lateinit var obdRepository: ObdRepository
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // internal, not private: lets ObdForegroundServiceTest (JVM) launch a probe coroutine on it
+    // and assert onDestroy()'s scope.cancel() actually propagates, without a real Service lifecycle.
+    internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -44,14 +50,12 @@ class ObdForegroundService : Service() {
                     .addAction(0, getString(R.string.notif_obd_disconnect), stopPendingIntent)
                     .build()
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    val includeLocationType = intent?.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false) ?: false
-                    startForeground(
-                        NOTIF_ID, notification,
-                        resolveForegroundServiceType(includeLocationType)
-                    )
-                } else {
-                    startForeground(NOTIF_ID, notification)
+                when (resolveForegroundStartMode()) {
+                    ForegroundStartMode.TYPED -> {
+                        val includeLocationType = intent?.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false) ?: false
+                        startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
+                    }
+                    ForegroundStartMode.LEGACY -> startForeground(NOTIF_ID, notification)
                 }
             }
             ACTION_STOP -> scope.launch {
@@ -70,6 +74,18 @@ class ObdForegroundService : Service() {
         scope.cancel()
     }
 
+    // NewApi: the 3-arg startForeground(id, notification, type) overload requires API 29+.
+    // Lint's version-guard check only recognizes a direct `Build.VERSION.SDK_INT >= ...`
+    // comparison at the call site — it doesn't see through resolveForegroundStartMode()'s enum
+    // result the way it would a literal `if`, even though the guard is exactly as real (this
+    // call is only reachable from the ForegroundStartMode.TYPED branch, which
+    // resolveForegroundStartMode() returns exclusively at API 34+). Same limitation as the
+    // InlinedApi suppress in BluetoothPermissions.kt/LocationPermissions.kt/PermissionGate.kt.
+    @SuppressLint("NewApi")
+    private fun startForegroundTyped(notification: Notification, type: Int) {
+        startForeground(NOTIF_ID, notification, type)
+    }
+
     companion object {
         const val ACTION_START = "de.adv990de.obd2.action.START"
         const val ACTION_STOP  = "de.adv990de.obd2.action.STOP"
@@ -85,6 +101,20 @@ class ObdForegroundService : Service() {
 
         fun stopIntent(context: Context): Intent =
             Intent(context, ObdForegroundService::class.java).apply { action = ACTION_STOP }
+
+        /**
+         * The typed 3-arg `startForeground(id, notification, type)` overload only exists from
+         * API 34 (UPSIDE_DOWN_CAKE) onward; below that, only the legacy 2-arg overload is
+         * available. Pure and sdkInt-parameterized like `resolveForegroundServiceType` below —
+         * same convention as `BluetoothPermissions`/`LocationPermissions` — so the branch
+         * decision itself is unit-testable without Robolectric (see `ObdForegroundServiceTest`,
+         * JVM). Deliberately NOT covered there: that `onStartCommand` actually calls the
+         * overload each mode implies — that's a real `Service` framework method, which needs
+         * either Robolectric (not a dependency here) or a pre-API-34 device to exercise.
+         */
+        @SuppressLint("InlinedApi")
+        internal fun resolveForegroundStartMode(sdkInt: Int = Build.VERSION.SDK_INT): ForegroundStartMode =
+            if (sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ForegroundStartMode.TYPED else ForegroundStartMode.LEGACY
 
         /**
          * `connectedDevice` is always requested — that's the service's core job. `location` is
