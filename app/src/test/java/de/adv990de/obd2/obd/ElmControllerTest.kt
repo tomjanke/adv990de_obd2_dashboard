@@ -89,4 +89,28 @@ class ElmControllerTest {
     // only advances kotlinx-coroutines-test's virtual clock, which does not affect blocking
     // threads on the IO dispatcher. A real-time test would make the suite fragile (5 s wait),
     // so this case is intentionally left untested here.
+
+    @Test
+    fun `sendCommand assembles response spanning multiple physical read calls`() = runTest {
+        // ElmController.readResponse() buffers reads into a 64-byte readBuffer and only calls
+        // inputStream.read() again once bufferPos catches up to bufferEnd. Build a two-frame
+        // response whose bytes -- plus the "\r>" terminator makeStreams appends -- exceed 64
+        // bytes, so ByteArrayInputStream.read(byteArray) fills the 64-byte buffer completely on
+        // the first call and readResponse() must hit the bufferPos >= bufferEnd refill branch to
+        // read the remainder before finding the '>' prompt.
+        val frame1 = "49 02 01 57 41 55 5A 5A 5A"
+        val frame2 = "49 02 02 30 30 30 30 30 30 30 30 30 30 30 30"
+        val longResponse = "$frame1\r$frame2"
+        val combinedLength = longResponse.length + 2 // + the "\r>" makeStreams appends
+        assertTrue(
+            "fixture must exceed the 64-byte read buffer to exercise the refill branch: $combinedLength bytes",
+            combinedLength > 64
+        )
+        val (input, output) = makeStreams(listOf(longResponse))
+        val controller = ElmController(input, output)
+
+        val response = controller.sendCommand("0902")
+
+        assertEquals("$frame1 $frame2", response)
+    }
 }
