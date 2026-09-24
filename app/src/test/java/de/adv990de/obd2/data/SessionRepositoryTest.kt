@@ -1,6 +1,10 @@
 package de.adv990de.obd2.data
 
 import android.content.Context
+import android.database.Cursor
+import android.net.Uri
+import androidx.core.content.FileProvider
+import androidx.sqlite.db.SupportSQLiteQuery
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.SessionDao
 import de.adv990de.obd2.data.db.SensorReadingDao
@@ -15,7 +19,10 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -23,9 +30,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class SessionRepositoryTest {
+
+    @get:Rule val tempFolder = TemporaryFolder()
 
     private val sessionDao = mockk<SessionDao> {
         // SessionRepository eagerly calls sessionDao().getAll() in its property initializer,
@@ -37,10 +49,34 @@ class SessionRepositoryTest {
         every { sessionDao() } returns sessionDao
         every { sensorReadingDao() } returns sensorReadingDao
     }
-    private val repo = SessionRepository(mockk<Context>(), db)
+    // Named (rather than inlined into the constructor call below) so exportToCsv tests can stub
+    // cacheDir/packageName on it directly.
+    private val context = mockk<Context>()
+    private val repo = SessionRepository(context, db)
 
     @After
-    fun tearDown() = clearAllMocks()
+    fun tearDown() {
+        clearAllMocks()
+        // No-op if a given test never called mockkStatic(FileProvider::class) itself.
+        unmockkStatic(FileProvider::class)
+    }
+
+    // Builds a Cursor stub over the given (timestamp, pidId, value) rows, matching the column
+    // names and iteration pattern exportToCsv() actually reads (getColumnIndexOrThrow once per
+    // column, then getLong/getString/getFloat per row while moveToNext() is true).
+    private fun makeCursor(rows: List<Triple<Long, String, Float>>): Cursor {
+        var index = -1
+        return mockk<Cursor> {
+            every { getColumnIndexOrThrow("timestamp") } returns 0
+            every { getColumnIndexOrThrow("pidId") } returns 1
+            every { getColumnIndexOrThrow("value") } returns 2
+            every { moveToNext() } answers { index++; index < rows.size }
+            every { getLong(0) } answers { rows[index].first }
+            every { getString(1) } answers { rows[index].second }
+            every { getFloat(2) } answers { rows[index].third }
+            every { close() } just Runs
+        }
+    }
 
     // labelRes = 0: dieser Test rendert nichts, der Anzeigename wird nie aufgeloest.
     private fun makePid(id: String) = PidDefinition(
@@ -161,5 +197,57 @@ class SessionRepositoryTest {
         val cutoff = captor.captured
         assertTrue("cutoff should be within [before-maxAgeMs, after-maxAgeMs]",
             cutoff in (before - maxAgeMs)..(after - maxAgeMs))
+    }
+
+    // ── exportToCsv ───────────────────────────────────────────────────────────
+    //
+    // These tests let exportToCsv()'s real body run against real files under tempFolder — only
+    // the sensorReadingDao cursor and the static FileProvider.getUriForFile(...) call (which pulls
+    // in PackageManager/ContentProvider resolution that isn't available in a plain JVM unit test)
+    // are stubbed. Everything else (directory creation, CSV writing, column order, formatting) is
+    // real and verified by reading the file back from disk.
+
+    @Test
+    fun `exportToCsv writes header and rows to a real CSV file in query order`() = runTest {
+        every { context.cacheDir } returns tempFolder.root
+        every { context.packageName } returns "de.adv990de.obd2"
+        val queryCaptor = slot<SupportSQLiteQuery>()
+        every { sensorReadingDao.getBySessionCursor(capture(queryCaptor)) } returns makeCursor(
+            listOf(
+                Triple(1_000L, "010C", 1200f),
+                Triple(2_000L, "010D", 80.5f)
+            )
+        )
+        mockkStatic(FileProvider::class)
+        every { FileProvider.getUriForFile(any(), any(), any()) } returns mockk<Uri>()
+
+        val uri = repo.exportToCsv(sessionId = 7L)
+
+        assertNotNull("exportToCsv should return a non-null shareable Uri", uri)
+        verify(exactly = 1) { sensorReadingDao.getBySessionCursor(any()) }
+        assertTrue(
+            "query should filter sensor_readings by the given sessionId",
+            queryCaptor.captured.sql.contains("WHERE sessionId = ?")
+        )
+
+        val exportedFile = File(File(tempFolder.root, "exports"), "session_7.csv")
+        assertEquals(
+            "timestamp,pid,value\n1000,010C,1200.0\n2000,010D,80.5\n",
+            exportedFile.readText()
+        )
+    }
+
+    @Test
+    fun `exportToCsv writes only the header row when the session has no readings`() = runTest {
+        every { context.cacheDir } returns tempFolder.root
+        every { context.packageName } returns "de.adv990de.obd2"
+        every { sensorReadingDao.getBySessionCursor(any()) } returns makeCursor(emptyList())
+        mockkStatic(FileProvider::class)
+        every { FileProvider.getUriForFile(any(), any(), any()) } returns mockk<Uri>()
+
+        repo.exportToCsv(sessionId = 99L)
+
+        val exportedFile = File(File(tempFolder.root, "exports"), "session_99.csv")
+        assertEquals("timestamp,pid,value\n", exportedFile.readText())
     }
 }
