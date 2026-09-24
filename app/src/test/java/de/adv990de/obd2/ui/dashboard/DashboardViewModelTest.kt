@@ -819,6 +819,107 @@ class DashboardViewModelTest {
         coVerify { prefs.setSlotPid(2, PidRegistry.MAF.id) }
     }
 
+    // ── availablePids (Picker-Liste) ─────────────────────────────────────────
+    // availablePids ist ein WhileSubscribed(5_000)-StateFlow (derselbe Trick wie bei
+    // rpmDynamicThreshold oben) — ohne aktiven Collector bliebe `.value` fuer immer auf dem
+    // Default (voller PidRegistry-Fallback) stehen, egal was supportedPidIds/useGpsSpeed liefern.
+
+    @Test
+    fun `availablePids returns the full registry when supportedPidIds is null`() = runTest {
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(null)
+        }
+
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.availablePids.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        val expectedIds = PidRegistry.all.values.map { it.id }.toSet()
+        assertEquals(expectedIds, vm.availablePids.value.map { it.id }.toSet())
+        assertEquals(PidRegistry.all.size, vm.availablePids.value.size)
+    }
+
+    @Test
+    fun `availablePids returns the full registry when supportedPidIds is empty`() = runTest {
+        // isNullOrEmpty() treats an empty discovered set the same as "no discovery yet" — a
+        // vehicle whose discovery legitimately came back empty must still offer the full picker,
+        // not an empty one.
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(emptySet())
+        }
+
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.availablePids.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        val expectedIds = PidRegistry.all.values.map { it.id }.toSet()
+        assertEquals(expectedIds, vm.availablePids.value.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `availablePids is filtered to exactly the supported subset when GPS speed is off`() = runTest {
+        val supported = setOf(PidRegistry.RPM.id, PidRegistry.MAF.id)
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(supported)
+        }
+
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.availablePids.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(supported, vm.availablePids.value.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `availablePids force-includes SPEED when GPS speed is enabled even though the ECU does not support it`() = runTest {
+        // Die GPS-Ausnahme aus der Produktionslogik: SPEED bleibt waehlbar, weil das GPS sie
+        // liefern kann, unabhaengig davon, ob das Fahrzeug den PID selbst unterstuetzt.
+        val supported = setOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id) // SPEED absichtlich nicht enthalten
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(supported)
+        }
+
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = true), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.availablePids.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        val resultIds = vm.availablePids.value.map { it.id }.toSet()
+        assertEquals(supported + PidRegistry.SPEED.id, resultIds)
+    }
+
+    @Test
+    fun `availablePids excludes SPEED when GPS speed is disabled and the ECU does not support it`() = runTest {
+        // Kontrastfall zum GPS-Carve-out oben: ohne GPS-Speed und ohne ECU-Unterstuetzung darf
+        // SPEED nicht im Picker auftauchen.
+        val supported = setOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id) // SPEED absichtlich nicht enthalten
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { supportedPidIds } returns MutableStateFlow(supported)
+        }
+
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val job = launch { vm.availablePids.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        val resultIds = vm.availablePids.value.map { it.id }.toSet()
+        assertEquals(supported, resultIds)
+        assertFalse(PidRegistry.SPEED.id in resultIds)
+    }
+
     // ── Auto-connect on startup ───────────────────────────────────────────────
 
     @Test
