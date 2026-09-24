@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 class AppLogRepositoryTest {
 
@@ -50,5 +52,39 @@ class AppLogRepositoryTest {
         repo.clearAll()
 
         coVerify { dao.deleteAll() }
+    }
+
+    @Test
+    fun `pruneOlderThan with no argument uses default 30 day maxAgeMs`() = runTest {
+        val slot = slot<Long>()
+        coEvery { dao.deleteOlderThan(capture(slot)) } just Runs
+        val defaultMaxAgeMs = 30L * 24 * 60 * 60 * 1000
+
+        repo.pruneOlderThan()
+        val afterCallMillis = System.currentTimeMillis()
+
+        coVerify { dao.deleteOlderThan(any()) }
+        val expectedCutoff = afterCallMillis - defaultMaxAgeMs
+        assertTrue(
+            "expected cutoff near $expectedCutoff but was ${slot.captured}",
+            abs(slot.captured - expectedCutoff) < 500L
+        )
+    }
+
+    @Test
+    fun `pruneOlderThan with custom maxAgeMs computes matching cutoff`() = runTest {
+        val slot = slot<Long>()
+        coEvery { dao.deleteOlderThan(capture(slot)) } just Runs
+        val customMaxAgeMs = 5L * 60 * 1000 // 5 minutes
+
+        repo.pruneOlderThan(customMaxAgeMs)
+        val afterCallMillis = System.currentTimeMillis()
+
+        coVerify { dao.deleteOlderThan(any()) }
+        val expectedCutoff = afterCallMillis - customMaxAgeMs
+        assertTrue(
+            "expected cutoff near $expectedCutoff but was ${slot.captured}",
+            abs(slot.captured - expectedCutoff) < 500L
+        )
     }
 }
