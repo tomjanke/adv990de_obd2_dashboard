@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.14 (versionCode 60)
+
+Bündelt alle Änderungen seit v1.16.13: ein sichtbarer UI-Fix plus zwei weitere interne
+Test-Updates.
+
+---
+
+### Ganganzeige vergrößert
+
+Die Gang-Ziffer neben dem Drehzahlbalken ist jetzt deutlich größer (45sp statt 40sp) — so groß wie
+es die feste Anzeige-Box neben dem Balken zulässt, ohne den Balken selbst zu verändern.
+
+### Weitere 29 Testabdeckungs-Lücken geschlossen
+
+Nach v1.16.13 fand ein erneuter Vollsweep noch 6 komplett ungetestete und 23 teilgetestete
+Dateien — alle einzeln geschlossen. Keine sichtbaren Verhaltensänderungen für Nutzer.
+
+### Tests
+
+653 Unit- und 137 Instrumentation-Tests grün (vorher 606 / 75).
+
+---
+
 ## Version 1.16.13 (versionCode 59)
 
 Wieder ein reines internes Test-Update — keine sichtbaren Änderungen für Nutzer.
