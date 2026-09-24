@@ -1,5 +1,19 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.16.15 (versionCode 61)
+
+### Ganganzeige jetzt so groß wie die Kachel-Werte
+
+Die Gang-Ziffer neben dem Drehzahlbalken ist jetzt optisch exakt genauso groß wie die
+Sensorwerte in den Dashboard-Kacheln. Dafür wurde die Zeile des Drehzahlbalkens leicht höher
+(72dp → 78dp) und die Ziffer-Box etwas breiter (32dp → 40dp).
+
+### Tests
+
+653 Unit- und 137 Instrumentation-Tests grün (unverändert).
+
+---
+
 ## Version 1.16.14 (versionCode 60)
 
 Bündelt alle Änderungen seit v1.16.13: ein sichtbarer UI-Fix plus zwei weitere interne
