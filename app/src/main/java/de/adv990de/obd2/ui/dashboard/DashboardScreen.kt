@@ -95,7 +95,7 @@ fun DashboardScreen(
         val rpmValueRef = rememberUpdatedState(state.rpmValue)
         LaunchedEffect(Unit) {
             delay(400) // allow first ECU readings to arrive before deciding to demo
-            if (rpmValueRef.value < 1f) {
+            if (shouldStartRpmDemoSweep(rpmValueRef.value)) {
                 // EaseOut: bar rises quickly at first, then slows near max — spends more
                 // time above the blink threshold, making the gradual speed-up clearly visible.
                 rpmDemo.animateTo(10000f, tween(durationMillis = 4000, easing = EaseOut))
@@ -108,22 +108,15 @@ fun DashboardScreen(
         val displayRpm = if (state.rpmValue < 1f) rpmDemo.value else state.rpmValue
         // Demo fallback: if no threshold is configured (=0), show blinking above 7000 during
         // the demo so the feature is visible even before the user has set a threshold.
-        // Dynamic scaling: when enabled, reduce threshold proportionally to engine temperature.
+        // Dynamic scaling: when enabled, reduce threshold proportionally to engine temperature —
+        // the temp-band → factor mapping is rpmThresholdTempScale() (DashboardComponents.kt),
+        // extracted as a pure function for JVM unit-test coverage (DashboardComponentsTest.kt).
         // Note: not wrapped in remember — rpmDemo.value changes every animation frame and must
         // stay reactive; the scaling arithmetic is cheap.
         val displayThreshold = when {
             rpmBlinkThreshold == 0 -> if (rpmDemo.value > 0f) 7000 else 0
             !rpmDynamicThreshold   -> rpmBlinkThreshold
-            else -> {
-                val scale = when (val temp = state.engineTempC) {
-                    null                              -> 0.50f   // no plausible value → conservative fallback
-                    in Float.NEGATIVE_INFINITY..49.9f -> 0.50f
-                    in 50f..69.9f                     -> 0.75f
-                    in 70f..84.9f                     -> 0.90f
-                    else                              -> 1.00f
-                }
-                (rpmBlinkThreshold * scale).toInt()
-            }
+            else -> (rpmBlinkThreshold * rpmThresholdTempScale(state.engineTempC)).toInt()
         }
 
         // While connected but waiting for first readings: brief full-screen spinner.

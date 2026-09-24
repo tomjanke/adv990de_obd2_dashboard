@@ -112,6 +112,36 @@ internal fun rpmSegmentColor(
     else                                                            -> idleColor
 }
 
+/**
+ * Skalierungsfaktor fuer den RPM-Blink-Schwellwert nach Motortemperatur (vier Baender), wenn
+ * dynamische Skalierung aktiv ist (`rpmDynamicThreshold`-Einstellung). Fehlt ein plausibler
+ * Messwert ([engineTempC] = `null`) oder liegt er unter 50 °C, gilt der konservativste Faktor
+ * 0.50 — je waermer der Motor, desto naeher am konfigurierten Schwellwert (1.00 ab 85 °C).
+ *
+ * Reine Funktion ohne Compose-Bezug, direkt JVM-testbar (Projekt-Konvention fuer Entscheidungslogik,
+ * vgl. [rpmBlinkPeriodMs]/[rpmSegmentColor]). Aus `DashboardScreen` extrahiert, das den
+ * Rueckgabewert mit dem konfigurierten `rpmBlinkThreshold` multipliziert.
+ */
+internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when (engineTempC) {
+    null                               -> 0.50f   // no plausible value → conservative fallback
+    in Float.NEGATIVE_INFINITY..49.9f  -> 0.50f
+    in 50f..69.9f                      -> 0.75f
+    in 70f..84.9f                      -> 0.90f
+    else                               -> 1.00f
+}
+
+/**
+ * Ob die einmalige RPM-Demo-Sweep-Animation in `DashboardScreen` (`LaunchedEffect(Unit)`, das per
+ * `Unit`-Key nur einmal pro Bildschirmbetreten laeuft) nach der 400ms-Anlaufverzoegerung starten
+ * soll: nur, wenn bis dahin noch keine plausible echte Drehzahl eingetroffen ist. Die Einmaligkeit
+ * selbst ist Compose-Runtime-Verhalten (`LaunchedEffect(Unit)` startet nie neu, unabhaengig vom
+ * Ergebnis dieser Funktion) — dieses Gate ist die einzige Entscheidungslogik darin und damit der
+ * testbare Teil.
+ *
+ * Reine Funktion ohne Compose-Bezug (vgl. [rpmThresholdTempScale]).
+ */
+internal fun shouldStartRpmDemoSweep(rpmValue: Float): Boolean = rpmValue < 1f
+
 @Composable
 internal fun RpmBar(
     rpm: Float,

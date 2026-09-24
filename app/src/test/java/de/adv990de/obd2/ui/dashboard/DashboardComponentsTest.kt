@@ -5,10 +5,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * JVM tests for the pure decision logic extracted out of [RpmBar]'s Composable body — the blink
- * timing ([rpmBlinkPeriodMs]) and the per-segment color choice ([rpmSegmentColor]). Neither
- * function has a Compose or Android dependency (Projekt-Konvention, vgl. [GearIndicatorTest],
- * `StatusDotTest`), so both are covered here directly instead of through instrumentation tests.
+ * JVM tests for the pure decision logic extracted out of this package's Composable bodies: from
+ * [RpmBar] the blink timing ([rpmBlinkPeriodMs]) and the per-segment color choice
+ * ([rpmSegmentColor]); from `DashboardScreen` the engine-temperature blink-threshold scale
+ * ([rpmThresholdTempScale]) and the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]).
+ * None of these functions has a Compose or Android dependency (Projekt-Konvention, vgl.
+ * [GearIndicatorTest], `StatusDotTest`), so all are covered here directly instead of through
+ * instrumentation tests.
  */
 class DashboardComponentsTest {
 
@@ -147,5 +150,91 @@ class DashboardComponentsTest {
                 idleColor = idleColor,
             )
         )
+    }
+
+    // --- rpmThresholdTempScale ---
+
+    @Test
+    fun `no plausible temperature falls back to the conservative scale`() {
+        // null bedeutet "kein plausibler Messwert" — wie die kaelteste Bande behandelt (0.50).
+        assertEquals(0.50f, rpmThresholdTempScale(null))
+    }
+
+    @Test
+    fun `below the coldest band uses the conservative scale`() {
+        assertEquals(0.50f, rpmThresholdTempScale(-40f))
+    }
+
+    @Test
+    fun `a representative value in the coldest band uses 0_50`() {
+        assertEquals(0.50f, rpmThresholdTempScale(20f))
+    }
+
+    @Test
+    fun `just below the second band boundary still uses 0_50`() {
+        assertEquals(0.50f, rpmThresholdTempScale(49.9f))
+    }
+
+    @Test
+    fun `at the second band boundary the scale steps up to 0_75`() {
+        assertEquals(0.75f, rpmThresholdTempScale(50f))
+    }
+
+    @Test
+    fun `a representative value in the second band uses 0_75`() {
+        assertEquals(0.75f, rpmThresholdTempScale(60f))
+    }
+
+    @Test
+    fun `just below the third band boundary still uses 0_75`() {
+        assertEquals(0.75f, rpmThresholdTempScale(69.9f))
+    }
+
+    @Test
+    fun `at the third band boundary the scale steps up to 0_90`() {
+        assertEquals(0.90f, rpmThresholdTempScale(70f))
+    }
+
+    @Test
+    fun `a representative value in the third band uses 0_90`() {
+        assertEquals(0.90f, rpmThresholdTempScale(80f))
+    }
+
+    @Test
+    fun `just below the fourth band boundary still uses 0_90`() {
+        assertEquals(0.90f, rpmThresholdTempScale(84.9f))
+    }
+
+    @Test
+    fun `at the fourth band boundary the scale reaches the full 1_00`() {
+        assertEquals(1.00f, rpmThresholdTempScale(85f))
+    }
+
+    @Test
+    fun `a representative value well above the fourth boundary stays at 1_00`() {
+        assertEquals(1.00f, rpmThresholdTempScale(120f))
+    }
+
+    // --- shouldStartRpmDemoSweep ---
+
+    @Test
+    fun `zero rpm allows the demo sweep to start`() {
+        assertEquals(true, shouldStartRpmDemoSweep(0f))
+    }
+
+    @Test
+    fun `an rpm just below 1 still allows the demo sweep to start`() {
+        assertEquals(true, shouldStartRpmDemoSweep(0.99f))
+    }
+
+    @Test
+    fun `an rpm of exactly 1 no longer allows the demo sweep to start`() {
+        // Grenze ist "< 1f", nicht "<= 1f" — 1.0 zaehlt bereits als plausible echte Drehzahl.
+        assertEquals(false, shouldStartRpmDemoSweep(1f))
+    }
+
+    @Test
+    fun `a plausible real rpm value blocks the demo sweep from starting`() {
+        assertEquals(false, shouldStartRpmDemoSweep(2500f))
     }
 }
