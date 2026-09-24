@@ -4,6 +4,7 @@ import android.content.Context
 import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.BluetoothException
+import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
@@ -369,5 +370,61 @@ class SettingsViewModelTest {
         vm.loadDevices()
 
         assertTrue(vm.uiState.value.bondedDevices.isEmpty())
+    }
+
+    @Test
+    fun `loadDevices assigns scanner's bondedDevices result to state on success`() = runTest {
+        val devices = listOf(
+            ScannedDevice(device = null, type = BtType.CLASSIC, name = "ELM327 v1.5"),
+            ScannedDevice(device = null, type = BtType.BLE, name = "OBDLink CX")
+        )
+        val scanner = mockk<BluetoothDeviceScanner> {
+            every { bondedDevices(any()) } returns devices
+        }
+        val vm = makeVm(scanner = scanner)
+        advanceUntilIdle()
+
+        vm.loadDevices()
+
+        assertEquals(devices, vm.uiState.value.bondedDevices)
+        assertNull(vm.uiState.value.error)
+    }
+
+    @Test
+    fun `toggleShowAllBtDevices flips false to true and persists`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
+            coEvery { setShowAllBtDevices(any()) } just Runs
+        }
+        val vm = makeVm(prefs = prefs)
+        advanceUntilIdle()
+        assertFalse(vm.showAllBtDevices.value)
+
+        vm.toggleShowAllBtDevices()
+        advanceUntilIdle()
+
+        coVerify { prefs.setShowAllBtDevices(true) }
+    }
+
+    @Test
+    fun `toggleShowAllBtDevices flips true to false and persists`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(true)
+            every { useGpsSpeed } returns flowOf(false)
+            coEvery { setShowAllBtDevices(any()) } just Runs
+        }
+        val vm = makeVm(prefs = prefs)
+        advanceUntilIdle()
+        assertTrue(vm.showAllBtDevices.value)
+
+        vm.toggleShowAllBtDevices()
+        advanceUntilIdle()
+
+        coVerify { prefs.setShowAllBtDevices(false) }
     }
 }
