@@ -255,7 +255,20 @@ fun SettingsScreen(
                 Spacer(Modifier.height(4.dp))
             }
             item {
-                var text by remember(watchdogTimeoutSeconds) { mutableStateOf(watchdogTimeoutSeconds.toString()) }
+                // hasBeenEdited-gated buffer (same guard as GearRatioField in
+                // GearSettingsScreen.kt): every valid keystroke here persists immediately, so a
+                // plain remember(watchdogTimeoutSeconds) would re-seed the buffer from the
+                // DataStore round-trip of the user's OWN previous keystroke — e.g. typing "45"
+                // could persist "4" first, have it echo back before "5" is typed, and clobber the
+                // buffer back to "4". Once the user has edited, only their typing drives the
+                // buffer; the upstream value still seeds it before that first edit.
+                var text by remember { mutableStateOf(watchdogTimeoutSeconds.toString()) }
+                var hasBeenEdited by remember { mutableStateOf(false) }
+                LaunchedEffect(watchdogTimeoutSeconds) {
+                    if (!hasBeenEdited) {
+                        text = watchdogTimeoutSeconds.toString()
+                    }
+                }
                 val isValid = parsePositiveInt(text) != null
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_obd_watchdog_timeout)) },
@@ -269,6 +282,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = text,
                             onValueChange = { newText ->
+                                hasBeenEdited = true
                                 text = newText
                                 parsePositiveInt(newText)?.let { vm.setObdWatchdogTimeoutSeconds(it) }
                             },
