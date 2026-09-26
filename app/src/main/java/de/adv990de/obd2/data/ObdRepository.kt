@@ -27,8 +27,11 @@ import javax.inject.Singleton
 import kotlin.time.TimeSource
 
 /** Nur relevant fuer direkte/Test-Aufrufer ohne eigenen Wert — die Produktion (ReadingsPipeline)
- *  uebergibt immer explizit den aus AppPreferences gelesenen, user-konfigurierten Wert. */
-private const val DEFAULT_WATCHDOG_TIMEOUT_MS = 20_000L
+ *  uebergibt immer explizit den aus AppPreferences gelesenen, user-konfigurierten Wert. Bewusst aus
+ *  dem AppPreferences-Default abgeleitet statt unabhaengig gepflegt: die `livePids(any())`-Stubs der
+ *  JVM-Tests zeichnen diesen Default mit auf und matchen den Produktionsaufruf nur, solange beide
+ *  Werte gleich sind. */
+private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS * 1_000L
 
 @Singleton
 class ObdRepository @Inject constructor(

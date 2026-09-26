@@ -75,6 +75,7 @@ class ReadingsPipelineTest {
         rpmDynamicThreshold: Boolean = false,
         logOnlyDiscoveredPids: Boolean = false,
         slotPids: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
+        obdWatchdogTimeoutSeconds: Int = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
     ): AppPreferences = mockk {
         every { this@mockk.slotPids } returns flowOf(slotPids)
         every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
@@ -82,7 +83,7 @@ class ReadingsPipelineTest {
         every { this@mockk.logOnlyDiscoveredPids } returns flowOf(logOnlyDiscoveredPids)
         every { loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
         every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
-        every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+        every { this@mockk.obdWatchdogTimeoutSeconds } returns flowOf(obdWatchdogTimeoutSeconds)
     }
 
     private fun makeGps(kmh: Float? = null): GpsSpeedSource = mockk {
@@ -332,5 +333,28 @@ class ReadingsPipelineTest {
         // logOnlyDtc enabled, the session must be kept, not discarded as a "no DTC" drive.
         coVerify(exactly = 0) { sessionRepo.deleteSession(any()) }
         coVerify { sessionRepo.endSession(7L) }
+    }
+
+    // --- Test 14 ---
+
+    @Test
+    fun `the configured OBD watchdog timeout reaches livePids in milliseconds`() = runTest {
+        val repo = makeRepo(connected = true)
+        // Every parameter open: makeRepo's `livePids(any())` stub only matches the DEFAULT values of
+        // the remaining parameters (MockK records Kotlin default arguments as concrete values), so
+        // it would not answer a call carrying the non-default 45_000 ms.
+        every { repo.livePids(any(), any(), any(), any()) } returns flowOf(listOf(rpm))
+
+        makePipeline(repo, prefs = makePrefs(obdWatchdogTimeoutSeconds = 45))
+            .events(backgroundScope).take(1).toList()
+
+        verify {
+            repo.livePids(
+                pids = any(),
+                pollIntervalMs = any(),
+                watchdogTimeoutMs = 45_000L,
+                timeSource = any(),
+            )
+        }
     }
 }
