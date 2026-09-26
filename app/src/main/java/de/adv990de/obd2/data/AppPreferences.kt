@@ -76,6 +76,10 @@ class AppPreferences @Inject constructor(
         // Deutlich ueber normalem Timeout-Rauschen (ein einzelner PID-Timeout ist bereits 5s),
         // aber kurz genug, dass der Fahrer nicht lange auf eingefrorene Werte schaut.
         const val DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS = 20
+        // Untergrenze der Eingabe in den Einstellungen (SettingsScreen validiert dagegen, der
+        // Setter selbst klemmt nicht): bei wenigen Sekunden wuerde der Watchdog schon bei
+        // normalem Timeout-Rauschen staendig einen Reconnect erzwingen.
+        const val MIN_OBD_WATCHDOG_TIMEOUT_SECONDS = 10
     }
 
     suspend fun persistDevice(device: ScannedDevice) {

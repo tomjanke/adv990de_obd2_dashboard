@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -50,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
@@ -83,10 +85,13 @@ internal fun shouldEscalateToBackgroundLocation(
 ): Boolean = !alreadyPrompted &&
     LocationPermissions.needsBackgroundLocationRequest(sdkInt, backgroundLocationGranted)
 
-/** A duration in seconds only makes sense as a positive whole number — pulled into its own
+/** Validates the OBD watchdog timeout field below: a whole number of seconds, at least
+ *  [AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS] — a few seconds would let the watchdog force
+ *  reconnects on ordinary timeout noise. Returns null for anything else. Pulled into its own
  *  top-level function so it's JVM-testable without Compose, mirroring `GearSettingsScreen.kt`'s
- *  `parsePositiveFloat`. Used to validate the OBD watchdog timeout field below. */
-internal fun parsePositiveInt(text: String): Int? = text.toIntOrNull()?.takeIf { it > 0 }
+ *  `parsePositiveFloat`. */
+internal fun parseWatchdogTimeoutSeconds(text: String): Int? =
+    text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -269,13 +274,17 @@ fun SettingsScreen(
                         text = watchdogTimeoutSeconds.toString()
                     }
                 }
-                val isValid = parsePositiveInt(text) != null
+                val isValid = parseWatchdogTimeoutSeconds(text) != null
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_obd_watchdog_timeout)) },
                     supportingContent = {
                         Text(
                             if (isValid) stringResource(R.string.settings_obd_watchdog_timeout_desc)
-                            else stringResource(R.string.settings_obd_watchdog_timeout_invalid)
+                            else pluralStringResource(
+                                R.plurals.settings_obd_watchdog_timeout_invalid,
+                                AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
+                                AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS
+                            )
                         )
                     },
                     trailingContent = {
@@ -284,7 +293,7 @@ fun SettingsScreen(
                             onValueChange = { newText ->
                                 hasBeenEdited = true
                                 text = newText
-                                parsePositiveInt(newText)?.let { vm.setObdWatchdogTimeoutSeconds(it) }
+                                parseWatchdogTimeoutSeconds(newText)?.let { vm.setObdWatchdogTimeoutSeconds(it) }
                             },
                             isError = !isValid,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
