@@ -408,4 +408,22 @@ class AppPreferencesTest {
             // expected
         }
     }
+
+    // ── OBD-Watchdog (erzwungener Reconnect bei eingefrorenen Sensorwerten) ──
+
+    @Test
+    fun `obdWatchdogTimeoutSeconds returns the default when nothing is stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(
+            AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
+            prefs.obdWatchdogTimeoutSeconds.first()
+        )
+    }
+
+    @Test
+    fun `setObdWatchdogTimeoutSeconds persists the value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setObdWatchdogTimeoutSeconds(45)
+        assertEquals(45, prefs.obdWatchdogTimeoutSeconds.first())
+    }
 }

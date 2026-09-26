@@ -58,6 +58,7 @@ class AppPreferences @Inject constructor(
             KEY_GEAR_RATIO_1, KEY_GEAR_RATIO_2, KEY_GEAR_RATIO_3,
             KEY_GEAR_RATIO_4, KEY_GEAR_RATIO_5, KEY_GEAR_RATIO_6,
         )
+        private val KEY_OBD_WATCHDOG_TIMEOUT_SECONDS = intPreferencesKey("obd_watchdog_timeout_seconds")
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
@@ -72,6 +73,9 @@ class AppPreferences @Inject constructor(
         const val DEFAULT_SECONDARY_RATIO = 2.625f   // 42/16
         val DEFAULT_GEAR_RATIOS: List<Float> =
             listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 1.04f)
+        // Deutlich ueber normalem Timeout-Rauschen (ein einzelner PID-Timeout ist bereits 5s),
+        // aber kurz genug, dass der Fahrer nicht lange auf eingefrorene Werte schaut.
+        const val DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS = 20
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -263,5 +267,15 @@ class AppPreferences @Inject constructor(
     suspend fun setGearRatio(index: Int, value: Float) {
         require(index in 0..5) { "index must be 0..5" }
         dataStore.edit { it[GEAR_RATIO_KEYS[index]] = value }
+    }
+
+    // ── OBD-Watchdog (erzwungener Reconnect bei eingefrorenen Sensorwerten) ───
+
+    val obdWatchdogTimeoutSeconds: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] ?: DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS
+    }.distinctUntilChanged()
+
+    suspend fun setObdWatchdogTimeoutSeconds(value: Int) {
+        dataStore.edit { it[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] = value }
     }
 }
