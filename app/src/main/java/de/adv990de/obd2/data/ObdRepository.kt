@@ -24,6 +24,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.TimeSource
 
 /** Nur relevant fuer direkte/Test-Aufrufer ohne eigenen Wert — die Produktion (ReadingsPipeline)
  *  uebergibt immer explizit den aus AppPreferences gelesenen, user-konfigurierten Wert. */
@@ -172,24 +173,33 @@ class ObdRepository @Inject constructor(
      * Skips PIDs that return NO DATA without stopping the stream.
      *
      * Two independent escalation paths can force a reconnect, whichever crosses its own
-     * threshold first: 5 consecutive BusInit errors (bus stuck), or [watchdogTimeoutMs] of
-     * accumulated poll time without a single successful (non-empty) cycle — the watchdog that
-     * catches a silently frozen adapter that keeps returning Timeout/NoData/UnknownResponse
-     * without ever hitting BusInit. See [isReadingsStale].
+     * threshold first: 5 consecutive BusInit errors (bus stuck), or the watchdog: a cycle that
+     * hit at least one Timeout without a single successful reading, at a point where
+     * [watchdogTimeoutMs] of real time have passed since the last successful (non-empty) cycle.
+     * That catches a silently frozen adapter/BLE stack that keeps timing out without ever hitting
+     * BusInit. NoData/UnknownResponse never trip it — the adapter is still answering. The check
+     * runs once per cycle, so it fires up to one cycle after the threshold. See [isReadingsStale].
+     *
+     * [timeSource] only exists so tests can inject kotlinx-coroutines-test's virtual clock
+     * (`testTimeSource`); production uses the default [TimeSource.Monotonic]. It has to be real
+     * time: a single Timeout already blocks for ElmController's 5 s read timeout, so the earlier
+     * approach of adding [pollIntervalMs] per empty cycle undercounted a real stall 30-40x.
      */
     fun livePids(
         pids: List<PidDefinition> = PidRegistry.defaults,
         pollIntervalMs: Long = 500L,
         watchdogTimeoutMs: Long = DEFAULT_WATCHDOG_TIMEOUT_MS,
+        timeSource: TimeSource = TimeSource.Monotonic,
     ): Flow<List<SensorValue>> = flow {
         var consecutiveBusInitErrors = 0
-        var elapsedSinceLastSuccessMs = 0L
+        var lastSuccessMark = timeSource.markNow()
         while (true) {
             // elm is @Volatile; capture into a local so the reference stays alive even if
             // a concurrent disconnect() nulls elm after the null check.
             val controller = elm ?: break
             val values = mutableListOf<SensorValue>()
             var busInitOccurred = false
+            var timeoutOccurred = false
             for (pid in pids) {
                 try {
                     val raw = controller.sendCommand(pid.id)
@@ -199,7 +209,8 @@ class ObdRepository @Inject constructor(
                 } catch (_: ObdException.UnknownResponse) {
                     // skip this PID this cycle (transient parse error)
                 } catch (_: ObdException.Timeout) {
-                    // skip this PID this cycle — adapter may be slow
+                    // skip this PID this cycle — adapter may be slow; counts for the watchdog
+                    timeoutOccurred = true
                 } catch (_: ObdException.BusInit) {
                     busInitOccurred = true
                     break  // bus re-initializing; skip rest of this poll cycle
@@ -228,14 +239,17 @@ class ObdRepository @Inject constructor(
             // Also suppress partial-cycle values collected before a BusInit interrupted the loop —
             // emitting them would show a stale mix of fresh and un-refreshed PID readings.
             if (!busInitOccurred && values.isNotEmpty()) {
-                elapsedSinceLastSuccessMs = 0L
+                lastSuccessMark = timeSource.markNow()
                 emit(values)
-            } else {
-                // Deckt Timeout/NoData/UnknownResponse UND einen noch nicht eskalierten BusInit-
-                // Lauf gleichermassen ab: egal warum ein Zyklus leer war, zaehlt fuer den Watchdog
-                // nur "wie lange schon kein einziger erfolgreicher Zyklus mehr".
-                elapsedSinceLastSuccessMs += pollIntervalMs
-                if (isReadingsStale(elapsedSinceLastSuccessMs, watchdogTimeoutMs)) {
+            } else if (timeoutOccurred) {
+                // Nur ein echter Timeout zaehlt fuer den Watchdog — NoData/UnknownResponse
+                // bedeuten, dass das Steuergeraet/Adapter noch antwortet (nur ohne verwertbare
+                // Daten), waehrend ein Timeout auf einen wirklich stillen Transport hindeutet.
+                // BusInit hat seinen eigenen, unveraenderten 5er-Streak-Zaehler.
+                // Zyklen nur aus NoData/UnknownResponse setzen die Marke aber auch NICHT zurueck
+                // (sie sind kein erfolgreicher Lesezyklus): folgt auf eine lange NoData-Phase ein
+                // Timeout, eskaliert bereits dieser erste Timeout.
+                if (isReadingsStale(lastSuccessMark.elapsedNow().inWholeMilliseconds, watchdogTimeoutMs)) {
                     withContext(NonCancellable) { disconnect() }
                     throw ObdException.ConnectionLost()
                 }

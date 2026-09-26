@@ -19,9 +19,14 @@ import io.mockk.mockk
 import io.mockk.Runs
 import io.mockk.verify
 import io.mockk.verifyOrder
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -29,6 +34,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+// testTimeSource/currentTime (kotlinx-coroutines-test) are @ExperimentalCoroutinesApi.
+@OptIn(ExperimentalCoroutinesApi::class)
 class ObdRepositoryTest {
 
     private fun makeRepo(factory: ConnectionFactory = mockk()): ObdRepository =
@@ -391,6 +398,12 @@ class ObdRepositoryTest {
     }
 
     // ── OBD-Watchdog (Timeout ohne Eskalation, s. obd-watchdog-bugfix-2026-09-26) ─────
+    //
+    // All watchdog tests pass runTest's virtual clock (`testTimeSource`) explicitly: livePids()
+    // measures real elapsed time since the last successful cycle, and only the virtual clock
+    // advances in lockstep with the virtual delay()s inside runTest. The mocked Timeouts below
+    // throw instantly, so virtual time advances only by pollIntervalMs per cycle — unless a test
+    // delays inside sendCommand on purpose.
 
     @Test
     fun `livePids escalates to ConnectionLost when timeouts persist past the watchdog threshold`() = runTest {
@@ -404,10 +417,14 @@ class ObdRepositoryTest {
                 listOf(PidRegistry.defaults.first()),
                 pollIntervalMs = 1_000L,
                 watchdogTimeoutMs = 3_000L,
+                timeSource = testTimeSource,
             ).collect {}
         } catch (_: ObdException.ConnectionLost) { threw = true }
 
         assertTrue(threw)
+        // Same fatal handling as the BusInit escalation: disconnect before throwing, so the
+        // reconnect loop sees isConnectedFlow drop.
+        assertEquals(false, repo.isConnectedFlow.value)
     }
 
     @Test
@@ -415,10 +432,11 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val pidParser = mockk<PidParser> { every { parse(any(), any()) } returns mockk() }
 
-        // Cycle 1: timeout (elapsed 1000ms, still under 3000ms). Cycle 2: succeeds.
+        // Cycles 1-3 time out at virtual t=0/1000/2000 ms — the last check sees 2000 ms elapsed,
+        // one poll interval under the 3000 ms threshold. Cycle 4 (t=3000) succeeds.
         var cycleCount = 0
         coEvery { elmCtrl.sendCommand(any()) } answers {
-            if (++cycleCount == 1) throw ObdException.Timeout("pid") else "41 0C 1A 00"
+            if (++cycleCount <= 3) throw ObdException.Timeout("pid") else "41 0C 1A 00"
         }
         val repo = makeConnectedRepo(elmCtrl, pidParser)
 
@@ -426,6 +444,7 @@ class ObdRepositoryTest {
             listOf(PidRegistry.defaults.first()),
             pollIntervalMs = 1_000L,
             watchdogTimeoutMs = 3_000L,
+            timeSource = testTimeSource,
         ).first()
 
         assertTrue(result.isNotEmpty())
@@ -436,8 +455,10 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val pidParser = mockk<PidParser> { every { parse(any(), any()) } returns mockk() }
 
-        // Cycles 1-2: timeout (elapsed 2000ms, under 3000ms). Cycle 3: success (resets to 0).
-        // Cycles 4-5: timeout again (elapsed only 2000ms again, NOT 4000ms) -> must not escalate.
+        // Cycles 1-2 time out (t=0/1000), cycle 3 succeeds at t=2000 and resets the mark.
+        // Cycles 4-5 time out again (t=3000/4000): only 1000/2000 ms since the reset, under the
+        // 3000 ms threshold. Without the reset, cycle 4 would already see 3000 ms since the start
+        // and escalate.
         var cycleCount = 0
         coEvery { elmCtrl.sendCommand(any()) } answers {
             when {
@@ -456,11 +477,87 @@ class ObdRepositoryTest {
                 listOf(PidRegistry.defaults.first()),
                 pollIntervalMs = 1_000L,
                 watchdogTimeoutMs = 3_000L,
+                timeSource = testTimeSource,
             ).take(2).collect { emissionCount++ }
         } catch (_: ObdException.ConnectionLost) { threw = true }
 
         assertEquals(2, emissionCount)
         assertFalse(threw)
+    }
+
+    @Test
+    fun `livePids watchdog measures real elapsed time, not poll intervals, when timeouts block`() = runTest {
+        // Final-review finding C1. A real ElmController Timeout only surfaces after its 5 s read
+        // timeout, so one empty cycle over 3 PIDs lasts 15 s. The old implementation added only
+        // pollIntervalMs (500 ms) per empty cycle and needed 40 such cycles (~10 min) to reach a
+        // 20 s threshold. Measured on the clock, cycle 1 ends at 15_000 ms (under 20_000 ms) and
+        // cycle 2 at 30_500 ms, which must escalate.
+        val pids = listOf(PidRegistry.RPM, PidRegistry.SPEED, PidRegistry.COOLANT_TEMP)
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } coAnswers {
+            delay(5_000L)  // ElmController's READ_TIMEOUT_MS, in virtual time
+            throw ObdException.Timeout(firstArg<String>())
+        }
+        // Registered after the stub above, so the discovery stubs in makeConnectedRepo win for
+        // 0100/0120/0140 and connect() itself costs no virtual time.
+        val repo = makeConnectedRepo(elmCtrl)
+
+        val pollStart = currentTime
+        var escalatedAfterMs: Long? = null
+        try {
+            repo.livePids(
+                pids,
+                pollIntervalMs = 500L,
+                watchdogTimeoutMs = 20_000L,
+                timeSource = testTimeSource,
+            ).collect {}
+        } catch (_: ObdException.ConnectionLost) {
+            escalatedAfterMs = currentTime - pollStart
+        }
+
+        assertNotNull("the watchdog must escalate", escalatedAfterMs)
+        assertTrue(
+            "must not escalate before the 20_000 ms threshold, escalated after $escalatedAfterMs ms",
+            escalatedAfterMs!! >= 20_000L,
+        )
+        // Threshold plus at most one full cycle (3 x 5_000 ms + 500 ms poll interval).
+        assertTrue(
+            "must escalate within one cycle after the threshold, escalated after $escalatedAfterMs ms",
+            escalatedAfterMs <= 20_000L + 15_500L,
+        )
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `livePids watchdog ignores NoData and UnknownResponse because the adapter still answers`() = runTest {
+        // Final-review finding I2. NoData/UnknownResponse mean the adapter/ECU still responds
+        // (e.g. ignition off with a powered adapter answers NO DATA), unlike a Timeout. Cycles
+        // made only of them must never trip the watchdog, however long they last.
+        val pids = listOf(PidRegistry.RPM, PidRegistry.SPEED)
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(PidRegistry.RPM.id) } throws ObdException.NoData(PidRegistry.RPM.id)
+        coEvery { elmCtrl.sendCommand(PidRegistry.SPEED.id) } throws ObdException.UnknownResponse("?")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        // 20x the watchdog threshold, in virtual time.
+        val finishedInsideWindow = withTimeoutOrNull(60_000L) {
+            try {
+                repo.livePids(
+                    pids,
+                    pollIntervalMs = 1_000L,
+                    watchdogTimeoutMs = 3_000L,
+                    timeSource = testTimeSource,
+                ).collect {}
+            } catch (_: ObdException.ConnectionLost) { threw = true }
+            true
+        }
+
+        assertFalse("NoData/UnknownResponse must not trip the watchdog", threw)
+        // Guards against a vacuous pass: the poll loop must still be running when the window
+        // closes, not have ended on its own.
+        assertNull("the poll loop must still be running after 60 s", finishedInsideWindow)
+        assertTrue(repo.isConnectedFlow.value)
     }
 
     // ── PID Discovery ─────────────────────────────────────────────────────────
