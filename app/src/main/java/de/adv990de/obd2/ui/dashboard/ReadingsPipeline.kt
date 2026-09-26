@@ -190,6 +190,7 @@ class ReadingsPipeline @Inject constructor(
         } catch (e: CancellationException) {
             throw e  // Abbruch einer Coroutine nie verschlucken
         } catch (e: ObdException.ConnectionLost) {
+            appLogRepository.log(LogLevel.WARN, "OBD connection lost, reconnecting (readings stopped or bus stuck)")
             emit(SessionEvent.ConnectionLost)
         } catch (e: Exception) {
             crashReporter.recordException(e)
