@@ -10,6 +10,7 @@ import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -23,6 +24,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -528,20 +530,20 @@ class ObdRepositoryTest {
         assertEquals(false, repo.isConnectedFlow.value)
     }
 
-    @Test
-    fun `livePids watchdog ignores NoData and UnknownResponse because the adapter still answers`() = runTest {
-        // Final-review finding I2. NoData/UnknownResponse mean the adapter/ECU still responds
-        // (e.g. ignition off with a powered adapter answers NO DATA), unlike a Timeout. Cycles
-        // made only of them must never trip the watchdog, however long they last.
-        val pids = listOf(PidRegistry.RPM, PidRegistry.SPEED)
-        val elmCtrl = mockk<ElmController>()
-        coEvery { elmCtrl.sendCommand(PidRegistry.RPM.id) } throws ObdException.NoData(PidRegistry.RPM.id)
-        coEvery { elmCtrl.sendCommand(PidRegistry.SPEED.id) } throws ObdException.UnknownResponse("?")
-        val repo = makeConnectedRepo(elmCtrl)
-
-        var threw = false
-        // 20x the watchdog threshold, in virtual time.
-        val finishedInsideWindow = withTimeoutOrNull(60_000L) {
+    /**
+     * Collects [ObdRepository.livePids] on the virtual clock with the timing the tests below share
+     * (1 s poll interval, 3 s watchdog threshold) for at most [windowMs] of virtual time.
+     * Returns the virtual ms from the start of polling until the watchdog escalated, or null if
+     * the loop was still polling when the window closed. The loop ending on its own fails the
+     * test, so a null can never come from a flow that simply stopped.
+     */
+    private suspend fun TestScope.msUntilWatchdogEscalates(
+        repo: ObdRepository,
+        pids: List<PidDefinition>,
+        windowMs: Long = 60_000L,
+    ): Long? {
+        val pollStart = currentTime
+        return withTimeoutOrNull(windowMs) {
             try {
                 repo.livePids(
                     pids,
@@ -549,15 +551,126 @@ class ObdRepositoryTest {
                     watchdogTimeoutMs = 3_000L,
                     timeSource = testTimeSource,
                 ).collect {}
-            } catch (_: ObdException.ConnectionLost) { threw = true }
-            true
+                throw AssertionError("the poll loop ended on its own instead of polling or escalating")
+            } catch (_: ObdException.ConnectionLost) {
+                currentTime - pollStart
+            }
+        }
+    }
+
+    @Test
+    fun `livePids watchdog counts Timeout and UnknownResponse, even next to NoData, but never NoData alone`() = runTest {
+        // Final-review finding I2, revised after concerns A and B. NoData is a well-formed answer:
+        // the ECU has nothing to report for this PID (e.g. ignition off with a powered adapter),
+        // so cycles of nothing but NoData must never trip the watchdog, however long they last.
+        // Timeout (adapter silent) and UnknownResponse (adapter answers, but nothing parseable)
+        // both mean no usable data gets through, so they must escalate once they persist, also
+        // when another PID in the same cycle answers NO DATA.
+        suspend fun msUntilEscalationWhenSpeedThrows(speedError: ObdException): Long? {
+            val elmCtrl = mockk<ElmController>()
+            coEvery { elmCtrl.sendCommand(PidRegistry.RPM.id) } throws ObdException.NoData(PidRegistry.RPM.id)
+            coEvery { elmCtrl.sendCommand(PidRegistry.SPEED.id) } throws speedError
+            val repo = makeConnectedRepo(elmCtrl)
+            return msUntilWatchdogEscalates(repo, listOf(PidRegistry.RPM, PidRegistry.SPEED))
         }
 
-        assertFalse("NoData/UnknownResponse must not trip the watchdog", threw)
-        // Guards against a vacuous pass: the poll loop must still be running when the window
-        // closes, not have ended on its own.
-        assertNull("the poll loop must still be running after 60 s", finishedInsideWindow)
-        assertTrue(repo.isConnectedFlow.value)
+        assertNull(
+            "NoData alone must never trip the watchdog (60 s window, 20x the threshold)",
+            msUntilEscalationWhenSpeedThrows(ObdException.NoData(PidRegistry.SPEED.id)),
+        )
+        assertNotNull(
+            "UnknownResponse must count for the watchdog, even next to NoData",
+            msUntilEscalationWhenSpeedThrows(ObdException.UnknownResponse("?")),
+        )
+        assertNotNull(
+            "Timeout must count for the watchdog, even next to NoData",
+            msUntilEscalationWhenSpeedThrows(ObdException.Timeout(PidRegistry.SPEED.id)),
+        )
+    }
+
+    @Test
+    fun `livePids watchdog escalates on persistent UnknownResponse, as after an adapter reset with echo on`() = runTest {
+        // Final-review concern A. An adapter that resets itself mid-ride (e.g. on a voltage dip
+        // while cranking) is back on its power-on defaults, echo on among them; initialize()
+        // switches it off with ATE0. ElmController joins the echoed command and the answer into
+        // one line ("010C 41 0C 1A F8"), which PidParser rejects as UnknownResponse, for every PID
+        // in every cycle. The adapter keeps answering, yet no reading gets through: the watchdog
+        // must escalate as it does for Timeouts, so the reconnect re-runs initialize().
+        // Uses the real PidParser to cover that chain end to end.
+        val pids = listOf(PidRegistry.RPM, PidRegistry.SPEED)
+        val ecuAnswers = mapOf(PidRegistry.RPM.id to "41 0C 1A F8", PidRegistry.SPEED.id to "41 0D 32")
+        val pidParser = PidParser()
+        // Sanity check: without the echo, the same answers parse, so the escalation below is down
+        // to the echo alone.
+        pids.forEach { pidParser.parse(it, ecuAnswers.getValue(it.id)) }
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            val command = firstArg<String>()
+            "$command ${ecuAnswers.getValue(command)}"  // echo + answer, joined as ElmController does
+        }
+        // Registered after the stub above, so the discovery stubs win for 0100/0120/0140.
+        val repo = makeConnectedRepo(elmCtrl, pidParser)
+
+        val escalatedAfterMs = msUntilWatchdogEscalates(repo, pids)
+
+        assertNotNull("persistent UnknownResponse must trip the watchdog", escalatedAfterMs)
+        assertTrue(
+            "must not escalate before the 3_000 ms threshold, escalated after $escalatedAfterMs ms",
+            escalatedAfterMs!! >= 3_000L,
+        )
+        assertTrue(
+            "must escalate within one poll cycle after the threshold, escalated after $escalatedAfterMs ms",
+            escalatedAfterMs <= 3_000L + 1_000L,
+        )
+        assertFalse(repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `livePids watchdog does not escalate on the first timeout after a long NoData stretch, only once timeouts persist`() = runTest {
+        // Final-review concern B. Parked with the ignition off, a powered adapter answers NO DATA
+        // for every PID: no readings, but the link demonstrably works. Such cycles must restart
+        // the watchdog's clock like a successful one. Otherwise the first Timeout afterwards is
+        // measured against the last real reading, arbitrarily long ago, and escalates at once.
+        //
+        // Timeline (1 PID, instant mocks, 1 s poll interval, 3 s threshold): reads 1-30 answer
+        // NO DATA at t = 0..29_000 ms; the last one restarts the clock at 29_000. From t = 30_000
+        // on, every read times out. The checks at 30_000 and 31_000 see 1_000 and 2_000 ms, under
+        // the threshold; the check at 32_000 sees 3_000 ms and escalates.
+        var reads = 0
+        var timeouts = 0
+        var lastNoDataAt = -1L
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            if (++reads <= 30) {
+                lastNoDataAt = currentTime
+                throw ObdException.NoData(firstArg())
+            }
+            timeouts++
+            throw ObdException.Timeout(firstArg())
+        }
+        // Registered after the stub above, so the discovery stubs win for 0100/0120/0140 and
+        // don't count as reads.
+        val repo = makeConnectedRepo(elmCtrl)
+
+        val pollStart = currentTime
+        val escalatedAfterMs = msUntilWatchdogEscalates(repo, listOf(PidRegistry.RPM))
+
+        assertNotNull("timeouts that persist past the threshold must still escalate", escalatedAfterMs)
+        assertTrue(
+            "a single timeout right after the NoData stretch must not escalate, escalated after $timeouts timeout(s)",
+            timeouts > 1,
+        )
+        val sinceLastNoDataMs = pollStart + escalatedAfterMs!! - lastNoDataAt
+        assertTrue(
+            "must not escalate before timeouts persisted for the 3_000 ms threshold since the last " +
+                "NoData cycle, escalated after $sinceLastNoDataMs ms",
+            sinceLastNoDataMs >= 3_000L,
+        )
+        assertTrue(
+            "must escalate within one poll cycle after the threshold, escalated after $sinceLastNoDataMs ms",
+            sinceLastNoDataMs <= 3_000L + 1_000L,
+        )
+        assertFalse(repo.isConnectedFlow.value)
     }
 
     // ── PID Discovery ─────────────────────────────────────────────────────────
