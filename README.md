@@ -119,7 +119,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (653 Tests, < 30 Sekunden)
+# JVM Unit Tests (673 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -128,7 +128,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 653 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 673 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 108 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Device Row, App Logs, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 18 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -228,6 +228,7 @@ Persistiert via Jetpack DataStore:
 - Aufzeichnungs-Modus (immer / nur bei Fahrt / aus)
 - App-Log-Verbosity
 - Getriebe-Verhältnisse für die virtuelle Ganganzeige (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
+- OBD-Watchdog: nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr antwortet (Timeout) — Standard 20 s, mindestens 10 s
 
 ---
 
@@ -269,7 +270,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (653) |
+| `app/src/test/` | JVM-Unit-Tests (673) |
 | `app/src/androidTest/` | Instrumented Tests (137, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
