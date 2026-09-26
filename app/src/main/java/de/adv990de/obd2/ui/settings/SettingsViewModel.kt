@@ -58,6 +58,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setShowAllBtDevices(!showAllBtDevices.value) }
     }
 
+    val obdWatchdogTimeoutSeconds: StateFlow<Int> = appPreferences.obdWatchdogTimeoutSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+
+    fun setObdWatchdogTimeoutSeconds(value: Int) {
+        viewModelScope.launch { appPreferences.setObdWatchdogTimeoutSeconds(value) }
+    }
+
     init {
         viewModelScope.launch {
             appPreferences.lastDevice.collect { device ->

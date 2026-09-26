@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -53,6 +54,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         },
         appLogRepository: AppLogRepository = mockk(relaxed = true),
@@ -69,6 +71,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
@@ -135,6 +138,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(device)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -169,6 +173,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
@@ -189,6 +194,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } throws Exception("disk full")
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
@@ -223,6 +229,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns lastDeviceFlow
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -254,6 +261,7 @@ class SettingsViewModelTest {
             // Empty DataStore — simulates state when persistDevice previously threw
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -296,6 +304,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(scanned)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
         }
         val vm = makeVm(prefs = prefs)
         advanceUntilIdle()
@@ -396,6 +405,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
             coEvery { setShowAllBtDevices(any()) } just Runs
         }
@@ -415,6 +425,7 @@ class SettingsViewModelTest {
             coEvery { persistDevice(any()) } just Runs
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(true)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
             coEvery { setShowAllBtDevices(any()) } just Runs
         }
@@ -426,5 +437,47 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify { prefs.setShowAllBtDevices(false) }
+    }
+
+    @Test
+    fun `obdWatchdogTimeoutSeconds reflects the value from AppPreferences`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(45)
+        }
+        val vm = makeVm(prefs = prefs)
+
+        // obdWatchdogTimeoutSeconds is stateIn'd with WhileSubscribed(5_000) (matches
+        // GearSettingsViewModel's convention, unlike this file's own Eagerly-based
+        // showAllBtDevices) — the upstream flow is only collected while a subscriber is
+        // attached, so .value stays at the seeded default until something collects it. Same
+        // pattern as GearSettingsViewModelTest's WhileSubscribed-backed fields.
+        val job = launch { vm.obdWatchdogTimeoutSeconds.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(45, vm.obdWatchdogTimeoutSeconds.value)
+    }
+
+    @Test
+    fun `setObdWatchdogTimeoutSeconds persists the new value`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            coEvery { setObdWatchdogTimeoutSeconds(any()) } just Runs
+        }
+        val vm = makeVm(prefs = prefs)
+        advanceUntilIdle()
+
+        vm.setObdWatchdogTimeoutSeconds(45)
+        advanceUntilIdle()
+
+        coVerify { prefs.setObdWatchdogTimeoutSeconds(45) }
     }
 }

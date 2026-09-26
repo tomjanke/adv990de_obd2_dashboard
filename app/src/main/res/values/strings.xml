@@ -107,6 +107,12 @@
     <string name="logging_config_deselect_all">Deselect all</string>
     <string name="logging_config_back_desc">Back</string>
 
+    <!-- Connection settings section (OBD watchdog) -->
+    <string name="settings_connection_section">Connection</string>
+    <string name="settings_obd_watchdog_timeout">Reconnect after frozen readings</string>
+    <string name="settings_obd_watchdog_timeout_desc">Seconds without any sensor update before forcing a reconnect</string>
+    <string name="settings_obd_watchdog_timeout_invalid">Enter a positive whole number</string>
+
     <!-- Display settings section -->
     <string name="settings_display_section">Display</string>
     <string name="settings_hide_nav_on_drive">Hide navigation bar while driving</string>

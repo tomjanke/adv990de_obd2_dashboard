@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import android.os.Build
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -98,5 +99,30 @@ class SettingsScreenTest {
                 backgroundLocationGranted = false
             )
         )
+    }
+
+    // ── parsePositiveInt (OBD watchdog timeout field validation) ────────────
+
+    @Test
+    fun `a positive whole number parses to itself`() {
+        assertEquals(20, parsePositiveInt("20"))
+        assertEquals(1, parsePositiveInt("1"))
+    }
+
+    @Test
+    fun `zero is rejected`() {
+        assertNull(parsePositiveInt("0"))
+    }
+
+    @Test
+    fun `a negative number is rejected`() {
+        assertNull(parsePositiveInt("-5"))
+    }
+
+    @Test
+    fun `a decimal or non-numeric value is rejected`() {
+        assertNull(parsePositiveInt("2.5"))
+        assertNull(parsePositiveInt("abc"))
+        assertNull(parsePositiveInt(""))
     }
 }
