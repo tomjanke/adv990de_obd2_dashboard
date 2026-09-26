@@ -82,6 +82,7 @@ class ReadingsPipelineTest {
         every { this@mockk.logOnlyDiscoveredPids } returns flowOf(logOnlyDiscoveredPids)
         every { loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
         every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
+        every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
     }
 
     private fun makeGps(kmh: Float? = null): GpsSpeedSource = mockk {

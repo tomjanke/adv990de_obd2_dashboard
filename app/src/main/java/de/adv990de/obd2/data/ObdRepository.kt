@@ -25,6 +25,10 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Nur relevant fuer direkte/Test-Aufrufer ohne eigenen Wert — die Produktion (ReadingsPipeline)
+ *  uebergibt immer explizit den aus AppPreferences gelesenen, user-konfigurierten Wert. */
+private const val DEFAULT_WATCHDOG_TIMEOUT_MS = 20_000L
+
 @Singleton
 class ObdRepository @Inject constructor(
     private val connectionFactory: ConnectionFactory,
@@ -166,12 +170,20 @@ class ObdRepository @Inject constructor(
     /**
      * Continuously polls the given PIDs and emits the latest values.
      * Skips PIDs that return NO DATA without stopping the stream.
+     *
+     * Two independent escalation paths can force a reconnect, whichever crosses its own
+     * threshold first: 5 consecutive BusInit errors (bus stuck), or [watchdogTimeoutMs] of
+     * accumulated poll time without a single successful (non-empty) cycle — the watchdog that
+     * catches a silently frozen adapter that keeps returning Timeout/NoData/UnknownResponse
+     * without ever hitting BusInit. See [isReadingsStale].
      */
     fun livePids(
         pids: List<PidDefinition> = PidRegistry.defaults,
-        pollIntervalMs: Long = 500L
+        pollIntervalMs: Long = 500L,
+        watchdogTimeoutMs: Long = DEFAULT_WATCHDOG_TIMEOUT_MS,
     ): Flow<List<SensorValue>> = flow {
         var consecutiveBusInitErrors = 0
+        var elapsedSinceLastSuccessMs = 0L
         while (true) {
             // elm is @Volatile; capture into a local so the reference stays alive even if
             // a concurrent disconnect() nulls elm after the null check.
@@ -215,7 +227,19 @@ class ObdRepository @Inject constructor(
             // The collector sees no update for this cycle; the UI retains the last values.
             // Also suppress partial-cycle values collected before a BusInit interrupted the loop —
             // emitting them would show a stale mix of fresh and un-refreshed PID readings.
-            if (!busInitOccurred && values.isNotEmpty()) emit(values)
+            if (!busInitOccurred && values.isNotEmpty()) {
+                elapsedSinceLastSuccessMs = 0L
+                emit(values)
+            } else {
+                // Deckt Timeout/NoData/UnknownResponse UND einen noch nicht eskalierten BusInit-
+                // Lauf gleichermassen ab: egal warum ein Zyklus leer war, zaehlt fuer den Watchdog
+                // nur "wie lange schon kein einziger erfolgreicher Zyklus mehr".
+                elapsedSinceLastSuccessMs += pollIntervalMs
+                if (isReadingsStale(elapsedSinceLastSuccessMs, watchdogTimeoutMs)) {
+                    withContext(NonCancellable) { disconnect() }
+                    throw ObdException.ConnectionLost()
+                }
+            }
             delay(pollIntervalMs)
         }
     }

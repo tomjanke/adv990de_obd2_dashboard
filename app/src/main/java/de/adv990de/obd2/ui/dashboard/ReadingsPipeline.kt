@@ -153,6 +153,7 @@ class ReadingsPipeline @Inject constructor(
         val logOnlyDtc = appPreferences.logOnlyDtcSessions.first()
         val logOnlyDiscovered = appPreferences.logOnlyDiscoveredPids.first()
         val loggedPidIds = appPreferences.loggedPidIds.first()
+        val watchdogTimeoutMs = appPreferences.obdWatchdogTimeoutSeconds.first() * 1_000L
 
         val vin = try { obdRepository.readVin() } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -174,7 +175,7 @@ class ReadingsPipeline @Inject constructor(
         try {
             sessionId = sessionRepository.startSession(vin)
             emitAll(
-                obdRepository.livePids(selectedPids)
+                obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
                     .onEach { readings -> lastObdReadings.value = readings }
                     // GPS ergaenzt die Geschwindigkeit, bevor aufgezeichnet und angezeigt wird —

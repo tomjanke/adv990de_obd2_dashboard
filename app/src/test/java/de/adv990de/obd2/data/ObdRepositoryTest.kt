@@ -20,6 +20,7 @@ import io.mockk.Runs
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -387,6 +388,79 @@ class ObdRepositoryTest {
 
         assertTrue(threw)
         assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    // ── OBD-Watchdog (Timeout ohne Eskalation, s. obd-watchdog-bugfix-2026-09-26) ─────
+
+    @Test
+    fun `livePids escalates to ConnectionLost when timeouts persist past the watchdog threshold`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.Timeout("pid")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try {
+            repo.livePids(
+                listOf(PidRegistry.defaults.first()),
+                pollIntervalMs = 1_000L,
+                watchdogTimeoutMs = 3_000L,
+            ).collect {}
+        } catch (_: ObdException.ConnectionLost) { threw = true }
+
+        assertTrue(threw)
+    }
+
+    @Test
+    fun `livePids does not escalate on timeout while still under the watchdog threshold`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        val pidParser = mockk<PidParser> { every { parse(any(), any()) } returns mockk() }
+
+        // Cycle 1: timeout (elapsed 1000ms, still under 3000ms). Cycle 2: succeeds.
+        var cycleCount = 0
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            if (++cycleCount == 1) throw ObdException.Timeout("pid") else "41 0C 1A 00"
+        }
+        val repo = makeConnectedRepo(elmCtrl, pidParser)
+
+        val result = repo.livePids(
+            listOf(PidRegistry.defaults.first()),
+            pollIntervalMs = 1_000L,
+            watchdogTimeoutMs = 3_000L,
+        ).first()
+
+        assertTrue(result.isNotEmpty())
+    }
+
+    @Test
+    fun `livePids resets the watchdog counter after a successful cycle`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        val pidParser = mockk<PidParser> { every { parse(any(), any()) } returns mockk() }
+
+        // Cycles 1-2: timeout (elapsed 2000ms, under 3000ms). Cycle 3: success (resets to 0).
+        // Cycles 4-5: timeout again (elapsed only 2000ms again, NOT 4000ms) -> must not escalate.
+        var cycleCount = 0
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            when {
+                ++cycleCount <= 2 -> throw ObdException.Timeout("pid")
+                cycleCount == 3   -> "41 0C 1A 00"
+                cycleCount <= 5   -> throw ObdException.Timeout("pid")
+                else              -> "41 0C 1A 00"
+            }
+        }
+        val repo = makeConnectedRepo(elmCtrl, pidParser)
+
+        var emissionCount = 0
+        var threw = false
+        try {
+            repo.livePids(
+                listOf(PidRegistry.defaults.first()),
+                pollIntervalMs = 1_000L,
+                watchdogTimeoutMs = 3_000L,
+            ).take(2).collect { emissionCount++ }
+        } catch (_: ObdException.ConnectionLost) { threw = true }
+
+        assertEquals(2, emissionCount)
+        assertFalse(threw)
     }
 
     // ── PID Discovery ─────────────────────────────────────────────────────────
