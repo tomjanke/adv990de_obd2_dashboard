@@ -12,6 +12,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object WeatherModule {
 
+    /** `@Provides` statt `@Binds`: [OpenMeteoApi] hat keinen `@Inject`-Konstruktor — sein einziger
+     *  Parameter ist ein Test-Seam mit Kotlin-Default, den Dagger nicht kennt (s. dessen KDoc). */
     @Provides
     @Singleton
     fun provideWeatherApi(): WeatherApi = OpenMeteoApi()

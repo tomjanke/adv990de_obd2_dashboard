@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,8 +30,6 @@ import de.adv990de.obd2.ui.theme.asLiveValue
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import kotlinx.coroutines.delay
 
-private const val CLOCK_TICK_MS = 30_000L
-
 /**
  * Ersetzt `BottomNav`s `NavigationBar` genau dann, wenn sie waehrend der Fahrt ausgeblendet wird
  * (`DriveStateViewModel.isNavHidden` — Fahrzeug bewegt sich UND `hideNavOnDrive`-Einstellung an).
@@ -39,10 +39,12 @@ private const val CLOCK_TICK_MS = 30_000L
  * Datum/Uhrzeit links, Aussentemperatur rechts (nur wenn vorhanden — `WeatherRepository` liefert
  * `null` statt zu werfen, s. dessen KDoc). Die Temperatur folgt der Einstellung "Imperiale
  * Einheiten" ([useImperial] -> °F) ueber dieselbe `convertUnit`-Konvention wie `SensorCard`
- * (s. [formatOutsideTemperature]). Gleiche Zeilenhoehe (64dp) und `navigationBarsPadding()`
- * wie die `NavigationBar`, die diese Row ersetzt (s. `BottomNav.kt`), plus eigener `HorizontalDivider`
- * + `surface`-Hintergrund analog dazu — damit der `AnimatedContent`-Swap in `BottomNav` weder einen
- * Sprung in Hoehe/Inset-Handling noch einen Bruch in der optischen "Verankerung" nach oben erzeugt.
+ * (s. [formatOutsideTemperature]). Aufbau exakt wie die `NavigationBar`, die diese Row ersetzt
+ * (s. `BottomNav.kt`): `HorizontalDivider` darueber, 64dp hohe `surface`-Flaeche (die NavigationBar
+ * setzt `surface` dort ausdruecklich), `navigationBarsPadding()` VOR der Hoehe und damit ausserhalb
+ * der Flaeche — der System-Inset-Streifen darunter zeigt bei beiden denselben Scaffold-Hintergrund.
+ * So erzeugt der `AnimatedContent`-Wechsel weder einen Sprung in Hoehe/Inset-Handling noch einen
+ * Farbwechsel.
  *
  * Farbe bewusst `onSurfaceVariant` fuer beide Werte statt `LiveValueText`s Default `primary`: diese
  * Zeile ersetzt Chrome (die Navigationsleiste) und ist keine dashboard-kritische Live-Ablesung wie
@@ -54,8 +56,12 @@ private const val CLOCK_TICK_MS = 30_000L
 fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
+        // Tick genau auf den Minutenwechsel (die Anzeige hat keine Sekunden) statt in festem
+        // Abstand ab dem Einblenden — sonst sprang die Minute bis zu einem Intervall zu spaet um.
+        // Jede Runde rechnet neu von der aktuellen Uhrzeit aus, gleicht also verspaetete Ticks
+        // und Uhr-Umstellungen von selbst aus.
         while (true) {
-            delay(CLOCK_TICK_MS)
+            delay(millisUntilNextMinute(System.currentTimeMillis()))
             nowMillis = System.currentTimeMillis()
         }
     }
@@ -66,7 +72,10 @@ fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalDivider()
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .height(64.dp),
             shape = RectangleShape,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
@@ -74,9 +83,7 @@ fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .height(64.dp)
+                    .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -126,6 +133,18 @@ private fun PreviewAmbientStatusRowAmber() {
     MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
             AmbientStatusRow(outsideTempC = -3.2f, useImperial = true)
+        }
+    }
+}
+
+@Preview(name = "AmbientStatusRow · default light", showBackground = true)
+@Composable
+private fun PreviewAmbientStatusRowDefaultLight() {
+    // Das Default-Farbschema bietet Hell/Dunkel/System (CLAUDE.md, Design-Prinzip 2) — die Zeile
+    // erscheint dort also auch auf heller Flaeche.
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            AmbientStatusRow(outsideTempC = 18.4f, useImperial = false)
         }
     }
 }

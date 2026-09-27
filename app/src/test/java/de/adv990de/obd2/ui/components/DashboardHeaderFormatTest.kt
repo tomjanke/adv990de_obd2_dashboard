@@ -74,4 +74,42 @@ class DashboardHeaderFormatTest {
         assertNull(formatOutsideTemperature(null, useImperial = false))
         assertNull(formatOutsideTemperature(null, useImperial = true))
     }
+
+    @Test
+    fun `a non-finite temperature yields null instead of crashing roundToInt`() {
+        // NaN.roundToInt() throws IllegalArgumentException — on the UI thread that would crash the
+        // app. Same guard as SensorCard/formatLoggingRowValue.
+        assertNull(formatOutsideTemperature(Float.NaN, useImperial = false))
+        assertNull(formatOutsideTemperature(Float.POSITIVE_INFINITY, useImperial = false))
+        assertNull(formatOutsideTemperature(Float.NEGATIVE_INFINITY, useImperial = true))
+    }
+
+    // ── millisUntilNextMinute: the clock ticks on the real minute boundary ──────────────────
+
+    @Test
+    fun `right after a minute boundary the next tick is almost a full minute away`() {
+        assertEquals(59_999L, millisUntilNextMinute(millis + 1))
+    }
+
+    @Test
+    fun `half a minute in, the next tick is half a minute away`() {
+        assertEquals(30_000L, millisUntilNextMinute(millis + 30_000))
+    }
+
+    @Test
+    fun `one millisecond before the boundary, the next tick is one millisecond away`() {
+        assertEquals(1L, millisUntilNextMinute(millis + 59_999))
+    }
+
+    @Test
+    fun `exactly on a boundary, the next tick is the following boundary`() {
+        // millis is 14:32:00.000 — never a 0 ms delay that would spin the tick loop.
+        assertEquals(60_000L, millisUntilNextMinute(millis))
+    }
+
+    @Test
+    fun `the computed tick lands exactly on the next minute`() {
+        val now = millis + 12_345
+        assertEquals(0L, (now + millisUntilNextMinute(now)) % 60_000L)
+    }
 }

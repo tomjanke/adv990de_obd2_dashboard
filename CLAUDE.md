@@ -79,6 +79,17 @@ nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Alle drei Farbe
 `GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min` — die Zone 78–80 °C hält den
 Timer unverändert (verhindert Thermostat-Pendeln).
 
+**Dokumentierte M3-Abweichung — Hintergrund der Navigationsleiste (Stand 2026-09-27):** Die
+`NavigationBar` in `ui/components/BottomNav.kt` setzt `containerColor = MaterialTheme.colorScheme.surface`
+statt des Material3-1.4.0-Defaults `surfaceContainer` (die Default-Tonal-Elevation ist dort 0 dp —
+beides per `javap` im Material3-1.4.0-AAR geprüft). Zwei Gründe: (1) Die `AmbientStatusRow`, die die
+Leiste während der Fahrt ersetzt, ist eine `surface`-Fläche — mit dem Default gäbe es beim
+`AnimatedContent`-Wechsel einen Farbsprung. Auf dem Pixel 8 Pro pixelgenau gemessen: Trennlinie,
+64-dp-Fläche und System-Inset-Streifen sind in beiden Zuständen identisch (Blau und Default-Hell).
+(2) Die drei Cockpit-Schemata definieren kein `surfaceContainer`; der Default fiel dort auf das
+neutrale M3-Grau (`#211F26`) zurück statt auf die Cockpit-Tönung. Nebenwirkung im Default-Farbschema:
+dort sind `surface` und `background` gleich, die Leiste hebt sich nur noch über die Trennlinie ab.
+
 ### Typografie
 
 Display-Font: **Space Grotesk** (bereits geladen, `R.font.space_grotesk_*`).

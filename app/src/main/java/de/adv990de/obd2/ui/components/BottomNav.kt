@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
@@ -87,6 +88,13 @@ fun BottomNav(
                 HorizontalDivider()
                 NavigationBar(
                     modifier = Modifier.navigationBarsPadding().height(64.dp),
+                    // `surface` statt M3-Default `surfaceContainer` (Material3 1.4.0, per javap
+                    // geprueft; Tonal-Elevation dort ohnehin 0dp): dieselbe Flaeche wie
+                    // AmbientStatusRow, damit der AnimatedContent-Wechsel keinen Farbsprung zeigt.
+                    // Zugleich die Cockpit-Toenung: die drei Cockpit-Schemata definieren kein
+                    // surfaceContainer, der Default waere das neutrale M3-Grau. Dokumentierte
+                    // M3-Abweichung, s. CLAUDE.md.
+                    containerColor = MaterialTheme.colorScheme.surface,
                     windowInsets = WindowInsets(0)
                 ) {
                     navItems.forEach { (screen, icon, labelRes) ->
