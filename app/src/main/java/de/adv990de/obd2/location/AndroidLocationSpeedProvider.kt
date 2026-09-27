@@ -14,7 +14,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Die einzige Stelle der App, die den [LocationManager] kennt.
+ * Die einzige Stelle der App, die fuer die laufende Geschwindigkeit den [LocationManager] kennt.
+ * (Seit 2026-09-27 gibt es eine zweite, getrennte: [AndroidCurrentLocationProvider] liest dort
+ * nur den letzten bekannten Standort fuer die Wetterabfrage.)
  *
  * Sie trifft bewusst keine Entscheidung: kein Umrechnen, kein Filtern, kein Zustand. Was hier
  * steht, laesst sich im JVM-Test nicht pruefen — deshalb steht hier auch nichts, was zu pruefen

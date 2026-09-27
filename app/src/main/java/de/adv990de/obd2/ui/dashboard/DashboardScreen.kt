@@ -214,10 +214,12 @@ fun DashboardScreen(
                 // hundert dp auseinanderlagen — bei 0,5 s Blickzeit nicht mehr zuzuordnen.
                 // Portrait (170dp) entspricht der Anatomie in CLAUDE.md. Querformat ist bewusst
                 // hoeher (200dp, dokumentierte Ausnahme in CLAUDE.md): dort bleibt sonst ein
-                // grosser Teil der Bildschirmhoehe unter der Kachel-Reihe leer, besonders wenn
-                // das Hauptmenue waehrend der Fahrt ausgeblendet ist. Der zusaetzliche Raum ist
-                // bewusster Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher
-                // Inhalt — eine zweite Kachel-Reihe waere der groessere Eingriff gewesen.
+                // grosser Teil der Bildschirmhoehe unter der Kachel-Reihe leer. Das Ausblenden
+                // des Hauptmenues waehrend der Fahrt gibt seit 2026-09-27 keinen Platz mehr frei
+                // (die AmbientStatusRow nimmt exakt dessen Hoehe ein) — die Begruendung beruht
+                // allein auf der Querformat-Geometrie. Der zusaetzliche Raum ist bewusster
+                // Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher Inhalt — eine
+                // zweite Kachel-Reihe waere der groessere Eingriff gewesen.
                 val tileHeight = if (isLandscape) 200.dp else 170.dp
                 Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     if (isLandscape) {

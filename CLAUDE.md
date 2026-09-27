@@ -154,8 +154,12 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
   **Dokumentierte Ausnahme:** Dashboard-Kacheln im Querformat sind bis zu 200dp hoch (Stand
   2026-09-22, kein fester Wert — auf kuerzeren Bildschirmen schrumpft die Reihe auf die
   verfuegbare Hoehe, genau wie 160dp es zuvor tat) — dort bleibt sonst Bildschirmhoehe unter der
-  Kachel-Reihe ungenutzt, besonders bei ausgeblendetem Hauptmenue. Der zusaetzliche Raum ist
-  bewusster Atemraum, kein neuer Inhalt.
+  Kachel-Reihe ungenutzt. Der zusaetzliche Raum ist bewusster Atemraum, kein neuer Inhalt.
+  **Korrektur (2026-09-27):** Frueher stand hier zusaetzlich „besonders bei ausgeblendetem
+  Hauptmenue". Das stimmt nicht mehr: Seit der Ambient-Statuszeile (s. unten) gibt das Ausblenden
+  keinen Platz mehr frei — die Zeile nimmt exakt die Hoehe des Hauptmenues ein (Trennlinie + 64 dp +
+  System-Inset, auf dem Pixel 8 Pro pixelgenau gemessen). Die 200dp stuetzen sich allein auf die
+  Querformat-Geometrie.
 - Sparkline liegt **ueber** dem Wert, nicht daneben und nicht dahinter: neben dem Wert bleiben
   bei vierstelligen Zahlen nur wenige dp, dahinter schneidet die Linie durch die Ziffern.
 - Form: `RectangleShape` (scharfe Kanten — Cockpit-Look). Falls später Rundungen gewünscht: über Modifier-Clip von außen.
@@ -230,6 +234,35 @@ Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/Oi
 - Die Kühlmitteltemperatur wird dafür **immer** abgefragt, wie RPM — unabhängig von Slot-Belegung und
   dynamischer Schwelle (`ReadingsPipeline.selectPids()`).
 
+### Ambient-Statuszeile (statt Hauptmenü während der Fahrt, seit 2026-09-27)
+
+Ist `hideNavOnDrive` an und das Fahrzeug in Bewegung (`DriveStateViewModel.isNavHidden`), tauscht
+`BottomNav` die `NavigationBar` per `AnimatedContent` gegen `AmbientStatusRow`
+(`ui/components/AmbientStatusRow.kt`) — auf **jedem** Screen, weil `BottomNav` in der einen
+app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
+- **Gleiche Geometrie und Fläche wie die Leiste:** Trennlinie, 64 dp `surface`,
+  `navigationBarsPadding()` außerhalb der Fläche — kein Höhen- oder Farbsprung beim Wechsel (s.
+  M3-Abweichung „Hintergrund der Navigationsleiste" oben).
+- **Inhalt:** Datum/Uhrzeit links (`formatDashboardHeader`, tickt genau zum Minutenwechsel),
+  Außentemperatur rechts (`formatOutsideTemperature`: `convertUnit` wie `SensorCard`, also °F bei
+  imperialen Einheiten; NaN/∞ → weggelassen). Beides `LiveValueText` in `labelSmall.asLiveValue()`,
+  Farbe `onSurfaceVariant` — die Zeile ersetzt Chrome, sie ist kein primärer Live-Wert.
+- **Anzeige-Persistenz wie beim Gang:** Ein fehlgeschlagener Abruf leert die Temperatur nicht;
+  `holdOutsideTemp()` (`ui/weather/OutsideTemperatureHold.kt`, reine Funktion) hält den letzten
+  guten Wert 30 Minuten (`OUTSIDE_TEMP_HOLD`, User-Entscheidung), gemessen auf einer monotonen
+  `kotlin.time.TimeSource` (Tests: `testTimeSource`, wie beim OBD-Watchdog).
+- **Abruf nur bei sichtbarer Zeile:** `WeatherViewModel.outsideTempC` ist ein kalter
+  `WhileSubscribed(5_000)`-Flow; `BottomNav` sammelt ihn ausschließlich im Zweig der Zeile, per
+  `collectAsStateWithLifecycle`. Kein Abruf bei sichtbarem Hauptmenü oder im Hintergrund.
+- **Standort:** FINE oder COARSE genügt; angefragt beim Einschalten von `hideNavOnDrive`, ohne den
+  Schalter davon abhängig zu machen. Koordinaten verlassen das Gerät nur auf 2 Nachkommastellen
+  gerundet (Open-Meteo). Namensnennung (CC BY 4.0) als echter Link in `AppInfoScreen`.
+- **Test-Falle:** Tests, die einen echten `WeatherViewModel` bauen und sammeln, müssen dessen
+  `viewModelScope` in einem `finally` **innerhalb** des `runTest`-Blocks canceln, nicht in `@After`:
+  `runTest` leert beim Aufräumen den (per `setMain` geteilten) Scheduler mit `advanceUntilIdleOr`,
+  bevor `@After` läuft — ein dann noch aktiver Polling-Loop läuft in virtueller Zeit davon bis zum
+  `OutOfMemoryError` (s. `WeatherViewModelTest.runVmTest`).
+
 ### Animation-Disziplin
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
@@ -285,8 +318,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 703 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 142 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 772 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 150 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
