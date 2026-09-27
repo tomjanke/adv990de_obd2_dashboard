@@ -249,8 +249,18 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   Farbe `onSurfaceVariant` — die Zeile ersetzt Chrome, sie ist kein primärer Live-Wert.
 - **Anzeige-Persistenz wie beim Gang:** Ein fehlgeschlagener Abruf leert die Temperatur nicht;
   `holdOutsideTemp()` (`ui/weather/OutsideTemperatureHold.kt`, reine Funktion) hält den letzten
-  guten Wert 30 Minuten (`OUTSIDE_TEMP_HOLD`, User-Entscheidung), gemessen auf einer monotonen
-  `kotlin.time.TimeSource` (Tests: `testTimeSource`, wie beim OBD-Watchdog).
+  guten Wert 30 Minuten (`OUTSIDE_TEMP_HOLD`, User-Entscheidung), gemessen auf einer
+  `kotlin.time.TimeSource` (Tests: `testTimeSource`). **Korrektur (2026-09-27):** Production nutzt
+  dafür **nicht** `TimeSource.Monotonic` wie der OBD-Watchdog — eine frühere Version dieser Datei
+  behauptete das fälschlich „für Konsistenz". `TimeSource.Monotonic` ist `System.nanoTime()`, das
+  laut Androids `SystemClock`-Doku im Tiefschlaf pausiert; `WeatherViewModel` ist Activity-gebunden
+  und überlebt genau solche Pausen (Handy gesperrt in der Tasche), sodass ein gehaltener Wert die
+  30-Minuten-Grenze auf dieser Uhr weit überdauern könnte. Stattdessen
+  `WeatherViewModel.elapsedRealtimeSource`, gestützt auf `SystemClock.elapsedRealtimeNanos()` —
+  dieselbe Begründung wie der Öl-Balken-Timer oben ("elapsedRealtime zählt Tiefschlaf mit"), nicht
+  die des OBD-Watchdogs (dessen `TimeSource.Monotonic` für seinen eigenen Anwendungsfall — Lücken
+  nur während aktiven Pollings, nie über ein hintergrundgeschicktes Activity/App hinweg — weiterhin
+  richtig ist).
 - **Abruf nur bei sichtbarer Zeile:** `WeatherViewModel.outsideTempC` ist ein kalter
   `WhileSubscribed(5_000)`-Flow; `BottomNav` sammelt ihn ausschließlich im Zweig der Zeile, per
   `collectAsStateWithLifecycle`. Kein Abruf bei sichtbarem Hauptmenü oder im Hintergrund.
