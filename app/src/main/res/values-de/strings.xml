@@ -39,6 +39,7 @@
     <string name="app_info_name_label">App</string>
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
+    <string name="app_info_weather_attribution">Wetterdaten: Open-Meteo.com (CC BY 4.0)</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Dashboard konfigurieren</string>
@@ -186,4 +187,7 @@
     <string name="pid_speed_gps">Geschw. (GPS)</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
     <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
+
+    <!-- Ambient-Statuszeile (ersetzt das Hauptmenue waehrend der Fahrt) -->
+    <string name="ambient_status_temp_unit">°C</string>
 </resources>

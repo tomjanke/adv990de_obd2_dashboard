@@ -1,8 +1,9 @@
 package de.adv990de.obd2.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
@@ -30,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.weather.WeatherViewModel
 
 private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
     Triple(Screen.Dashboard, Icons.Default.Home,     R.string.nav_live),
@@ -38,41 +40,59 @@ private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
     Triple(Screen.Settings,  Icons.Default.Settings, R.string.settings_title),
 )
 
+/**
+ * Zeigt entweder die `NavigationBar` oder [AmbientStatusRow] — abhaengig von
+ * [DriveStateViewModel.isNavHidden] (Fahrzeug bewegt sich UND `hideNavOnDrive`-Einstellung an).
+ * Sitzt in der einen app-weiten `Scaffold` (s. `AppNavHost.kt`), erscheint also auf jedem Screen,
+ * nicht nur dem Dashboard — User-bestaetigte Design-Entscheidung.
+ *
+ * `weatherVm` ist wie `vm` ein Parameter mit `hiltViewModel()`-Default statt eines lokalen Values,
+ * genau nach dem bereits bestehenden `vm: DriveStateViewModel`-Muster: Tests koennen so eine
+ * kontrollierte Instanz einsetzen, ohne echte Hilt-Aufloesung von [WeatherViewModel] auszuloesen —
+ * dessen echter Konstruktor startet einen unendlich pollenden `viewModelScope`-Coroutine-Loop mit
+ * echten Netzwerk-Calls (s. `BottomNavTest.kt` fuer die Test-Seite davon).
+ */
 @Composable
 fun BottomNav(
     navController: NavController,
-    vm: DriveStateViewModel = hiltViewModel()
+    vm: DriveStateViewModel = hiltViewModel(),
+    weatherVm: WeatherViewModel = hiltViewModel(),
 ) {
     val isNavHidden by vm.isNavHidden.collectAsState()
+    val outsideTempC by weatherVm.outsideTempC.collectAsState()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
-    AnimatedVisibility(
-        visible = !isNavHidden,
-        enter = slideInVertically { it },
-        exit  = slideOutVertically { it }
-    ) {
-        Column {
-            HorizontalDivider()
-            NavigationBar(
-                modifier = Modifier.navigationBarsPadding().height(64.dp),
-                windowInsets = WindowInsets(0)
-            ) {
-                navItems.forEach { (screen, icon, labelRes) ->
-                    val label = stringResource(labelRes)
-                    NavigationBarItem(
-                        selected = currentRoute == screen.route,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(icon, contentDescription = label) },
-                        label = { Text(label) },
-                        alwaysShowLabel = true
-                    )
+    AnimatedContent(
+        targetState = isNavHidden,
+        transitionSpec = { slideInVertically { it } togetherWith slideOutVertically { it } },
+        label = "BottomNavOrAmbientStatus",
+    ) { hidden ->
+        if (hidden) {
+            AmbientStatusRow(outsideTempC = outsideTempC)
+        } else {
+            Column {
+                HorizontalDivider()
+                NavigationBar(
+                    modifier = Modifier.navigationBarsPadding().height(64.dp),
+                    windowInsets = WindowInsets(0)
+                ) {
+                    navItems.forEach { (screen, icon, labelRes) ->
+                        val label = stringResource(labelRes)
+                        NavigationBarItem(
+                            selected = currentRoute == screen.route,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(icon, contentDescription = label) },
+                            label = { Text(label) },
+                            alwaysShowLabel = true
+                        )
+                    }
                 }
             }
         }

@@ -22,6 +22,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.weather.WeatherViewModel
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,15 +36,18 @@ import org.junit.runner.RunWith
  * Compose UI tests for [BottomNav] — previously untested (no JVM or androidTest file existed for
  * it anywhere in the repo before this class; documented coverage gap).
  *
- * Covers the three pieces of real logic in [BottomNav]:
+ * Covers four pieces of real logic in [BottomNav]:
  * - Selected-item matching (`currentRoute == screen.route`), asserted via
  *   [androidx.compose.ui.test.assertIsSelected]/[androidx.compose.ui.test.assertIsNotSelected] —
  *   `NavigationBarItem`'s `selectable()` modifier merges its icon+label semantics upward onto one
  *   node (the same "clickable/selectable merges descendants" convention documented in
  *   [LiveValueTileTest]), so `onNodeWithText(label)` resolves to the item's own selectable node
  *   and carries its `selected` semantics property.
- * - Visibility gating via `vm.isNavHidden` (`AnimatedVisibility(visible = !isNavHidden)`).
+ * - Visibility gating via `vm.isNavHidden` (`AnimatedContent(targetState = isNavHidden)`, formerly
+ *   `AnimatedVisibility` before [AmbientStatusRow] existed as the alternate content).
  * - The `onClick` navigation call (`navigate(route) { popUpTo/launchSingleTop/restoreState }`).
+ * - The content swap itself and its `weatherVm`-driven temperature reading — see the fourth
+ *   paragraph below.
  *
  * [DriveStateViewModel] is constructed directly with mocked [ObdRepository]/[AppPreferences]
  * collaborators — the same real-class-plus-mocked-deps pattern
@@ -79,6 +83,21 @@ import org.junit.runner.RunWith
  * `rememberNavController()` — so [launchBottomNav] wraps [BottomNav] in a minimal real `NavHost`
  * with one marker-`Text` destination per [Screen] item, mirroring
  * [de.adv990de.obd2.ui.dtc.DtcScreenTest]'s `dtcScreen_navigatesToFreezeFrame_whenLinkClicked` test.
+ *
+ * A fourth piece of logic, added alongside [AmbientStatusRow]: the `NavigationBar` / [AmbientStatusRow]
+ * content swap (`AnimatedContent(targetState = isNavHidden)`), covered by
+ * [navHidden_true_showsAmbientStatusRowWithTemperature] and
+ * [navHidden_true_withNullTemperature_stillHidesNavItems] below. [BottomNav] resolves [WeatherViewModel]
+ * the same way it resolves [DriveStateViewModel] — a parameter defaulting to `hiltViewModel()` — so
+ * [launchBottomNav] mocks it directly with MockK instead of letting Hilt construct the real one. This
+ * matters for more than test isolation: [WeatherViewModel]'s real `@Inject` constructor's `init` block
+ * launches an infinite `viewModelScope.launch { while (isActive) { fetch...; delay(60_000) } }` loop
+ * making real network calls (s. its KDoc) — exactly the resource-leak shape that already bit
+ * `WeatherViewModelTest` once (s. this feature's task-4-report.md). `mockk<WeatherViewModel>(relaxed = true)`
+ * never invokes that real constructor at all (proxy construction, same as this file's own existing
+ * `mockk<ObdRepository>`/`mockk<AppPreferences>` — both concrete classes, not interfaces, proving this
+ * project's MockK setup already mocks final Kotlin classes without running their real init logic), so
+ * no coroutine ever starts and there is nothing to cancel in an `@After`.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -114,15 +133,23 @@ class BottomNavTest {
         return DriveStateViewModel(obdRepo, prefs)
     }
 
+    /** See class KDoc: mocked, never the real Hilt-constructed [WeatherViewModel]. */
+    private fun makeWeatherVm(outsideTempC: Float?): WeatherViewModel =
+        mockk(relaxed = true) {
+            every { this@mockk.outsideTempC } returns MutableStateFlow(outsideTempC)
+        }
+
     private lateinit var navController: NavHostController
 
     private fun launchBottomNav(
         isMoving: Boolean,
         hideNavOnDrive: Boolean,
-        startDestination: String = Screen.Dashboard.route
+        startDestination: String = Screen.Dashboard.route,
+        outsideTempC: Float? = 20f,
     ) {
         composeRule.setContent {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
+            val weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
@@ -130,7 +157,7 @@ class BottomNavTest {
                 composable(Screen.History.route) { Text(HISTORY_MARKER) }
                 composable(Screen.Settings.route) { Text(SETTINGS_MARKER) }
             }
-            BottomNav(navController = navController, vm = vm)
+            BottomNav(navController = navController, vm = vm, weatherVm = weatherVm)
         }
         composeRule.waitForIdle()
     }
@@ -186,5 +213,23 @@ class BottomNavTest {
             "expected current destination ${Screen.History.route}, was ${navController.currentDestination?.route}"
         }
         composeRule.onNodeWithText(HISTORY_MARKER).assertIsDisplayed()
+    }
+
+    @Test
+    fun navHidden_true_showsAmbientStatusRowWithTemperature() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = 20f)
+
+        val unit = composeRule.activity.getString(R.string.ambient_status_temp_unit)
+        composeRule.onNodeWithText("20 $unit").assertIsDisplayed()
+    }
+
+    @Test
+    fun navHidden_true_withNullTemperature_stillHidesNavItems() {
+        // WeatherRepository returns null on any failure (no fix, no permission, network error) —
+        // AmbientStatusRow must degrade gracefully (no crash, just no temperature shown) rather than
+        // assume a value is always present.
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = null)
+
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertDoesNotExist()
     }
 }

@@ -55,6 +55,12 @@ fun AppInfoScreen(navController: NavController) {
             InfoRow(stringResource(R.string.app_info_version_label), packageInfo.versionName ?: "-")
             HorizontalDivider()
             InfoRow(stringResource(R.string.app_info_build_label), versionCode.toString())
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.app_info_weather_attribution),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
