@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
+import kotlin.time.TimeSource
 
 private const val POLL_INTERVAL_MS = 60_000L
 
@@ -22,16 +23,47 @@ private const val POLL_INTERVAL_MS = 60_000L
  *
  * Die 5 s Karenz ueberbruecken kurze Unterbrechungen (z. B. den `AnimatedContent`-Wechsel) ohne
  * Neustart; nach laengerer Pause beginnt der Takt mit einem sofortigen Abruf neu.
+ *
+ * Ein fehlgeschlagener Abruf leert die Anzeige nicht: der letzte gute Wert bleibt bis zu
+ * [OUTSIDE_TEMP_HOLD] stehen (s. [holdOutsideTemp]). Gemessen auf der monotonen [TimeSource] — der
+ * Parameter existiert nur, damit Tests die virtuelle Uhr von kotlinx-coroutines-test
+ * (`testTimeSource`) einsetzen koennen, genau wie bei `ObdRepository.livePids(timeSource = ...)`;
+ * Hilt nutzt den `@Inject`-Konstruktor mit [TimeSource.Monotonic].
  */
 @HiltViewModel
-class WeatherViewModel @Inject constructor(
+class WeatherViewModel internal constructor(
     private val weatherRepository: WeatherRepository,
+    timeSource: TimeSource,
 ) : ViewModel() {
 
+    @Inject
+    constructor(weatherRepository: WeatherRepository) : this(weatherRepository, TimeSource.Monotonic)
+
+    /** Nullpunkt der Zeitachse von [HeldOutsideTemp.refreshedAt]. */
+    private val clockOrigin = timeSource.markNow()
+
+    /**
+     * Haelt den letzten guten Wert ueber Neustarts des Pollings hinweg (`WhileSubscribed` beendet
+     * und startet den Flow-Block neu, die ViewModel-Property bleibt). Nur im Flow-Block gelesen und
+     * geschrieben: `stateIn` betreibt hoechstens eine Upstream-Sammlung zugleich, auf
+     * `viewModelScope` (Main) — der Abruf selbst wechselt intern auf IO und kehrt zurueck.
+     */
+    private var held: HeldOutsideTemp? = null
+
     val outsideTempC: StateFlow<Float?> = flow {
+        // (Neu-)Start: erst pruefen, ob der gecachte Wert noch gezeigt werden darf. Der StateFlow
+        // behaelt seinen letzten Wert ueber die Pause hinweg; ohne diese Pruefung stuende z. B. ein
+        // zwei Stunden alter Wert bis zum Ende des ersten neuen Abrufs weiter da.
+        emit(update(fetchedC = null))
         while (true) {
-            emit(weatherRepository.fetchCurrentTemperatureC())
+            val fetchedC = weatherRepository.fetchCurrentTemperatureC()
+            emit(update(fetchedC))
             delay(POLL_INTERVAL_MS)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private fun update(fetchedC: Float?): Float? {
+        held = holdOutsideTemp(fetchedC = fetchedC, now = clockOrigin.elapsedNow(), held = held)
+        return held?.tempC
+    }
 }
