@@ -91,7 +91,13 @@ internal fun shouldEscalateToBackgroundLocation(
  *  position, and fine OR coarse location is enough for that. Deliberately NOT a gate like
  *  [determineGpsSpeedSwitchAction]: hideNavOnDrive itself has nothing to do with location and always
  *  follows the toggle — without a grant the row just shows no temperature. Extracted for the same
- *  JVM-testability reason as the two functions above. */
+ *  JVM-testability reason as the two functions above.
+ *
+ *  Called from a single call site, `LaunchedEffect(hideNavOnDrive)` — both the switch's own
+ *  toggle-to-on (state change triggers the effect) and, since this catches up users whose switch
+ *  was already on from before this weather feature existed, every fresh composition where the
+ *  DataStore-backed value resolves to `true` (same `useGpsSpeed`/background-location catch-up
+ *  shape as [shouldEscalateToBackgroundLocation] above). */
 internal fun shouldRequestLocationForWeather(
     turningOn: Boolean,
     fineGranted: Boolean,
@@ -158,6 +164,8 @@ fun SettingsScreen(
     // der Zeile, die statt des ausgeblendeten Hauptmenues erscheint — ohne sie fehlt dort einfach
     // die Temperatur, Datum und Uhrzeit bleiben. FINE und COARSE zusammen angefragt: ab Android 12
     // waehlt der Nutzer im System-Dialog "Genau" oder "Ungefaehr", beides genuegt fuers Wetter.
+    // Ausgeloest ausschliesslich von LaunchedEffect(hideNavOnDrive) weiter unten (Toggle UND
+    // Catch-up fuer schon laenger eingeschaltete Nutzer laufen darueber gemeinsam).
     val weatherLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { }
@@ -169,6 +177,30 @@ fun SettingsScreen(
     // damit als einziger Aufrufpunkt zugleich den frischen Grant und das Switch-Toggle ab.
     LaunchedEffect(useGpsSpeed) {
         if (useGpsSpeed) escalateToBackgroundLocationIfNeeded()
+    }
+
+    // Holt, nach demselben Muster wie der useGpsSpeed-Effect oben, Nutzer nach, deren
+    // hideNavOnDrive-Schalter aus einer frueheren Version (vor dieser Wetter-Funktion) bereits an
+    // ist und die den weatherLocationLauncher-Prompt sonst nie zu sehen bekaemen: hideNavOnDrive
+    // kommt genauso asynchron aus dem DataStore und ist bei der ersten Komposition noch der
+    // Default (false), der Effect laeuft also erneut, sobald der echte (persistierte) Wert
+    // eintrifft. Einziger Aufrufpunkt fuer diese Anfrage — der Switch unten ruft
+    // weatherLocationLauncher nicht mehr direkt aus onCheckedChange, sonst wuerde ein Toggle-auf-an
+    // sie zusammen mit diesem Effect doppelt auslösen.
+    LaunchedEffect(hideNavOnDrive) {
+        if (shouldRequestLocationForWeather(
+                turningOn = hideNavOnDrive,
+                fineGranted = LocationPermissions.hasFineLocation(context),
+                coarseGranted = LocationPermissions.hasCoarseLocation(context),
+            )
+        ) {
+            weatherLocationLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                )
+            )
+        }
     }
     val useImperial by displayVm.useImperial.collectAsState()
     val theme by displayVm.theme.collectAsState()
@@ -346,23 +378,12 @@ fun SettingsScreen(
                     trailingContent = {
                         Switch(
                             checked = hideNavOnDrive,
-                            onCheckedChange = { wanted ->
-                                if (shouldRequestLocationForWeather(
-                                        turningOn = wanted,
-                                        fineGranted = LocationPermissions.hasFineLocation(context),
-                                        coarseGranted = LocationPermissions.hasCoarseLocation(context),
-                                    )
-                                ) {
-                                    weatherLocationLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                                        )
-                                    )
-                                }
-                                // Unabhaengig von Anfrage und Ergebnis, s. weatherLocationLauncher.
-                                driveVm.toggleHideNavOnDrive()
-                            },
+                            // Die Standortanfrage selbst laeuft ausschliesslich ueber
+                            // LaunchedEffect(hideNavOnDrive) oben (reagiert auf genau diese
+                            // Zustandsaenderung) — das mirrort, wie useGpsSpeed oben seine
+                            // Hintergrund-Standort-Eskalation ausschliesslich ueber deren eigenen
+                            // LaunchedEffect abwickelt statt zusaetzlich hier direkt.
+                            onCheckedChange = { driveVm.toggleHideNavOnDrive() },
                             modifier = Modifier.testTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG)
                         )
                     }

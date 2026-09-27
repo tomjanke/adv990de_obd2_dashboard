@@ -255,9 +255,16 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   `WhileSubscribed(5_000)`-Flow; `BottomNav` sammelt ihn ausschließlich im Zweig der Zeile, per
   `collectAsStateWithLifecycle`. Kein Abruf bei sichtbarem Hauptmenü oder im Hintergrund.
 - **Standort:** FINE oder COARSE genügt; angefragt beim Einschalten von `hideNavOnDrive`, ohne den
-  Schalter davon abhängig zu machen. Koordinaten verlassen das Gerät nur auf 2 Nachkommastellen
-  gerundet (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den Lizenztext selbst
-  (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in `AppInfoScreen`.
+  Schalter davon abhängig zu machen. **Seit 2026-09-27 zusätzlich per Catch-up:**
+  `LaunchedEffect(hideNavOnDrive)` in `SettingsScreen.kt` fragt dieselbe Berechtigung auch bei
+  jeder frischen Komposition der Settings an, wenn der Schalter schon aus einer früheren Version
+  an ist (der Wert kommt asynchron aus dem DataStore, exakt dasselbe Muster wie `useGpsSpeed`/
+  Hintergrund-Standort-Eskalation oben). Einziger Aufrufpunkt ist dieser Effect —
+  `onCheckedChange` ruft die Berechtigung nicht mehr direkt an, sonst würde ein Toggle-auf-an sie
+  zusammen mit dem Effect doppelt auslösen. Koordinaten verlassen das Gerät nur auf 2
+  Nachkommastellen gerundet (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den
+  Lizenztext selbst (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in
+  `AppInfoScreen`.
 - **Test-Falle:** Tests, die einen echten `WeatherViewModel` bauen und sammeln, müssen dessen
   `viewModelScope` in einem `finally` **innerhalb** des `runTest`-Blocks canceln, nicht in `@After`:
   `runTest` leert beim Aufräumen den (per `setMain` geteilten) Scheduler mit `advanceUntilIdleOr`,
