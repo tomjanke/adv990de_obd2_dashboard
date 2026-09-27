@@ -75,6 +75,7 @@ fun AmbientStatusRow(outsideTempC: Float?) {
         ) {
             Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .navigationBarsPadding()
                     .height(64.dp)
                     .padding(horizontal = 16.dp),
