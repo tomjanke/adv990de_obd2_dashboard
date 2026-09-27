@@ -692,10 +692,12 @@ class DashboardViewModelTest {
 
     @Test
     fun `livePids excludes slot PID when ECU does not support it`() = runTest {
-        // COOLANT_TEMP ("0105") is in the slot but NOT in the ECU-supported set.
+        // THROTTLE ("0111") is in the slot but NOT in the ECU-supported set.
         // It must therefore be absent from the PID list passed to livePids.
-        val unsupportedSlotId = PidRegistry.COOLANT_TEMP.id  // "0105"
-        val supportedSet = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id)  // does NOT contain "0105"
+        // (Not COOLANT_TEMP: since the oil-temperature bar it is always polled, like RPM,
+        // regardless of slots and discovery — see ReadingsPipeline.selectPids().)
+        val unsupportedSlotId = PidRegistry.THROTTLE.id  // "0111"
+        val supportedSet = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id)  // does NOT contain "0111"
 
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
@@ -727,7 +729,9 @@ class DashboardViewModelTest {
     fun `livePids includes slot PID when supportedPidIds is null`() = runTest {
         // When supportedPidIds is null (disconnected or discovery failed),
         // no filtering is applied and the slot PID must be passed to livePids.
-        val slotId = PidRegistry.COOLANT_TEMP.id  // "0105"
+        // (Not COOLANT_TEMP: it is always polled for the oil-temperature bar, so it would pass
+        // this assertion even if slot PIDs were dropped.)
+        val slotId = PidRegistry.THROTTLE.id  // "0111"
 
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
@@ -760,7 +764,8 @@ class DashboardViewModelTest {
         // Edge case: supportedPidIds is non-null but contains none of the configured slot PIDs.
         // The filtered slot list is empty, but RPM must still be present so the polling loop
         // does not fall back to PidRegistry.defaults and skip the RPM-driven dashboard features.
-        val slotId = PidRegistry.COOLANT_TEMP.id  // "0105" — not in the supported set below
+        // (THROTTLE, not COOLANT_TEMP: the latter is always polled for the oil-temperature bar.)
+        val slotId = PidRegistry.THROTTLE.id  // "0111" — not in the supported set below
         val supportedSet = setOf(PidRegistry.SPEED.id, PidRegistry.MAF.id)  // no overlap with slot
 
         val isConnectedFlow = MutableStateFlow(false)

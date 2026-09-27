@@ -261,7 +261,7 @@ class ReadingsPipelineTest {
     // --- Test 10 ---
 
     @Test
-    fun `without the dynamic RPM threshold, oil and coolant temp are not force-included`() = runTest {
+    fun `without the dynamic RPM threshold, coolant temp is still force-included but oil temp is not`() = runTest {
         val repo = makeRepo(connected = true)
         val pidsSlot = slot<List<PidDefinition>>()
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
@@ -274,11 +274,31 @@ class ReadingsPipelineTest {
 
         val selectedIds = pidsSlot.captured.map { it.id }
         assertEquals(
-            setOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id, PidRegistry.RPM.id),
+            setOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id, PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id),
             selectedIds.toSet(),
         )
         assertTrue(PidRegistry.ENGINE_OIL_TEMP.id !in selectedIds)
-        assertTrue(PidRegistry.COOLANT_TEMP.id !in selectedIds)
+        // Seit dem Oel-Temperatur-Balken unbedingt, wie RPM: sonst bliebe der Balken bei jeder
+        // Slot-Belegung ohne Kuehlmittel (und ausgeschalteter dynamischer Schwelle) dauerhaft grau.
+        assertTrue(PidRegistry.COOLANT_TEMP.id in selectedIds)
+    }
+
+    // --- Test 10b ---
+
+    @Test
+    fun `coolant temp is polled only once when it is also one of the slots`() = runTest {
+        // Die Default-Belegung enthaelt COOLANT_TEMP bereits als Slot; das unbedingte Hinzufuegen
+        // darf ihn nicht ein zweites Mal pro Zyklus abfragen (distinctBy in selectPids()).
+        val repo = makeRepo(connected = true)
+        val pidsSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
+        val prefs = makePrefs(rpmDynamicThreshold = true, slotPids = AppPreferences.DEFAULT_SLOT_PIDS)
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        val selectedIds = pidsSlot.captured.map { it.id }
+        assertEquals(1, selectedIds.count { it == PidRegistry.COOLANT_TEMP.id })
+        assertEquals(1, selectedIds.count { it == PidRegistry.RPM.id })
     }
 
     // --- Test 11 ---

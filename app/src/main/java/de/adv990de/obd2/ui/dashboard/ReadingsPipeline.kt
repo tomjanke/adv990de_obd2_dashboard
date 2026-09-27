@@ -209,7 +209,14 @@ class ReadingsPipeline @Inject constructor(
 
     /**
      * Die tatsaechlich abzufragenden PIDs: die belegten Slots, gefiltert gegen die vom Steuergeraet
-     * gemeldete Menge, dazu immer die Drehzahl und — bei dynamischer Schwelle — die Temperaturen.
+     * gemeldete Menge, dazu immer Drehzahl (RPM-Balken, Ganganzeige) und Kuehlmitteltemperatur
+     * (Oel-Temperatur-Balken) — bei dynamischer Schwelle zusaetzlich die Oeltemperatur.
+     *
+     * Die Kuehlmitteltemperatur ist seit dem Oel-Temperatur-Balken unbedingt, genau wie RPM: Hing
+     * sie nur an der Slot-Belegung (oder der standardmaessig ausgeschalteten dynamischen Schwelle),
+     * bekam jeder Nutzer, der die Kuehlmittel-Kachel gegen einen anderen Wert getauscht hatte, nie
+     * einen Messwert — der Balken blieb trotz Verbindung dauerhaft grau. Doppelt abgefragt wird sie
+     * trotzdem nie: `distinctBy` unten entfernt den Eintrag, wenn sie zugleich ein Slot ist.
      *
      * Greift keiner davon, bleiben die Standard-PIDs. Das faengt den Fall ab, dass im DataStore
      * nur noch unbekannte IDs stehen, etwa nach einem Downgrade.
@@ -221,9 +228,9 @@ class ReadingsPipeline @Inject constructor(
         buildList {
             addAll(filteredSlotIds)
             add(PidRegistry.RPM.id)
+            add(PidRegistry.COOLANT_TEMP.id)
             if (dynamicThresholdEnabled) {
                 add(PidRegistry.ENGINE_OIL_TEMP.id)
-                add(PidRegistry.COOLANT_TEMP.id)
             }
         }
             .mapNotNull { PidRegistry.all[it] }
