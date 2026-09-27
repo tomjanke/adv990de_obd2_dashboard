@@ -102,6 +102,50 @@ class SettingsScreenTest {
         )
     }
 
+    // ── shouldRequestLocationForWeather (hideNavOnDrive switch) ──────────────
+    //
+    // Unlike the GPS-speed switch, the answer never gates the switch itself: hideNavOnDrive always
+    // follows the toggle, the permission request is only an opportunistic side request for the
+    // outside temperature shown in place of the hidden nav bar.
+
+    @Test
+    fun `turning hideNavOnDrive on without any location permission requests it`() {
+        assertEquals(
+            true,
+            shouldRequestLocationForWeather(turningOn = true, fineGranted = false, coarseGranted = false)
+        )
+    }
+
+    @Test
+    fun `turning hideNavOnDrive on with fine location already granted requests nothing`() {
+        assertEquals(
+            false,
+            shouldRequestLocationForWeather(turningOn = true, fineGranted = true, coarseGranted = false)
+        )
+    }
+
+    @Test
+    fun `turning hideNavOnDrive on with only coarse location granted requests nothing`() {
+        // Approximate location is enough for weather — asking again would only nag the user for
+        // "precise", which the weather lookup does not need (coordinates are rounded anyway).
+        assertEquals(
+            false,
+            shouldRequestLocationForWeather(turningOn = true, fineGranted = false, coarseGranted = true)
+        )
+    }
+
+    @Test
+    fun `turning hideNavOnDrive off never requests location, regardless of grant state`() {
+        assertEquals(
+            false,
+            shouldRequestLocationForWeather(turningOn = false, fineGranted = false, coarseGranted = false)
+        )
+        assertEquals(
+            false,
+            shouldRequestLocationForWeather(turningOn = false, fineGranted = true, coarseGranted = true)
+        )
+    }
+
     // ── parseWatchdogTimeoutSeconds (OBD watchdog timeout field validation) ──
 
     @Test

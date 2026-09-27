@@ -128,7 +128,7 @@
     <!-- Display settings section -->
     <string name="settings_display_section">Display</string>
     <string name="settings_hide_nav_on_drive">Hide navigation bar while driving</string>
-    <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary</string>
+    <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary. While it is hidden, date, time and the outside temperature from Open-Meteo appear in its place (uses your approximate location).</string>
     <string name="settings_imperial_units">Imperial units</string>
     <string name="settings_imperial_units_desc">Speed in mph, temperature in °F</string>
     <string name="settings_theme_system">System</string>

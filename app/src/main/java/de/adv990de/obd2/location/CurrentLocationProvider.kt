@@ -8,7 +8,8 @@ package de.adv990de.obd2.location
  */
 interface CurrentLocationProvider {
 
-    /** true, solange die App den Standort lesen darf. */
+    /** true, solange die App den Standort lesen darf — genau (FINE) ODER ungefaehr (COARSE); fuer
+     *  eine Wetterabfrage genuegt der ungefaehre Standort. */
     fun hasPermission(): Boolean
 
     /** Letzter bekannter Standort als (Breitengrad, Laengengrad), oder null wenn keiner

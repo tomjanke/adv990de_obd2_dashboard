@@ -55,6 +55,31 @@ class LocationPermissionsTest {
         verify { context.checkPermission(android.Manifest.permission.ACCESS_FINE_LOCATION, any(), any()) }
     }
 
+    // --- hasCoarseLocation: exaktes Gegenstueck zu hasFineLocation fuer ACCESS_COARSE_LOCATION
+    // (die Wetterabfrage kommt mit dem ungefaehren Standort aus, s. AndroidCurrentLocationProvider).
+
+    @Test
+    fun `hasCoarseLocation returns true when granted`() {
+        every {
+            context.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, any(), any())
+        } returns PackageManager.PERMISSION_GRANTED
+
+        assertTrue(LocationPermissions.hasCoarseLocation(context))
+
+        verify { context.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, any(), any()) }
+    }
+
+    @Test
+    fun `hasCoarseLocation returns false when denied`() {
+        every {
+            context.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, any(), any())
+        } returns PackageManager.PERMISSION_DENIED
+
+        assertFalse(LocationPermissions.hasCoarseLocation(context))
+
+        verify { context.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, any(), any()) }
+    }
+
     // --- API 29+: hasBackgroundLocation delegiert an ContextCompat.checkSelfPermission, die
     // intern (fuer ACCESS_BACKGROUND_LOCATION, keine Sonderbehandlung) auf
     // context.checkPermission(...) durchgreift. Der explizite sdkInt-Parameter zwingt den Guard

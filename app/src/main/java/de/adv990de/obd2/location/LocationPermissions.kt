@@ -6,12 +6,19 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 
-/** Mirrors `bluetooth/BluetoothPermissions.kt` for the location permissions GPS speed needs. */
+/** Mirrors `bluetooth/BluetoothPermissions.kt` for the location permissions GPS speed and the
+ *  weather lookup need (GPS speed: fine; weather: fine OR coarse). */
 @SuppressLint("InlinedApi")
 object LocationPermissions {
 
     fun hasFineLocation(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** Genuegt fuer die Wetterabfrage (s. `AndroidCurrentLocationProvider`) — anders als die
+     *  GPS-Geschwindigkeit, die einen genauen Fix braucht. */
+    fun hasCoarseLocation(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
     // InlinedApi: ACCESS_BACKGROUND_LOCATION ist eine reine String-Konstante, die der Compiler

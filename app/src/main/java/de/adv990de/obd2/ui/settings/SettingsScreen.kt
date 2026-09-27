@@ -24,10 +24,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +59,9 @@ import de.adv990de.obd2.ui.navigation.Screen
  *  no effect on production behavior. */
 internal const val GPS_SPEED_SWITCH_TEST_TAG = "settings_gps_speed_switch"
 
+/** Test-only selector for the hideNavOnDrive [Switch], same reasoning as [GPS_SPEED_SWITCH_TEST_TAG]. */
+internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_drive_switch"
+
 /** The GPS-speed switch's three-way outcome once the user toggles it, decided purely from the
  *  requested state and the current fine-location grant — extracted so the branch is directly
  *  unit-testable without Compose/instrumentation (same convention as the internal decision
@@ -84,6 +85,18 @@ internal fun shouldEscalateToBackgroundLocation(
     backgroundLocationGranted: Boolean
 ): Boolean = !alreadyPrompted &&
     LocationPermissions.needsBackgroundLocationRequest(sdkInt, backgroundLocationGranted)
+
+/** Whether turning the hideNavOnDrive switch should also ask for location: the row shown in place
+ *  of the hidden nav bar (`AmbientStatusRow`) looks up the outside temperature for the current
+ *  position, and fine OR coarse location is enough for that. Deliberately NOT a gate like
+ *  [determineGpsSpeedSwitchAction]: hideNavOnDrive itself has nothing to do with location and always
+ *  follows the toggle — without a grant the row just shows no temperature. Extracted for the same
+ *  JVM-testability reason as the two functions above. */
+internal fun shouldRequestLocationForWeather(
+    turningOn: Boolean,
+    fineGranted: Boolean,
+    coarseGranted: Boolean,
+): Boolean = turningOn && !fineGranted && !coarseGranted
 
 /** Validates the OBD watchdog timeout field below: a whole number of seconds, at least
  *  [AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS] — a few seconds would let the watchdog force
@@ -109,8 +122,10 @@ fun SettingsScreen(
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
     val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsState()
 
-    // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS einschaltet — nicht
-    // beim Start der App. Wird sie verweigert, bleibt der Schalter aus.
+    // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS-Geschwindigkeit oder das
+    // Ausblenden des Hauptmenues (dort fuer die Aussentemperatur) einschaltet — nicht beim Start
+    // der App. Nur beim GPS-Schalter entscheidet die Antwort ueber den Schalter: verweigert, bleibt
+    // er aus.
     val context = LocalContext.current
 
     // Ergebnis wird nicht ausgewertet: GPS-Speed funktioniert so oder so im Vordergrund weiter,
@@ -137,6 +152,15 @@ fun SettingsScreen(
         val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         displayVm.setUseGpsSpeed(granted)
     }
+
+    // Ergebnis wird bewusst nicht ausgewertet (gleiches Muster wie backgroundLocationLauncher):
+    // hideNavOnDrive folgt immer dem Schalter. Die Berechtigung braucht nur die Aussentemperatur in
+    // der Zeile, die statt des ausgeblendeten Hauptmenues erscheint — ohne sie fehlt dort einfach
+    // die Temperatur, Datum und Uhrzeit bleiben. FINE und COARSE zusammen angefragt: ab Android 12
+    // waehlt der Nutzer im System-Dialog "Genau" oder "Ungefaehr", beides genuegt fuers Wetter.
+    val weatherLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { }
 
     // Holt Nutzer nach, deren Schalter aus einer frueheren Version bereits an ist, aber die den
     // Hintergrund-Prompt sonst nie zu sehen bekaemen. Key ist useGpsSpeed statt Unit: der Wert
@@ -322,7 +346,24 @@ fun SettingsScreen(
                     trailingContent = {
                         Switch(
                             checked = hideNavOnDrive,
-                            onCheckedChange = { driveVm.toggleHideNavOnDrive() }
+                            onCheckedChange = { wanted ->
+                                if (shouldRequestLocationForWeather(
+                                        turningOn = wanted,
+                                        fineGranted = LocationPermissions.hasFineLocation(context),
+                                        coarseGranted = LocationPermissions.hasCoarseLocation(context),
+                                    )
+                                ) {
+                                    weatherLocationLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                                        )
+                                    )
+                                }
+                                // Unabhaengig von Anfrage und Ergebnis, s. weatherLocationLauncher.
+                                driveVm.toggleHideNavOnDrive()
+                            },
+                            modifier = Modifier.testTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG)
                         )
                     }
                 )
@@ -336,9 +377,7 @@ fun SettingsScreen(
                         Switch(
                             checked = useGpsSpeed,
                             onCheckedChange = { wanted ->
-                                val granted = ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.ACCESS_FINE_LOCATION
-                                ) == PackageManager.PERMISSION_GRANTED
+                                val granted = LocationPermissions.hasFineLocation(context)
                                 when (determineGpsSpeedSwitchAction(wanted, granted)) {
                                     GpsSpeedSwitchAction.SET_OFF -> displayVm.setUseGpsSpeed(false)
                                     GpsSpeedSwitchAction.SET_ON -> displayVm.setUseGpsSpeed(true)

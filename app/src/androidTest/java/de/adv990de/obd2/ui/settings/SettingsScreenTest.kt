@@ -107,19 +107,23 @@ class SettingsScreenTest {
     }
 
     /** Polls (like `SimulatedDashboardTest.awaitLiveTiles()`) instead of a single `waitForIdle()`:
-     *  `useGpsSpeed`/`backgroundLocationPrompted` are StateFlows seeded from AppPreferences/
-     *  DataStore, whose real value can arrive a beat after the frame Compose considers idle. */
-    private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) {
+     *  the switches' StateFlows (`useGpsSpeed`, `hideNavOnDrive`, ...) are seeded from
+     *  AppPreferences/DataStore, whose real value can arrive a beat after the frame Compose
+     *  considers idle. */
+    private fun waitUntilSwitchIsOn(testTag: String, expected: Boolean) {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 if (expected) {
-                    composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).assertIsOn()
+                    composeRule.onNodeWithTag(testTag).assertIsOn()
                 } else {
-                    composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).assertIsOff()
+                    composeRule.onNodeWithTag(testTag).assertIsOff()
                 }
             }.isSuccess
         }
     }
+
+    private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) =
+        waitUntilSwitchIsOn(GPS_SPEED_SWITCH_TEST_TAG, expected)
 
     @Test
     fun settingsTitle_isVisible() {
@@ -201,5 +205,44 @@ class SettingsScreenTest {
 
         // Had escalation incorrectly fired despite the grant, this would have flipped to true.
         assertEquals(false, appPreferences.backgroundLocationPrompted.first())
+    }
+
+    // ── hideNavOnDrive switch: follows the toggle; location is only a side request ───────────
+    //
+    // permissionRule pre-grants ACCESS_FINE_LOCATION, so shouldRequestLocationForWeather() is false
+    // here and no system dialog can open — the "request launched" branch is covered by the JVM
+    // SettingsScreenTest (see class KDoc for why it cannot be driven end-to-end).
+
+    @Test
+    fun hideNavOnDriveSwitch_turnsOn_withoutPrompt_whenLocationIsAlreadyGranted() = runBlocking {
+        appPreferences.setHideNavOnDrive(false)
+        // Other tests in this class leave useGpsSpeed=true behind; seed it so the check below
+        // really proves this switch did not touch it.
+        appPreferences.setUseGpsSpeed(false)
+
+        launchSettingsScreen()
+        waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = false)
+
+        composeRule.onNodeWithTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = true)
+
+        assertEquals(true, appPreferences.hideNavOnDrive.first())
+        // Unrelated to hideNavOnDrive: turning it on must not touch the GPS-speed setting.
+        assertEquals(false, appPreferences.useGpsSpeed.first())
+
+        appPreferences.setHideNavOnDrive(false) // leave the shared on-device DataStore as found
+    }
+
+    @Test
+    fun hideNavOnDriveSwitch_turnsOff() = runBlocking {
+        appPreferences.setHideNavOnDrive(true)
+
+        launchSettingsScreen()
+        waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = true)
+
+        composeRule.onNodeWithTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = false)
+
+        assertEquals(false, appPreferences.hideNavOnDrive.first())
     }
 }
