@@ -47,6 +47,11 @@ coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-
 room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version = "1.6.2" }
+# Reference org.json impl for JVM unit tests: android.jar ships org.json as a stub (every method
+# throws or, with isReturnDefaultValues=true, silently returns null/0/false) — without this on the
+# test classpath, OpenMeteoApiTest's JSON parsing never actually runs. Verified latest on Maven
+# Central (repo1.maven.org/maven2/org/json/json/), 2026-09-27.
+json = { group = "org.json", name = "json", version = "20260814" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 paging-runtime = { group = "androidx.paging", name = "paging-runtime-ktx", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }

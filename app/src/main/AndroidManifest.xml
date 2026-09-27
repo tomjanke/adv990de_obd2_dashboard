@@ -34,6 +34,10 @@
          Standort-Updates. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
+    <!-- Wetterabfrage (Open-Meteo, s. weather/OpenMeteoApi.kt) — normale Berechtigung, kein
+         Laufzeit-Dialog, aber ohne diese Deklaration wirft jeder HTTP-Aufruf SecurityException. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".Obd2Application"
         android:label="@string/app_label"

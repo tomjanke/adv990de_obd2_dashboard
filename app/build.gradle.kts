@@ -125,6 +125,9 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.kotlin.test)
+    // Shadows android.jar's org.json stub (see libs.versions.toml comment) so OpenMeteoApiTest
+    // exercises real JSON parsing instead of silently-null stub methods.
+    testImplementation(libs.json)
 
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.androidx.test.runner)
