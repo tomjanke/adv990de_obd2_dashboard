@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -223,9 +225,12 @@ internal fun RpmBar(
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Column statt einzelnem Box: die RPM-Segmente behalten ihre bisherige Flaeche (80%
-        // Hoehenanteil), darunter die neue Oel-Temperatur-Leiste (20%) — beide teilen sich weiterhin
-        // nur das `weight(1f)`-Feld links neben der unveraenderten Gang-Box, s. Feature-Plan.
+        // Column statt einzelnem Box: die RPM-Segmente (80% Hoehenanteil) und darunter die
+        // Oel-Temperatur-Leiste (20%) teilen sich das `weight(1f)`-Feld links neben der
+        // unveraenderten Gang-Box (Plan: docs/superpowers/plans/2026-09-27-oil-temperature-bar.md).
+        // Dazwischen 2dp Luecke, in der der Hintergrund durchscheint: ohne sie verschmelzen
+        // Segmente und Leiste zu einer Flaeche, sobald beide gleich gefaerbt sind — grau auf grau
+        // ohne Verbindung, rot auf rot bei kaltem Motor im Schaltblitz-Bereich.
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             Box(modifier = Modifier.weight(0.8f).fillMaxWidth()) {
                 Box(
@@ -261,6 +266,7 @@ internal fun RpmBar(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(2.dp))
             OilTemperatureBarStrip(
                 color = oilBarColor,
                 isLive = isLive,
@@ -526,5 +532,47 @@ private fun PreviewRpmBarGearLockedAmber() {
                 RpmBar(rpm = 6200f, threshold = 7000, gear = 5, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
             }
         }
+    }
+}
+
+/**
+ * Alle Zustaende der [OilTemperatureBarStrip] untereinander, ungefaehr in Anzeige-Hoehe: Rot, Gelb,
+ * Gruen, dann grau (noch keine Farbe bzw. ohne Verbindung). Die fehlende Vorschau war der Grund,
+ * warum das theme-abhaengige "Gruen" (hellblau/amber/mauve, bis zum finalen Review) unbemerkt
+ * blieb — deshalb je ein dunkles Cockpit-Schema und das helle Default-Schema.
+ */
+@Composable
+private fun OilTemperatureBarStripStates() {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        (OilBarColor.entries + null).forEach { color ->
+            OilTemperatureBarStrip(color = color, isLive = true, modifier = Modifier.fillMaxWidth().height(12.dp))
+        }
+    }
+}
+
+@Preview(name = "OilTemperatureBarStrip · states (blue)", widthDp = 320, showBackground = true)
+@Composable
+private fun PreviewOilTemperatureBarStripBlue() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { OilTemperatureBarStripStates() }
+    }
+}
+
+@Preview(name = "OilTemperatureBarStrip · states (amber)", widthDp = 320, showBackground = true)
+@Composable
+private fun PreviewOilTemperatureBarStripAmber() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { OilTemperatureBarStripStates() }
+    }
+}
+
+@Preview(name = "OilTemperatureBarStrip · states (default light)", widthDp = 320, showBackground = true)
+@Composable
+private fun PreviewOilTemperatureBarStripDefaultLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { OilTemperatureBarStripStates() }
     }
 }
