@@ -38,6 +38,13 @@ class DisplaySettingsViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setBackgroundLocationPrompted(value) }
     }
 
+    val weatherLocationPrompted: StateFlow<Boolean> = appPreferences.weatherLocationPrompted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setWeatherLocationPrompted(value: Boolean) {
+        viewModelScope.launch { appPreferences.setWeatherLocationPrompted(value) }
+    }
+
     fun toggleUseImperial() {
         viewModelScope.launch { appPreferences.setUseImperial(!useImperial.value) }
     }

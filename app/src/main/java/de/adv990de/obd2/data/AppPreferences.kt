@@ -41,6 +41,7 @@ class AppPreferences @Inject constructor(
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
         private val KEY_BACKGROUND_LOCATION_PROMPTED = booleanPreferencesKey("background_location_prompted")
+        private val KEY_WEATHER_LOCATION_PROMPTED = booleanPreferencesKey("weather_location_prompted")
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
@@ -176,6 +177,18 @@ class AppPreferences @Inject constructor(
 
     suspend fun setBackgroundLocationPrompted(value: Boolean) {
         dataStore.edit { it[KEY_BACKGROUND_LOCATION_PROMPTED] = value }
+    }
+
+    /** Ob die Standortanfrage fuer die Aussentemperatur (hideNavOnDrive-Schalter) schon einmal
+     *  gezeigt wurde. Verhindert, wie [backgroundLocationPrompted], dass der System-Dialog bei
+     *  jedem Settings-Besuch/jeder Rotation erneut aufpoppt, solange weder FINE noch COARSE
+     *  erteilt ist. */
+    val weatherLocationPrompted: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_WEATHER_LOCATION_PROMPTED] ?: false
+    }
+
+    suspend fun setWeatherLocationPrompted(value: Boolean) {
+        dataStore.edit { it[KEY_WEATHER_LOCATION_PROMPTED] = value }
     }
 
     // ── Display preferences ───────────────────────────────────────────────────

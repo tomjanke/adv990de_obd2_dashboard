@@ -224,11 +224,13 @@ Die App fordert zur Laufzeit (via `PermissionGate`) an:
 
 **Standort für die Außentemperatur:** Genau (FINE) oder ungefähr (COARSE) genügt. Angefragt wird
 beim Einschalten von „Navigationsleiste beim Fahren ausblenden" — unabhängig von „Geschwindigkeit per
-GPS" (dort ist FINE Pflicht) — sowie nachträglich bei jedem Öffnen der Einstellungen, für Nutzer bei
-denen der Schalter schon aus einer früheren App-Version an ist. Anders als beim GPS-Schalter folgt die
-Einstellung immer dem Schalter: ohne Berechtigung fehlt in der Statuszeile nur die Temperatur, Datum
-und Uhrzeit bleiben. Eine schon vorher erteilte Standortberechtigung (z. B. über den GPS-Schalter)
-wird mitgenutzt.
+GPS" (dort ist FINE Pflicht) — sowie nachträglich beim nächsten Öffnen der Einstellungen, für Nutzer
+bei denen der Schalter schon aus einer früheren App-Version an ist. Dieser Nachtrag erscheint
+höchstens einmal pro Installation (persistierter Guard, dieselbe Form wie bei der
+Hintergrund-Standort-Eskalation) — kein wiederholtes Nachfragen bei jedem weiteren Settings-Besuch.
+Anders als beim GPS-Schalter folgt die Einstellung immer dem Schalter: ohne Berechtigung fehlt in der
+Statuszeile nur die Temperatur, Datum und Uhrzeit bleiben. Eine schon vorher erteilte
+Standortberechtigung (z. B. über den GPS-Schalter) wird mitgenutzt.
 
 **Datenschutz:** Für die Außentemperatur schickt die App die Koordinaten an einen Dritten —
 Open-Meteo (`api.open-meteo.com`) —, auf zwei Nachkommastellen gerundet (rund 1,1 km; Open-Meteo

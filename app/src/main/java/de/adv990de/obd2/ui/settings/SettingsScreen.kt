@@ -93,16 +93,24 @@ internal fun shouldEscalateToBackgroundLocation(
  *  follows the toggle — without a grant the row just shows no temperature. Extracted for the same
  *  JVM-testability reason as the two functions above.
  *
+ *  [alreadyPrompted] short-circuits before ever consulting the other three parameters — the exact
+ *  same shape as [shouldEscalateToBackgroundLocation]'s own parameter of that name. Added because
+ *  the catch-up effect below otherwise re-prompts on every Settings visit/rotation while the
+ *  switch is on and permission is still denied, since without it there was no persisted "already
+ *  asked" guard. Backed by `AppPreferences.weatherLocationPrompted`, checked-and-set exactly like
+ *  `backgroundLocationPrompted`.
+ *
  *  Called from a single call site, `LaunchedEffect(hideNavOnDrive)` — both the switch's own
  *  toggle-to-on (state change triggers the effect) and, since this catches up users whose switch
  *  was already on from before this weather feature existed, every fresh composition where the
  *  DataStore-backed value resolves to `true` (same `useGpsSpeed`/background-location catch-up
  *  shape as [shouldEscalateToBackgroundLocation] above). */
 internal fun shouldRequestLocationForWeather(
+    alreadyPrompted: Boolean,
     turningOn: Boolean,
     fineGranted: Boolean,
     coarseGranted: Boolean,
-): Boolean = turningOn && !fineGranted && !coarseGranted
+): Boolean = !alreadyPrompted && turningOn && !fineGranted && !coarseGranted
 
 /** Validates the OBD watchdog timeout field below: a whole number of seconds, at least
  *  [AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS] — a few seconds would let the watchdog force
@@ -127,6 +135,7 @@ fun SettingsScreen(
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
     val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsState()
+    val weatherLocationPrompted by displayVm.weatherLocationPrompted.collectAsState()
 
     // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS-Geschwindigkeit oder das
     // Ausblenden des Hauptmenues (dort fuer die Aussentemperatur) einschaltet — nicht beim Start
@@ -187,13 +196,21 @@ fun SettingsScreen(
     // eintrifft. Einziger Aufrufpunkt fuer diese Anfrage — der Switch unten ruft
     // weatherLocationLauncher nicht mehr direkt aus onCheckedChange, sonst wuerde ein Toggle-auf-an
     // sie zusammen mit diesem Effect doppelt auslösen.
+    //
+    // weatherLocationPrompted (seit 2026-09-27) ist der Einmal-Guard, der genau dieser Katch-up-
+    // Logik fehlte: ohne ihn fragte dieser Effect bei JEDEM Settings-Besuch/jeder Rotation erneut
+    // an, solange der Schalter an und die Berechtigung noch verweigert war (der Effect laeuft bei
+    // jeder frischen Komposition mit hideNavOnDrive==true neu, nicht nur beim Toggle). Check-and-
+    // set exakt wie escalateToBackgroundLocationIfNeeded()/backgroundLocationPrompted oben.
     LaunchedEffect(hideNavOnDrive) {
         if (shouldRequestLocationForWeather(
+                alreadyPrompted = weatherLocationPrompted,
                 turningOn = hideNavOnDrive,
                 fineGranted = LocationPermissions.hasFineLocation(context),
                 coarseGranted = LocationPermissions.hasCoarseLocation(context),
             )
         ) {
+            displayVm.setWeatherLocationPrompted(true)
             weatherLocationLauncher.launch(
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,

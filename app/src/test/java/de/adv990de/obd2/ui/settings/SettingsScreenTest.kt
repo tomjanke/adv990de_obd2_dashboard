@@ -112,7 +112,9 @@ class SettingsScreenTest {
     fun `turning hideNavOnDrive on without any location permission requests it`() {
         assertEquals(
             true,
-            shouldRequestLocationForWeather(turningOn = true, fineGranted = false, coarseGranted = false)
+            shouldRequestLocationForWeather(
+                alreadyPrompted = false, turningOn = true, fineGranted = false, coarseGranted = false
+            )
         )
     }
 
@@ -120,7 +122,9 @@ class SettingsScreenTest {
     fun `turning hideNavOnDrive on with fine location already granted requests nothing`() {
         assertEquals(
             false,
-            shouldRequestLocationForWeather(turningOn = true, fineGranted = true, coarseGranted = false)
+            shouldRequestLocationForWeather(
+                alreadyPrompted = false, turningOn = true, fineGranted = true, coarseGranted = false
+            )
         )
     }
 
@@ -130,7 +134,9 @@ class SettingsScreenTest {
         // "precise", which the weather lookup does not need (coordinates are rounded anyway).
         assertEquals(
             false,
-            shouldRequestLocationForWeather(turningOn = true, fineGranted = false, coarseGranted = true)
+            shouldRequestLocationForWeather(
+                alreadyPrompted = false, turningOn = true, fineGranted = false, coarseGranted = true
+            )
         )
     }
 
@@ -138,11 +144,29 @@ class SettingsScreenTest {
     fun `turning hideNavOnDrive off never requests location, regardless of grant state`() {
         assertEquals(
             false,
-            shouldRequestLocationForWeather(turningOn = false, fineGranted = false, coarseGranted = false)
+            shouldRequestLocationForWeather(
+                alreadyPrompted = false, turningOn = false, fineGranted = false, coarseGranted = false
+            )
         )
         assertEquals(
             false,
-            shouldRequestLocationForWeather(turningOn = false, fineGranted = true, coarseGranted = true)
+            shouldRequestLocationForWeather(
+                alreadyPrompted = false, turningOn = false, fineGranted = true, coarseGranted = true
+            )
+        )
+    }
+
+    @Test
+    fun `does not request a second time once already prompted`() {
+        // Short-circuits on alreadyPrompted before ever consulting turningOn/grant state — mirrors
+        // shouldEscalateToBackgroundLocation's own "does not escalate a second time" case above.
+        // Stays false even though turningOn=true, fineGranted=false, coarseGranted=false would
+        // otherwise call for it.
+        assertEquals(
+            false,
+            shouldRequestLocationForWeather(
+                alreadyPrompted = true, turningOn = true, fineGranted = false, coarseGranted = false
+            )
         )
     }
 

@@ -38,12 +38,14 @@ class DisplaySettingsViewModelTest {
         useImperial: Boolean = false,
         theme: String = THEME_SYSTEM,
         useGpsSpeed: Boolean = false,
-        backgroundLocationPrompted: Boolean = false
+        backgroundLocationPrompted: Boolean = false,
+        weatherLocationPrompted: Boolean = false
     ): AppPreferences = mockk {
         every { this@mockk.useImperial }  returns flowOf(useImperial)
         every { this@mockk.theme }        returns flowOf(theme)
         every { this@mockk.useGpsSpeed }  returns flowOf(useGpsSpeed)
         every { this@mockk.backgroundLocationPrompted } returns flowOf(backgroundLocationPrompted)
+        every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)
     }
 
     @Test
@@ -194,5 +196,38 @@ class DisplaySettingsViewModelTest {
         job.cancel()
 
         coVerify { prefs.setBackgroundLocationPrompted(true) }
+    }
+
+    @Test
+    fun `weatherLocationPrompted defaults to false`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(weatherLocationPrompted = false))
+        val job = launch { vm.weatherLocationPrompted.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        assertFalse(vm.weatherLocationPrompted.value)
+    }
+
+    @Test
+    fun `weatherLocationPrompted reflects persisted true value`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(weatherLocationPrompted = true))
+        val job = launch { vm.weatherLocationPrompted.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        assertTrue(vm.weatherLocationPrompted.value)
+    }
+
+    @Test
+    fun `setWeatherLocationPrompted calls appPreferences setWeatherLocationPrompted with given value`() = runTest {
+        val prefs = makePrefs(weatherLocationPrompted = false)
+        coEvery { prefs.setWeatherLocationPrompted(any()) } just Runs
+        val vm = DisplaySettingsViewModel(prefs)
+        val job = launch { vm.weatherLocationPrompted.collect {} }
+        advanceUntilIdle()
+
+        vm.setWeatherLocationPrompted(true)
+        advanceUntilIdle()
+        job.cancel()
+
+        coVerify { prefs.setWeatherLocationPrompted(true) }
     }
 }

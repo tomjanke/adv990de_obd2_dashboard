@@ -271,10 +271,17 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   an ist (der Wert kommt asynchron aus dem DataStore, exakt dasselbe Muster wie `useGpsSpeed`/
   Hintergrund-Standort-Eskalation oben). Einziger Aufrufpunkt ist dieser Effect —
   `onCheckedChange` ruft die Berechtigung nicht mehr direkt an, sonst würde ein Toggle-auf-an sie
-  zusammen mit dem Effect doppelt auslösen. Koordinaten verlassen das Gerät nur auf 2
-  Nachkommastellen gerundet (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den
-  Lizenztext selbst (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in
-  `AppInfoScreen`.
+  zusammen mit dem Effect doppelt auslösen. **Einmal-Guard (Korrektur 2026-09-27, derselbe Tag):**
+  Ohne persistierten Zustand hätte dieser Effect bei JEDEM Settings-Besuch/jeder Rotation erneut
+  gefragt, solange der Schalter an und die Berechtigung noch verweigert war — er läuft ja bei
+  jeder frischen Komposition mit `hideNavOnDrive == true` neu, nicht nur beim Toggle.
+  `AppPreferences.weatherLocationPrompted` (neuer DataStore-Key, exakt dasselbe Schema wie
+  `backgroundLocationPrompted`) wird deshalb vor dem `launch()` gesetzt und vorher geprüft
+  (`shouldRequestLocationForWeather`s neuer `alreadyPrompted`-Parameter, gleiche Kurzschluss-Form
+  wie `shouldEscalateToBackgroundLocation`) — der System-Dialog erscheint damit höchstens einmal
+  pro Installation. Koordinaten verlassen das Gerät nur auf 2 Nachkommastellen gerundet
+  (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den Lizenztext selbst
+  (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in `AppInfoScreen`.
 - **Test-Falle:** Tests, die einen echten `WeatherViewModel` bauen und sammeln, müssen dessen
   `viewModelScope` in einem `finally` **innerhalb** des `runTest`-Blocks canceln, nicht in `@After`:
   `runTest` leert beim Aufräumen den (per `setMain` geteilten) Scheduler mit `advanceUntilIdleOr`,

@@ -289,6 +289,20 @@ class AppPreferencesTest {
         assertEquals(true, prefs.backgroundLocationPrompted.first())
     }
 
+    // ── weatherLocationPrompted ───────────────────────────────────────────────
+
+    @Test
+    fun `weatherLocationPrompted defaults to false`() = runTest {
+        assertEquals(false, makePreferences().weatherLocationPrompted.first())
+    }
+
+    @Test
+    fun `setWeatherLocationPrompted persists value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setWeatherLocationPrompted(true)
+        assertEquals(true, prefs.weatherLocationPrompted.first())
+    }
+
     // ── rpmBlinkThreshold ─────────────────────────────────────────────────────
 
     @Test
