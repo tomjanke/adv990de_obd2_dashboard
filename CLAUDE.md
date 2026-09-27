@@ -256,7 +256,8 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   `collectAsStateWithLifecycle`. Kein Abruf bei sichtbarem Hauptmenü oder im Hintergrund.
 - **Standort:** FINE oder COARSE genügt; angefragt beim Einschalten von `hideNavOnDrive`, ohne den
   Schalter davon abhängig zu machen. Koordinaten verlassen das Gerät nur auf 2 Nachkommastellen
-  gerundet (Open-Meteo). Namensnennung (CC BY 4.0) als echter Link in `AppInfoScreen`.
+  gerundet (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den Lizenztext selbst
+  (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in `AppInfoScreen`.
 - **Test-Falle:** Tests, die einen echten `WeatherViewModel` bauen und sammeln, müssen dessen
   `viewModelScope` in einem `finally` **innerhalb** des `runTest`-Blocks canceln, nicht in `@After`:
   `runTest` leert beim Aufräumen den (per `setMain` geteilten) Scheduler mit `advanceUntilIdleOr`,
@@ -319,7 +320,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 772 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 150 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 152 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

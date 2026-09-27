@@ -40,8 +40,11 @@
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
     <string name="app_info_weather_attribution">Wetterdaten: Open-Meteo.com (CC BY 4.0)</string>
+    <string name="app_info_weather_license">Lizenz: CC BY 4.0</string>
     <!-- TalkBack-Aktionsbezeichnung der Namensnennungs-Zeile ("Zum Website öffnen doppeltippen") -->
     <string name="app_info_open_website">Website öffnen</string>
+    <!-- TalkBack-Aktionsbezeichnung der Lizenz-Zeile ("Zum Lizenz öffnen doppeltippen") -->
+    <string name="app_info_open_license">Lizenz öffnen</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Dashboard konfigurieren</string>

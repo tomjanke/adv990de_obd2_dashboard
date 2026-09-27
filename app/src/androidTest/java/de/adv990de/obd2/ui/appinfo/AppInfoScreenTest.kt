@@ -32,13 +32,14 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Compose UI tests for [AppInfoScreen]'s CC-BY-4.0 attribution row — Open-Meteo's licence asks
- * for credit WITH a link, so the row has to actually open the website, not just show text.
+ * Compose UI tests for [AppInfoScreen]'s CC-BY-4.0 attribution and license rows — Open-Meteo's
+ * licence asks for credit WITH a link to the source AND a link to the licence text itself, so
+ * both rows have to actually open their respective URL, not just show text naming them.
  *
- * The click test intercepts the browser start with a framework [Instrumentation.ActivityMonitor]
+ * The click tests intercept the browser start with a framework [Instrumentation.ActivityMonitor]
  * (no-arg constructor + [Instrumentation.ActivityMonitor.onStartActivity], both API 26 = this
  * app's minSdk): returning a canned result there makes `Instrumentation.execStartActivity` hand
- * that result back instead of starting anything. That is what lets this test assert the fired
+ * that result back instead of starting anything. That is what lets these tests assert the fired
  * `ACTION_VIEW` intent without a new dependency (the project has neither espresso-intents nor
  * UiAutomator, s. `HistoryScreenTest`'s KDoc) and without a real browser popping up in front of
  * the instrumentation app on the test device, which would break every test after it.
@@ -75,19 +76,20 @@ class AppInfoScreenTest {
         composeRule.waitForIdle()
     }
 
-    @Test
-    fun weatherAttribution_isAClickableRow_withGloveFriendlyHeight() {
+    /** Shared body for both "is a clickable row" tests below. */
+    private fun assertIsClickableRow(testTag: String, expectedTextRes: Int) {
         launchAppInfoScreen()
 
-        composeRule.onNodeWithTag(WEATHER_ATTRIBUTION_TEST_TAG)
+        composeRule.onNodeWithTag(testTag)
             .assertIsDisplayed()
-            .assertTextEquals(composeRule.activity.getString(R.string.app_info_weather_attribution))
+            .assertTextEquals(composeRule.activity.getString(expectedTextRes))
             .assertHasClickAction()
             .assertHeightIsAtLeast(64.dp)
     }
 
-    @Test
-    fun weatherAttribution_click_opensOpenMeteoWebsite() {
+    /** Shared body for both "click opens X" tests below — see class KDoc for why the browser
+     *  start is intercepted rather than actually launched. */
+    private fun assertClickOpensUrl(testTag: String, expectedUrl: String) {
         // Written on the main thread (click handler), read on the test thread.
         val startedViewIntents = CopyOnWriteArrayList<Intent>()
         val browserInterceptor = object : Instrumentation.ActivityMonitor() {
@@ -104,13 +106,29 @@ class AppInfoScreenTest {
         try {
             launchAppInfoScreen()
 
-            composeRule.onNodeWithTag(WEATHER_ATTRIBUTION_TEST_TAG).performClick()
+            composeRule.onNodeWithTag(testTag).performClick()
             composeRule.waitForIdle()
 
             assertEquals(1, startedViewIntents.size)
-            assertEquals(Uri.parse(OPEN_METEO_URL), startedViewIntents.single().data)
+            assertEquals(Uri.parse(expectedUrl), startedViewIntents.single().data)
         } finally {
             instrumentation.removeMonitor(browserInterceptor)
         }
     }
+
+    @Test
+    fun weatherAttribution_isAClickableRow_withGloveFriendlyHeight() =
+        assertIsClickableRow(WEATHER_ATTRIBUTION_TEST_TAG, R.string.app_info_weather_attribution)
+
+    @Test
+    fun weatherAttribution_click_opensOpenMeteoWebsite() =
+        assertClickOpensUrl(WEATHER_ATTRIBUTION_TEST_TAG, OPEN_METEO_URL)
+
+    @Test
+    fun weatherLicense_isAClickableRow_withGloveFriendlyHeight() =
+        assertIsClickableRow(WEATHER_LICENSE_TEST_TAG, R.string.app_info_weather_license)
+
+    @Test
+    fun weatherLicense_click_opensCcBy4LicenseText() =
+        assertClickOpensUrl(WEATHER_LICENSE_TEST_TAG, CC_BY_4_0_URL)
 }

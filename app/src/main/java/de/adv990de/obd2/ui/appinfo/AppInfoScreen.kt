@@ -43,15 +43,24 @@ import de.adv990de.obd2.ui.theme.blueColorScheme
 
 /**
  * Quelle der Aussentemperatur (s. `weather/OpenMeteoApi.kt`). Deren Lizenz CC BY 4.0
- * (https://open-meteo.com/en/licence, abgerufen 2026-09-27) verlangt Namensnennung MIT Link auf
- * die Quelle — Open-Meteos eigener Vorschlag verlinkt genau diese Adresse. Deshalb ist die
- * Namensnennung unten eine echte, antippbare Zeile und kein reiner Text.
+ * (https://creativecommons.org/licenses/by/4.0/) verlangt Namensnennung MIT Link auf die Quelle
+ * UND einen Link auf den Lizenztext selbst — reine Namensnennung des Lizenznamens als Text
+ * genuegt laut Lizenztext nicht. Open-Meteos eigene Anleitung (open-meteo.com/en/licence,
+ * abgerufen 2026-09-27) verlinkt fuer die Namensnennung genau diese Adresse; [CC_BY_4_0_URL]
+ * unten deckt den zweiten, separaten Link auf den Lizenztext ab. Deshalb sind es zwei echte,
+ * antippbare Zeilen und kein reiner Text.
  */
 internal const val OPEN_METEO_URL = "https://open-meteo.com/"
+
+/** Der Lizenztext selbst — s. KDoc auf [OPEN_METEO_URL] oben. */
+internal const val CC_BY_4_0_URL = "https://creativecommons.org/licenses/by/4.0/"
 
 /** Test-only selector for the attribution row — purely a semantics marker, no effect on
  *  production behavior (same convention as `GPS_SPEED_SWITCH_TEST_TAG` in `SettingsScreen.kt`). */
 internal const val WEATHER_ATTRIBUTION_TEST_TAG = "app_info_weather_attribution"
+
+/** Test-only selector for the CC BY 4.0 license row, same reasoning as [WEATHER_ATTRIBUTION_TEST_TAG]. */
+internal const val WEATHER_LICENSE_TEST_TAG = "app_info_weather_license"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +96,8 @@ fun AppInfoScreen(navController: NavController) {
             InfoRow(stringResource(R.string.app_info_build_label), versionCode.toString())
             HorizontalDivider()
             WeatherAttributionRow(onClick = { openInBrowser(context, OPEN_METEO_URL) })
+            HorizontalDivider()
+            WeatherLicenseRow(onClick = { openInBrowser(context, CC_BY_4_0_URL) })
         }
     }
 }
@@ -100,28 +111,28 @@ private fun InfoRow(label: String, value: String) {
 }
 
 /**
- * Die CC-BY-Namensnennung als Link-Zeile: Text + "extern oeffnen"-Symbol in `primary` (die
- * uebliche Link-Signalfarbe), die ganze Zeile ist das Tap-Ziel. Mindesthoehe 64dp — die
- * Zeilenhoehe fuer Listen unter den Einstellungen laut CLAUDE.md, damit zugleich ueber der
- * 56dp-Handschuh-Grenze fuer jeden Touch.
+ * A tappable link row shared by the Open-Meteo credit row and the CC BY 4.0 license row below it:
+ * text + "open externally" icon in `primary` (the usual link signal color), the whole row is the
+ * tap target. Minimum height 64dp — the list row height for settings screens per CLAUDE.md,
+ * comfortably over the 56dp glove-friendly touch minimum too.
  */
 @Composable
-private fun WeatherAttributionRow(onClick: () -> Unit) {
+private fun LinkRow(text: String, onClickLabel: String, testTag: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clickable(
-                onClickLabel = stringResource(R.string.app_info_open_website),
+                onClickLabel = onClickLabel,
                 role = Role.Button,
                 onClick = onClick,
             )
-            .testTag(WEATHER_ATTRIBUTION_TEST_TAG),
+            .testTag(testTag),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            stringResource(R.string.app_info_weather_attribution),
+            text,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f),
@@ -134,6 +145,30 @@ private fun WeatherAttributionRow(onClick: () -> Unit) {
             modifier = Modifier.size(20.dp),
         )
     }
+}
+
+/** Credits Open-Meteo as the weather-data source, linking its homepage (Open-Meteo's own
+ *  suggested attribution link, s. KDoc on [OPEN_METEO_URL]). */
+@Composable
+private fun WeatherAttributionRow(onClick: () -> Unit) {
+    LinkRow(
+        text = stringResource(R.string.app_info_weather_attribution),
+        onClickLabel = stringResource(R.string.app_info_open_website),
+        testTag = WEATHER_ATTRIBUTION_TEST_TAG,
+        onClick = onClick,
+    )
+}
+
+/** Links the CC BY 4.0 licence text itself — naming the licence next to [WeatherAttributionRow]
+ *  is not enough per the licence's own terms, a link to the licence text is required too. */
+@Composable
+private fun WeatherLicenseRow(onClick: () -> Unit) {
+    LinkRow(
+        text = stringResource(R.string.app_info_weather_license),
+        onClickLabel = stringResource(R.string.app_info_open_license),
+        testTag = WEATHER_LICENSE_TEST_TAG,
+        onClick = onClick,
+    )
 }
 
 /**
@@ -167,6 +202,26 @@ private fun PreviewWeatherAttributionRowDefaultLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
             Column(Modifier.padding(16.dp)) { WeatherAttributionRow(onClick = {}) }
+        }
+    }
+}
+
+@Preview(name = "WeatherLicenseRow · blue", showBackground = true)
+@Composable
+private fun PreviewWeatherLicenseRowBlue() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp)) { WeatherLicenseRow(onClick = {}) }
+        }
+    }
+}
+
+@Preview(name = "WeatherLicenseRow · default light", showBackground = true)
+@Composable
+private fun PreviewWeatherLicenseRowDefaultLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp)) { WeatherLicenseRow(onClick = {}) }
         }
     }
 }

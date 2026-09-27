@@ -42,6 +42,9 @@
     <string name="app_info_weather_attribution">Weather data: Open-Meteo.com (CC BY 4.0)</string>
     <!-- TalkBack action label for the attribution row ("Double-tap to open website") -->
     <string name="app_info_open_website">open website</string>
+    <string name="app_info_weather_license">License: CC BY 4.0</string>
+    <!-- TalkBack action label for the license row ("Double-tap to open license") -->
+    <string name="app_info_open_license">open license</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Configure Dashboard</string>
