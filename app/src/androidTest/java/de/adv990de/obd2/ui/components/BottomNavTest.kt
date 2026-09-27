@@ -154,6 +154,7 @@ class BottomNavTest {
             every { theme } returns flowOf(THEME_SYSTEM)
             every { useGpsSpeed } returns flowOf(false)
             every { backgroundLocationPrompted } returns flowOf(false)
+            every { weatherLocationPrompted } returns flowOf(false)
         }
         return DisplaySettingsViewModel(prefs)
     }
