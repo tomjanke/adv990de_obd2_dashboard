@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -143,11 +144,33 @@ class DashboardViewModel @Inject constructor(
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
     // Interner Timer-Zustand des Oel-Balkens (Gruen-Hysterese) — bewusst NICHT Teil von
-    // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest, nur
-    // die daraus abgeleitete OilBarColor tut das (s. Task-Brief). Bleibt bewusst UNVERAENDERT
-    // ueber einen Verbindungsabbruch hinweg (anders als gear/speedKmh in applyIdle()) — die
-    // Kuehlmitteltemperatur aendert sich physikalisch nicht nur, weil BLE kurz aussetzt.
+    // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest; in den
+    // UI-State gehoert nur die daraus abgeleitete OilBarColor. Wird bei einem Verbindungsabbruch
+    // bewusst NICHT zurueckgesetzt (anders als gear/speedKmh in applyIdle()): Die
+    // Kuehlmitteltemperatur aendert sich nicht, nur weil BLE kurz aussetzt. Unbegrenzt ueberlebt
+    // der Timer eine Trennung trotzdem nicht — das Luecken-Limit in updateOilBarTimer()
+    // (MAX_SAMPLE_GAP_MS, 60 s) laesst ihn verfallen, wenn zwischen zwei Messwerten mehr Zeit
+    // liegt: Ein Reconnect innerhalb dieser Zeit behaelt die Zaehlung, eine laengere Trennung
+    // (oder eine stundenlang geschlossene App) beginnt von vorn.
     private var oilBarTimerState = OilBarTimerState()
+
+    // SensorValue.timestamp des zuletzt in updateOilBarTimer() eingespeisten Kuehlmittelwerts.
+    // ReadingsPipeline.gpsRefresh() stellt bei jeder GPS-Aenderung (bis 5 Hz) die letzten
+    // OBD-Werte erneut zu — dieselben SensorValue-Objekte mit ihrem urspruenglichen Zeitstempel,
+    // auch wenn das Steuergeraet laengst nichts Neues mehr liefert (Zuendung aus: nur noch
+    // NO DATA, das der Watchdog beliebig lange toleriert). Ohne diese Pruefung bestaetigte
+    // GPS-Rauschen allein einen alten Wert ueber 80 °C immer wieder, bis der Balken bei
+    // abgestelltem Motor gruen wurde. Deshalb zaehlt nur ein Messwert mit echt NEUEREM
+    // Zeitstempel als neuer Messwert; eine Wiederholung laesst Timer und Farbe unveraendert.
+    //
+    // Bekannte Grenze: Der Zeitstempel ist Wanduhr-Zeit (System.currentTimeMillis() in
+    // PidParser). Springt die Systemzeit waehrend der Fahrt zurueck (manuelle Umstellung, grosse
+    // Netzzeit-Korrektur), gelten neue Messwerte so lange als "nicht neuer", bis die Uhr den
+    // zuletzt verarbeiteten Zeitstempel wieder eingeholt hat — der Balken steht fuer die Dauer des
+    // Sprungs still (nie faelschlich Gruen; nach mehr als 60 s greift danach das Luecken-Limit).
+    // Das ist der Preis fuer `>` statt `!=`: `>` macht auch eine Wiederholung wirkungslos, die erst
+    // nach einem neueren Messwert ankaeme.
+    private var lastOilBarSampleTimestamp: Long? = null
 
     // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
     // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:
@@ -155,7 +178,13 @@ class DashboardViewModel @Inject constructor(
     // zusaetzliches @Provides-Binding fuer Function0<Long> mit [Dagger/MissingBinding] (empirisch
     // verifiziert). Als var-Property aendert sich die Konstruktor-Signatur fuer Hilt gar nicht
     // erst; Tests setzen die Property direkt nach dem Bauen des ViewModels (s. makeVmFrom).
-    internal var nowMillis: () -> Long = { System.currentTimeMillis() }
+    //
+    // Monotone Uhr (elapsedRealtime) statt Wanduhr: Gruen-Timer und Luecken-Limit rechnen Dauern,
+    // und die duerfen nicht springen, wenn Netzzeit-Abgleich oder Nutzer die Systemzeit verstellen
+    // — dieselbe Begruendung wie TimeSource.Monotonic im OBD-Watchdog (ObdRepository.livePids()).
+    // Bewusst nicht uptimeMillis(): elapsedRealtime zaehlt Tiefschlaf mit, eine Stunde Standby ist
+    // fuer das Luecken-Limit also auch eine Stunde Pause.
+    internal var nowMillis: () -> Long = { SystemClock.elapsedRealtime() }
 
     init {
         viewModelScope.launch {
@@ -215,16 +244,21 @@ class DashboardViewModel @Inject constructor(
         val newGear = holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
         // Oel-Balken-Farbe: unabhaengig von rpmDynamicThreshold (anders als engineTempC oben) —
         // die Kuehlmitteltemperatur wird hier immer gesucht, wenn ein plausibler Wert vorliegt.
-        // Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z.B. NaN), bleibt die
-        // zuletzt angezeigte Farbe unveraendert — derselbe "keine Regression bei einem einzelnen
-        // fehlenden Wert"-Ansatz wie bei holdGear() weiter oben, hier realisiert, indem der
-        // Timer-Zustand unangetastet bleibt und newOilBarColor auf den bisherigen UI-Wert faellt,
-        // statt den Copy-Aufruf unten in zwei Varianten aufzuspalten.
-        val coolantTempC = values.firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }
-            ?.value
-        val newOilBarColor = if (coolantTempC != null) {
-            oilBarTimerState = updateOilBarTimer(coolantTempC, nowMillis(), oilBarTimerState)
-            oilBarColor(coolantTempC, nowMillis(), oilBarTimerState)
+        // Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z.B. NaN) oder ist sie nur
+        // die GPS-Wiederholung eines schon verarbeiteten Messwerts (Zeitstempel nicht neuer, s.
+        // lastOilBarSampleTimestamp), bleibt die zuletzt angezeigte Farbe unveraendert — derselbe
+        // "keine Regression bei einem einzelnen fehlenden Wert"-Ansatz wie bei holdGear() weiter
+        // oben, hier realisiert, indem der Timer-Zustand unangetastet bleibt und newOilBarColor
+        // auf den bisherigen UI-Wert faellt, statt den Copy-Aufruf unten in zwei Varianten
+        // aufzuspalten.
+        val newCoolantReading = values
+            .firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }
+            ?.takeIf { reading -> lastOilBarSampleTimestamp.let { last -> last == null || reading.timestamp > last } }
+        val newOilBarColor = if (newCoolantReading != null) {
+            lastOilBarSampleTimestamp = newCoolantReading.timestamp
+            val now = nowMillis()
+            oilBarTimerState = updateOilBarTimer(newCoolantReading.value, now, oilBarTimerState)
+            oilBarColor(newCoolantReading.value, now, oilBarTimerState)
         } else {
             _uiState.value.oilBarColor
         }

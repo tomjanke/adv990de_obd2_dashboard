@@ -26,7 +26,9 @@ import io.mockk.verify
 import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -1926,47 +1928,135 @@ class DashboardViewModelTest {
         assertEquals(OilBarColor.Red, vm.uiState.value.oilBarColor)
     }
 
-    @Test
-    fun `oilBarColor turns Green only after ten continuous minutes above 80C`() = runTest {
-        // Treibt drei applyReadings()-Zyklen ueber denselben livePids()-Flow, getrennt durch
-        // echte delay()-Schritte unter virtueller Zeit. nowMillis liest testScheduler.currentTime
-        // statt eines separat mitgefuehrten Zaehlers — die injizierte Uhr ist damit IMMER exakt
-        // die virtuelle Testzeit, unabhaengig davon, wie merge()/combine() die Verarbeitung
-        // intern auf Coroutinen verteilen (kein Raum fuer eine Race zwischen "Uhr vorstellen" und
-        // "Zyklus verarbeiten" wie bei einem manuell mutierten Zaehler).
-        //
-        // 1. Zyklus (t=0 ms): Kuehlmittel > 80 C -> Gruen-Timer startet.
-        // 2. Zyklus (t=5 min): weiterhin > 80 C, aber erst 5 von 10 Minuten -> noch nicht Gruen.
-        // 3. Zyklus (t=10 min + 1 ms): ununterbrochen > 80 C seit t=0 -> Gruen.
-        val hotReading = listOf(SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 85f, timestamp = 1000L))
-        val obdRepo = mockk<ObdRepository> {
-            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
-            every { livePids(any()) } returns flow {
-                emit(hotReading)
-                delay(5 * 60 * 1000L)
-                emit(hotReading)
-                delay(5 * 60 * 1000L + 1)
-                emit(hotReading)
-            }
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
-        }
-        val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
-            coEvery { writeReadings(any(), any()) } just Runs
-            coEvery { endSession(any()) } just Runs
-        }
+    // Die folgenden Tests treiben applyReadings() ueber einen livePids()-Flow mit echten
+    // delay()-Schritten unter virtueller Zeit. nowMillis liest testScheduler.currentTime statt
+    // eines separat mitgefuehrten Zaehlers — die injizierte Uhr ist damit IMMER exakt die
+    // virtuelle Testzeit, unabhaengig davon, wie merge()/combine() die Verarbeitung intern auf
+    // Coroutinen verteilen. Messwerte kommen im Sekundentakt wie im echten OBD-Betrieb: seit dem
+    // 60-s-Luecken-Limit (MAX_SAMPLE_GAP_MS) setzen Minutenabstaende den Gruen-Timer bewusst
+    // zurueck, und seit der Zeitstempel-Pruefung zaehlt nur ein Messwert mit NEUEM Zeitstempel.
 
-        val vm = makeVmFrom(
-            obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(),
-            makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true),
-            nowMillis = { testScheduler.currentTime },
-        )
+    @Test
+    fun `oilBarColor turns Green after ten continuous minutes of fresh readings above 80C`() = runTest {
+        // Regressionsschutz fuer den Normalfall: frische Messwerte (je eigener Zeitstempel) im
+        // Sekundentakt ab t=0. Gelb bis 9:59, Gruen ab genau 10:00.
+        val obdRepo = makeConnectedObdRepo(flow {
+            repeat(11 * 60) {
+                emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+                delay(1_000L)
+            }
+        })
+        val vm = makeOilBarVm(obdRepo, nowMillis = { testScheduler.currentTime })
+
+        advanceTimeBy(10 * 60_000L)  // verarbeitet alle Messwerte vor t=10:00, der letzte bei 9:59
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+        advanceUntilIdle()
+        assertEquals(OilBarColor.Green, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `a re-delivered coolant reading with an unchanged timestamp does not advance the green timer`() = runTest {
+        // Ein echter Messwert bei t=0 (85 C), danach 11 Minuten lang derselbe Messwert mit
+        // DEMSELBEN Zeitstempel, jede Sekunde erneut zugestellt — waehrend die Uhr weiterlaeuft.
+        // Ohne Zeitstempel-Pruefung zaehlte jede Wiederholung als Bestaetigung (Abstand 1 s, also
+        // kein Luecken-Reset) und der Balken wuerde bei t=10:00 gruen, obwohl nach t=0 nie ein
+        // neuer Messwert kam.
+        val sameReading = listOf(coolantReading(85f, timestamp = 1_000L))
+        val obdRepo = makeConnectedObdRepo(flow {
+            repeat(11 * 60) {
+                emit(sameReading)
+                delay(1_000L)
+            }
+        })
+        val vm = makeOilBarVm(obdRepo, nowMillis = { testScheduler.currentTime })
         advanceUntilIdle()
 
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `GPS-triggered replays of the last OBD cycle do not advance the green timer`() = runTest {
+        // Der konkrete Mechanismus aus dem Review: Zuendung aus, das Steuergeraet antwortet nur
+        // noch NO DATA (livePids() emittiert nichts mehr, der Watchdog toleriert das beliebig
+        // lange), aber jede GPS-Aenderung stellt per ReadingsPipeline.gpsRefresh() die letzten
+        // OBD-Werte erneut zu — inklusive des alten Kuehlmittelwerts mit seinem alten Zeitstempel.
+        val obdRepo = makeConnectedObdRepo(flow {
+            emit(listOf(coolantReading(85f, timestamp = 1_000L)))
+            awaitCancellation()
+        })
+        val gps: GpsSpeedSource = mockk {
+            // Wechselnde Werte: ein StateFlow unterdrueckt gleiche Folgewerte, gpsRefresh() liefe
+            // sonst gar nicht erst an.
+            every { speedKmh } returns flow {
+                repeat(11 * 60) { i ->
+                    emit(if (i % 2 == 0) 10f else 11f)
+                    delay(1_000L)
+                }
+            }
+        }
+        val vm = makeOilBarVm(obdRepo, prefs = makePrefs(useGpsSpeed = true), gps = gps, nowMillis = { testScheduler.currentTime })
+        advanceUntilIdle()
+
+        // Beleg, dass die Replays tatsaechlich bis applyReadings() durchkamen (sonst waere der Test
+        // wertlos): die Anzeige-Geschwindigkeit stammt aus dem letzten GPS-Replay (Index 659 -> 11).
+        assertEquals(11f, vm.uiState.value.speedKmh!!, 0.001f)
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `a pause of more than 60s between fresh readings restarts the green count`() = runTest {
+        // Frischer Messwert bei t=0, dann 61 s nichts, ab t=61 s wieder frische Messwerte im
+        // Sekundentakt. Der Timer startet bei t=61 s neu: bei t=10:00 noch Gelb, Gruen erst bei
+        // t=11:01. Prueft zugleich, dass das ViewModel lastSampleAtMillis zwischen den Zyklen
+        // mitfuehrt (die reine Luecken-Logik selbst deckt OilTemperatureBarTest ab).
+        val obdRepo = makeConnectedObdRepo(flow {
+            emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+            delay(61_000L)
+            repeat(10 * 60 + 1) {
+                emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+                delay(1_000L)
+            }
+        })
+        val vm = makeOilBarVm(obdRepo, nowMillis = { testScheduler.currentTime })
+
+        advanceTimeBy(10 * 60_000L + 1)  // bis einschliesslich t=10:00
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+        advanceUntilIdle()               // letzter Messwert bei t=11:01
+        assertEquals(OilBarColor.Green, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `a brief disconnect of less than 60s keeps the green count`() = runTest {
+        // Frische Messwerte t=0..4:59, Verbindung weg bei t=5:00.5, zurueck bei t=5:30.5, danach
+        // wieder frische Messwerte. Luecke zwischen zwei Messwerten: 31,5 s < 60 s — der Timer
+        // laeuft von t=0 weiter, Gruen also bei t=10:00 (nicht erst 10 Minuten nach dem Reconnect).
+        // Waehrend der Trennung ist der Balken grau (oilBarColor == null).
+        val isConnectedFlow = MutableStateFlow(true)
+        val beforeDrop = flow {
+            repeat(5 * 60) {
+                emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+                delay(1_000L)
+            }
+            awaitCancellation()
+        }
+        val afterReconnect = flow {
+            repeat(5 * 60) {
+                emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+                delay(1_000L)
+            }
+        }
+        val obdRepo = makeConnectedObdRepo(beforeDrop, afterReconnect, isConnectedFlow = isConnectedFlow)
+        val vm = makeOilBarVm(obdRepo, nowMillis = { testScheduler.currentTime })
+
+        advanceTimeBy(5 * 60_000L + 500)
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+        isConnectedFlow.value = false
+        advanceTimeBy(30_000L)
+        assertNull(vm.uiState.value.oilBarColor)
+        isConnectedFlow.value = true
+        advanceTimeBy(10 * 60_000L - (5 * 60_000L + 500 + 30_000L))  // bis kurz vor t=10:00
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+        advanceUntilIdle()
         assertEquals(OilBarColor.Green, vm.uiState.value.oilBarColor)
     }
 
@@ -2005,6 +2095,44 @@ class DashboardViewModelTest {
         // und nicht null (der 2. Zyklus ohne Kuehlmittelwert darf das nicht veraendern).
         assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
     }
+
+    private fun coolantReading(celsius: Float, timestamp: Long) =
+        SensorValue(pid = PidRegistry.COOLANT_TEMP, value = celsius, timestamp = timestamp)
+
+    /**
+     * Verbundenes ObdRepository ohne PID-Discovery fuer die Oel-Balken-Tests. Jeder Sitzungsbeginn
+     * ruft livePids() erneut auf und bekommt der Reihe nach den naechsten Strom aus [sessions]
+     * (MockK wiederholt danach den letzten).
+     */
+    private fun makeConnectedObdRepo(
+        vararg sessions: Flow<List<SensorValue>>,
+        isConnectedFlow: MutableStateFlow<Boolean> = MutableStateFlow(true),
+    ): ObdRepository = mockk {
+        every { this@mockk.isConnectedFlow } returns isConnectedFlow
+        every { supportedPidIds } returns MutableStateFlow(null)
+        coEvery { readVin() } returns null
+        coEvery { readDtcs() } returns emptyList()
+        every { livePids(any()) } returnsMany sessions.toList()
+        every { setMoving(any()) } just Runs
+        every { updateLatestReadings(any()) } just Runs
+    }
+
+    private fun makeOilBarVm(
+        obdRepo: ObdRepository,
+        nowMillis: () -> Long,
+        prefs: AppPreferences = makePrefs(),
+        gps: GpsSpeedSource = makeGpsSpeedSource(),
+    ): DashboardViewModel = makeVmFrom(
+        obdRepo,
+        mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        },
+        prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), gps,
+        mockk(relaxed = true),
+        nowMillis = nowMillis,
+    )
 
     /**
      * Baut das ViewModel aus denselben Bausteinen wie Hilt.

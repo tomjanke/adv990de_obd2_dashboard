@@ -14,25 +14,59 @@ private const val GREEN_RESET_THRESHOLD_C = 78f
 /** Ununterbrochen ueber [GREEN_ENTER_THRESHOLD_C] fuer diese Dauer -> Gruen. */
 private const val GREEN_HOLD_MS = 10 * 60 * 1000L
 
+/**
+ * Laengste tolerierte Pause zwischen zwei Messwerten, ueber die hinweg der Gruen-Timer
+ * weiterlaeuft. Liegt deutlich ueber dem Default des OBD-Watchdogs (20 s), damit ein normaler
+ * Reconnect (Watchdog + erster Backoff-Schritt + Verbindungsaufbau) die Zaehlung nicht verliert —
+ * aber weit unter "App war stundenlang zu": Nach einer laengeren Pause ist unbekannt, was die
+ * Temperatur dazwischen tat, also beginnt die Auswertung von vorn (s. [updateOilBarTimer]).
+ */
+private const val MAX_SAMPLE_GAP_MS = 60_000L
+
 enum class OilBarColor { Red, Yellow, Green }
 
-/** [aboveGreenThresholdSinceMillis]: Zeitpunkt, seit dem die Temperatur ununterbrochen ueber
- *  [GREEN_ENTER_THRESHOLD_C] liegt (per Hysterese-Band, s.o.), oder null wenn der Timer nicht
- *  laeuft. */
-data class OilBarTimerState(val aboveGreenThresholdSinceMillis: Long? = null)
+/**
+ * [aboveGreenThresholdSinceMillis]: Zeitpunkt, seit dem die Temperatur ununterbrochen ueber
+ * [GREEN_ENTER_THRESHOLD_C] liegt (per Hysterese-Band, s.o.), oder null wenn der Timer nicht
+ * laeuft.
+ *
+ * [lastSampleAtMillis]: Zeitpunkt des zuletzt verarbeiteten Messwerts, oder null vor dem ersten.
+ * Grundlage fuer das Luecken-Limit [MAX_SAMPLE_GAP_MS].
+ *
+ * Beide Zeitpunkte stammen aus derselben Uhr wie das `nowMillis` der Aufrufe (im ViewModel die
+ * monotone `SystemClock.elapsedRealtime()`), nicht aus den Zeitstempeln der Messwerte.
+ */
+data class OilBarTimerState(
+    val aboveGreenThresholdSinceMillis: Long? = null,
+    val lastSampleAtMillis: Long? = null,
+)
 
 /**
  * Aktualisiert den Gruen-Timer-Zustand fuer einen neuen Kuehlmitteltemperatur-Messwert.
+ *
+ * Zwei Schritte:
+ * 1. Luecken-Limit: Liegt der vorige Messwert mehr als [MAX_SAMPLE_GAP_MS] zurueck, wird so
+ *    weitergerechnet, als gaebe es noch keinen Zustand — ein laufender Timer verfaellt, statt nach
+ *    einem langen Verbindungsabbruch (oder stundenlang geschlossener App) mit einem einzigen neuen
+ *    Messwert seinen uralten Startzeitpunkt fortzusetzen und sofort Gruen zu zeigen.
+ * 2. Die Schwellwert-Logik auf diesem (ggf. frischen) Zustand: > 80 °C startet den Timer bzw.
+ *    laesst ihn laufen, ≤ 78 °C setzt ihn zurueck, 78–80 °C haelt ihn unveraendert.
+ *
+ * [OilBarTimerState.lastSampleAtMillis] wird in jedem Fall auf [nowMillis] gesetzt.
  *
  * Reine Funktion ohne Android-/Coroutines-Bezug, direkt testbar (Projekt-Konvention, vgl.
  * `determineGear`/`holdGear`, `isReadingsStale`). Zeit als Parameter statt System-Uhr-Zugriff
  * innerhalb der Funktion.
  */
-fun updateOilBarTimer(coolantTempC: Float, nowMillis: Long, state: OilBarTimerState): OilBarTimerState = when {
-    coolantTempC > GREEN_ENTER_THRESHOLD_C ->
-        state.copy(aboveGreenThresholdSinceMillis = state.aboveGreenThresholdSinceMillis ?: nowMillis)
-    coolantTempC <= GREEN_RESET_THRESHOLD_C -> OilBarTimerState(aboveGreenThresholdSinceMillis = null)
-    else -> state // Hysterese-Zone 78-80°C: haelt unveraendert
+fun updateOilBarTimer(coolantTempC: Float, nowMillis: Long, state: OilBarTimerState): OilBarTimerState {
+    val lastSample = state.lastSampleAtMillis
+    val base = if (lastSample != null && nowMillis - lastSample > MAX_SAMPLE_GAP_MS) OilBarTimerState() else state
+    val aboveSince = when {
+        coolantTempC > GREEN_ENTER_THRESHOLD_C -> base.aboveGreenThresholdSinceMillis ?: nowMillis
+        coolantTempC <= GREEN_RESET_THRESHOLD_C -> null
+        else -> base.aboveGreenThresholdSinceMillis // Hysterese-Zone 78-80°C: haelt unveraendert
+    }
+    return OilBarTimerState(aboveGreenThresholdSinceMillis = aboveSince, lastSampleAtMillis = nowMillis)
 }
 
 /**
