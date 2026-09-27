@@ -43,29 +43,39 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 - `StatusColors.Warning` (`#F59E0B`, Tailwind Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
 - `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
+- `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der beiden unten dokumentierten Rot/Gelb/Grün-Ampel-Ausnahmen (Bluetooth-Dot, Öl-Temperatur-Balken), **kein** allgemeines OK-Grün
 - Form-Validation / Empty-State-Error-Texte: `MaterialTheme.colorScheme.error` (M3-Standard, andere Semantik als Dashboard-Critical)
 
 **Dokumentierte Ausnahme — Bluetooth-Verbindungs-Dot (Stand 2026-09-23, Nutzerwunsch):** Der
 Verbindungsstatus-Dot im Dashboard (neben dem Bluetooth-Icon in `DashboardScreen.kt`) nutzt
 entgegen der obigen Regel eine klassische Rot/Gelb/Grün-Ampel-Semantik statt theme-getönter
 Non-Alarm-Farben: `connectionDotColor()` (`ui/dashboard/DashboardStatusDot.kt`) liefert `Ok` →
-`#22C55E` (Tailwind Green 500), `Connecting` → `#EAB308` (Tailwind Yellow 500), `Critical` weiterhin
-`StatusColors.Critical`. Gilt **nur** für diesen einen Dot — `StatusDot()`s neuer optionaler
-`color`-Parameter ist ein Override; ohne ihn behält die Komponente ihre bisherige, nicht-alarmierte
-Standardfarbgebung für jede andere Verwendung.
+`StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500 — seit 2026-09-27 benannte Konstante
+statt Inline-Literal, geteilt mit dem Öl-Temperatur-Balken unten), `Connecting` → `#EAB308`
+(Tailwind Yellow 500), `Critical` weiterhin `StatusColors.Critical`. Gilt **nur** für diesen einen
+Dot — `StatusDot()`s neuer optionaler `color`-Parameter ist ein Override; ohne ihn behält die
+Komponente ihre bisherige, nicht-alarmierte Standardfarbgebung für jede andere Verwendung.
 
 **Dokumentierte Ausnahme — Öl-Temperatur-Balken (Stand 2026-09-27, Nutzerwunsch):** Der
 simulierte Öl-Temperatur-Balken unter der RPM-Segmentanzeige (`OilTemperatureBarStrip` in
 `ui/dashboard/DashboardComponents.kt`) nutzt **invertierte** Rot/Gelb/Grün-Semantik statt der
 üblichen App-Farb-Logik: Rot = zu kalt (≤75 °C), nicht gefährlich/heiß. `oilBarColor()`
-(`ui/dashboard/OilTemperatureBar.kt`) liefert:
+(`ui/dashboard/OilTemperatureBar.kt`) liefert den Zustand, `oilBarStripColor()`
+(`DashboardComponents.kt`, reine Funktion, JVM-getestet) ordnet ihm die Farbe zu:
 - `Red` (≤75 °C) → `StatusColors.Critical` (Rot)
 - `Yellow` (>75 °C, unter dem Grün-Schwellwert) → `StatusColors.Warning` (Gelb)
-- `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 78–80 °C) → `MaterialTheme.colorScheme.tertiary` (Grün)
+- `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 78–80 °C) → `StatusColors.TrafficLightGreen` (`#22C55E`, dasselbe Grün wie der Bluetooth-Dot oben)
+
+**Korrektur (2026-09-27, finales Review):** Grün war ursprünglich `MaterialTheme.colorScheme.tertiary`
+— das ist aber nur im grünen Cockpit-Schema tatsächlich grün (`#86EFAC`); im blauen ist es
+hellblau (`#7DD3FC`), im amber-farbenen amber (`#FCD34D`, kaum vom Gelb-Zustand `#F59E0B` zu
+unterscheiden) und im Default-Schema mauve (`#7D5260`, hell) bzw. rosa (`#EFB8C8`, dunkel —
+M3-1.4.0-Standardwerte). Deshalb jetzt das feste Ampel-Grün, auf Nutzerwunsch exakt die Farbe des
+Bluetooth-Dots.
 
 Die invertierte Semantik ist inhaltlich korrekt (ein kalter Motor braucht längere Aufwärm-Zeit,
-nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Die Farben reuse bestehende
-Tokens; keine neuen Hardcoded-Werte. Hysterese-Details: `GREEN_ENTER_THRESHOLD_C = 80 °C`,
+nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Alle drei Farben sind benannte
+`StatusColors`-Tokens; keine Hardcoded-Werte im Composable. Hysterese-Details: `GREEN_ENTER_THRESHOLD_C = 80 °C`,
 `GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min` — die Zone 78–80 °C hält den
 Timer unverändert (verhindert Thermostat-Pendeln).
 

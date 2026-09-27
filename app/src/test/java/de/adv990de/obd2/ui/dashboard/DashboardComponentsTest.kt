@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.ui.graphics.Color
+import de.adv990de.obd2.ui.components.StatusDotState
+import de.adv990de.obd2.ui.theme.StatusColors
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -8,7 +10,8 @@ import org.junit.Test
  * JVM tests for the pure decision logic extracted out of this package's Composable bodies: from
  * [RpmBar] the blink timing ([rpmBlinkPeriodMs]) and the per-segment color choice
  * ([rpmSegmentColor]); from `DashboardScreen` the engine-temperature blink-threshold scale
- * ([rpmThresholdTempScale]) and the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]).
+ * ([rpmThresholdTempScale]) and the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]);
+ * from [OilTemperatureBarStrip] its color choice ([oilBarStripColor]).
  * None of these functions has a Compose or Android dependency (Projekt-Konvention, vgl.
  * [GearIndicatorTest], `StatusDotTest`), so all are covered here directly instead of through
  * instrumentation tests.
@@ -236,5 +239,45 @@ class DashboardComponentsTest {
     @Test
     fun `a plausible real rpm value blocks the demo sweep from starting`() {
         assertEquals(false, shouldStartRpmDemoSweep(2500f))
+    }
+
+    // --- oilBarStripColor ---
+    // Regressionsschutz fuer den Befund aus dem finalen Review: Gruen war bis dahin
+    // `colorScheme.tertiary` — hellblau im blauen, amber im amber-farbenen (kaum von Gelb zu
+    // unterscheiden) und mauve/rosa im Default-Farbschema. Die Funktion bekommt bewusst nur die
+    // Grau-Farbe aus dem Theme herein, alle drei Ampelfarben sind fest.
+
+    @Test
+    fun `oil bar Green is the fixed traffic-light green, not a theme color`() {
+        val green = oilBarStripColor(OilBarColor.Green, isLive = true, idleColor = idleColor)
+        assertEquals(StatusColors.TrafficLightGreen, green)
+        assertEquals(Color(0xFF22C55E), green) // Tailwind Green 500
+    }
+
+    @Test
+    fun `oil bar Green is exactly the Bluetooth dot's connected green`() {
+        // Nutzerentscheidung: dieselbe Gruen-Farbe wie der Verbindungs-Dot, keine zweite.
+        assertEquals(
+            connectionDotColor(StatusDotState.Ok),
+            oilBarStripColor(OilBarColor.Green, isLive = true, idleColor = idleColor),
+        )
+    }
+
+    @Test
+    fun `oil bar Red and Yellow reuse the StatusColors red and amber`() {
+        assertEquals(StatusColors.Critical, oilBarStripColor(OilBarColor.Red, isLive = true, idleColor = idleColor))
+        assertEquals(StatusColors.Warning, oilBarStripColor(OilBarColor.Yellow, isLive = true, idleColor = idleColor))
+    }
+
+    @Test
+    fun `oil bar without a color yet is grey`() {
+        assertEquals(idleColor, oilBarStripColor(null, isLive = true, idleColor = idleColor))
+    }
+
+    @Test
+    fun `oil bar is grey without a connection, whatever color is passed in`() {
+        (OilBarColor.entries + null).forEach { color ->
+            assertEquals("color=$color", idleColor, oilBarStripColor(color, isLive = false, idleColor = idleColor))
+        }
     }
 }

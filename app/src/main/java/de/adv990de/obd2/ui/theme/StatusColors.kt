@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.Color
  *
  * For "OK / connected / nominal" signals use `MaterialTheme.colorScheme.tertiary`
  * (per-theme tinted) rather than a fixed green — keeps the OK signal in harmony
- * with the active theme while red/amber are alarming.
+ * with the active theme while red/amber are alarming. The only exceptions are the
+ * red/yellow/green traffic-light displays documented in CLAUDE.md, which use
+ * [TrafficLightGreen].
  *
  * Palette: Tailwind 500 row, matches the project's color-scheme aesthetic.
  */
@@ -27,4 +29,18 @@ object StatusColors {
 
     /** Actionable redline / fault / hard limit hit. */
     val Critical = Color(0xFFEF4444)
+
+    /**
+     * Fixed "green light" (Tailwind Green 500) for the two red/yellow/green traffic-light
+     * displays documented as exceptions in CLAUDE.md — and only for those: the dashboard's
+     * Bluetooth connection dot ("connected", `connectionDotColor()`) and the simulated
+     * oil-temperature bar ("at operating temperature", `oilBarStripColor()`).
+     *
+     * Not a general "OK" color — every other OK/connected/nominal signal keeps using the
+     * theme-tinted `tertiary` (see above). A traffic light cannot use `tertiary`, because it is
+     * only actually green in the green cockpit scheme: sky blue in the blue one, amber in the
+     * amber one (next to indistinguishable from [Warning]) and mauve/pink in the M3 default
+     * light/dark schemes.
+     */
+    val TrafficLightGreen = Color(0xFF22C55E)
 }

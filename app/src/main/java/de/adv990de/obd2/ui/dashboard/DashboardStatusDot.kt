@@ -37,10 +37,12 @@ fun dashboardStatusDotState(isConnected: Boolean, isReconnecting: Boolean, hasEr
  * [StatusDot]s eigenes `baseColor`, das nur greift, wenn kein `color`-Override uebergeben wird).
  *
  * `Critical`/`Warning` reichen die bereits vorhandenen [StatusColors]-Werte unveraendert durch —
- * Rot war schon vorher StatusColors.Critical, keine Dopplung noetig.
+ * Rot war schon vorher StatusColors.Critical, keine Dopplung noetig. Das Gruen fuer `Ok` ist
+ * [StatusColors.TrafficLightGreen] — dieselbe benannte Farbe nutzt der Oel-Temperatur-Balken fuer
+ * "Betriebstemperatur" (`oilBarStripColor()`), die zweite dokumentierte Ampel-Ausnahme.
  */
 fun connectionDotColor(state: StatusDotState): Color = when (state) {
-    StatusDotState.Ok         -> Color(0xFF22C55E) // Tailwind Green 500
+    StatusDotState.Ok         -> StatusColors.TrafficLightGreen
     StatusDotState.Connecting -> Color(0xFFEAB308) // Tailwind Yellow 500
     StatusDotState.Critical   -> StatusColors.Critical
     StatusDotState.Warning    -> StatusColors.Warning

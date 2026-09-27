@@ -142,6 +142,27 @@ internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when (engineTem
  */
 internal fun shouldStartRpmDemoSweep(rpmValue: Float): Boolean = rpmValue < 1f
 
+/**
+ * Farbe der [OilTemperatureBarStrip]: [idleColor] (grau), solange keine Verbindung besteht oder
+ * noch keine Farbe bestimmt ist; sonst eine feste Ampelfarbe je [OilBarColor] — Rot
+ * [StatusColors.Critical], Gelb [StatusColors.Warning], Gruen [StatusColors.TrafficLightGreen].
+ *
+ * Gruen ist bewusst NICHT `colorScheme.tertiary` (so bis zum finalen Review des Features): das ist
+ * nur im gruenen Cockpit-Schema tatsaechlich gruen — hellblau im blauen, amber im amber-farbenen
+ * (dort kaum von Gelb zu unterscheiden) und mauve bzw. rosa im hellen/dunklen Default-Schema. Eine
+ * Ampel muss in jedem Schema als Ampel lesbar sein.
+ *
+ * Reine Funktion ohne Compose-Bezug (vgl. [rpmSegmentColor]) — [idleColor] kommt als Parameter
+ * herein, weil `surfaceVariant` nur innerhalb der Komposition aus `MaterialTheme` lesbar ist.
+ */
+internal fun oilBarStripColor(color: OilBarColor?, isLive: Boolean, idleColor: Color): Color =
+    if (!isLive) idleColor else when (color) {
+        null               -> idleColor
+        OilBarColor.Red    -> StatusColors.Critical
+        OilBarColor.Yellow -> StatusColors.Warning
+        OilBarColor.Green  -> StatusColors.TrafficLightGreen
+    }
+
 @Composable
 internal fun RpmBar(
     rpm: Float,
@@ -285,9 +306,9 @@ internal fun RpmBar(
 /**
  * Simulierte "wahrscheinliche Oeltemperatur", abgeleitet aus der Kuehlmitteltemperatur (kein
  * echter Oelsensor) — s. `oilBarColor()`/`updateOilBarTimer()` in `OilTemperatureBar.kt` fuer die
- * Farblogik. Bewusst ohne Beschriftung (User-Wunsch). Farbsemantik ist hier invertiert gegenueber
- * dem Rest der App (Rot = zu kalt, nicht gefaehrlich/heiss) — dokumentierte, User-bestaetigte
- * Ausnahme, s. CLAUDE.md.
+ * Farblogik, [oilBarStripColor] fuer die Zuordnung zu Farben. Bewusst ohne Beschriftung
+ * (User-Wunsch). Farbsemantik ist hier invertiert gegenueber dem Rest der App (Rot = zu kalt, nicht
+ * gefaehrlich/heiss) — dokumentierte, User-bestaetigte Ausnahme, s. CLAUDE.md.
  */
 @Composable
 internal fun OilTemperatureBarStrip(
@@ -295,18 +316,15 @@ internal fun OilTemperatureBarStrip(
     isLive: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val barColor = when {
-        !isLive || color == null -> MaterialTheme.colorScheme.surfaceVariant
-        color == OilBarColor.Red -> StatusColors.Critical
-        color == OilBarColor.Yellow -> StatusColors.Warning
-        else -> MaterialTheme.colorScheme.tertiary
-    }
-    val description = when {
-        !isLive || color == null -> stringResource(R.string.oil_bar_unknown_desc)
-        color == OilBarColor.Red -> stringResource(R.string.oil_bar_red_desc)
-        color == OilBarColor.Yellow -> stringResource(R.string.oil_bar_yellow_desc)
-        else -> stringResource(R.string.oil_bar_green_desc)
-    }
+    val barColor = oilBarStripColor(color, isLive, idleColor = MaterialTheme.colorScheme.surfaceVariant)
+    val description = stringResource(
+        if (!isLive) R.string.oil_bar_unknown_desc else when (color) {
+            null               -> R.string.oil_bar_unknown_desc
+            OilBarColor.Red    -> R.string.oil_bar_red_desc
+            OilBarColor.Yellow -> R.string.oil_bar_yellow_desc
+            OilBarColor.Green  -> R.string.oil_bar_green_desc
+        }
+    )
     Box(
         modifier = modifier
             .background(barColor)
