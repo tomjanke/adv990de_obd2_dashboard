@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,6 +22,11 @@ import javax.inject.Singleton
  *
  * [openConnection] ist der Test-Seam: production nutzt den Default (echtes `URL.openConnection`),
  * Tests injizieren eine Fake-Connection ohne echten Socket.
+ *
+ * Datenschutz: Die Koordinaten verlassen das Geraet nur auf zwei Nachkommastellen gerundet (rund
+ * 1,1 km, s. [roundCoordinate]) — fuer Wetter mehr als genau genug, Open-Meteo rechnet laut eigener
+ * Doku ohnehin auf einem Raster vergleichbarer Groesse. So steht in keinem Anfrage-Log eines Dritten
+ * der genaue Standort.
  */
 @Singleton
 class OpenMeteoApi @Inject constructor(
@@ -32,7 +38,8 @@ class OpenMeteoApi @Inject constructor(
             try {
                 val url = URL(
                     "https://api.open-meteo.com/v1/forecast" +
-                        "?latitude=$latitude&longitude=$longitude&current=temperature_2m"
+                        "?latitude=${roundCoordinate(latitude)}&longitude=${roundCoordinate(longitude)}" +
+                        "&current=temperature_2m"
                 )
                 val connection = openConnection(url)
                 connection.connectTimeout = 10_000
@@ -49,3 +56,7 @@ class OpenMeteoApi @Inject constructor(
             }
         }
 }
+
+/** Zwei Nachkommastellen (~1,1 km). `Locale.ROOT`, nicht die Geraete-Locale: auf einem deutschen
+ *  Geraet ergaebe `String.format` sonst "52,52" — eine ungueltige Koordinate fuer die API. */
+private fun roundCoordinate(value: Double): String = String.format(Locale.ROOT, "%.2f", value)

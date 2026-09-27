@@ -28,6 +28,7 @@ import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Before
@@ -93,14 +94,16 @@ import org.junit.runner.RunWith
  * [navHidden_true_withNullTemperature_stillHidesNavItems] below. [BottomNav] resolves [WeatherViewModel]
  * the same way it resolves [DriveStateViewModel] — a parameter defaulting to `hiltViewModel()` — so
  * [launchBottomNav] mocks it directly with MockK instead of letting Hilt construct the real one. This
- * matters for more than test isolation: [WeatherViewModel]'s real `@Inject` constructor's `init` block
- * launches an infinite `viewModelScope.launch { while (isActive) { fetch...; delay(60_000) } }` loop
- * making real network calls (s. its KDoc) — exactly the resource-leak shape that already bit
- * `WeatherViewModelTest` once (s. this feature's task-4-report.md). `mockk<WeatherViewModel>(relaxed = true)`
- * never invokes that real constructor at all (proxy construction, same as this file's own existing
- * `mockk<ObdRepository>`/`mockk<AppPreferences>` — both concrete classes, not interfaces, proving this
- * project's MockK setup already mocks final Kotlin classes without running their real init logic), so
- * no coroutine ever starts and there is nothing to cancel in an `@After`.
+ * matters for more than test isolation: collecting the real [WeatherViewModel.outsideTempC] (a cold
+ * `WhileSubscribed` flow) starts a 60-second polling loop on `viewModelScope` with real network
+ * calls — the loop shape that already bit `WeatherViewModelTest` once (s. this feature's
+ * task-4-report.md). `mockk<WeatherViewModel>(relaxed = true)` never invokes the real constructor at
+ * all (proxy construction, same as this file's own existing `mockk<ObdRepository>`/
+ * `mockk<AppPreferences>` — both concrete classes, not interfaces, proving this project's MockK setup
+ * already mocks final Kotlin classes without running their real init logic), so no coroutine ever
+ * starts and there is nothing to cancel in an `@After`. The mock also makes the gating itself
+ * testable: [navHidden_false_neverTouchesTheWeatherFlow] verifies `outsideTempC` is never even read
+ * while the nav bar is shown.
  *
  * [DisplaySettingsViewModel] (the imperial-units setting for the temperature) follows the
  * [DriveStateViewModel] pattern instead — real class, mocked [AppPreferences] flows, exactly like
@@ -162,6 +165,7 @@ class BottomNavTest {
         }
 
     private lateinit var navController: NavHostController
+    private lateinit var weatherVm: WeatherViewModel
 
     private fun launchBottomNav(
         isMoving: Boolean,
@@ -172,7 +176,7 @@ class BottomNavTest {
     ) {
         composeRule.setContent {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
-            val weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
+            weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
             val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
@@ -256,6 +260,17 @@ class BottomNavTest {
         }
         composeRule.onNodeWithText("68 °F").assertIsDisplayed()
         composeRule.onNodeWithText("20 °C").assertDoesNotExist()
+    }
+
+    @Test
+    fun navHidden_false_neverTouchesTheWeatherFlow() {
+        // The weather flow is cold (WhileSubscribed): whoever collects it starts the 60-second
+        // polling — network calls with the device's coordinates. BottomNav must therefore only
+        // collect it in the branch that actually shows AmbientStatusRow, never for the nav bar.
+        launchBottomNav(isMoving = false, hideNavOnDrive = true)
+
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
+        verify(exactly = 0) { weatherVm.outsideTempC }
     }
 
     @Test

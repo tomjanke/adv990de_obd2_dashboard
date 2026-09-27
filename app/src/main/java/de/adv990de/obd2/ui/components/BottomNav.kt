@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
@@ -49,9 +50,11 @@ private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
  *
  * `weatherVm` ist wie `vm` ein Parameter mit `hiltViewModel()`-Default statt eines lokalen Values,
  * genau nach dem bereits bestehenden `vm: DriveStateViewModel`-Muster: Tests koennen so eine
- * kontrollierte Instanz einsetzen, ohne echte Hilt-Aufloesung von [WeatherViewModel] auszuloesen —
- * dessen echter Konstruktor startet einen unendlich pollenden `viewModelScope`-Coroutine-Loop mit
- * echten Netzwerk-Calls (s. `BottomNavTest.kt` fuer die Test-Seite davon).
+ * kontrollierte Instanz einsetzen, ohne echte Hilt-Aufloesung von [WeatherViewModel] — dessen
+ * `outsideTempC` pollt, sobald es gesammelt wird, mit echten Netzwerk-Calls (s. `BottomNavTest.kt`).
+ * Gesammelt wird es deshalb NUR im Zweig, der [AmbientStatusRow] zeigt, und mit
+ * `collectAsStateWithLifecycle`: kein Abruf, solange das Hauptmenue sichtbar ist oder die App im
+ * Hintergrund liegt (s. KDoc von [WeatherViewModel]).
  *
  * `displayVm` liefert die Einstellung "Imperiale Einheiten" fuer die Temperatur in
  * [AmbientStatusRow] — gleiches Parameter-Muster. Gesammelt wird sie hier oben (wie `isNavHidden`)
@@ -68,7 +71,6 @@ fun BottomNav(
 ) {
     val isNavHidden by vm.isNavHidden.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
-    val outsideTempC by weatherVm.outsideTempC.collectAsState()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
@@ -78,6 +80,7 @@ fun BottomNav(
         label = "BottomNavOrAmbientStatus",
     ) { hidden ->
         if (hidden) {
+            val outsideTempC by weatherVm.outsideTempC.collectAsStateWithLifecycle()
             AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial)
         } else {
             Column {
