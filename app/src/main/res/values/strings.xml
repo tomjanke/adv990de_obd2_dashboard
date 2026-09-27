@@ -17,6 +17,12 @@
     <string name="dashboard_gear_desc">Gear %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gear unknown</string>
 
+    <!-- Simulated oil temperature bar (no visible label, accessibility only) -->
+    <string name="oil_bar_red_desc">Probable oil temperature: cold</string>
+    <string name="oil_bar_yellow_desc">Probable oil temperature: warming up</string>
+    <string name="oil_bar_green_desc">Probable oil temperature: at operating temperature</string>
+    <string name="oil_bar_unknown_desc">Probable oil temperature: unknown</string>
+
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_disconnect">Disconnect</string>

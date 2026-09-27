@@ -151,6 +151,19 @@ internal fun RpmBar(
     /** Ohne Verbindung zeigt der Balken nur die Demo-Bewegung: kein Alarmrot, kein Blinken
      *  und keine Zahl, die eine Drehzahl vortaeuscht, die es nicht gibt. */
     isLive: Boolean = true,
+    /** Simulierte Oel-Temperatur-Farbe (s. [OilTemperatureBarStrip]) — `null` zeigt die Leiste
+     *  grau, genau wie `isLive = false`.
+     *
+     *  Bewusst NICHT direkt nach `gear` (wie im Task-Brief urspruenglich skizziert), sondern hier
+     *  nach `isLive` und vor `trailingContent`: ein defaulteter Parameter zwischen `gear` und
+     *  `modifier` haette `modifier`s Position als "erster optionaler Parameter" gebrochen und exakt
+     *  die Lint-Regel verletzt, die eine fruehere Session-Aufraeumaktion hier bereits durchgesetzt
+     *  hatte ("Modifier parameter should be the first optional parameter") — empirisch verifiziert:
+     *  30→31 Lint-Warnungen mit der brief-woertlichen Platzierung, zurueck auf 30 mit dieser
+     *  Reihenfolge. `trailingContent` bleibt zugleich der letzte Parameter (Trailing-Lambda-Konvention
+     *  unangetastet). Alle bestehenden Call-Sites nutzen ausschliesslich benannte Argumente, daher
+     *  aendert diese Umsortierung an keinem von ihnen etwas. */
+    oilBarColor: OilBarColor? = null,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
     val blinkPeriodMs: Long = rpmBlinkPeriodMs(rpm, threshold, isLive)
@@ -189,39 +202,49 @@ internal fun RpmBar(
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface)
-            )
-            // Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm. Die Skala bleibt
-            // auch bei 0 rpm sichtbar, sodass der Fahrer die Position der Drehzahl im Band
-            // ablesen kann, ohne die Zahl zu lesen.
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val count = (RPM_BAR_MAX / RPM_SEGMENT).toInt()
-                val gap = 1.5.dp.toPx()
-                val segmentWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
-                val lit = if (visible) {
-                    ceil(rpm / RPM_SEGMENT).toInt().coerceIn(0, count)
-                } else 0
-                for (i in 0 until count) {
-                    val color = rpmSegmentColor(
-                        segmentIndex = i,
-                        litSegments = lit,
-                        segmentStartRpm = i * RPM_SEGMENT,
-                        redlineFromRpm = redlineFrom,
-                        litColor = litColor,
-                        redlineColor = redlineColor,
-                        idleColor = idleColor,
-                    )
-                    drawRect(
-                        color = color,
-                        topLeft = Offset(i * (segmentWidth + gap), 0f),
-                        size = Size(segmentWidth, size.height),
-                    )
+        // Column statt einzelnem Box: die RPM-Segmente behalten ihre bisherige Flaeche (80%
+        // Hoehenanteil), darunter die neue Oel-Temperatur-Leiste (20%) — beide teilen sich weiterhin
+        // nur das `weight(1f)`-Feld links neben der unveraenderten Gang-Box, s. Feature-Plan.
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Box(modifier = Modifier.weight(0.8f).fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface)
+                )
+                // Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm. Die Skala bleibt
+                // auch bei 0 rpm sichtbar, sodass der Fahrer die Position der Drehzahl im Band
+                // ablesen kann, ohne die Zahl zu lesen.
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val count = (RPM_BAR_MAX / RPM_SEGMENT).toInt()
+                    val gap = 1.5.dp.toPx()
+                    val segmentWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
+                    val lit = if (visible) {
+                        ceil(rpm / RPM_SEGMENT).toInt().coerceIn(0, count)
+                    } else 0
+                    for (i in 0 until count) {
+                        val color = rpmSegmentColor(
+                            segmentIndex = i,
+                            litSegments = lit,
+                            segmentStartRpm = i * RPM_SEGMENT,
+                            redlineFromRpm = redlineFrom,
+                            litColor = litColor,
+                            redlineColor = redlineColor,
+                            idleColor = idleColor,
+                        )
+                        drawRect(
+                            color = color,
+                            topLeft = Offset(i * (segmentWidth + gap), 0f),
+                            size = Size(segmentWidth, size.height),
+                        )
+                    }
                 }
             }
+            OilTemperatureBarStrip(
+                color = oilBarColor,
+                isLive = isLive,
+                modifier = Modifier.weight(0.2f).fillMaxWidth(),
+            )
         }
         val displayGear = if (isLive) gear else null
         val gearDescription = if (displayGear != null) {
@@ -257,6 +280,38 @@ internal fun RpmBar(
         }
         trailingContent?.invoke()
     }
+}
+
+/**
+ * Simulierte "wahrscheinliche Oeltemperatur", abgeleitet aus der Kuehlmitteltemperatur (kein
+ * echter Oelsensor) — s. `oilBarColor()`/`updateOilBarTimer()` in `OilTemperatureBar.kt` fuer die
+ * Farblogik. Bewusst ohne Beschriftung (User-Wunsch). Farbsemantik ist hier invertiert gegenueber
+ * dem Rest der App (Rot = zu kalt, nicht gefaehrlich/heiss) — dokumentierte, User-bestaetigte
+ * Ausnahme, s. CLAUDE.md.
+ */
+@Composable
+internal fun OilTemperatureBarStrip(
+    color: OilBarColor?,
+    isLive: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val barColor = when {
+        !isLive || color == null -> MaterialTheme.colorScheme.surfaceVariant
+        color == OilBarColor.Red -> StatusColors.Critical
+        color == OilBarColor.Yellow -> StatusColors.Warning
+        else -> MaterialTheme.colorScheme.tertiary
+    }
+    val description = when {
+        !isLive || color == null -> stringResource(R.string.oil_bar_unknown_desc)
+        color == OilBarColor.Red -> stringResource(R.string.oil_bar_red_desc)
+        color == OilBarColor.Yellow -> stringResource(R.string.oil_bar_yellow_desc)
+        else -> stringResource(R.string.oil_bar_green_desc)
+    }
+    Box(
+        modifier = modifier
+            .background(barColor)
+            .semantics { contentDescription = description }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -436,9 +491,9 @@ private fun PreviewRpmBarGearLocked() {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                RpmBar(rpm = 4500f, threshold = 7000, gear = 3, modifier = Modifier.fillMaxWidth())
-                RpmBar(rpm = 4500f, threshold = 7000, gear = null, modifier = Modifier.fillMaxWidth())
-                RpmBar(rpm = 0f, threshold = 7000, gear = null, isLive = false, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 4500f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 0f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Red, isLive = false, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -450,7 +505,7 @@ private fun PreviewRpmBarGearLockedAmber() {
     MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                RpmBar(rpm = 6200f, threshold = 7000, gear = 5, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 6200f, threshold = 7000, gear = 5, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
             }
         }
     }

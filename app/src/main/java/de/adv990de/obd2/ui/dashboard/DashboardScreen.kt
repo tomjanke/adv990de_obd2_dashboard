@@ -141,6 +141,7 @@ fun DashboardScreen(
                     rpm = displayRpm,
                     threshold = displayThreshold,
                     gear = state.gear,
+                    oilBarColor = state.oilBarColor,
                     modifier = Modifier.fillMaxWidth(),
                     isLive = state.isConnected,
                     trailingContent = {

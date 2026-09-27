@@ -28,9 +28,15 @@ import org.junit.runner.RunWith
  * `rpmThresholdTempScale`, `shouldStartRpmDemoSweep`) are already exhaustively covered as JVM tests
  * in `DashboardComponentsTest` (`app/src/test/java/de/adv990de/obd2/ui/dashboard/DashboardComponentsTest.kt`).
  * This class covers only what those cannot reach: the actual Composable output — the gear digit
- * ("N" vs. the "–" placeholder) and its accompanying `contentDescription` — plus a basic
- * "composes without crashing" smoke check across the segment `Canvas` and the blink `produceState`
- * loop's below-/above-threshold branches.
+ * ("N" vs. the "–" placeholder) and its accompanying `contentDescription`, the [OilTemperatureBarStrip]
+ * `contentDescription` for each `OilBarColor` state (that composable has no visible text of its own,
+ * s. its KDoc) — plus a basic "composes without crashing" smoke check across the segment `Canvas`
+ * and the blink `produceState` loop's below-/above-threshold branches.
+ *
+ * The oil-bar's actual on-screen *color* per state (as opposed to its `contentDescription`, asserted
+ * below) was verified visually instead, via this project's established temporary-`captureToImage`
+ * pattern (s. MEMORY.md) — not re-added here permanently, matching this class's existing precedent of
+ * not asserting pixel-level `Canvas` output (s. paragraph below).
  *
  * Deliberately NOT covered (matching this project's established ceiling elsewhere, e.g.
  * `SlotPickerSheetTest`/`LiveValueTileTest`/`SectionLabelTest`, none of which assert pixel- or
@@ -109,6 +115,64 @@ class RpmBarTest {
 
         val expectedDescription = composeRule.activity.getString(R.string.dashboard_gear_unknown_desc)
         composeRule.onNodeWithText(undeterminedGearGlyph).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun oilBarRed_showsColdContentDescription() {
+        composeRule.setContent {
+            RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Red)
+        }
+        composeRule.waitForIdle()
+
+        val expectedDescription = composeRule.activity.getString(R.string.oil_bar_red_desc)
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun oilBarYellow_showsWarmingUpContentDescription() {
+        composeRule.setContent {
+            RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Yellow)
+        }
+        composeRule.waitForIdle()
+
+        val expectedDescription = composeRule.activity.getString(R.string.oil_bar_yellow_desc)
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun oilBarGreen_showsOperatingTemperatureContentDescription() {
+        composeRule.setContent {
+            RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Green)
+        }
+        composeRule.waitForIdle()
+
+        val expectedDescription = composeRule.activity.getString(R.string.oil_bar_green_desc)
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun oilBarNullColor_showsUnknownContentDescription() {
+        // Live, but no color yet — e.g. before the first coolant reading has arrived.
+        composeRule.setContent {
+            RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = null)
+        }
+        composeRule.waitForIdle()
+
+        val expectedDescription = composeRule.activity.getString(R.string.oil_bar_unknown_desc)
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun notLive_showsUnknownOilBarContentDescription_evenWhenAColorIsPassedIn() {
+        // isLive=false forces the grey/unknown oil bar regardless of a stale oilBarColor — same
+        // rationale as notLive_hidesGear_evenWhenADeterminedGearIsPassedIn for the gear digit.
+        composeRule.setContent {
+            RpmBar(rpm = 0f, threshold = 7000, gear = 5, oilBarColor = OilBarColor.Red, isLive = false)
+        }
+        composeRule.waitForIdle()
+
+        val expectedDescription = composeRule.activity.getString(R.string.oil_bar_unknown_desc)
         composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
     }
 

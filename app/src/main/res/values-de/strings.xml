@@ -17,6 +17,12 @@
     <string name="dashboard_gear_desc">Gang %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gang unbekannt</string>
 
+    <!-- Simulierte Oeltemperatur-Leiste (keine sichtbare Beschriftung, nur Accessibility) -->
+    <string name="oil_bar_red_desc">Wahrscheinliche Öltemperatur: kalt</string>
+    <string name="oil_bar_yellow_desc">Wahrscheinliche Öltemperatur: wird warm</string>
+    <string name="oil_bar_green_desc">Wahrscheinliche Öltemperatur: Betriebstemperatur erreicht</string>
+    <string name="oil_bar_unknown_desc">Wahrscheinliche Öltemperatur: unbekannt</string>
+
     <!-- Settings screen -->
     <string name="settings_title">Einstellungen</string>
     <string name="settings_disconnect">Trennen</string>
