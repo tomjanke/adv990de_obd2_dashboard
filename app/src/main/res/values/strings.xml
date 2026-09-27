@@ -40,6 +40,8 @@
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
     <string name="app_info_weather_attribution">Weather data: Open-Meteo.com (CC BY 4.0)</string>
+    <!-- TalkBack action label for the attribution row ("Double-tap to open website") -->
+    <string name="app_info_open_website">open website</string>
 
     <!-- Dashboard config screen -->
     <string name="dashboard_config_title">Configure Dashboard</string>
