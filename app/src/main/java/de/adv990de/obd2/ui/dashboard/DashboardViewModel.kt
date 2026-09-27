@@ -38,7 +38,8 @@ data class DashboardUiState(
     val rpmValue: Float = 0f,
     val engineTempC: Float? = null,
     val speedKmh: Float? = null,
-    val gear: Int? = null
+    val gear: Int? = null,
+    val oilBarColor: OilBarColor? = null
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -141,6 +142,21 @@ class DashboardViewModel @Inject constructor(
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
+    // Interner Timer-Zustand des Oel-Balkens (Gruen-Hysterese) — bewusst NICHT Teil von
+    // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest, nur
+    // die daraus abgeleitete OilBarColor tut das (s. Task-Brief). Bleibt bewusst UNVERAENDERT
+    // ueber einen Verbindungsabbruch hinweg (anders als gear/speedKmh in applyIdle()) — die
+    // Kuehlmitteltemperatur aendert sich physikalisch nicht nur, weil BLE kurz aussetzt.
+    private var oilBarTimerState = OilBarTimerState()
+
+    // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
+    // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:
+    // Dagger/Hilt ignoriert Kotlin-Defaultwerte bei @Inject-Konstruktoren und scheitert ohne ein
+    // zusaetzliches @Provides-Binding fuer Function0<Long> mit [Dagger/MissingBinding] (empirisch
+    // verifiziert). Als var-Property aendert sich die Konstruktor-Signatur fuer Hilt gar nicht
+    // erst; Tests setzen die Property direkt nach dem Bauen des ViewModels (s. makeVmFrom).
+    internal var nowMillis: () -> Long = { System.currentTimeMillis() }
+
     init {
         viewModelScope.launch {
             readingsPipeline.events(viewModelScope).collect(::onSessionEvent)
@@ -197,12 +213,28 @@ class DashboardViewModel @Inject constructor(
         // angezeigten Gang, solange die Geschwindigkeit ueber MIN_SPEED_KMH bleibt, und loescht
         // ihn nur bei echtem Stillstand oder fehlendem GPS-Fix.
         val newGear = holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
+        // Oel-Balken-Farbe: unabhaengig von rpmDynamicThreshold (anders als engineTempC oben) —
+        // die Kuehlmitteltemperatur wird hier immer gesucht, wenn ein plausibler Wert vorliegt.
+        // Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z.B. NaN), bleibt die
+        // zuletzt angezeigte Farbe unveraendert — derselbe "keine Regression bei einem einzelnen
+        // fehlenden Wert"-Ansatz wie bei holdGear() weiter oben, hier realisiert, indem der
+        // Timer-Zustand unangetastet bleibt und newOilBarColor auf den bisherigen UI-Wert faellt,
+        // statt den Copy-Aufruf unten in zwei Varianten aufzuspalten.
+        val coolantTempC = values.firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }
+            ?.value
+        val newOilBarColor = if (coolantTempC != null) {
+            oilBarTimerState = updateOilBarTimer(coolantTempC, nowMillis(), oilBarTimerState)
+            oilBarColor(coolantTempC, nowMillis(), oilBarTimerState)
+        } else {
+            _uiState.value.oilBarColor
+        }
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,
             engineTempC = engineTempC,
             speedKmh = newSpeedKmh,
             gear = newGear,
+            oilBarColor = newOilBarColor,
             isConnected = true,
             isReconnecting = false,
             error = null,
@@ -221,7 +253,13 @@ class DashboardViewModel @Inject constructor(
             // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
             // determineGear(..., lastGear = <alter, nie neu bestaetigter Gang>, ...) ein und
             // die Hysterese "erinnert" sich an einen Zustand von vor dem Verbindungsabbruch.
-            _uiState.value.copy(isConnected = false, readings = emptyList(), speedKmh = null, gear = null)
+            _uiState.value.copy(
+                isConnected = false,
+                readings = emptyList(),
+                speedKmh = null,
+                gear = null,
+                oilBarColor = null
+            )
         } else {
             DashboardUiState.disconnected()
         }

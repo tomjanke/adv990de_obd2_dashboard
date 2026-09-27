@@ -1888,6 +1888,119 @@ class DashboardViewModelTest {
         assertNull(vm.uiState.value.engineTempC)
     }
 
+    // ── Oel-Balken-Farbe (oilBarColor) ───────────────────────────────────────────
+    // Die reine Schwellwert-/Timer-Logik (updateOilBarTimer/oilBarColor) ist bereits in
+    // OilTemperatureBarTest direkt abgedeckt. Hier wird nur das Zusammenspiel mit
+    // applyReadings()/DashboardUiState geprueft: die Kuehlmitteltemperatur-Extraktion aus den
+    // Readings, das Threading der injizierten Uhr ueber mehrere Zyklen, und das Halten des Werts
+    // bei einem einzelnen Zyklus ohne Kuehlmittelwert (Analogie zu holdGear()).
+
+    @Test
+    fun `oilBarColor is Red when coolant is at or below 75C`() = runTest {
+        val readings = listOf(
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 70f, timestamp = 1000L),
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(readings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        assertEquals(OilBarColor.Red, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `oilBarColor turns Green only after ten continuous minutes above 80C`() = runTest {
+        // Treibt drei applyReadings()-Zyklen ueber denselben livePids()-Flow, getrennt durch
+        // echte delay()-Schritte unter virtueller Zeit. nowMillis liest testScheduler.currentTime
+        // statt eines separat mitgefuehrten Zaehlers — die injizierte Uhr ist damit IMMER exakt
+        // die virtuelle Testzeit, unabhaengig davon, wie merge()/combine() die Verarbeitung
+        // intern auf Coroutinen verteilen (kein Raum fuer eine Race zwischen "Uhr vorstellen" und
+        // "Zyklus verarbeiten" wie bei einem manuell mutierten Zaehler).
+        //
+        // 1. Zyklus (t=0 ms): Kuehlmittel > 80 C -> Gruen-Timer startet.
+        // 2. Zyklus (t=5 min): weiterhin > 80 C, aber erst 5 von 10 Minuten -> noch nicht Gruen.
+        // 3. Zyklus (t=10 min + 1 ms): ununterbrochen > 80 C seit t=0 -> Gruen.
+        val hotReading = listOf(SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 85f, timestamp = 1000L))
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                emit(hotReading)
+                delay(5 * 60 * 1000L)
+                emit(hotReading)
+                delay(5 * 60 * 1000L + 1)
+                emit(hotReading)
+            }
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = makeVmFrom(
+            obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(),
+            makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true),
+            nowMillis = { testScheduler.currentTime },
+        )
+        advanceUntilIdle()
+
+        assertEquals(OilBarColor.Green, vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `oilBarColor holds its last value through a single cycle missing the coolant reading`() = runTest {
+        // Analogie zu `gear holds through a single implausible reading instead of dropping to
+        // unknown`: ein Zyklus ohne COOLANT_TEMP-Reading darf die zuletzt bestimmte Farbe nicht
+        // auf null zuruecksetzen.
+        val firstReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 85f, timestamp = 1000L),
+        )
+        val secondReadings = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L),
+            // Kein COOLANT_TEMP in diesem Zyklus.
+        )
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+
+        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        advanceUntilIdle()
+
+        // 85 C > 80 C, aber der Gruen-Timer laeuft erst seit dem 1. Zyklus -> Yellow, nicht Red
+        // und nicht null (der 2. Zyklus ohne Kuehlmittelwert darf das nicht veraendern).
+        assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
+    }
+
     /**
      * Baut das ViewModel aus denselben Bausteinen wie Hilt.
      *
@@ -1905,10 +2018,11 @@ class DashboardViewModelTest {
         logRepo: AppLogRepository,
         gpsSource: GpsSpeedSource,
         appContext: Context,
+        nowMillis: () -> Long = { System.currentTimeMillis() },
     ): DashboardViewModel = DashboardViewModel(
         obdRepo,
         prefs,
         ConnectionCoordinator(obdRepo, prefs, logRepo, btAdapter, appContext),
         ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource),
-    )
+    ).also { it.nowMillis = nowMillis }
 }
