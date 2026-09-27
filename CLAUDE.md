@@ -343,7 +343,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 772 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 778 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 152 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

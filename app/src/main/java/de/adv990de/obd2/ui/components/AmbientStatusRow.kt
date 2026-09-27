@@ -60,6 +60,21 @@ fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
         // Abstand ab dem Einblenden — sonst sprang die Minute bis zu einem Intervall zu spaet um.
         // Jede Runde rechnet neu von der aktuellen Uhrzeit aus, gleicht also verspaetete Ticks
         // und Uhr-Umstellungen von selbst aus.
+        //
+        // Bekannte, geringfuegige Grenze (gleiche Ursache wie WeatherViewModels 30-Minuten-
+        // Haltefenster vor dessen elapsedRealtime-Fix, s. dortiges KDoc auf
+        // `elapsedRealtimeSource` — kleinere Auswirkung hier): `delay()` plant intern gegen eine
+        // schlafpausierende Uhr (unter der Haube z. B. Handler.postDelayed -> SystemClock.
+        // uptimeMillis()), nicht gegen elapsedRealtime. Nach einem Tiefschlaf kann die Anzeige
+        // daher bis zu einem Taktintervall (~60 s) hinter der echten Uhrzeit zurueckbleiben, bis
+        // der naechste Tick nachholt — nie eine FALSCHE Zeit, nur kurzzeitig eine veraltete, die
+        // sich beim naechsten Tick von selbst korrigiert. Bewusst NICHT mit demselben
+        // elapsedRealtimeNanos()-Ansatz behoben: anders als bei WeatherViewModel (ein injizierbarer
+        // TimeSource-Parameter fuer eine reine Dauer-Berechnung) steckt das Problem hier in
+        // `delay()`s eigenem Scheduling-Primitiv selbst — eine andere Uhr fuer die Wartezeit-
+        // Berechnung aendert nichts daran, wie `delay()` intern wartet. Ein echter Fix (z. B.
+        // AlarmManager statt delay()) waere fuer diesen kleinen, selbstheilenden Effekt
+        // unverhaeltnismaessig.
         while (true) {
             delay(millisUntilNextMinute(System.currentTimeMillis()))
             nowMillis = System.currentTimeMillis()

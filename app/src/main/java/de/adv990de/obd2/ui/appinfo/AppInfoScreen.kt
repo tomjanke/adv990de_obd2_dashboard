@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
@@ -86,7 +88,14 @@ fun AppInfoScreen(navController: NavController) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
-            Modifier.padding(padding).padding(16.dp),
+            Modifier
+                .padding(padding)
+                .padding(16.dp)
+                // Diese Fix-Runde fuegte zwei neue, mindestens 64dp hohe tappable Zeilen
+                // (WeatherAttributionRow/WeatherLicenseRow) zu vormals einer einzigen kurzen
+                // Textzeile hinzu — ohne Scroll koennte der Inhalt im Querformat oder auf
+                // kleineren Geraeten ueber den Bildschirmrand hinausragen und abgeschnitten werden.
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             InfoRow(stringResource(R.string.app_info_name_label), stringResource(R.string.app_name))

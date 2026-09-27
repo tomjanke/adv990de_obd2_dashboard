@@ -13,9 +13,10 @@ import javax.inject.Singleton
  */
 internal enum class WeatherFetchFailure(val logMessage: String) {
     NO_PERMISSION(
-        "Außentemperatur: keine Standortberechtigung. Einstellungen > \"Navigationsleiste beim " +
-            "Fahren ausblenden\" aus- und wieder einschalten, um sie anzufragen, oder den Standort " +
-            "in den Android-App-Einstellungen erlauben (ungefähr genügt)."
+        "Außentemperatur: keine Standortberechtigung. Wird einmalig automatisch angefragt, sobald " +
+            "die Einstellungen bei eingeschaltetem \"Navigationsleiste beim Fahren ausblenden\" " +
+            "geöffnet werden; danach nur noch über die Android-App-Einstellungen erlaubbar " +
+            "(ungefähr genügt)."
     ),
     NO_LOCATION_FIX(
         "Außentemperatur: noch kein Standort bekannt (weder GPS- noch Netzwerk-Standort). " +

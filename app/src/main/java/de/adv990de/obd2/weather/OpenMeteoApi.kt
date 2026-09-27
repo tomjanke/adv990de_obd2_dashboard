@@ -13,7 +13,9 @@ import java.util.Locale
  * kommerzielle Nutzung (verifiziert https://open-meteo.com/en/pricing, 2026-09-25) — 10.000
  * Aufrufe/Tag, 600/Minute. Diese App ist ein privates, nicht-kommerzielles Projekt (vom Nutzer
  * bestaetigt 2026-09-27). Pflicht laut Lizenz CC BY 4.0 (https://open-meteo.com/en/licence):
- * Namensnennung MIT Link auf die Quelle — s. die antippbare Zeile in `AppInfoScreen.kt`.
+ * Namensnennung MIT Link auf die Quelle UND ein zweiter, separater Link auf den Lizenztext selbst
+ * (reine Namensnennung des Lizenznamens genuegt laut dessen eigenem Text nicht) — beide als eigene,
+ * antippbare Zeilen in `AppInfoScreen.kt` (`WeatherAttributionRow` bzw. `WeatherLicenseRow`).
  *
  * Bewusst kein neues Netzwerk-Dependency (kein Retrofit/Ktor/OkHttp) — ein GET mit einem
  * Float-Feld braucht keine eigene Library; `HttpURLConnection` + `org.json` sind Android-
