@@ -204,10 +204,16 @@ Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/Oi
   bei abgestellter Zündung (Steuergerät liefert nur noch NO DATA) einen alten Wert über 80 °C, bis der
   Balken grün würde. Bekannte Grenze: Springt die Systemzeit zurück, steht der Balken für die Dauer
   des Sprungs still (nie fälschlich grün).
-- **Lücken-Limit 60 s** (`MAX_SAMPLE_GAP_MS`): Liegen zwischen zwei verarbeiteten Messwerten mehr als
-  60 s, beginnt die Grün-Zählung von vorn. Ein normaler Reconnect (Watchdog-Default 20 s plus Backoff
-  und Verbindungsaufbau) behält die Zählung — der Timer wird in `applyIdle()` bewusst nicht
-  zurückgesetzt —, eine längere Trennung (auch bei im Hintergrund weiterlebender App) nicht.
+- **Lücken-Limit 60 s** (`MAX_SAMPLE_GAP_MS`), fest, nicht an den konfigurierbaren OBD-Watchdog
+  gekoppelt: Liegen zwischen zwei verarbeiteten Messwerten mehr als 60 s, beginnt die Grün-Zählung
+  von vorn — der Timer wird in `applyIdle()` bewusst nicht zurückgesetzt, nur bei echter
+  Lücken-Überschreitung. Ein schneller Reconnect bleibt meist darunter, ist aber nicht garantiert:
+  bei mehreren abgefragten PIDs kann allein die Watchdog-Erkennung (ein Timeout pro PID, je 5 s)
+  bereits 30 s+ dauern, dazu Backoff/Verbindungsaufbau/erste Zyklen — ein zweiter Reconnect-Versuch
+  oder ein hoch eingestellter Watchdog-Timeout überschreiten die 60 s typischerweise. Kein Fehler,
+  nur konservativ: die Grün-Zählung startet dann neu statt einen möglicherweise nicht mehr gültigen
+  Warmlauf weiterzuzählen. Eine deutlich längere Trennung (App im Hintergrund, Motorrad geparkt)
+  überschreitet die 60 s ohnehin sicher.
 - Zeitbasis von Timer und Lücken-Limit ist `SystemClock.elapsedRealtime()` (monoton, zählt Tiefschlaf
   mit), nicht die Wanduhr.
 - Die Kühlmitteltemperatur wird dafür **immer** abgefragt, wie RPM — unabhängig von Slot-Belegung und
