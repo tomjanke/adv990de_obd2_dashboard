@@ -54,6 +54,21 @@ Non-Alarm-Farben: `connectionDotColor()` (`ui/dashboard/DashboardStatusDot.kt`) 
 `color`-Parameter ist ein Override; ohne ihn behält die Komponente ihre bisherige, nicht-alarmierte
 Standardfarbgebung für jede andere Verwendung.
 
+**Dokumentierte Ausnahme — Öl-Temperatur-Balken (Stand 2026-09-27, Nutzerwunsch):** Der
+simulierte Öl-Temperatur-Balken unter der RPM-Segmentanzeige (`OilTemperatureBarStrip` in
+`ui/dashboard/DashboardComponents.kt`) nutzt **invertierte** Rot/Gelb/Grün-Semantik statt der
+üblichen App-Farb-Logik: Rot = zu kalt (≤75 °C), nicht gefährlich/heiß. `oilBarColor()`
+(`ui/dashboard/OilTemperatureBar.kt`) liefert:
+- `Red` (≤75 °C) → `StatusColors.Critical` (Rot)
+- `Yellow` (>75 °C, unter dem Grün-Schwellwert) → `StatusColors.Warning` (Gelb)
+- `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 78–80 °C) → `MaterialTheme.colorScheme.tertiary` (Grün)
+
+Die invertierte Semantik ist inhaltlich korrekt (ein kalter Motor braucht längere Aufwärm-Zeit,
+nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Die Farben reuse bestehende
+Tokens; keine neuen Hardcoded-Werte. Hysterese-Details: `GREEN_ENTER_THRESHOLD_C = 80 °C`,
+`GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min` — die Zone 78–80 °C hält den
+Timer unverändert (verhindert Thermostat-Pendeln).
+
 ### Typografie
 
 Display-Font: **Space Grotesk** (bereits geladen, `R.font.space_grotesk_*`).
@@ -155,6 +170,11 @@ lassen. `holdGear()` (`ui/dashboard/GearIndicator.kt`, ebenfalls reine Funktion)
 angezeigten Gang, solange die GPS-Geschwindigkeit über `MIN_SPEED_KMH` bleibt, und löscht ihn erst
 bei echtem Stillstand oder fehlendem GPS-Fix. `DashboardViewModel.applyReadings()` reicht dafür
 `determineGear()`s Ergebnis durch `holdGear()`, bevor es in den UI-State geschrieben wird.
+
+**Öl-Temperatur-Balken (seit 2026-09-27):** Direkt unterhalb der RPM-Segmente und oberhalb der
+Ganganzeige-Box sitzt ein schmaler, simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`,
+~20% der Balken-Innenhöhe) — ohne Label, reine Farb-Anzeige mit invertierter Semantik (s.
+„Statusfarben” oben). Breite: volle Segment-Breite (nicht über die Gang-Box oder Icons hinaus).
 
 ### Animation-Disziplin
 
