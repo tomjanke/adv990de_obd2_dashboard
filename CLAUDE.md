@@ -181,10 +181,37 @@ angezeigten Gang, solange die GPS-Geschwindigkeit über `MIN_SPEED_KMH` bleibt, 
 bei echtem Stillstand oder fehlendem GPS-Fix. `DashboardViewModel.applyReadings()` reicht dafür
 `determineGear()`s Ergebnis durch `holdGear()`, bevor es in den UI-State geschrieben wird.
 
-**Öl-Temperatur-Balken (seit 2026-09-27):** Direkt unterhalb der RPM-Segmente und oberhalb der
-Ganganzeige-Box sitzt ein schmaler, simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`,
-~20% der Balken-Innenhöhe) — ohne Label, reine Farb-Anzeige mit invertierter Semantik (s.
-„Statusfarben” oben). Breite: volle Segment-Breite (nicht über die Gang-Box oder Icons hinaus).
+**Öl-Temperatur-Balken (seit 2026-09-27):** Direkt unterhalb der RPM-Segmente sitzt ein schmaler,
+simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`) — ohne Label, reine Farb-Anzeige mit
+invertierter Semantik (s. „Statusfarben” oben). Aufbau: Das `weight(1f)`-Feld der Segmente in
+`RpmBar` ist eine `Column` aus Segment-Box (Gewicht 0,8), 2 dp Lücke und Streifen (Gewicht 0,2) —
+bei 62 dp Innenhöhe 48 dp / 2 dp / 12 dp. Der Streifen liegt damit **links neben** der Gang-Box,
+nicht über oder unter ihr: Die Gang-Box ist eine eigene Spalte der äußeren `Row` über die volle
+Zeilenhöhe und bleibt unverändert, ebenso die 78 dp Zeilenhöhe. Breite: exakt die Segment-Breite
+(nicht über Gang-Box oder Icons hinaus). Die 2-dp-Lücke, in der der Hintergrund durchscheint, hält
+Segmente und Streifen auch bei gleicher Farbe als zwei Formen lesbar (grau auf grau ohne Verbindung,
+rot auf rot bei kaltem Motor im Schaltblitz-Bereich).
+
+Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/OilTemperatureBar.kt`):
+- **Grau** (`surfaceVariant`, wie die unbeleuchteten Segmente), solange keine Verbindung besteht
+  (`isLive = false`) oder noch kein Kühlmittelwert eingetroffen ist (`oilBarColor == null`, auch
+  nach jedem Verbindungsabbruch bis zum ersten neuen Messwert).
+- **Hält die letzte Farbe**, wenn ein Zyklus keinen plausiblen Kühlmittelwert enthält (fehlt oder
+  NaN) — kein Rückfall auf Grau oder Rot wegen eines einzelnen Aussetzers (analog `holdGear()`).
+- **Nur echt neue Messwerte zählen:** `ReadingsPipeline.gpsRefresh()` stellt bei jeder GPS-Änderung
+  die letzten OBD-Werte erneut zu. Ein Kühlmittelwert, dessen `SensorValue.timestamp` nicht neuer ist
+  als der des zuletzt verarbeiteten, lässt Timer und Farbe unverändert — sonst bestätigte GPS-Rauschen
+  bei abgestellter Zündung (Steuergerät liefert nur noch NO DATA) einen alten Wert über 80 °C, bis der
+  Balken grün würde. Bekannte Grenze: Springt die Systemzeit zurück, steht der Balken für die Dauer
+  des Sprungs still (nie fälschlich grün).
+- **Lücken-Limit 60 s** (`MAX_SAMPLE_GAP_MS`): Liegen zwischen zwei verarbeiteten Messwerten mehr als
+  60 s, beginnt die Grün-Zählung von vorn. Ein normaler Reconnect (Watchdog-Default 20 s plus Backoff
+  und Verbindungsaufbau) behält die Zählung — der Timer wird in `applyIdle()` bewusst nicht
+  zurückgesetzt —, eine längere Trennung (auch bei im Hintergrund weiterlebender App) nicht.
+- Zeitbasis von Timer und Lücken-Limit ist `SystemClock.elapsedRealtime()` (monoton, zählt Tiefschlaf
+  mit), nicht die Wanduhr.
+- Die Kühlmitteltemperatur wird dafür **immer** abgefragt, wie RPM — unabhängig von Slot-Belegung und
+  dynamischer Schwelle (`ReadingsPipeline.selectPids()`).
 
 ### Animation-Disziplin
 
@@ -241,8 +268,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 675 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 137 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 703 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 142 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

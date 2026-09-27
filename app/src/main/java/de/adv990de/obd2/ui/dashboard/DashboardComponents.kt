@@ -177,15 +177,12 @@ internal fun RpmBar(
     /** Simulierte Oel-Temperatur-Farbe (s. [OilTemperatureBarStrip]) — `null` zeigt die Leiste
      *  grau, genau wie `isLive = false`.
      *
-     *  Bewusst NICHT direkt nach `gear` (wie im Task-Brief urspruenglich skizziert), sondern hier
-     *  nach `isLive` und vor `trailingContent`: ein defaulteter Parameter zwischen `gear` und
-     *  `modifier` haette `modifier`s Position als "erster optionaler Parameter" gebrochen und exakt
-     *  die Lint-Regel verletzt, die eine fruehere Session-Aufraeumaktion hier bereits durchgesetzt
-     *  hatte ("Modifier parameter should be the first optional parameter") — empirisch verifiziert:
-     *  30→31 Lint-Warnungen mit der brief-woertlichen Platzierung, zurueck auf 30 mit dieser
-     *  Reihenfolge. `trailingContent` bleibt zugleich der letzte Parameter (Trailing-Lambda-Konvention
-     *  unangetastet). Alle bestehenden Call-Sites nutzen ausschliesslich benannte Argumente, daher
-     *  aendert diese Umsortierung an keinem von ihnen etwas. */
+     *  Steht bewusst hier, nach `isLive` und vor `trailingContent`, und nicht direkt nach `gear`:
+     *  Ein Parameter mit Default zwischen `gear` und `modifier` machte `modifier` zum zweiten statt
+     *  zum ersten optionalen Parameter und verletzte die Compose-Lint-Regel "Modifier parameter
+     *  should be the first optional parameter" (bei der Einfuehrung gemessen: 31 statt 30
+     *  Lint-Warnungen). `trailingContent` bleibt der letzte Parameter (Trailing-Lambda-Konvention).
+     *  Alle Call-Sites nutzen benannte Argumente, die Position aendert fuer sie nichts. */
     oilBarColor: OilBarColor? = null,
     trailingContent: @Composable (() -> Unit)? = null
 ) {

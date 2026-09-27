@@ -15,6 +15,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 - **Fahrzeug-Info** (VIN, ECU-Name, Kalibrier-IDs via Mode 09)
 - **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
 - **Virtuelle Ganganzeige** — errechnet den eingelegten Gang aus Motordrehzahl und Geschwindigkeit (Hysterese gegen Flackern), konfigurierbar über einen eigenen Getriebe-Einstellungsbildschirm (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
+- **Simulierte Öltemperatur-Leiste** — schmaler Farbstreifen unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten ununterbrochen über 80 °C, mit Hysterese); grau ohne Verbindung
 - **Fahrt-Historie** — Sessions werden in Room persistiert, einzeln löschbar, mit CSV-Export
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
@@ -119,7 +120,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (675 Tests, < 30 Sekunden)
+# JVM Unit Tests (703 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -128,8 +129,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 675 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 108 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Device Row, App Logs, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 703 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 113 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Device Row, App Logs, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 18 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
@@ -270,8 +271,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (675) |
-| `app/src/androidTest/` | Instrumented Tests (137, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (703) |
+| `app/src/androidTest/` | Instrumented Tests (142, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
