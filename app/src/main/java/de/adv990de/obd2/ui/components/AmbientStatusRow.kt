@@ -20,16 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.asLiveValue
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 private const val CLOCK_TICK_MS = 30_000L
 
@@ -40,7 +37,9 @@ private const val CLOCK_TICK_MS = 30_000L
  * `Scaffold` sitzt (s. `AppNavHost.kt`) — User-bestaetigte Design-Entscheidung, kein Uebersehen.
  *
  * Datum/Uhrzeit links, Aussentemperatur rechts (nur wenn vorhanden — `WeatherRepository` liefert
- * `null` statt zu werfen, s. dessen KDoc). Gleiche Zeilenhoehe (64dp) und `navigationBarsPadding()`
+ * `null` statt zu werfen, s. dessen KDoc). Die Temperatur folgt der Einstellung "Imperiale
+ * Einheiten" ([useImperial] -> °F) ueber dieselbe `convertUnit`-Konvention wie `SensorCard`
+ * (s. [formatOutsideTemperature]). Gleiche Zeilenhoehe (64dp) und `navigationBarsPadding()`
  * wie die `NavigationBar`, die diese Row ersetzt (s. `BottomNav.kt`), plus eigener `HorizontalDivider`
  * + `surface`-Hintergrund analog dazu — damit der `AnimatedContent`-Swap in `BottomNav` weder einen
  * Sprung in Hoehe/Inset-Handling noch einen Bruch in der optischen "Verankerung" nach oben erzeugt.
@@ -52,7 +51,7 @@ private const val CLOCK_TICK_MS = 30_000L
  * von `LiveValueText` in diesem Projekt bereits `color` explizit setzt statt den Default zu erben.)
  */
 @Composable
-fun AmbientStatusRow(outsideTempC: Float?) {
+fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -87,9 +86,9 @@ fun AmbientStatusRow(outsideTempC: Float?) {
                     style = MaterialTheme.typography.labelSmall.asLiveValue(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (outsideTempC != null) {
+                formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
                     LiveValueText(
-                        value = "${outsideTempC.roundToInt()} ${stringResource(R.string.ambient_status_temp_unit)}",
+                        value = temperature,
                         style = MaterialTheme.typography.labelSmall.asLiveValue(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -106,7 +105,7 @@ fun AmbientStatusRow(outsideTempC: Float?) {
 private fun PreviewAmbientStatusRowWithTemp() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
-            AmbientStatusRow(outsideTempC = 18.4f)
+            AmbientStatusRow(outsideTempC = 18.4f, useImperial = false)
         }
     }
 }
@@ -116,17 +115,17 @@ private fun PreviewAmbientStatusRowWithTemp() {
 private fun PreviewAmbientStatusRowNoTemp() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
-            AmbientStatusRow(outsideTempC = null)
+            AmbientStatusRow(outsideTempC = null, useImperial = false)
         }
     }
 }
 
-@Preview(name = "AmbientStatusRow · amber theme", showBackground = true)
+@Preview(name = "AmbientStatusRow · amber theme, imperial", showBackground = true)
 @Composable
 private fun PreviewAmbientStatusRowAmber() {
     MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
-            AmbientStatusRow(outsideTempC = -3.2f)
+            AmbientStatusRow(outsideTempC = -3.2f, useImperial = true)
         }
     }
 }

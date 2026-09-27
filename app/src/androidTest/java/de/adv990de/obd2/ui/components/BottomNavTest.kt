@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
@@ -19,9 +20,11 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -98,6 +101,13 @@ import org.junit.runner.RunWith
  * `mockk<ObdRepository>`/`mockk<AppPreferences>` — both concrete classes, not interfaces, proving this
  * project's MockK setup already mocks final Kotlin classes without running their real init logic), so
  * no coroutine ever starts and there is nothing to cancel in an `@After`.
+ *
+ * [DisplaySettingsViewModel] (the imperial-units setting for the temperature) follows the
+ * [DriveStateViewModel] pattern instead — real class, mocked [AppPreferences] flows, exactly like
+ * `DisplaySettingsViewModelTest.makePrefs()` on the JVM side: its constructor starts nothing
+ * dangerous, so there is no reason to mock the ViewModel itself. Its `useImperial` is a
+ * `WhileSubscribed` StateFlow starting at `false`, so the imperial test waits for the real value
+ * to arrive instead of relying on a single `waitForIdle()`.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -133,6 +143,18 @@ class BottomNavTest {
         return DriveStateViewModel(obdRepo, prefs)
     }
 
+    /** Mirrors `DisplaySettingsViewModelTest.makePrefs()`: every flow the constructor touches is
+     *  stubbed, the non-relaxed mock fails loudly on anything else. */
+    private fun makeDisplayVm(useImperial: Boolean): DisplaySettingsViewModel {
+        val prefs = mockk<AppPreferences> {
+            every { this@mockk.useImperial } returns flowOf(useImperial)
+            every { theme } returns flowOf(THEME_SYSTEM)
+            every { useGpsSpeed } returns flowOf(false)
+            every { backgroundLocationPrompted } returns flowOf(false)
+        }
+        return DisplaySettingsViewModel(prefs)
+    }
+
     /** See class KDoc: mocked, never the real Hilt-constructed [WeatherViewModel]. */
     private fun makeWeatherVm(outsideTempC: Float?): WeatherViewModel =
         mockk(relaxed = true) {
@@ -146,10 +168,12 @@ class BottomNavTest {
         hideNavOnDrive: Boolean,
         startDestination: String = Screen.Dashboard.route,
         outsideTempC: Float? = 20f,
+        useImperial: Boolean = false,
     ) {
         composeRule.setContent {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
             val weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
+            val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
@@ -157,7 +181,7 @@ class BottomNavTest {
                 composable(Screen.History.route) { Text(HISTORY_MARKER) }
                 composable(Screen.Settings.route) { Text(SETTINGS_MARKER) }
             }
-            BottomNav(navController = navController, vm = vm, weatherVm = weatherVm)
+            BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm)
         }
         composeRule.waitForIdle()
     }
@@ -219,8 +243,19 @@ class BottomNavTest {
     fun navHidden_true_showsAmbientStatusRowWithTemperature() {
         launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = 20f)
 
-        val unit = composeRule.activity.getString(R.string.ambient_status_temp_unit)
-        composeRule.onNodeWithText("20 $unit").assertIsDisplayed()
+        composeRule.onNodeWithText("20 °C").assertIsDisplayed()
+    }
+
+    @Test
+    fun navHidden_true_withImperialUnits_showsTemperatureInFahrenheit() {
+        // 20 °C * 9/5 + 32 = 68 °F — same convertUnit convention as the dashboard tiles.
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = 20f, useImperial = true)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("68 °F").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("68 °F").assertIsDisplayed()
+        composeRule.onNodeWithText("20 °C").assertDoesNotExist()
     }
 
     @Test

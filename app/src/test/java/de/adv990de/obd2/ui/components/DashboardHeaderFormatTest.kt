@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.ZoneId
 import java.util.Locale
@@ -37,5 +38,40 @@ class DashboardHeaderFormatTest {
     @Test
     fun `formats an English locale date and time`() {
         assertEquals("Sun 27.09. · 14:32", formatDashboardHeader(millis, Locale.ENGLISH, fixedZone))
+    }
+
+    // ── formatOutsideTemperature: same convertUnit convention as SensorCard ─────────────────
+
+    @Test
+    fun `metric temperature is rounded to whole degrees Celsius`() {
+        assertEquals("18 °C", formatOutsideTemperature(18.4f, useImperial = false))
+    }
+
+    @Test
+    fun `imperial setting converts to Fahrenheit like every other temperature in the app`() {
+        // 20 °C * 9/5 + 32 = 68 °F
+        assertEquals("68 °F", formatOutsideTemperature(20f, useImperial = true))
+    }
+
+    @Test
+    fun `imperial conversion is rounded after converting, not before`() {
+        // 18.4 °C = 65.12 °F -> "65". Rounding first (18 °C = 64.4 °F -> "64") would be off by one.
+        assertEquals("65 °F", formatOutsideTemperature(18.4f, useImperial = true))
+    }
+
+    @Test
+    fun `a half degree rounds up`() {
+        assertEquals("18 °C", formatOutsideTemperature(17.5f, useImperial = false))
+    }
+
+    @Test
+    fun `slightly below zero shows 0, never a negative zero`() {
+        assertEquals("0 °C", formatOutsideTemperature(-0.4f, useImperial = false))
+    }
+
+    @Test
+    fun `no temperature yields null so the row can omit it`() {
+        assertNull(formatOutsideTemperature(null, useImperial = false))
+        assertNull(formatOutsideTemperature(null, useImperial = true))
     }
 }

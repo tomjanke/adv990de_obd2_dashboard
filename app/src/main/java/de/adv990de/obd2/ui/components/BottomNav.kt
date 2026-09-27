@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 
 private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
@@ -51,14 +52,22 @@ private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
  * kontrollierte Instanz einsetzen, ohne echte Hilt-Aufloesung von [WeatherViewModel] auszuloesen —
  * dessen echter Konstruktor startet einen unendlich pollenden `viewModelScope`-Coroutine-Loop mit
  * echten Netzwerk-Calls (s. `BottomNavTest.kt` fuer die Test-Seite davon).
+ *
+ * `displayVm` liefert die Einstellung "Imperiale Einheiten" fuer die Temperatur in
+ * [AmbientStatusRow] — gleiches Parameter-Muster. Gesammelt wird sie hier oben (wie `isNavHidden`)
+ * statt erst in der Zeile: `useImperial` ist ein `WhileSubscribed`-StateFlow mit Startwert `false`,
+ * ein erst beim Einblenden der Zeile beginnendes Sammeln koennte bei imperialer Einstellung sonst
+ * kurz °C zeigen, bevor der echte DataStore-Wert eintrifft.
  */
 @Composable
 fun BottomNav(
     navController: NavController,
     vm: DriveStateViewModel = hiltViewModel(),
     weatherVm: WeatherViewModel = hiltViewModel(),
+    displayVm: DisplaySettingsViewModel = hiltViewModel(),
 ) {
     val isNavHidden by vm.isNavHidden.collectAsState()
+    val useImperial by displayVm.useImperial.collectAsState()
     val outsideTempC by weatherVm.outsideTempC.collectAsState()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
@@ -69,7 +78,7 @@ fun BottomNav(
         label = "BottomNavOrAmbientStatus",
     ) { hidden ->
         if (hidden) {
-            AmbientStatusRow(outsideTempC = outsideTempC)
+            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial)
         } else {
             Column {
                 HorizontalDivider()

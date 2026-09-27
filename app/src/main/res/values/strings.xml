@@ -189,7 +189,4 @@
     <string name="pid_speed_gps">Speed (GPS)</string>
     <string name="settings_gps_speed">Speed from GPS</string>
     <string name="settings_gps_speed_desc">Uses the device GPS when the vehicle does not provide a speed signal. Requires location permission; also keeps working in the background if you allow that when asked.</string>
-
-    <!-- Ambient status row (shown instead of the bottom nav while driving) -->
-    <string name="ambient_status_temp_unit">°C</string>
 </resources>
