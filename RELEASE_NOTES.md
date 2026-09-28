@@ -1,5 +1,43 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.0 (versionCode 62)
+
+Bündelt drei fertige, unabhängig voneinander entwickelte Arbeitsblöcke: einen Zuverlässigkeits-Fix
+und zwei neue Features.
+
+### OBD-Watchdog: erzwungener Reconnect bei eingefrorenen Werten
+
+Nach einer längeren Fahrt konnten die Live-Sensorwerte einfrieren, ohne dass die App das bemerkte
+(GPS-Geschwindigkeit lief unbeeinflusst weiter, der Verbindungsstatus zeigte weiter „verbunden" —
+nur ein Neustart half). Ursache war eine fehlende Eskalation bei wiederholten PID-Timeouts. Ein
+neuer, in den Einstellungen konfigurierbarer Watchdog (Standard 20 s, mindestens 10 s) erzwingt
+jetzt einen Reconnect, sobald der Adapter zu lange gar nicht oder nur unverwertbar antwortet; reines
+NO DATA (z. B. Zündung aus) löst ihn nie aus.
+
+### Simulierte Öltemperatur-Leiste
+
+Ein schmaler Farbstreifen direkt unter der Drehzahl-Anzeige schätzt aus der Kühlmitteltemperatur
+ab, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder
+Betriebstemperatur erreicht hat (Grün: seit 10 Minuten ununterbrochen über 80 °C, mit Hysterese
+gegen Thermostat-Pendeln zwischen 78–80 °C). Grau ohne Verbindung oder vor dem ersten Messwert.
+
+### Datum, Uhrzeit und Außentemperatur während der Fahrt
+
+Ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, ersetzt eine
+Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort das Hauptmenü — auf
+jedem Screen, in exakt dessen Höhe. Temperaturquelle ist [Open-Meteo](https://open-meteo.com/)
+(kostenlos, kein API-Key; Namensnennung und Lizenztext CC BY 4.0 je als eigener Link unter
+App-Info), abgefragt einmal pro Minute und nur solange die Zeile sichtbar ist. Ein fehlgeschlagener
+Abruf lässt den letzten Wert bis zu 30 Minuten stehen, statt die Anzeige sofort zu leeren.
+Standortberechtigung (genau oder ungefähr) wird beim Einschalten des Schalters separat angefragt,
+höchstens einmal pro Installation. Details: s. README, Abschnitt „Berechtigungen".
+
+### Tests
+
+778 Unit- und 152 Instrumentation-Tests grün (vorher 653 / 137).
+
+---
+
 ## Version 1.16.15 (versionCode 61)
 
 ### Ganganzeige jetzt so groß wie die Kachel-Werte
