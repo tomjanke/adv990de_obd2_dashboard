@@ -1,5 +1,27 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.3 (versionCode 65)
+
+Schließt den letzten offenen Punkt aus dem OBD-Watchdog-Fix (v1.17.0): ein
+StateFlow-Reentrancy-Risiko im Reconnect-Pfad.
+
+### Reconnect-Trigger konnte unter seltenen Timing-Bedingungen verloren gehen
+
+Beim Verbindungsabbruch setzt die App intern zuerst einen Status-Wert auf
+"nicht verbunden" und meldet den Abbruch danach an die UI weiter, die daraufhin
+den Reconnect anstößt. Auf manchen Geräten/Android-Versionen konnte dieser
+Status-Wechsel die Meldung selbst noch abbrechen, bevor sie ankam — der
+Reconnect-Versuch wäre dann stillschweigend ausgeblieben. Behoben durch einen
+unabhängigen, gegen genau dieses Timing abgesicherten Signalweg.
+
+784 JVM-Tests grün (unverändert in der Anzahl, ein neuer Test für genau diese
+Race-Bedingung ersetzt keinen bestehenden), Lint unverändert 0 Fehler/30
+Warnungen. Der Fix ist JVM-verifiziert; eine Verifikation gegen den realen
+Bluetooth-Adapter bei einem echten Verbindungsabbruch steht noch aus (Adapter
+war zum Zeitpunkt des Release nicht erreichbar).
+
+---
+
 ## Version 1.17.2 (versionCode 64)
 
 Zwei kleine, unabhängige UX-Anpassungen auf Nutzerwunsch.
