@@ -1,5 +1,34 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.1 (versionCode 63)
+
+Feldbug-Fix, einen Tag nach 1.17.0 gefunden: die neue Statuszeile mit Datum/Uhrzeit und
+Außentemperatur zeigte auf echter Hardware nie eine Temperatur an, und der Text war beim Fahren
+zu klein zum Lesen.
+
+### Außentemperatur erschien nie
+
+Ursache war `LocationManager.getLastKnownLocation()`: liefert ausschließlich einen bereits
+gecachten Standort und fordert selbst nie aktiv einen neuen Fix an. Ohne eine andere App/Funktion,
+die kürzlich einen Standort angefragt hatte (z. B. „Geschwindigkeit per GPS", standardmäßig aus),
+blieb der Cache leer — die Berechtigung war erteilt und der Open-Meteo-Abruf funktionierte, nur
+kam nie eine Koordinate an. Jetzt: Cache zuerst (unverändert schnell), bei leerem Cache je Provider
+(GPS dann Netzwerk) ein aktiver `requestSingleUpdate()`-Fix mit 15-Sekunden-Timeout.
+
+### Statuszeile beim Fahren unlesbar klein
+
+Die Schriftgröße war bewusst auf die kleinste Textrolle im System gesetzt worden („sekundäre
+Information, kein Live-Wert"). Auf echter Fahrt unlesbar. Jetzt deutlich größer (`titleLarge` statt
+`labelSmall`, ca. 26sp statt 13sp effektiv) — weiterhin klar kleiner als die Sensor-Kacheln, aber
+auf einen Blick lesbar.
+
+### Tests
+
+781 Unit- und 152 Instrumentation-Tests grün (vorher 778 / 152). Lint unverändert bei 0 Fehlern,
+30 Warnungen.
+
+---
+
 ## Version 1.17.0 (versionCode 62)
 
 Bündelt drei fertige, unabhängig voneinander entwickelte Arbeitsblöcke: einen Zuverlässigkeits-Fix
