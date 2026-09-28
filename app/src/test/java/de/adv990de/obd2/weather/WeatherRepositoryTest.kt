@@ -30,7 +30,7 @@ class WeatherRepositoryTest {
 
     private val locationProvider = mockk<CurrentLocationProvider> {
         every { hasPermission() } answers { permission }
-        every { lastKnownLocation() } answers { location }
+        coEvery { lastKnownLocation() } answers { location }
     }
     private val api = mockk<WeatherApi> {
         coEvery { currentTemperatureC(any(), any()) } answers { apiResult }

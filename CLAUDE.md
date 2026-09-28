@@ -245,8 +245,13 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   M3-Abweichung „Hintergrund der Navigationsleiste" oben).
 - **Inhalt:** Datum/Uhrzeit links (`formatDashboardHeader`, tickt genau zum Minutenwechsel),
   Außentemperatur rechts (`formatOutsideTemperature`: `convertUnit` wie `SensorCard`, also °F bei
-  imperialen Einheiten; NaN/∞ → weggelassen). Beides `LiveValueText` in `labelSmall.asLiveValue()`,
-  Farbe `onSurfaceVariant` — die Zeile ersetzt Chrome, sie ist kein primärer Live-Wert.
+  imperialen Einheiten; NaN/∞ → weggelassen). Beides `LiveValueText` in `titleLarge.asLiveValue()`
+  (~26sp effektiv), Farbe `onSurfaceVariant` — die Zeile ersetzt Chrome, sie ist kein primärer
+  Live-Wert wie eine Sensor-Kachel (`ValueTileStyle`, ~53sp), bleibt aber klar größer als jedes
+  Label. **Korrektur (2026-09-28, Feldbericht nach Release v1.17.0):** ursprünglich
+  `labelSmall.asLiveValue()` (~13sp, kleinste Textrolle im ganzen Typografie-System) — auf der
+  echten Fahrt unlesbar, unabhängig von der "sekundär, kein Live-Wert"-Einstufung. Design-Prinzip 1
+  (Glanceability) gilt für alles Sichtbare während der Fahrt, nicht nur für Kachel-Werte.
 - **Anzeige-Persistenz wie beim Gang:** Ein fehlgeschlagener Abruf leert die Temperatur nicht;
   `holdOutsideTemp()` (`ui/weather/OutsideTemperatureHold.kt`, reine Funktion) hält den letzten
   guten Wert 30 Minuten (`OUTSIDE_TEMP_HOLD`, User-Entscheidung), gemessen auf einer
@@ -282,6 +287,14 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   pro Installation. Koordinaten verlassen das Gerät nur auf 2 Nachkommastellen gerundet
   (Open-Meteo). Namensnennung (CC BY 4.0) UND ein zweiter Link auf den Lizenztext selbst
   (`creativecommons.org/licenses/by/4.0/`) — beide als echte, separate Links in `AppInfoScreen`.
+  **Korrektur (2026-09-28, Feldbericht nach Release v1.17.0):** `AndroidCurrentLocationProvider`
+  rief urspruenglich nur `LocationManager.getLastKnownLocation()` auf — ein rein gecachter,
+  NIEMALS aktiv angeforderter Wert. Ohne kuerzlich von irgendeiner anderen Stelle (z. B.
+  "Geschwindigkeit per GPS", die einzige andere aktive Standortanfrage im Projekt, standardmaessig
+  AUS) angefragten Fix blieb der Cache leer und die Aussentemperatur erschien nie, obwohl
+  Berechtigung und API-Abruf funktionierten. Jetzt: Cache zuerst (unveraendert, schnell), bei
+  leerem Cache je Provider (GPS dann Netzwerk) EIN aktiver `requestSingleUpdate()`-Fix mit
+  15s-Timeout und `removeUpdates()`-Aufraeumung bei Abbruch.
 - **Test-Falle:** Tests, die einen echten `WeatherViewModel` bauen und sammeln, müssen dessen
   `viewModelScope` in einem `finally` **innerhalb** des `runTest`-Blocks canceln, nicht in `@After`:
   `runTest` leert beim Aufräumen den (per `setMain` geteilten) Scheduler mit `advanceUntilIdleOr`,

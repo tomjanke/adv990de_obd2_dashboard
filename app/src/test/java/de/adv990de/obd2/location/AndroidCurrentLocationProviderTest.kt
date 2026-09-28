@@ -4,10 +4,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -76,7 +81,7 @@ class AndroidCurrentLocationProviderTest {
     // --- lastKnownLocation(): permission absent ---
 
     @Test
-    fun `lastKnownLocation returns null when neither permission is granted`() {
+    fun `lastKnownLocation returns null when neither permission is granted`() = runTest {
         grant(fine = false, coarse = false)
 
         assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
@@ -86,17 +91,17 @@ class AndroidCurrentLocationProviderTest {
     // --- lastKnownLocation(): kein LocationManager erreichbar ---
 
     @Test
-    fun `lastKnownLocation returns null when the system has no LocationManager`() {
+    fun `lastKnownLocation returns null when the system has no LocationManager`() = runTest {
         grant(fine = true, coarse = true)
         every { context.getSystemService(LocationManager::class.java) } returns null
 
         assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
     }
 
-    // --- lastKnownLocation(): GPS-Fix vorhanden ---
+    // --- lastKnownLocation(): gecachter GPS-Fix vorhanden ---
 
     @Test
-    fun `lastKnownLocation returns the raw GPS latitude and longitude pair`() {
+    fun `lastKnownLocation returns the raw cached GPS latitude and longitude pair`() = runTest {
         grant(fine = true, coarse = true)
         val manager = mockk<LocationManager> {
             every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(52.52, 13.405)
@@ -104,14 +109,15 @@ class AndroidCurrentLocationProviderTest {
         installManager(manager)
 
         assertEquals(52.52 to 13.405, AndroidCurrentLocationProvider(context).lastKnownLocation())
-        // GPS hat geliefert: der Netzwerk-Provider wird gar nicht erst gefragt.
+        // Cache hat geliefert: weder Netzwerk-Cache noch eine aktive Anfrage werden noch versucht.
         verify(exactly = 0) { manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }
+        verify(exactly = 0) { manager.requestSingleUpdate(any<String>(), any(), any()) }
     }
 
-    // --- lastKnownLocation(): Rueckfall auf den Netzwerk-Provider ---
+    // --- lastKnownLocation(): Rueckfall auf den gecachten Netzwerk-Standort ---
 
     @Test
-    fun `lastKnownLocation falls back to the network provider when GPS has no fix`() {
+    fun `lastKnownLocation falls back to the cached network location when the GPS cache is empty`() = runTest {
         grant(fine = true, coarse = true)
         val manager = mockk<LocationManager> {
             every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns null
@@ -120,10 +126,11 @@ class AndroidCurrentLocationProviderTest {
         installManager(manager)
 
         assertEquals(48.14 to 11.58, AndroidCurrentLocationProvider(context).lastKnownLocation())
+        verify(exactly = 0) { manager.requestSingleUpdate(any<String>(), any(), any()) }
     }
 
     @Test
-    fun `lastKnownLocation falls back to the network provider when GPS throws with coarse-only permission`() {
+    fun `lastKnownLocation falls back to the cached network location when GPS cache lookup throws with coarse-only permission`() = runTest {
         // API 26-30: mit nur COARSE lehnt das System den GPS-Provider per SecurityException ab —
         // das darf die Abfrage nicht beenden, der Netzwerk-Provider ist mit COARSE erlaubt.
         grant(fine = false, coarse = true)
@@ -137,29 +144,93 @@ class AndroidCurrentLocationProviderTest {
         assertEquals(48.14 to 11.58, AndroidCurrentLocationProvider(context).lastKnownLocation())
     }
 
-    // --- lastKnownLocation(): keinen Fix bekommen ---
+    // --- lastKnownLocation(): beide Caches leer -> aktive Anfrage ---
 
     @Test
-    fun `lastKnownLocation returns null when neither provider has a location`() {
+    fun `lastKnownLocation actively requests a fresh GPS fix when both caches are empty`() = runTest {
+        grant(fine = true, coarse = true)
+        val listener = slot<LocationListener>()
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns null
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, capture(listener), any()) } answers {
+                listener.captured.onLocationChanged(location(52.52, 13.405))
+            }
+        }
+        installManager(manager)
+
+        assertEquals(52.52 to 13.405, AndroidCurrentLocationProvider(context).lastKnownLocation())
+        // Aktiver GPS-Fix hat geliefert: der Netzwerk-Provider wird gar nicht erst aktiv angefragt.
+        verify(exactly = 0) { manager.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, any(), any()) }
+    }
+
+    @Test
+    fun `lastKnownLocation falls back to an active network fix when the active GPS request never answers`() = runTest {
+        grant(fine = true, coarse = true)
+        val networkListener = slot<LocationListener>()
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns null
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            // GPS antwortet nie (Timeout) - kein Aufruf des Listeners.
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, any(), any()) } just Runs
+            every { requestSingleUpdate(LocationManager.NETWORK_PROVIDER, capture(networkListener), any()) } answers {
+                networkListener.captured.onLocationChanged(location(48.14, 11.58))
+            }
+            every { removeUpdates(any<LocationListener>()) } just Runs
+        }
+        installManager(manager)
+
+        assertEquals(48.14 to 11.58, AndroidCurrentLocationProvider(context).lastKnownLocation())
+        // Der ausstehende GPS-Listener wird beim Timeout abgemeldet, kein Leck.
+        verify { manager.removeUpdates(any<LocationListener>()) }
+    }
+
+    @Test
+    fun `lastKnownLocation returns null when no cache nor any active request ever answers`() = runTest {
         grant(fine = true, coarse = true)
         val manager = mockk<LocationManager> {
             every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns null
             every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            every { requestSingleUpdate(any<String>(), any(), any()) } just Runs
+            every { removeUpdates(any<LocationListener>()) } just Runs
         }
         installManager(manager)
 
         assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
     }
 
-    // --- lastKnownLocation(): SecurityException zwischen Pruefung und Aufruf ---
+    @Test
+    fun `lastKnownLocation falls back to an active network fix when the active GPS request throws with coarse-only permission`() = runTest {
+        grant(fine = false, coarse = true)
+        val networkListener = slot<LocationListener>()
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } throws
+                SecurityException("\"gps\" location provider requires ACCESS_FINE_LOCATION permission.")
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, any(), any()) } throws
+                SecurityException("\"gps\" location provider requires ACCESS_FINE_LOCATION permission.")
+            every { requestSingleUpdate(LocationManager.NETWORK_PROVIDER, capture(networkListener), any()) } answers {
+                networkListener.captured.onLocationChanged(location(48.14, 11.58))
+            }
+        }
+        installManager(manager)
+
+        assertEquals(48.14 to 11.58, AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
+
+    // --- lastKnownLocation(): SecurityException zwischen Pruefung und Aufruf, kein Fix moeglich ---
 
     @Test
-    fun `lastKnownLocation returns null when both providers throw SecurityException`() {
+    fun `lastKnownLocation returns null when both providers throw SecurityException everywhere`() = runTest {
         grant(fine = true, coarse = true)
         val manager = mockk<LocationManager> {
             every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } throws
                 SecurityException("permission revoked between check and call")
             every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } throws
+                SecurityException("permission revoked between check and call")
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, any(), any()) } throws
+                SecurityException("permission revoked between check and call")
+            every { requestSingleUpdate(LocationManager.NETWORK_PROVIDER, any(), any()) } throws
                 SecurityException("permission revoked between check and call")
         }
         installManager(manager)

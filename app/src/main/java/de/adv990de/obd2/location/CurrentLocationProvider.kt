@@ -13,6 +13,7 @@ interface CurrentLocationProvider {
     fun hasPermission(): Boolean
 
     /** Letzter bekannter Standort als (Breitengrad, Laengengrad), oder null wenn keiner
-     *  vorliegt oder die Berechtigung fehlt. */
-    fun lastKnownLocation(): Pair<Double, Double>?
+     *  vorliegt oder die Berechtigung fehlt. Fragt bei leerem Cache aktiv einen frischen Fix an
+     *  (kann daher suspendieren) — s. `AndroidCurrentLocationProvider`. */
+    suspend fun lastKnownLocation(): Pair<Double, Double>?
 }

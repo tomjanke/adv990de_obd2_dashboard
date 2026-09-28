@@ -51,6 +51,14 @@ import kotlinx.coroutines.delay
  * RPM/Kuehlmitteltemperatur in einer Kachel — per CLAUDE.md-Farbtabelle ist das hier "Sekundär"-
  * Information, nicht der "Primärer Live-Wert"-Akzent. (Matches, wie jede andere Produktions-Callsite
  * von `LiveValueText` in diesem Projekt bereits `color` explizit setzt statt den Default zu erben.)
+ *
+ * **Korrektur (2026-09-28, Feldbericht nach Release v1.17.0):** Schriftgroesse war urspruenglich
+ * `labelSmall.asLiveValue()` (~13sp effektiv) — die kleinste Textrolle im ganzen Typografie-System,
+ * mit der Begruendung "sekundaer, kein Live-Wert". Das widersprach in der Praxis Design-Prinzip 1
+ * (Glanceability, 0,5s-Blick): unlesbar waehrend der Fahrt, unabhaengig von der Sekundaer/Primaer-
+ * Einstufung. Jetzt `titleLarge.asLiveValue()` (~26sp effektiv) — deutlich groesser, aber weiterhin
+ * klar kleiner als `ValueTileStyle` (~53sp) der echten Sensor-Kacheln, da diese Zeile Ambient-Info
+ * bleibt, kein primaerer Messwert.
  */
 @Composable
 fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
@@ -105,13 +113,13 @@ fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
             ) {
                 LiveValueText(
                     value = formatDashboardHeader(nowMillis, locale),
-                    style = MaterialTheme.typography.labelSmall.asLiveValue(),
+                    style = MaterialTheme.typography.titleLarge.asLiveValue(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
                     LiveValueText(
                         value = temperature,
-                        style = MaterialTheme.typography.labelSmall.asLiveValue(),
+                        style = MaterialTheme.typography.titleLarge.asLiveValue(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
