@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.4 (versionCode 66)
+
+Zwei kleine Robustheits-Fixes, gefunden bei einem routinemäßigen Code-Sweep — kein Feldbug.
+
+### Möglicher Absturz bei fehlendem Netzwerk-Standortanbieter
+
+Auf Geräten ohne registrierten Netzwerk-Standortanbieter (z. B. ohne Google Play Services) konnte
+die aktive Standortanfrage für die Außentemperatur eine unbehandelte Exception auslösen — bei
+jedem 60-Sekunden-Poll, sobald die Ambient-Statuszeile sichtbar ist. Jetzt abgefangen, wie der
+bereits behandelte Berechtigungsfall.
+
+### Öl-Temperatur-Balken vergaß seinen Aufwärm-Fortschritt bei Activity-Neustart
+
+Erzeugte das System die App-Activity neu, während Verbindung und Prozess weiterliefen (z. B. durch
+aggressives Speicher-Management mancher Hersteller, oder die Entwickleroption "Nicht im
+Hintergrund behalten"), setzte sich der Grün-Zähler des Öl-Temperatur-Balkens unbemerkt zurück.
+Der Fortschritt übersteht das jetzt.
+
+### Tests
+
+786 Unit-Tests grün (vorher 784), Lint unverändert bei 0 Fehlern, 30 Warnungen.
+
+---
+
 ## Version 1.17.3 (versionCode 65)
 
 Schließt den letzten offenen Punkt aus dem OBD-Watchdog-Fix (v1.17.0): ein
