@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -377,4 +378,41 @@ class ReadingsPipelineTest {
             )
         }
     }
+
+    // --- Test 15 ---
+
+    // StateFlow-Reentrancy-Risiko (s. CLAUDE.md / android-test-environment-pitfalls.md /
+    // .superpowers/sdd/2026-09-26-obd-watchdog-bugfix/progress.md Finding "C2"): die echte
+    // ObdRepository.livePids() setzt isConnectedFlow.value = false (in disconnect(), VOR dem
+    // throw) — und isConnectedFlow ist genau der Schluessel, auf den events() selbst per
+    // combine()/flatMapLatest() reagiert. Auf einem Dispatcher, der StateFlow-Updates
+    // eager/reentrant zustellt (Dispatchers.Main.immediate in Produktion; hier
+    // UnconfinedTestDispatcher — das Standardmittel, um das in einem JVM-Test zu erzwingen), kann
+    // dieser Wertwechsel genau die Coroutine abbrechen, die gerade dabei ist, auf die Exception zu
+    // reagieren, die ihn ausgeloest hat. Der Standard-runTest (StandardTestDispatcher, FIFO/queued)
+    // kann diese Race NICHT auffangen — s. DashboardScreenTest.kt's
+    // dashboard_showsConnectingDot_whenReconnecting-Kommentar fuer die am echten Geraet bestaetigte
+    // Ursache. Dieser Test reproduziert sie deterministisch statt sich auf ein Geraet zu verlassen.
+    @Test
+    fun `a lost connection is still reported when isConnectedFlow flips synchronously (reentrancy race)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            every { repo.livePids(any()) } returns flow {
+                isConnected.value = false // exactly what ObdRepository.disconnect() does
+                throw ObdException.ConnectionLost()
+            }
+            // A real suspension point, mirroring AppLogRepository.log()'s actual Room dao.insert()
+            // call in production — a relaxed mock's log() would otherwise never suspend at all,
+            // so a pending cancellation would have nowhere to land and this test would pass for
+            // the wrong reason regardless of whether the production code is fixed.
+            val logRepo: AppLogRepository = mockk(relaxed = true) {
+                coEvery { log(any(), any()) } coAnswers { delay(1) }
+            }
+
+            val events = makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+
+            assertEquals(listOf(SessionEvent.ConnectionLost), events)
+        }
 }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +83,53 @@ class ReadingsPipeline @Inject constructor(
     private val lastObdReadings = MutableStateFlow<List<SensorValue>?>(null)
 
     /**
+     * Getrennter Signalweg fuer [SessionEvent.ConnectionLost] — analog zu
+     * [ConnectionCoordinator]s `trigger`, aus demselben Grund: Ein direktes `emit()` innerhalb von
+     * [runSession] waere ungeschuetzt, weil dieses Ereignis erst entsteht, NACHDEM
+     * [ObdRepository.livePids] `disconnect()` gerufen hat — und `disconnect()` setzt
+     * `isConnectedFlow.value = false`, genau den Schluessel, ueber den [events] denselben Aufruf
+     * per `combine()`/`flatMapLatest()` selbst steuert. Auf einem synchron/reentrant liefernden
+     * Dispatcher (`Dispatchers.Main.immediate` in Produktion, s. android-test-environment-pitfalls.md)
+     * kann dieser Wertwechsel [runSession]s Coroutine noch WAEHREND des catch-Blocks abbrechen,
+     * bevor ein `emit(SessionEvent.ConnectionLost)` dort ankommt — der Reconnect-Ausloeser ginge
+     * damit stillschweigend verloren (empirisch reproduziert in [ReadingsPipelineTest]).
+     *
+     * [connectionLostSignal] wird in [events] als GESCHWISTER von `combine().flatMapLatest{}`
+     * gemerged, nicht als Teil davon — dieselbe Coroutine, die `flatMapLatest` gerade abbricht,
+     * kann diesen Geschwister-Collector nicht mit abbrechen. `tryEmit()` (nicht-suspendierend) im
+     * catch-Block schreibt das Signal atomar, noch bevor die eigentliche Coroutine ueberhaupt zu
+     * einem Suspendierungspunkt kommt, an dem der Abbruch greifen koennte. Ein direkter
+     * `withContext(NonCancellable) { emit(...) }` an Ort und Stelle waere die naheliegendere
+     * Alternative gewesen — verworfen, weil Flow das mit einer `IllegalStateException` ablehnt
+     * ("Emission from another coroutine is detected", empirisch bestaetigt): `emit()` darf nur aus
+     * genau der Coroutine kommen, die den Flow sammelt, `NonCancellable` aendert dafuer genug am
+     * Kontext, dass die Pruefung anschlaegt. Ein `channelFlow{}` mit `send()` umgeht zwar diese
+     * Pruefung (Channels sind fuer nebenlaeufige Sender ausgelegt), aendert am eigentlichen Problem
+     * aber nichts: Der Kanal haengt an genau der Coroutine, die abgebrochen wird — ist sie bereits
+     * am Schliessen, verwirft ein `send()` danach ebenso still (auch das empirisch geprueft). Ein
+     * wirklich unabhaengiger Signalweg muss in einer Coroutine leben, die vom Abbruch gar nicht
+     * erst betroffen ist — genau das leistet [connectionLostSignal] als Geschwister-Flow.
+     *
+     * `replay = 0` reicht hier aus (anders als bei [ConnectionCoordinator.trigger]s `replay = 1`):
+     * Dieser Signalweg und der Zweig, der ihn ausloest, werden im selben `merge()`-Aufruf in
+     * [events] gestartet — es gibt keine Startluecke, in der ein Sammler noch fehlen koennte.
+     *
+     * **Bekannte, akzeptierte Einschraenkung:** Weil dieser Signalweg unabhaengig vom normalen
+     * Werte-Pfad lauft, ist die Ankunftsreihenfolge relativ zu einem SessionEvent.Values DERSELBEN
+     * Sitzung nicht mehr garantiert — anders als vor dieser Aenderung, wo beide sequenziell aus
+     * derselben Coroutine kamen. Theoretisch koennte ein letzter, noch nicht zugestellter
+     * Messwert-Zyklus NACH diesem Signal ankommen und `DashboardViewModel.applyReadings()`s
+     * `isReconnecting = false` wuerde den gerade gesetzten Reconnect-Zustand wieder ueberschreiben.
+     * In der echten Anwendung liegen zwischen zwei Zyklen aber immer echte Wartezeit
+     * (`pollIntervalMs`, mindestens mehrere hundert ms) plus die Zeit fuer die PID-Abfragen selbst
+     * (ein Timeout allein blockiert 5s) — der vorausgehende Zyklus ist damit laengst zugestellt,
+     * bevor ein SPAETERER Zyklus ueberhaupt ConnectionLost werfen kann. Nur ein Test, der (anders als jede
+     * echte Verbindung) einen Messwert und den Verbindungsabbruch aus demselben Sitzungszyklus ohne
+     * jede Zeit dazwischen ausloest, kann diese Reihenfolge ueberhaupt umkehren.
+     */
+    private val connectionLostSignal = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
+
+    /**
      * GPS-Geschwindigkeit in km/h, null wenn das Feature aus ist, keine Berechtigung vorliegt oder
      * kein Fix mit Geschwindigkeit ansteht.
      *
@@ -111,7 +159,7 @@ class ReadingsPipeline @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun events(scope: CoroutineScope): Flow<SessionEvent> {
         val gpsSpeed = gpsSpeedKmh(scope)
-        return combine(
+        val readingsFlow = combine(
             obdRepository.isConnectedFlow,
             appPreferences.slotPids,
         ) { connected, slotIds -> connected to slotIds }
@@ -127,6 +175,9 @@ class ReadingsPipeline @Inject constructor(
                     merge(runSession(slotIds, gpsSpeed), gpsRefresh(gpsSpeed))
                 }
             }
+        // connectionLostSignal als Geschwister, nicht als Teil der flatMapLatest-Kette — s. Doku
+        // an [connectionLostSignal].
+        return merge(readingsFlow, connectionLostSignal.map { SessionEvent.ConnectionLost })
     }
 
     /**
@@ -190,8 +241,13 @@ class ReadingsPipeline @Inject constructor(
         } catch (e: CancellationException) {
             throw e  // Abbruch einer Coroutine nie verschlucken
         } catch (e: ObdException.ConnectionLost) {
+            // tryEmit() statt emit() — s. Doku an [connectionLostSignal]: nicht-suspendierend,
+            // daher atomar gegenueber genau dem Abbruch, den isConnectedFlow (bereits false, s.
+            // ObdRepository.livePids()) hier ausloesen kann. Signal zuerst, Log danach: Das Log
+            // ist best-effort (ein suspendierender DB-Schreibvorgang waere selbst ein moeglicher
+            // Abbruchpunkt), der Reconnect-Ausloeser darf davon nicht abhaengen.
+            connectionLostSignal.tryEmit(Unit)
             appLogRepository.log(LogLevel.WARN, "OBD connection lost, reconnecting (readings stopped or bus stuck)")
-            emit(SessionEvent.ConnectionLost)
         } catch (e: Exception) {
             crashReporter.recordException(e)
             emit(SessionEvent.Failed(ObdErrorMapper.toUiText(e)))

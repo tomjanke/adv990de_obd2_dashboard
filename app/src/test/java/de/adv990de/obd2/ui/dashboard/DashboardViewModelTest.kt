@@ -1613,10 +1613,18 @@ class DashboardViewModelTest {
         // speedKmh unchanged), isolating applyIdle()'s own reset as the only thing that can still
         // null them here.
         //
-        // isConnectedFlow is still flipped to false FROM WITHIN the livePids flow, in the same
-        // call frame as the ConnectionLost throw — same ordering trick as the real-coordinator
-        // test above, so startReconnecting() still runs before the Idle event that follows from
-        // the outer combine()/flatMapLatest re-subscription.
+        // isConnectedFlow is still flipped to false FROM WITHIN the livePids flow. Since the
+        // StateFlow-reentrancy fix (ReadingsPipeline.connectionLostSignal), ConnectionLost no
+        // longer travels through the same cancellable coroutine as this cycle's Values reading —
+        // it survives via an independent sibling flow, which is the whole point of that fix, but
+        // it also means the two are no longer strictly ordered relative to each other the instant
+        // they're both emitted with zero real time between them. The `delay(1)` below restores the
+        // ordering that ALWAYS holds on a real device: a poll cycle's Values reading is fully
+        // delivered (record()/writeReadings, a real suspending DB write in production) well before
+        // any LATER cycle can detect a lost connection — real BLE polling always has at least
+        // pollIntervalMs, and typically a 5s timeout, of real time between two cycles. Without
+        // this delay, this test collapses that gap to zero, an ordering no real connection can
+        // produce, and the two independent flows can race.
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
@@ -1632,6 +1640,7 @@ class DashboardViewModelTest {
                         SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
                     )
                 )
+                delay(1)
                 // ...then the connection drops.
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -1657,7 +1666,7 @@ class DashboardViewModelTest {
             ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
         )
         isConnectedFlow.value = true
-        advanceTimeBy(1)
+        advanceUntilIdle()
 
         assertTrue(vm.uiState.value.isReconnecting)
         assertNull(vm.uiState.value.gear)
