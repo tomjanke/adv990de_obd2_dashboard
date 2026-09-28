@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.2 (versionCode 64)
+
+Zwei kleine, unabhängige UX-Anpassungen auf Nutzerwunsch.
+
+### Kräftigeres Warngelb
+
+Die Warnfarbe (Öl-Balken „wärmt sich auf", Kachel-Warnstatus, schwaches BLE-Signal, u. a.) ist jetzt
+ein kräftiges Gelb (Tailwind Yellow 500, `#EAB308`) statt des vorherigen, etwas gedeckteren Amber
+(`#F59E0B`) — besser lesbar bei Sonnenlicht.
+
+### Volle Displayhelligkeit im Vordergrund
+
+Die App setzt die Bildschirmhelligkeit jetzt automatisch auf 100 %, solange sie im Vordergrund ist,
+und gibt beim Verlassen sofort wieder die System-Helligkeit frei — reines Fenster-Attribut, keine
+zusätzliche Berechtigung nötig. Hilft bei direkter Sonneneinstrahlung auf dem Motorrad.
+
+### Tests
+
+783 Unit- und 152 Instrumentation-Tests grün (vorher 781 / 152). Lint unverändert bei 0 Fehlern,
+30 Warnungen.
+
+---
+
 ## Version 1.17.1 (versionCode 63)
 
 Feldbug-Fix, einen Tag nach 1.17.0 gefunden: die neue Statuszeile mit Datum/Uhrzeit und
