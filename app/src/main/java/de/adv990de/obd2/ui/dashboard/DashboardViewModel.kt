@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.dashboard
 
 import android.os.SystemClock
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,12 @@ import javax.inject.Inject
 // DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
 // If you add a field with a non-trivial default, update disconnected() accordingly.
 private const val SPARKLINE_WINDOW = 60
+
+// SavedStateHandle-Schluessel fuer den Oel-Balken-Timerzustand — s. Kommentare an
+// oilBarTimerState/lastOilBarSampleTimestamp.
+private const val KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS = "oilBarAboveGreenSinceMillis"
+private const val KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS = "oilBarLastSampleAtMillis"
+private const val KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP = "oilBarLastSampleTimestamp"
 
 private fun SensorValue.isPlausible() = value.isFinite()
 
@@ -62,6 +69,7 @@ class DashboardViewModel @Inject constructor(
     private val appPreferences: AppPreferences,
     private val connectionCoordinator: ConnectionCoordinator,
     private val readingsPipeline: ReadingsPipeline,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -152,7 +160,24 @@ class DashboardViewModel @Inject constructor(
     // (MAX_SAMPLE_GAP_MS, 60 s) laesst ihn verfallen, wenn zwischen zwei Messwerten mehr Zeit
     // liegt: Ein Reconnect innerhalb dieser Zeit behaelt die Zaehlung, eine laengere Trennung
     // (oder eine stundenlang geschlossene App) beginnt von vorn.
-    private var oilBarTimerState = OilBarTimerState()
+    //
+    // Ueber savedStateHandle statt eines einfachen Feldes (Backlog-Sweep 2026-09-28): eine reine
+    // In-Memory-Property ueberlebt nur Konfigurationsaenderungen (die ViewModelStore-Instanz bleibt
+    // dabei erhalten), nicht aber eine Activity-Neuerzeugung BEI LAUFENDEM PROZESS — "Nicht im
+    // Hintergrund behalten" oder aggressives OEM-Reclaiming erzeugen dabei ein frisches ViewModel,
+    // ohne dass ConnectionLost oder das Luecken-Limit je eintraten. SavedStateHandle uebersteht
+    // genau das (Bundle aus onSaveInstanceState), zusaetzlich zu Prozess-Tod. OilBarTimerState hat
+    // keinen eigenen Parcelize-Support, deshalb als zwei einzelne Long?-Werte gespeichert statt als
+    // ein Objekt.
+    private var oilBarTimerState: OilBarTimerState
+        get() = OilBarTimerState(
+            aboveGreenThresholdSinceMillis = savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS],
+            lastSampleAtMillis = savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS],
+        )
+        set(value) {
+            savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS] = value.aboveGreenThresholdSinceMillis
+            savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS] = value.lastSampleAtMillis
+        }
 
     // SensorValue.timestamp des zuletzt in updateOilBarTimer() eingespeisten Kuehlmittelwerts.
     // ReadingsPipeline.gpsRefresh() stellt bei jeder GPS-Aenderung (bis 5 Hz) die letzten
@@ -170,7 +195,14 @@ class DashboardViewModel @Inject constructor(
     // Sprungs still (nie faelschlich Gruen; nach mehr als 60 s greift danach das Luecken-Limit).
     // Das ist der Preis fuer `>` statt `!=`: `>` macht auch eine Wiederholung wirkungslos, die erst
     // nach einem neueren Messwert ankaeme.
-    private var lastOilBarSampleTimestamp: Long? = null
+    //
+    // Ebenfalls SavedStateHandle-gestuetzt, aus demselben Grund wie oilBarTimerState oben: ohne das
+    // wuerde eine Activity-Neuerzeugung bei laufendem Prozess diesen Wert auf null zuruecksetzen und
+    // damit einmalig genau die GPS-Wiederholungs-Falle wieder oeffnen, die diese Pruefung eigentlich
+    // verhindern soll.
+    private var lastOilBarSampleTimestamp: Long?
+        get() = savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP]
+        set(value) { savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP] = value }
 
     // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
     // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:

@@ -95,6 +95,13 @@ class AndroidCurrentLocationProvider @Inject constructor(
                     manager.requestSingleUpdate(provider, listener, Looper.getMainLooper())
                 } catch (_: SecurityException) {
                     continuation.resume(null)
+                } catch (_: IllegalArgumentException) {
+                    // Geraet hat diesen Provider gar nicht registriert (z.B. kein NETWORK_PROVIDER
+                    // ohne Google Play Services) — requestSingleUpdate wirft dann sofort statt nur
+                    // nie zu antworten. Ohne diesen catch liefe die Exception ungefangen bis in
+                    // WeatherRepository.fetchCurrentTemperatureC()s "wirft nie"-Vertrag und von dort
+                    // in WeatherViewModels ungeschuetztes Poll-Flow (Backlog-Sweep 2026-09-28).
+                    continuation.resume(null)
                 }
             }
         }

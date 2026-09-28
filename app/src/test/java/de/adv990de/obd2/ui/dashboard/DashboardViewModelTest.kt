@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
@@ -1664,6 +1665,7 @@ class DashboardViewModelTest {
             prefs,
             mockk<ConnectionCoordinator>(relaxed = true),
             ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
+            SavedStateHandle(),
         )
         isConnectedFlow.value = true
         advanceUntilIdle()
@@ -2105,6 +2107,52 @@ class DashboardViewModelTest {
         assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
     }
 
+    @Test
+    fun `oilBarTimerState survives an Activity-only recreation via the shared SavedStateHandle`() = runTest {
+        // Regressionsschutz fuer Backlog-Sweep 2026-09-28, Fund 2: oilBarTimerState und
+        // lastOilBarSampleTimestamp waren reine In-Memory-Felder. Eine Activity-Neuerzeugung bei
+        // laufendem Prozess (Dev-Option "Nicht im Hintergrund behalten", aggressives
+        // OEM-Reclaiming) erzeugt ein frisches DashboardViewModel, ohne dass ConnectionLost oder
+        // das 60s-Luecken-Limit je eintraten — der Gruen-Timer waere stillschweigend auf Null
+        // zurueckgefallen. Simuliert hier durch zwei ViewModel-Instanzen, die dieselbe
+        // SavedStateHandle-Instanz teilen, genau wie Android es bei einer Activity-Neuerzeugung
+        // tut (Bundle aus onSaveInstanceState) — mit einer 50s-Luecke dazwischen (real, aber klar
+        // unter dem 60s-Limit), damit ein Reset durchs Luecken-Limit selbst ausgeschlossen ist.
+        val handle = SavedStateHandle()
+
+        // VM1: ein einzelner Messwert bei t=0 setzt den Gruen-Timer-Start.
+        val vm1 = makeOilBarVm(
+            makeConnectedObdRepo(flowOf(listOf(coolantReading(85f, timestamp = 0L)))),
+            nowMillis = { testScheduler.currentTime },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        assertEquals(OilBarColor.Yellow, vm1.uiState.value.oilBarColor)
+
+        // "Neuerzeugung": 50s Luecke, dann ein zweites ViewModel mit DERSELBEN SavedStateHandle-
+        // Instanz. Ohne den Fix waere oilBarTimerState hier wieder leer (OilBarTimerState()).
+        advanceTimeBy(50_000L)
+        val vm2 = makeOilBarVm(
+            makeConnectedObdRepo(flow {
+                repeat(560) {
+                    emit(listOf(coolantReading(85f, timestamp = testScheduler.currentTime)))
+                    delay(1_000L)
+                }
+            }),
+            nowMillis = { testScheduler.currentTime },
+            savedStateHandle = handle,
+        )
+
+        // VM2s Flow laeuft bis knapp t=609s (560 Messwerte im Sekundentakt ab t=50s) und damit
+        // klar ueber die vollen 10 Minuten (600s) seit dem URSPRUENGLICHEN Start bei t=0, aber
+        // klar UNTER den 10 Minuten seit VM2s eigenem Start bei t=50s (waere erst bei t=650s
+        // erreicht). Nur wenn oilBarTimerState wirklich aus dem SavedStateHandle restauriert
+        // wurde (statt bei der Neuerzeugung zurueckzufallen auf OilBarTimerState()), kann der
+        // Balken in diesem Fenster ueberhaupt schon Gruen zeigen.
+        advanceUntilIdle()
+        assertEquals(OilBarColor.Green, vm2.uiState.value.oilBarColor)
+    }
+
     private fun coolantReading(celsius: Float, timestamp: Long) =
         SensorValue(pid = PidRegistry.COOLANT_TEMP, value = celsius, timestamp = timestamp)
 
@@ -2131,6 +2179,7 @@ class DashboardViewModelTest {
         nowMillis: () -> Long,
         prefs: AppPreferences = makePrefs(),
         gps: GpsSpeedSource = makeGpsSpeedSource(),
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
     ): DashboardViewModel = makeVmFrom(
         obdRepo,
         mockk<SessionRepository> {
@@ -2141,6 +2190,7 @@ class DashboardViewModelTest {
         prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), gps,
         mockk(relaxed = true),
         nowMillis = nowMillis,
+        savedStateHandle = savedStateHandle,
     )
 
     /**
@@ -2161,10 +2211,12 @@ class DashboardViewModelTest {
         gpsSource: GpsSpeedSource,
         appContext: Context,
         nowMillis: () -> Long = { System.currentTimeMillis() },
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
     ): DashboardViewModel = DashboardViewModel(
         obdRepo,
         prefs,
         ConnectionCoordinator(obdRepo, prefs, logRepo, btAdapter, appContext),
         ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource),
+        savedStateHandle,
     ).also { it.nowMillis = nowMillis }
 }

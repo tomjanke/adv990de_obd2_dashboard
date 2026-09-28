@@ -237,4 +237,28 @@ class AndroidCurrentLocationProviderTest {
 
         assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
     }
+
+    // --- lastKnownLocation(): IllegalArgumentException aus requestSingleUpdate (Backlog-Sweep 2026-09-28) ---
+
+    @Test
+    fun `lastKnownLocation returns null instead of crashing when requestSingleUpdate throws IllegalArgumentException`() = runTest {
+        // Ein Geraet ohne registrierten NETWORK_PROVIDER (z.B. ohne Google Play Services) laesst
+        // requestSingleUpdate sofort mit IllegalArgumentException werfen, statt nie zu antworten.
+        // Vor dem Fix war nur SecurityException gefangen - diese Exception lief ungefangen bis in
+        // WeatherRepository.fetchCurrentTemperatureC()s "wirft nie"-Vertrag und von dort in
+        // WeatherViewModels ungeschuetztes Poll-Flow, und haette dort bei jedem 60s-Poll gecrasht.
+        grant(fine = true, coarse = true)
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns null
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            // GPS antwortet nie (Timeout), damit der Netzwerk-Zweig ueberhaupt versucht wird.
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, any(), any()) } just Runs
+            every { requestSingleUpdate(LocationManager.NETWORK_PROVIDER, any(), any()) } throws
+                IllegalArgumentException("provider doesn't exist: network")
+            every { removeUpdates(any<LocationListener>()) } just Runs
+        }
+        installManager(manager)
+
+        assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
 }
