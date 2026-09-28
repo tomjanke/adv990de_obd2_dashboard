@@ -1,5 +1,6 @@
 package de.adv990de.obd2
 
+import android.view.WindowManager
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import de.adv990de.obd2.data.AppPreferences
@@ -104,6 +105,22 @@ class MainActivityTest {
     @Test
     fun `THEME_SYSTEM resolves to the default M3 light color scheme when darkTheme is false`() {
         assertColorSchemeEquals(lightColorScheme(), resolveColorScheme(AppPreferences.THEME_SYSTEM, darkTheme = false))
+    }
+
+    // --- brightnessOverrideFor ---
+
+    @Test
+    fun `resumed means full brightness`() {
+        assertEquals(1f, brightnessOverrideFor(resumed = true), 0.0f)
+    }
+
+    @Test
+    fun `not resumed defers to the system brightness setting`() {
+        assertEquals(
+            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE,
+            brightnessOverrideFor(resumed = false),
+            0.0f,
+        )
     }
 
     private fun assertColorSchemeEquals(

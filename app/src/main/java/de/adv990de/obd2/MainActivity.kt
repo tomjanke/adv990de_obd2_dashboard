@@ -1,6 +1,7 @@
 package de.adv990de.obd2
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -41,6 +42,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    // Volle Helligkeit nur waehrend die App tatsaechlich im Vordergrund ist (User-Wunsch
+    // 2026-09-28, fuer Sonnenlicht-Lesbarkeit auf dem Motorrad) — kein WRITE_SETTINGS noetig,
+    // da ein reines Fenster-Attribut statt einer System-Einstellung. onPause() setzt zurueck,
+    // sonst bliebe die Helligkeit beim Wechsel in eine andere App faelschlich auf Maximum.
+    override fun onResume() {
+        super.onResume()
+        window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = true) }
+    }
+
+    override fun onPause() {
+        window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = false) }
+        super.onPause()
+    }
 }
 
 /**
@@ -69,3 +84,11 @@ internal fun resolveColorScheme(theme: String, darkTheme: Boolean): ColorScheme 
     AppPreferences.THEME_GREEN -> greenColorScheme
     else                       -> if (darkTheme) darkColorScheme() else lightColorScheme()
 }
+
+/**
+ * The [android.view.Window.attributes] `screenBrightness` override for [MainActivity]'s
+ * onResume/onPause: maximum while the app is actually in the foreground, otherwise
+ * [WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE] (defer to the system setting).
+ */
+internal fun brightnessOverrideFor(resumed: Boolean): Float =
+    if (resumed) 1f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE

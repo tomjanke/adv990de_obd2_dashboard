@@ -40,7 +40,7 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 | Outline (Hairlines) | `outline` | `#3D6070` |
 
 **Statusfarben (cross-theme, immer gleich):** definiert in `ui/theme/StatusColors.kt` — nicht hardcoded inline!
-- `StatusColors.Warning` (`#F59E0B`, Tailwind Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
+- `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
 - `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
 - `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der beiden unten dokumentierten Rot/Gelb/Grün-Ampel-Ausnahmen (Bluetooth-Dot, Öl-Temperatur-Balken), **kein** allgemeines OK-Grün
@@ -68,8 +68,8 @@ simulierte Öl-Temperatur-Balken unter der RPM-Segmentanzeige (`OilTemperatureBa
 
 **Korrektur (2026-09-27, finales Review):** Grün war ursprünglich `MaterialTheme.colorScheme.tertiary`
 — das ist aber nur im grünen Cockpit-Schema tatsächlich grün (`#86EFAC`); im blauen ist es
-hellblau (`#7DD3FC`), im amber-farbenen amber (`#FCD34D`, kaum vom Gelb-Zustand `#F59E0B` zu
-unterscheiden) und im Default-Schema mauve (`#7D5260`, hell) bzw. rosa (`#EFB8C8`, dunkel —
+hellblau (`#7DD3FC`), im amber-farbenen amber (`#FCD34D`, kaum vom Gelb-Zustand — Stand 2026-09-28
+`#EAB308`, davor `#F59E0B` — zu unterscheiden) und im Default-Schema mauve (`#7D5260`, hell) bzw. rosa (`#EFB8C8`, dunkel —
 M3-1.4.0-Standardwerte). Deshalb jetzt das feste Ampel-Grün, auf Nutzerwunsch exakt die Farbe des
 Bluetooth-Dots.
 

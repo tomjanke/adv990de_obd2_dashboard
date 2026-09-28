@@ -24,8 +24,11 @@ import androidx.compose.ui.graphics.Color
  * Palette: Tailwind 500 row, matches the project's color-scheme aesthetic.
  */
 object StatusColors {
-    /** Non-blocking caution (high coolant temp, low fuel, weak BLE signal). */
-    val Warning = Color(0xFFF59E0B)
+    /** Non-blocking caution (high coolant temp, low fuel, weak BLE signal). Tailwind Yellow 500 —
+     *  bold/saturated on purpose (User-Wunsch 2026-09-28), same hue already used for the
+     *  Bluetooth dot's "Connecting" state ([de.adv990de.obd2.ui.dashboard.connectionDotColor]),
+     *  though that stays its own independent hardcoded value, not a reference to this one. */
+    val Warning = Color(0xFFEAB308)
 
     /** Actionable redline / fault / hard limit hit. */
     val Critical = Color(0xFFEF4444)
