@@ -69,17 +69,15 @@ fun DashboardScreen(
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
 
-    val isConnected = state.isConnected
-
-    // Keep screen on only while OBD is connected (Dashboard screen is active).
+    // Keep screen on for as long as the Dashboard screen is visible, connected or not (User-Wunsch
+    // 2026-09-29 — vorher nur bei state.isConnected, s. MEMORY.md). DisposableEffect(Unit) statt
+    // eines State-Keys: das Flag soll konstant gesetzt bleiben, waehrend dieser Screen komponiert
+    // ist, und nur beim Verlassen (onDispose) wieder geloescht werden — nicht mehr reaktiv auf
+    // einen sich aendernden Verbindungsstatus.
     val context = LocalContext.current
-    DisposableEffect(isConnected) {
+    DisposableEffect(Unit) {
         val window = (context as? android.app.Activity)?.window
-        if (isConnected) {
-            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }

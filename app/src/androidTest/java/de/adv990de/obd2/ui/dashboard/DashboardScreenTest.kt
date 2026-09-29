@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.dashboard
 import android.content.res.Configuration
 import android.view.WindowManager
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
@@ -386,25 +387,34 @@ class DashboardScreenTest {
     }
 
     /**
-     * Prioritaet 2: die `DisposableEffect(isConnected)`-Verdrahtung in DashboardScreen setzt bzw.
-     * loescht `FLAG_KEEP_SCREEN_ON` auf dem Activity-Window, abhaengig vom Verbindungsstatus —
-     * bislang ungetestet. Prueft beide Zweige der Bedingung in einem Durchlauf: verbunden → Flag
-     * gesetzt; danach getrennt → Flag wieder geloescht (deckt sowohl den `if`- als auch den
-     * `else`-Zweig der Effect-Lambda ab, nicht nur das `onDispose`).
+     * Prioritaet 2: die `DisposableEffect(Unit)`-Verdrahtung in DashboardScreen setzt
+     * `FLAG_KEEP_SCREEN_ON` auf dem Activity-Window, sobald der Screen komponiert wird, und
+     * loescht es erst wieder beim Verlassen — seit User-Wunsch 2026-09-29 unabhaengig vom
+     * Verbindungsstatus (vorher nur bei `isConnected=true`, s. MEMORY.md). Prueft alle drei
+     * relevanten Zustaende: sofort gesetzt bei sichtbarem, aber getrenntem Screen; bleibt gesetzt
+     * bei einer echten Verbindung; geloescht erst, wenn der Screen die Komposition verlaesst
+     * (`onDispose`) — externes `showDashboard`-State-Flag statt eines zweiten `setContent()`-Aufrufs,
+     * da dieser Compose-Test-Rule pro Test nur einmal unterstuetzt.
      */
     @Test
-    fun dashboard_keepsScreenOnWhileConnected_andClearsFlagWhenDisconnected() {
+    fun dashboard_keepsScreenOnRegardlessOfConnection_andClearsFlagOnDispose() {
         // Slot-Defaults sind bereits durch @Before/setup() garantiert.
         val isConnectedFlow = MutableStateFlow(false)
         every { obdRepository.isConnectedFlow } returns isConnectedFlow
         stubConnectedSessionWithRealReadings()
 
-        launchDashboardScreen()
+        val showDashboard = mutableStateOf(true)
+        composeRule.setContent {
+            if (showDashboard.value) {
+                DashboardScreen(navController = rememberNavController())
+            }
+        }
+        composeRule.waitForIdle()
 
         assert(
             composeRule.activity.window.attributes.flags and
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to be unset while disconnected" }
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+        ) { "expected FLAG_KEEP_SCREEN_ON to already be set while disconnected" }
 
         isConnectedFlow.value = true
         val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
@@ -415,17 +425,14 @@ class DashboardScreenTest {
         assert(
             composeRule.activity.window.attributes.flags and
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to be set while connected" }
+        ) { "expected FLAG_KEEP_SCREEN_ON to still be set while connected" }
 
-        isConnectedFlow.value = false
-        val bannerText = composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(bannerText).fetchSemanticsNodes().isNotEmpty()
-        }
+        showDashboard.value = false
+        composeRule.waitForIdle()
         assert(
             composeRule.activity.window.attributes.flags and
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to be cleared again after disconnecting" }
+        ) { "expected FLAG_KEEP_SCREEN_ON to be cleared after leaving the Dashboard screen" }
     }
 
     /**
