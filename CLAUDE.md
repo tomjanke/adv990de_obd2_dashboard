@@ -90,6 +90,26 @@ Leiste während der Fahrt ersetzt, ist eine `surface`-Fläche — mit dem Defaul
 neutrale M3-Grau (`#211F26`) zurück statt auf die Cockpit-Tönung. Nebenwirkung im Default-Farbschema:
 dort sind `surface` und `background` gleich, die Leiste hebt sich nur noch über die Trennlinie ab.
 
+**Fünftes Hauptmenü-Item „Beenden" (seit 2026-09-29, User-Wunsch):** Rechts neben „Einstellungen"
+sitzt ein fünftes `NavigationBarItem` (`Icons.Default.PowerSettingsNew`, kein Navigationsziel —
+`onClick` öffnet einen Bestätigungsdialog statt `navController.navigate()`). Bestätigt, ruft
+`ExitAppViewModel.exitApp()` (dieselbe Logik wie der bestehende `SettingsViewModel.disconnect()`:
+`ObdRepository.disconnect()` + `ObdForegroundService`-Stop) und danach `Activity.finishAffinity()`
+auf — vollständiges Beenden, kein Monitoring läuft im Hintergrund weiter. Der Dialog (Material3
+`AlertDialog`, **keine** Bottom Sheet, s. „Verbotene Patterns" unten) ist bewusst vorgeschaltet:
+das Icon sitzt permanent im Hauptmenü, ein Griff mit Handschuhen auf holpriger Strecke könnte es
+sonst versehentlich treffen.
+
+**Nav-Label-Schriftgröße 10sp, unskaliert (seit demselben Tag):** Mit fünf statt vier Spalten reichte
+im Hochformat (~72dp pro Spalte) selbst `MaterialTheme.typography.labelSmall` nicht mehr für
+„Einstellungen" auf einer Zeile — das Wort brach um, die zweite Zeile wurde vom festen
+64dp-Leistenrahmen abgeschnitten (auf dem Pixel 8 Pro visuell bestätigt). `labelSmall` trägt wie
+jede Rolle in `AppTypography` `BIKE_SCALE` (1.18×) und wurde dadurch nur unwesentlich kleiner als
+`labelMedium`. Alle fünf Nav-Labels nutzen deshalb ein explizites `TextStyle(fontSize = 10.sp)`,
+bewusst ohne `BIKE_SCALE` — Nav-Labels sind sekundäre Chrome-Elemente, keine Live-Werte, und stehen
+in keiner Zeile der Typografie-Hierarchie unten. Im Querformat (deutlich breitere Spalten) wäre die
+Kürzung nicht nötig gewesen, gilt hier aber einheitlich für beide Ausrichtungen.
+
 ### Typografie
 
 Display-Font: **Space Grotesk** (bereits geladen, `R.font.space_grotesk_*`).
@@ -356,8 +376,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 786 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 152 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 788 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 155 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

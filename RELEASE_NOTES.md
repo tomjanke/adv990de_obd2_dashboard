@@ -1,5 +1,21 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.5 (versionCode 67)
+
+### Neuer Beenden-Button im Hauptmenü
+
+Rechts neben „Einstellungen" gibt es jetzt einen fünften Menüpunkt zum vollständigen Beenden der
+App: Verbindung zum OBD2-Adapter trennen, Hintergrunddienst stoppen, App schließen — mit
+Sicherheitsabfrage, damit ein versehentlicher Treffer mit Handschuhen auf holpriger Strecke nicht
+gleich die App beendet.
+
+### Tests
+
+788 Unit- und 155 Instrumentation-Tests grün (vorher 786 / 152). Lint unverändert bei 0 Fehlern,
+30 Warnungen.
+
+---
+
 ## Version 1.17.4 (versionCode 66)
 
 Zwei kleine Robustheits-Fixes, gefunden bei einem routinemäßigen Code-Sweep — kein Feldbug.
