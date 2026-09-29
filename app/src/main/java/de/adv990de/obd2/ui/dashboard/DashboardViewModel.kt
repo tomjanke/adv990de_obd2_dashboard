@@ -37,8 +37,8 @@ data class DashboardUiState(
     val isConnected: Boolean = false,
     val isReconnecting: Boolean = false,
     val reconnectAttempt: Int = 0,
-    // References RECONNECT_DELAYS.size so the default stays in sync if the list ever changes.
-    val reconnectTotal: Int = RECONNECT_DELAYS.size,
+    // References RECONNECT_ATTEMPT_COUNT so the default stays in sync if it ever changes.
+    val reconnectTotal: Int = RECONNECT_ATTEMPT_COUNT,
     // UiText: static messages use StringResource (localizable), dynamic messages (e.g. exception
     // messages from the BT stack) use DynamicString.
     val error: UiText? = null,
@@ -367,7 +367,7 @@ class DashboardViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isReconnecting = true,
             reconnectAttempt = 0,
-            reconnectTotal = RECONNECT_DELAYS.size
+            reconnectTotal = RECONNECT_ATTEMPT_COUNT
         )
         connectionCoordinator.requestReconnect()
     }

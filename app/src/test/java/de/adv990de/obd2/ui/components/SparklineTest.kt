@@ -116,4 +116,58 @@ class SparklineTest {
 
         assertEquals(2f + 1f - (5f / 10f) * 1f, result.y, 0.001f)
     }
+
+    // --- effectiveSparklineRange ---
+    //
+    // Backlog item (Sweep 2026-09-28/29): without a meaningful floor, a near-constant PID (e.g.
+    // battery voltage sitting at ~12.6V with only sensor noise) auto-scaled to fill the whole
+    // tile height on fluctuations too small to mean anything. The floor is a fraction of the
+    // series' own magnitude, not a fixed unit -- Sparkline is domain-agnostic and RPM/voltage need
+    // very different absolute floors.
+
+    // --- Test 9 ---
+
+    @Test
+    fun `a range already wider than the floor is returned unchanged`() {
+        val (min, max) = effectiveSparklineRange(min = 10f, max = 30f)
+
+        assertEquals(10f, min, 0.001f)
+        assertEquals(30f, max, 0.001f)
+    }
+
+    // --- Test 10 ---
+
+    @Test
+    fun `a near-flat range is expanded symmetrically around its midpoint`() {
+        // magnitude 12.62, default floorFraction 0.05 -> floor 0.631; natural range is only 0.04.
+        val (min, max) = effectiveSparklineRange(min = 12.58f, max = 12.62f)
+
+        assertEquals(12.6f - 0.631f / 2f, min, 0.001f)
+        assertEquals(12.6f + 0.631f / 2f, max, 0.001f)
+        assertEquals(0.631f, max - min, 0.001f)
+    }
+
+    // --- Test 11 ---
+
+    @Test
+    fun `all-zero values do not divide by zero`() {
+        val (min, max) = effectiveSparklineRange(min = 0f, max = 0f)
+
+        assertFalse(min.isNaN())
+        assertFalse(max.isNaN())
+        assertTrue("expanded range must be strictly positive", max > min)
+    }
+
+    // --- Test 12 ---
+
+    @Test
+    fun `the floor scales with the series own magnitude, not a fixed unit`() {
+        // Same relative noise (0.1 percent of magnitude) at two very different magnitudes: the
+        // absolute floor must scale accordingly, not use one fixed absolute threshold for both.
+        val (highMin, highMax) = effectiveSparklineRange(min = 99.9f, max = 100f)
+        val (lowMin, lowMax) = effectiveSparklineRange(min = 0.999f, max = 1f)
+
+        assertEquals(100f * 0.05f, highMax - highMin, 0.001f)
+        assertEquals(1f * 0.05f, lowMax - lowMin, 0.0001f)
+    }
 }

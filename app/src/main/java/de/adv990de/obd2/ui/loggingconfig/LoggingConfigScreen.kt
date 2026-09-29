@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -30,6 +31,11 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+
+/** Test-only selector for this screen's [LazyColumn], so instrumentation tests can
+ *  `performScrollToNode` to PID rows below the initially-composed viewport (confirmed empirically
+ *  2026-09-29: only ~5 of 19 rows compose before the first frame settles on a Pixel 8 Pro). */
+internal const val LOGGING_CONFIG_LIST_TEST_TAG = "logging_config_list"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +63,7 @@ fun LoggingConfigScreen(
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.padding(padding)) {
+        LazyColumn(Modifier.padding(padding).testTag(LOGGING_CONFIG_LIST_TEST_TAG)) {
             item {
                 Row(
                     modifier = Modifier

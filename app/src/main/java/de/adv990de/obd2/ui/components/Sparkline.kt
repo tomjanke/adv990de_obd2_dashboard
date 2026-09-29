@@ -31,6 +31,24 @@ internal fun smoothSparklinePoints(points: List<Float>, windowSize: Int = 3): Li
 }
 
 /**
+ * Expands a too-narrow data range symmetrically around its midpoint so [Sparkline] never
+ * visually exaggerates noise within a range too small to be meaningful (backlog item, Sweep
+ * 2026-09-28/29) -- without this, a near-constant PID (e.g. battery voltage sitting at ~12.6V
+ * with only sensor noise) auto-scales to fill the full tile height on fluctuations that carry no
+ * information. [floorFraction] is relative to the series' own magnitude rather than a fixed
+ * absolute unit, since [Sparkline] is domain-agnostic and RPM/voltage need very different
+ * absolute floors. `coerceAtLeast(0.001f)` on the floor itself covers the degenerate all-zero
+ * case (`magnitude == 0f`), mirroring [sparklinePointOffset]'s own divide-by-zero guard.
+ */
+internal fun effectiveSparklineRange(min: Float, max: Float, floorFraction: Float = 0.05f): Pair<Float, Float> {
+    val magnitude = maxOf(kotlin.math.abs(min), kotlin.math.abs(max))
+    val floor = (magnitude * floorFraction).coerceAtLeast(0.001f)
+    if (max - min >= floor) return min to max
+    val mid = (min + max) / 2f
+    return (mid - floor / 2f) to (mid + floor / 2f)
+}
+
+/**
  * Pure min/max-to-pixel mapping for a single sparkline point, extracted from the [Sparkline]
  * Canvas block for JVM testability (mirrors [smoothSparklinePoints] in that regard). Takes the
  * Canvas' own `size.width`/`size.height` and an already-density-resolved [inset] (the Composable
@@ -79,8 +97,7 @@ fun Sparkline(
     if (points.size < 2) return
     val smoothed = smoothSparklinePoints(points)
     Canvas(modifier) {
-        val min = smoothed.min()
-        val max = smoothed.max()
+        val (min, max) = effectiveSparklineRange(smoothed.min(), smoothed.max())
         // Die Linie laesst oben und unten je 2 dp Luft, damit der runde Strich an den
         // Extremwerten nicht am Rand abgeschnitten wird.
         val inset = 2.dp.toPx()

@@ -71,9 +71,14 @@ class ConnectionCoordinatorTest {
     // (Tests 8-11) is tested directly as a pure function, so none of these coordinator-level tests
     // need to vary it — but ConnectionCoordinator.startObdForegroundService() still reads it on
     // every successful connect, so the stub must exist or the non-relaxed mock throws.
+    // `reconnectBaseDelaySeconds` likewise has no per-test variant: runReconnectLoop() reads it
+    // once per collect (Backlog-Cleanup, Sweep 2026-09-28/29) — reconnectDelays() itself is tested
+    // directly as a pure function below (Tests 12-13), so the exact seconds value here doesn't
+    // matter for these coordinator-level tests, only that the non-relaxed mock has a stub at all.
     private fun makePrefs(lastDevice: ScannedDevice? = null): AppPreferences = mockk {
         every { this@mockk.lastDevice } returns flowOf(lastDevice)
         every { this@mockk.useGpsSpeed } returns flowOf(false)
+        every { this@mockk.reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
     }
 
     private fun makeAdapter(enabled: Boolean = true): BluetoothAdapter = mockk {
@@ -104,7 +109,7 @@ class ConnectionCoordinatorTest {
         coVerify { repo.connect(device) }
         verify { context.startForegroundService(any()) }
         assertEquals(
-            listOf(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_DELAYS.size), ConnectionEvent.Connected),
+            listOf(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Connected),
             events
         )
     }
@@ -205,7 +210,7 @@ class ConnectionCoordinatorTest {
         coordinator.requestReconnect()
         advanceUntilIdle()
 
-        coVerify(exactly = RECONNECT_DELAYS.size) { repo.reconnect() }
+        coVerify(exactly = RECONNECT_ATTEMPT_COUNT) { repo.reconnect() }
         assertEquals(
             ConnectionEvent.Failed(UiText.StringResource(R.string.err_reconnect_fail)),
             events.last()
@@ -256,5 +261,31 @@ class ConnectionCoordinatorTest {
     @Test
     fun `shouldIncludeLocationServiceType is false when neither condition holds`() {
         assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = false))
+    }
+
+    // --- reconnectDelays() (Backlog-Cleanup, Sweep 2026-09-28/29) ---
+    //
+    // RECONNECT_DELAYS was hardcoded as listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L) --
+    // reconnectDelays(baseDelaySeconds) generates the same doubling shape from a configurable
+    // base, so the coordinator-level tests above (which stub reconnectBaseDelaySeconds to
+    // AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS = 3) see byte-for-byte the same delays
+    // as before this change.
+
+    // --- Test 12 ---
+
+    @Test
+    fun `reconnectDelays with the default base reproduces the previous hardcoded values`() {
+        assertEquals(
+            listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L),
+            reconnectDelays(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
+        )
+    }
+
+    // --- Test 13 ---
+
+    @Test
+    fun `reconnectDelays scales every step with the configured base`() {
+        assertEquals(listOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L), reconnectDelays(1))
+        assertEquals(listOf(10_000L, 20_000L, 40_000L, 80_000L, 160_000L), reconnectDelays(10))
     }
 }

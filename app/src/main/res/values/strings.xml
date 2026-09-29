@@ -133,6 +133,12 @@
         <item quantity="one">Enter a whole number of at least %1$d second</item>
         <item quantity="other">Enter a whole number of at least %1$d seconds</item>
     </plurals>
+    <string name="settings_reconnect_base_delay">Reconnect base delay</string>
+    <string name="settings_reconnect_base_delay_desc">Seconds before the first reconnect attempt; each further attempt doubles it</string>
+    <plurals name="settings_reconnect_base_delay_invalid">
+        <item quantity="one">Enter a whole number of at least %1$d second</item>
+        <item quantity="other">Enter a whole number of at least %1$d seconds</item>
+    </plurals>
 
     <!-- Display settings section -->
     <string name="settings_display_section">Display</string>

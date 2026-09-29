@@ -10,7 +10,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -22,10 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,5 +133,35 @@ internal fun RpmThresholdSection(
             }
         )
         HorizontalDivider()
+    }
+}
+
+@Preview(name = "RpmThresholdSection · disabled (blue)", showBackground = true)
+@Composable
+private fun PreviewRpmThresholdSectionDisabled() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            RpmThresholdSection(
+                rpmBlinkThreshold = 0,
+                rpmDynamicThreshold = false,
+                onThresholdChangeFinished = {},
+                onDynamicThresholdChange = {},
+            )
+        }
+    }
+}
+
+@Preview(name = "RpmThresholdSection · enabled, dynamic on (amber)", showBackground = true)
+@Composable
+private fun PreviewRpmThresholdSectionEnabled() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            RpmThresholdSection(
+                rpmBlinkThreshold = 6500,
+                rpmDynamicThreshold = true,
+                onThresholdChangeFinished = {},
+                onDynamicThresholdChange = {},
+            )
+        }
     }
 }

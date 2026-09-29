@@ -84,6 +84,7 @@ class DashboardViewModelTest {
         every { this@mockk.secondaryRatio }       returns flowOf(secondaryRatio)
         every { this@mockk.gearRatios }           returns flowOf(gearRatios)
         every { obdWatchdogTimeoutSeconds }       returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+        every { reconnectBaseDelaySeconds }       returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
     }
 
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
@@ -393,6 +394,7 @@ class DashboardViewModelTest {
             every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
             every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -819,6 +821,7 @@ class DashboardViewModelTest {
             every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
             every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             coEvery { setSlotPid(any(), any()) } just Runs
         }
         val vm = makeVmFrom(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -967,6 +970,7 @@ class DashboardViewModelTest {
             every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
             every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -1043,6 +1047,7 @@ class DashboardViewModelTest {
             every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
             every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
 
         makeVm(obdRepo = obdRepo, sessionRepo = sessionRepo, prefs = prefs, appContext = ctx)

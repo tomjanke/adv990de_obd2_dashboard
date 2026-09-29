@@ -62,6 +62,11 @@ internal const val GPS_SPEED_SWITCH_TEST_TAG = "settings_gps_speed_switch"
 /** Test-only selector for the hideNavOnDrive [Switch], same reasoning as [GPS_SPEED_SWITCH_TEST_TAG]. */
 internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_drive_switch"
 
+/** Test-only selector for this screen's [LazyColumn], so instrumentation tests can
+ *  `performScrollToNode` to items below the initially-composed viewport instead of relying on
+ *  them already being laid out — needed once the list grew past what a single screen shows. */
+internal const val SETTINGS_LIST_TEST_TAG = "settings_list"
+
 /** The GPS-speed switch's three-way outcome once the user toggles it, decided purely from the
  *  requested state and the current fine-location grant — extracted so the branch is directly
  *  unit-testable without Compose/instrumentation (same convention as the internal decision
@@ -119,6 +124,11 @@ internal fun shouldRequestLocationForWeather(
  *  `parsePositiveFloat`. */
 internal fun parseWatchdogTimeoutSeconds(text: String): Int? =
     text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS }
+
+/** Validates the reconnect base-delay field below, mirroring [parseWatchdogTimeoutSeconds]
+ *  exactly (same reasoning, different floor: [AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS]). */
+internal fun parseReconnectBaseDelaySeconds(text: String): Int? =
+    text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -224,11 +234,13 @@ fun SettingsScreen(
     val showAllBtDevices by vm.showAllBtDevices.collectAsState()
     LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
     val watchdogTimeoutSeconds by vm.obdWatchdogTimeoutSeconds.collectAsState()
+    val reconnectBaseDelaySeconds by vm.reconnectBaseDelaySeconds.collectAsState()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
     ) { padding ->
         LazyColumn(
+            modifier = Modifier.testTag(SETTINGS_LIST_TEST_TAG),
             contentPadding = PaddingValues(
                 top = padding.calculateTopPadding() + 16.dp,
                 bottom = padding.calculateBottomPadding() + 16.dp,
@@ -367,6 +379,46 @@ fun SettingsScreen(
                                 hasBeenEdited = true
                                 text = newText
                                 parseWatchdogTimeoutSeconds(newText)?.let { vm.setObdWatchdogTimeoutSeconds(it) }
+                            },
+                            isError = !isValid,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.width(80.dp),
+                            singleLine = true,
+                        )
+                    }
+                )
+                HorizontalDivider()
+            }
+            item {
+                // Gleiches hasBeenEdited-Gerüst wie beim Watchdog-Timeout-Feld oben, aus demselben
+                // Grund (Backlog-Cleanup, Sweep 2026-09-28/29).
+                var text by remember { mutableStateOf(reconnectBaseDelaySeconds.toString()) }
+                var hasBeenEdited by remember { mutableStateOf(false) }
+                LaunchedEffect(reconnectBaseDelaySeconds) {
+                    if (!hasBeenEdited) {
+                        text = reconnectBaseDelaySeconds.toString()
+                    }
+                }
+                val isValid = parseReconnectBaseDelaySeconds(text) != null
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_reconnect_base_delay)) },
+                    supportingContent = {
+                        Text(
+                            if (isValid) stringResource(R.string.settings_reconnect_base_delay_desc)
+                            else pluralStringResource(
+                                R.plurals.settings_reconnect_base_delay_invalid,
+                                AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS,
+                                AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS
+                            )
+                        )
+                    },
+                    trailingContent = {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { newText ->
+                                hasBeenEdited = true
+                                text = newText
+                                parseReconnectBaseDelaySeconds(newText)?.let { vm.setReconnectBaseDelaySeconds(it) }
                             },
                             isError = !isValid,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

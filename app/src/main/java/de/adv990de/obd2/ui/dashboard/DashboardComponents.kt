@@ -38,6 +38,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -458,6 +459,12 @@ internal fun SensorCard(
     )
 }
 
+/** Test-only selector for [SlotPickerSheet]'s [LazyColumn], so instrumentation tests can
+ *  `performScrollToNode` to PID rows below the initially-composed viewport (confirmed empirically
+ *  2026-09-29: only a handful of rows compose before the first frame settles on a Pixel 8 Pro,
+ *  same root cause as `LOGGING_CONFIG_LIST_TEST_TAG`). */
+internal const val SLOT_PICKER_LIST_TEST_TAG = "slot_picker_list"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SlotPickerSheet(
@@ -473,7 +480,7 @@ internal fun SlotPickerSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
-        LazyColumn {
+        LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
             items(availablePids, key = { it.id }) { pid ->
                 val reading = readings.firstOrNull { it.pid.id == pid.id }
                 val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {

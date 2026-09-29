@@ -1,9 +1,12 @@
 package de.adv990de.obd2.ui.loggingconfig
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
@@ -184,7 +187,17 @@ class LoggingConfigScreenTest {
         // formatLoggingRowValue(87f, "°C", useImperial = false) -> "87 (°C)" (JVM-verified in the
         // existing LoggingConfigScreenTest); this pins down the Composable actually combines that
         // with stringResource(pid.labelRes), which the JVM test cannot exercise on its own.
+        //
+        // Root cause found 2026-09-29 (unrelated to any app-code change — confirmed via `git stash`
+        // against unmodified HEAD, and via a onRoot().printToLog() dump): the LazyColumn only
+        // composes ~5 of 19 rows before the first frame settles on a Pixel 8 Pro, so "Coolant Temp"
+        // at position 6 genuinely doesn't exist in the tree yet — a plain onNodeWithText(...)
+        // (with or without performScrollTo()/waitUntil retries) can never find it, since
+        // performScrollTo() itself requires the node to already be composed. performScrollToNode()
+        // on the LazyColumn's own node is the only API that can bring an uncomposed item into view.
         val coolantLabel = composeRule.activity.getString(PidRegistry.COOLANT_TEMP.labelRes)
+        composeRule.onNodeWithTag(LOGGING_CONFIG_LIST_TEST_TAG)
+            .performScrollToNode(hasText("$coolantLabel: 87 (°C)"))
         composeRule.onNodeWithText("$coolantLabel: 87 (°C)").assertIsDisplayed()
     }
 }

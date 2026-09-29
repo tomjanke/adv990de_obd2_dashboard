@@ -65,6 +65,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setObdWatchdogTimeoutSeconds(value) }
     }
 
+    val reconnectBaseDelaySeconds: StateFlow<Int> = appPreferences.reconnectBaseDelaySeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
+
+    fun setReconnectBaseDelaySeconds(value: Int) {
+        viewModelScope.launch { appPreferences.setReconnectBaseDelaySeconds(value) }
+    }
+
     init {
         viewModelScope.launch {
             appPreferences.lastDevice.collect { device ->

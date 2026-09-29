@@ -1,10 +1,47 @@
 // app/src/main/java/de/adv990de/obd2/ui/theme/ColorSchemes.kt
 package de.adv990de.obd2.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
 
-val blueColorScheme = darkColorScheme(
+/**
+ * Extrahiert (Backlog-Cleanup, Sweep 2026-09-28/29): die drei Cockpit-Schemata unten waren drei
+ * `darkColorScheme(...)`-Aufrufe mit identischen 12 benannten Parametern, nur die Farbliterale
+ * unterschieden sich. Reine mechanische Extraktion, keine Werte geaendert -- jeder Aufruf unten
+ * uebergibt exakt dieselben Literale wie vorher direkt an `darkColorScheme`.
+ */
+private fun cockpitColorScheme(
+    background: Color,
+    onBackground: Color,
+    surface: Color,
+    onSurface: Color,
+    surfaceVariant: Color,
+    onSurfaceVariant: Color,
+    primary: Color,
+    onPrimary: Color,
+    secondary: Color,
+    onSecondary: Color,
+    tertiary: Color,
+    onTertiary: Color,
+    outline: Color,
+): ColorScheme = darkColorScheme(
+    background       = background,
+    onBackground     = onBackground,
+    surface          = surface,
+    onSurface        = onSurface,
+    surfaceVariant   = surfaceVariant,
+    onSurfaceVariant = onSurfaceVariant,
+    primary          = primary,
+    onPrimary        = onPrimary,
+    secondary        = secondary,
+    onSecondary      = onSecondary,
+    tertiary         = tertiary,
+    onTertiary       = onTertiary,
+    outline          = outline,
+)
+
+val blueColorScheme = cockpitColorScheme(
     background       = Color(0xFF050D1A),
     onBackground     = Color(0xFFE2F3FB),
     surface          = Color(0xFF0A1628),
@@ -20,7 +57,7 @@ val blueColorScheme = darkColorScheme(
     outline          = Color(0xFF3D6070),
 )
 
-val amberColorScheme = darkColorScheme(
+val amberColorScheme = cockpitColorScheme(
     background       = Color(0xFF110A02),
     onBackground     = Color(0xFFFBEBD5),
     surface          = Color(0xFF1E1005),
@@ -36,7 +73,7 @@ val amberColorScheme = darkColorScheme(
     outline          = Color(0xFF6B4020),
 )
 
-val greenColorScheme = darkColorScheme(
+val greenColorScheme = cockpitColorScheme(
     background       = Color(0xFF030F08),
     onBackground     = Color(0xFFDCF5E6),
     surface          = Color(0xFF081A10),

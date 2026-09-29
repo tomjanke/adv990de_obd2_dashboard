@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -117,8 +120,14 @@ fun LiveValueTile(
         primary = MaterialTheme.colorScheme.primary,
     )
     val interactive = onClick != null || onLongPress != null
+    // Ripple in der Akzentfarbe der Kachel statt des M3-Default-Grau (CLAUDE.md-TODO "falls als
+    // zu auffaellig empfunden"): ein generischer grauer Ripple wirkt neben der sonst durchgehend
+    // themenfarbigen Cockpit-Optik fremd. `MutableInteractionSource` explizit, weil `ripple()` als
+    // `indication`-Parameter eine braucht, um Press-Events ueberhaupt zu empfangen.
     val finalModifier = if (interactive) {
         modifier.combinedClickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = ripple(color = accentColor),
             onClick = { onClick?.invoke() },
             onLongClick = { onLongPress?.invoke() },
         )

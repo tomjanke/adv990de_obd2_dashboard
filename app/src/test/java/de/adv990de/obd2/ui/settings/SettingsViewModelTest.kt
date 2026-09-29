@@ -55,6 +55,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         },
         appLogRepository: AppLogRepository = mockk(relaxed = true),
@@ -72,6 +73,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
@@ -139,6 +141,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(device)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -174,6 +177,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
@@ -195,6 +199,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
         }
         val vm = makeVm(prefs = prefs)
@@ -230,6 +235,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns lastDeviceFlow
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -262,6 +268,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(obdRepo = obdRepo, prefs = prefs)
 
@@ -305,6 +312,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(scanned)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(prefs = prefs)
         advanceUntilIdle()
@@ -406,6 +414,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
             coEvery { setShowAllBtDevices(any()) } just Runs
         }
@@ -426,6 +435,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(true)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             every { useGpsSpeed } returns flowOf(false)
             coEvery { setShowAllBtDevices(any()) } just Runs
         }
@@ -447,6 +457,7 @@ class SettingsViewModelTest {
             every { showAllBtDevices } returns flowOf(false)
             every { useGpsSpeed } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(45)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -470,6 +481,7 @@ class SettingsViewModelTest {
             every { showAllBtDevices } returns flowOf(false)
             every { useGpsSpeed } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
             coEvery { setObdWatchdogTimeoutSeconds(any()) } just Runs
         }
         val vm = makeVm(prefs = prefs)
@@ -479,5 +491,45 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify { prefs.setObdWatchdogTimeoutSeconds(45) }
+    }
+
+    @Test
+    fun `reconnectBaseDelaySeconds reflects the value from AppPreferences`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(7)
+        }
+        val vm = makeVm(prefs = prefs)
+
+        // Same WhileSubscribed(5_000) convention as obdWatchdogTimeoutSeconds above.
+        val job = launch { vm.reconnectBaseDelaySeconds.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(7, vm.reconnectBaseDelaySeconds.value)
+    }
+
+    @Test
+    fun `setReconnectBaseDelaySeconds persists the new value`() = runTest {
+        val prefs = mockk<AppPreferences> {
+            coEvery { persistDevice(any()) } just Runs
+            every { lastDevice } returns flowOf(null)
+            every { showAllBtDevices } returns flowOf(false)
+            every { useGpsSpeed } returns flowOf(false)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
+            coEvery { setReconnectBaseDelaySeconds(any()) } just Runs
+        }
+        val vm = makeVm(prefs = prefs)
+        advanceUntilIdle()
+
+        vm.setReconnectBaseDelaySeconds(7)
+        advanceUntilIdle()
+
+        coVerify { prefs.setReconnectBaseDelaySeconds(7) }
     }
 }

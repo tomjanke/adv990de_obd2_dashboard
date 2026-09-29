@@ -133,6 +133,12 @@
         <item quantity="one">Bitte eine ganze Zahl ab %1$d Sekunde eingeben</item>
         <item quantity="other">Bitte eine ganze Zahl ab %1$d Sekunden eingeben</item>
     </plurals>
+    <string name="settings_reconnect_base_delay">Reconnect-Basisverzögerung</string>
+    <string name="settings_reconnect_base_delay_desc">Sekunden bis zum ersten Reconnect-Versuch; jeder weitere Versuch verdoppelt die Wartezeit</string>
+    <plurals name="settings_reconnect_base_delay_invalid">
+        <item quantity="one">Bitte eine ganze Zahl ab %1$d Sekunde eingeben</item>
+        <item quantity="other">Bitte eine ganze Zahl ab %1$d Sekunden eingeben</item>
+    </plurals>
 
     <!-- Display settings section -->
     <string name="settings_display_section">Anzeige</string>

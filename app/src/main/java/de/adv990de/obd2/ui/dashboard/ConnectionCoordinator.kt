@@ -19,8 +19,18 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Wartezeiten der Wiederverbindungs-Versuche, in Millisekunden. */
-internal val RECONNECT_DELAYS = listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)
+/** Anzahl der Wiederverbindungs-Versuche — fest, nur die Basis-Verzoegerung ist konfigurierbar
+ *  (s. [reconnectDelays]). */
+internal const val RECONNECT_ATTEMPT_COUNT = 5
+
+/**
+ * Wartezeiten der Wiederverbindungs-Versuche, in Millisekunden: verdoppelt sich je Versuch ab
+ * [baseDelaySeconds] (Backlog-Cleanup, Sweep 2026-09-28/29 — vorher hartcodiert als
+ * `listOf(3_000L, 6_000L, 12_000L, 24_000L, 48_000L)`). Der bisherige Default von 3s
+ * (`AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS`) reproduziert exakt diese Werte.
+ */
+internal fun reconnectDelays(baseDelaySeconds: Int): List<Long> =
+    List(RECONNECT_ATTEMPT_COUNT) { i -> baseDelaySeconds * 1_000L * (1L shl i) }
 
 /** Whether ObdForegroundService should request the `location` foreground-service type on this
  *  (re)connect. Both conditions are required: the user opted in, and Android will actually
@@ -110,7 +120,7 @@ class ConnectionCoordinator @Inject constructor(
     private suspend fun autoConnect(onEvent: (ConnectionEvent) -> Unit) {
         if (obdRepository.isConnectedFlow.value) return
         val savedDevice = appPreferences.lastDevice.first() ?: return
-        onEvent(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_DELAYS.size))
+        onEvent(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT))
         appLogRepository.log(LogLevel.INFO, "Connecting to ${savedDevice.name}…")
         try {
             obdRepository.connect(savedDevice)
@@ -143,11 +153,14 @@ class ConnectionCoordinator @Inject constructor(
                 return@collect
             }
 
-            for ((attempt, delayMs) in RECONNECT_DELAYS.withIndex()) {
+            // Einmal vor der Schleife gelesen, wie coldLaunchDevice oben: die Basis-Verzoegerung
+            // aendert sich zwischen Versuchen derselben Reconnect-Runde nicht.
+            val baseDelaySeconds = appPreferences.reconnectBaseDelaySeconds.first()
+            for ((attempt, delayMs) in reconnectDelays(baseDelaySeconds).withIndex()) {
                 // Der Nutzer koennte inzwischen manuell verbunden haben.
                 if (obdRepository.isConnectedFlow.value) return@collect
-                onEvent(ConnectionEvent.Attempting(attempt + 1, RECONNECT_DELAYS.size))
-                appLogRepository.log(LogLevel.INFO, "Reconnect attempt ${attempt + 1}/${RECONNECT_DELAYS.size}")
+                onEvent(ConnectionEvent.Attempting(attempt + 1, RECONNECT_ATTEMPT_COUNT))
+                appLogRepository.log(LogLevel.INFO, "Reconnect attempt ${attempt + 1}/$RECONNECT_ATTEMPT_COUNT")
                 delay(delayMs)
                 if (!bluetoothAdapter.isEnabled) {
                     appLogRepository.log(LogLevel.WARN, "Bluetooth disabled")
@@ -173,7 +186,7 @@ class ConnectionCoordinator @Inject constructor(
                     // naechster Versuch
                 }
             }
-            appLogRepository.log(LogLevel.ERROR, "Connection failed after ${RECONNECT_DELAYS.size} attempts")
+            appLogRepository.log(LogLevel.ERROR, "Connection failed after $RECONNECT_ATTEMPT_COUNT attempts")
             fail(onEvent, R.string.err_reconnect_fail)
         }
     }

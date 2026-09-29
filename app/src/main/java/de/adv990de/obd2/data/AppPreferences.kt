@@ -60,6 +60,7 @@ class AppPreferences @Inject constructor(
             KEY_GEAR_RATIO_4, KEY_GEAR_RATIO_5, KEY_GEAR_RATIO_6,
         )
         private val KEY_OBD_WATCHDOG_TIMEOUT_SECONDS = intPreferencesKey("obd_watchdog_timeout_seconds")
+        private val KEY_RECONNECT_BASE_DELAY_SECONDS = intPreferencesKey("reconnect_base_delay_seconds")
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         val ALL_PID_IDS: Set<String>   = PidRegistry.all.keys.toSet()
         const val THEME_SYSTEM = "system"
@@ -81,6 +82,14 @@ class AppPreferences @Inject constructor(
         // Setter selbst klemmt nicht): bei wenigen Sekunden wuerde der Watchdog schon bei
         // normalem Timeout-Rauschen staendig einen Reconnect erzwingen.
         const val MIN_OBD_WATCHDOG_TIMEOUT_SECONDS = 10
+        // Backlog-Cleanup (Sweep 2026-09-28/29): vorher hartcodiert in ConnectionCoordinator.kt
+        // als RECONNECT_DELAYS = listOf(3_000L, 6_000L, ...). 3s als Basis reproduziert exakt
+        // diese bisherigen Werte (3, 6, 12, 24, 48s, s. ConnectionCoordinator.reconnectDelays()).
+        const val DEFAULT_RECONNECT_BASE_DELAY_SECONDS = 3
+        // Untergrenze wie bei MIN_OBD_WATCHDOG_TIMEOUT_SECONDS oben: bei 0s wuerde der erste
+        // Versuch ohne jede Wartezeit sofort feuern, noch bevor der Adapter eine reale Chance
+        // hatte, sich vom vorherigen Abbruch zu erholen.
+        const val MIN_RECONNECT_BASE_DELAY_SECONDS = 1
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -294,5 +303,15 @@ class AppPreferences @Inject constructor(
 
     suspend fun setObdWatchdogTimeoutSeconds(value: Int) {
         dataStore.edit { it[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] = value }
+    }
+
+    // ── Reconnect-Basis-Verzoegerung (Backlog-Cleanup, Sweep 2026-09-28/29) ───
+
+    val reconnectBaseDelaySeconds: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_RECONNECT_BASE_DELAY_SECONDS] ?: DEFAULT_RECONNECT_BASE_DELAY_SECONDS
+    }.distinctUntilChanged()
+
+    suspend fun setReconnectBaseDelaySeconds(value: Int) {
+        dataStore.edit { it[KEY_RECONNECT_BASE_DELAY_SECONDS] = value }
     }
 }

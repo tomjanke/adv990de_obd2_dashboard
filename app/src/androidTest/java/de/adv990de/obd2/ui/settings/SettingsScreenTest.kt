@@ -4,10 +4,12 @@ import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
@@ -109,8 +111,14 @@ class SettingsScreenTest {
     /** Polls (like `SimulatedDashboardTest.awaitLiveTiles()`) instead of a single `waitForIdle()`:
      *  the switches' StateFlows (`useGpsSpeed`, `hideNavOnDrive`, ...) are seeded from
      *  AppPreferences/DataStore, whose real value can arrive a beat after the frame Compose
-     *  considers idle. */
+     *  considers idle.
+     *
+     *  Scrolls the target node into view first: the settings list has grown past what fits in
+     *  the initially-composed [LazyColumn] viewport (since the reconnect-base-delay field landed
+     *  right above these switches), so `onNodeWithTag` alone would never find them. */
     private fun waitUntilSwitchIsOn(testTag: String, expected: Boolean) {
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
+            .performScrollToNode(hasTestTag(testTag))
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 if (expected) {

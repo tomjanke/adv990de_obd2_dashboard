@@ -185,7 +185,11 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 - Form: `RectangleShape` (scharfe Kanten — Cockpit-Look). Falls später Rundungen gewünscht: über Modifier-Clip von außen.
 - Elevation: 0 dp. **Keine Shadows.** Tile-Abgrenzung über `surface`/`background`-Kontrast und die 4 dp Status-Side-Bar.
 - Padding innen: 12 dp
-- Tap: optional via `onClick`/`onLongPress`; combinedClickable, kein Ripple-Override aktuell (TODO falls als zu auffällig empfunden)
+- Tap: optional via `onClick`/`onLongPress`; combinedClickable mit explizitem `ripple(color = accentColor)`
+  (Stand 2026-09-29) — der Ripple ist damit in der Akzentfarbe der Kachel (Status-Side-Bar-Farbe) statt
+  im generischen M3-Grau von `LocalIndication`, gleiche Semantik wie die Side-Bar selbst. Braucht ein
+  eigenes `MutableInteractionSource` (`remember { MutableInteractionSource() }`), da `ripple()` als
+  expliziter `indication`-Parameter kein `LocalIndication.current` mehr mitbekommt.
 
 **Grid:**
 - Portrait: 2 Spalten Standard, optional 1 Spalte für Premium-Slots (RPM dominant)
@@ -368,7 +372,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
 | `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
 | `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
-| `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar |
+| `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar. Bei nahezu flachem Werteverlauf spreizt `effectiveSparklineRange` (Stand 2026-09-29) die Skala symmetrisch um mind. 5 % der Werte-Magnitude (Fallback ±0,05 bei exakt 0), damit die Linie nicht als einzelner Strich am Kachel-Rand klebt — reine Funktion, unabhängig von `sparklinePointOffset` |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
 
@@ -400,7 +404,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 788 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 798 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 155 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

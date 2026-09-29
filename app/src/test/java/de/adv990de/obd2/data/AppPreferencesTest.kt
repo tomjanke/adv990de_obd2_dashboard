@@ -440,4 +440,22 @@ class AppPreferencesTest {
         prefs.setObdWatchdogTimeoutSeconds(45)
         assertEquals(45, prefs.obdWatchdogTimeoutSeconds.first())
     }
+
+    // ── Reconnect-Basis-Verzoegerung (Backlog-Cleanup, Sweep 2026-09-28/29) ───
+
+    @Test
+    fun `reconnectBaseDelaySeconds returns the default when nothing is stored`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(
+            AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS,
+            prefs.reconnectBaseDelaySeconds.first()
+        )
+    }
+
+    @Test
+    fun `setReconnectBaseDelaySeconds persists the value`() = runTest {
+        val prefs = makePreferences()
+        prefs.setReconnectBaseDelaySeconds(5)
+        assertEquals(5, prefs.reconnectBaseDelaySeconds.first())
+    }
 }
