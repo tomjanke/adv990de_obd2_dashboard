@@ -1,5 +1,20 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.7 (versionCode 69)
+
+### Neues App-Icon
+
+Das generische Tacho-Symbol auf Teal weicht einem eigenen Drehzahl-Bogen (Blau→Orange, Nadel,
+Zentrums-Punkt) auf Navy — angelehnt an den echten RPM-Balken im Dashboard. Die Debug-Version
+bleibt zur Unterscheidung bei Amber.
+
+### Tests
+
+788 Unit- und 155 Instrumentation-Tests unverändert grün, Lint unverändert bei 0 Fehlern,
+30 Warnungen.
+
+---
+
 ## Version 1.17.6 (versionCode 68)
 
 ### Bildschirm sperrte sich im Dashboard ohne Verbindung
