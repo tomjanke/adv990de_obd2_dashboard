@@ -45,9 +45,14 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Surface
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.amberColorScheme
+import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
@@ -129,6 +134,51 @@ internal fun parseWatchdogTimeoutSeconds(text: String): Int? =
  *  exactly (same reasoning, different floor: [AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS]). */
 internal fun parseReconnectBaseDelaySeconds(text: String): Int? =
     text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS }
+
+/**
+ * Shared "text + hasBeenEdited + LaunchedEffect" scaffold for the watchdog-timeout and
+ * reconnect-base-delay fields below (previously duplicated verbatim) — same buffering guard as
+ * [GearRatioField] in `GearSettingsScreen.kt`: every valid keystroke persists immediately, so a
+ * plain `remember(value)` would re-seed the buffer from the DataStore round-trip of the user's OWN
+ * previous keystroke. Once the user has edited, only their typing drives the buffer; the upstream
+ * value still seeds it before that first edit.
+ */
+@Composable
+private fun IntSettingField(
+    value: Int,
+    parse: (String) -> Int?,
+    onValueChange: (Int) -> Unit,
+    headline: String,
+    validDescription: String,
+    invalidDescription: String,
+) {
+    var text by remember { mutableStateOf(value.toString()) }
+    var hasBeenEdited by remember { mutableStateOf(false) }
+    LaunchedEffect(value) {
+        if (!hasBeenEdited) {
+            text = value.toString()
+        }
+    }
+    val isValid = parse(text) != null
+    ListItem(
+        headlineContent = { Text(headline) },
+        supportingContent = { Text(if (isValid) validDescription else invalidDescription) },
+        trailingContent = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { newText ->
+                    hasBeenEdited = true
+                    text = newText
+                    parse(newText)?.let(onValueChange)
+                },
+                isError = !isValid,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.width(80.dp),
+                singleLine = true,
+            )
+        }
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -345,87 +395,32 @@ fun SettingsScreen(
                 Spacer(Modifier.height(4.dp))
             }
             item {
-                // hasBeenEdited-gated buffer (same guard as GearRatioField in
-                // GearSettingsScreen.kt): every valid keystroke here persists immediately, so a
-                // plain remember(watchdogTimeoutSeconds) would re-seed the buffer from the
-                // DataStore round-trip of the user's OWN previous keystroke — e.g. typing "45"
-                // could persist "4" first, have it echo back before "5" is typed, and clobber the
-                // buffer back to "4". Once the user has edited, only their typing drives the
-                // buffer; the upstream value still seeds it before that first edit.
-                var text by remember { mutableStateOf(watchdogTimeoutSeconds.toString()) }
-                var hasBeenEdited by remember { mutableStateOf(false) }
-                LaunchedEffect(watchdogTimeoutSeconds) {
-                    if (!hasBeenEdited) {
-                        text = watchdogTimeoutSeconds.toString()
-                    }
-                }
-                val isValid = parseWatchdogTimeoutSeconds(text) != null
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_obd_watchdog_timeout)) },
-                    supportingContent = {
-                        Text(
-                            if (isValid) stringResource(R.string.settings_obd_watchdog_timeout_desc)
-                            else pluralStringResource(
-                                R.plurals.settings_obd_watchdog_timeout_invalid,
-                                AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
-                                AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS
-                            )
-                        )
-                    },
-                    trailingContent = {
-                        OutlinedTextField(
-                            value = text,
-                            onValueChange = { newText ->
-                                hasBeenEdited = true
-                                text = newText
-                                parseWatchdogTimeoutSeconds(newText)?.let { vm.setObdWatchdogTimeoutSeconds(it) }
-                            },
-                            isError = !isValid,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(80.dp),
-                            singleLine = true,
-                        )
-                    }
+                IntSettingField(
+                    value = watchdogTimeoutSeconds,
+                    parse = ::parseWatchdogTimeoutSeconds,
+                    onValueChange = vm::setObdWatchdogTimeoutSeconds,
+                    headline = stringResource(R.string.settings_obd_watchdog_timeout),
+                    validDescription = stringResource(R.string.settings_obd_watchdog_timeout_desc),
+                    invalidDescription = pluralStringResource(
+                        R.plurals.settings_obd_watchdog_timeout_invalid,
+                        AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
+                        AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS
+                    ),
                 )
                 HorizontalDivider()
             }
             item {
-                // Gleiches hasBeenEdited-Gerüst wie beim Watchdog-Timeout-Feld oben, aus demselben
-                // Grund (Backlog-Cleanup, Sweep 2026-09-28/29).
-                var text by remember { mutableStateOf(reconnectBaseDelaySeconds.toString()) }
-                var hasBeenEdited by remember { mutableStateOf(false) }
-                LaunchedEffect(reconnectBaseDelaySeconds) {
-                    if (!hasBeenEdited) {
-                        text = reconnectBaseDelaySeconds.toString()
-                    }
-                }
-                val isValid = parseReconnectBaseDelaySeconds(text) != null
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_reconnect_base_delay)) },
-                    supportingContent = {
-                        Text(
-                            if (isValid) stringResource(R.string.settings_reconnect_base_delay_desc)
-                            else pluralStringResource(
-                                R.plurals.settings_reconnect_base_delay_invalid,
-                                AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS,
-                                AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS
-                            )
-                        )
-                    },
-                    trailingContent = {
-                        OutlinedTextField(
-                            value = text,
-                            onValueChange = { newText ->
-                                hasBeenEdited = true
-                                text = newText
-                                parseReconnectBaseDelaySeconds(newText)?.let { vm.setReconnectBaseDelaySeconds(it) }
-                            },
-                            isError = !isValid,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(80.dp),
-                            singleLine = true,
-                        )
-                    }
+                IntSettingField(
+                    value = reconnectBaseDelaySeconds,
+                    parse = ::parseReconnectBaseDelaySeconds,
+                    onValueChange = vm::setReconnectBaseDelaySeconds,
+                    headline = stringResource(R.string.settings_reconnect_base_delay),
+                    validDescription = stringResource(R.string.settings_reconnect_base_delay_desc),
+                    invalidDescription = pluralStringResource(
+                        R.plurals.settings_reconnect_base_delay_invalid,
+                        AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS,
+                        AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS
+                    ),
                 )
                 HorizontalDivider()
             }
@@ -571,3 +566,45 @@ fun DeviceRow(
         }
     )
 }
+
+// region — Previews
+//
+// SettingsScreen selbst braucht hiltViewModel() und bekommt deshalb bewusst kein Preview — kein
+// Screen in diesem Projekt, der einen Hilt-ViewModel voraussetzt, hat eines (s. GearSettingsScreen.kt).
+// Stattdessen wird die ViewModel-lose Bausteinkomponente IntSettingField geprevit.
+
+@Preview(name = "IntSettingField · valid value (blue)", showBackground = true)
+@Composable
+private fun PreviewIntSettingFieldValid() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            IntSettingField(
+                value = AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
+                parse = ::parseWatchdogTimeoutSeconds,
+                onValueChange = {},
+                headline = "OBD-Watchdog-Timeout",
+                validDescription = "Sekunden bis zum Reconnect-Versuch",
+                invalidDescription = "Mindestens 10 Sekunden",
+            )
+        }
+    }
+}
+
+@Preview(name = "IntSettingField · invalid value (amber)", showBackground = true)
+@Composable
+private fun PreviewIntSettingFieldInvalid() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            IntSettingField(
+                value = AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS - 1,
+                parse = ::parseWatchdogTimeoutSeconds,
+                onValueChange = {},
+                headline = "OBD-Watchdog-Timeout",
+                validDescription = "Sekunden bis zum Reconnect-Versuch",
+                invalidDescription = "Mindestens 10 Sekunden",
+            )
+        }
+    }
+}
+
+// endregion
