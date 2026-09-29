@@ -1,13 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Drehzahl-Bogen (Logo-Redesign 2026-09-29, User-Wunsch): 270-Grad-Bogen mit 90-Grad-Luecke
+    unten, Nadel und Naben-Punkt: greift die Segment-Bar-Optik des echten RPM-Balkens im
+    Dashboard auf. Der Bogen ist in zwei Pfade geteilt (Blau 135-315 Grad, Orange 315-45 Grad,
+    beide im Uhrzeigersinn) statt eines Farbverlaufs: entspricht damit der echten
+    Schwellwert-Logik des RPM-Balkens (harter Farbwechsel am Schaltblitz-Schwellwert, kein
+    Verlauf) und ist in einem Vector-Drawable zuverlaesiger als ein Gradient-Fill.
+    Sicherheitszone: alle Formen liegen innerhalb von r=29,5dp um die Mitte (54,54), klar
+    innerhalb des 33dp-Sicherheitsradius fuer adaptive Icons (66dp-Durchmesser-Kreis).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M35.62,72.38 A26,26 0 1 1 72.38,35.62" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F97316"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M72.38,35.62 A26,26 0 0 1 72.38,72.38" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L71.32,44" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M20.38,8.57l-1.23,1.85a8,8 0,0 1,-0.22 7.58H5.07A8,8 0,0 1,15.58 6.85l1.85,-1.23A10,10 0,0 0,3.35 19a2,2 0,0 0,1.72 1h13.85a2,2 0,0 0,1.74 -1,10 10,0 0,0 -0.27,-10.44z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M10.59,15.41a2,2 0,0 0,2.83 0l5.66,-8.49-8.49,5.66a2,2 0,0 0,0 2.83z" />
+        android:pathData="M49,54 A5,5 0 1 1 59,54 A5,5 0 1 1 49,54 Z" />
 </vector>

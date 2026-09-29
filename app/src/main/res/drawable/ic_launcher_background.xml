@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Logo-Redesign 2026-09-29 (User-Wunsch): Navy statt Teal, passend zum neuen
+     Drehzahl-Bogen-Vordergrund (ic_launcher_foreground.xml). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#006874"/>
+    <solid android:color="#0B1B2E"/>
 </shape>

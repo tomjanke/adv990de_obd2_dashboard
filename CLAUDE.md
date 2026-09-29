@@ -334,6 +334,30 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
 - Konsistente Größen: 20 dp inline, 24 dp Toolbar, 32 dp in Tiles, 48 dp in Empty-States.
 - **Keine** Drittanbieter-Icon-Packs vermischen.
 
+### App-Icon / Launcher (Logo-Redesign 2026-09-29, User-Wunsch)
+
+Ersetzt das vorherige generische Material-Symbols-Tacho-Icon auf Teal. Adaptive Icon
+(`res/drawable/ic_launcher_foreground.xml` + `ic_launcher_background.xml`,
+`res/mipmap-anydpi-v26/ic_launcher.xml` unveraendert):
+
+- **Hintergrund Release:** Navy `#0B1B2E` (vorher Teal `#006874`).
+- **Hintergrund Debug:** Amber `#B45309` (unveraendert, s. `app/src/debug/res/drawable/`) — bewusst
+  nicht an die neue Palette angepasst, war schon vorher klar vom Release-Hintergrund
+  unterscheidbar, kein Grund fuer eine neue Farbe nur wegen des Redesigns.
+- **Vordergrund (geteilt, auch fuer `monochrome`):** Drehzahl-Bogen — 270°-Ring mit 90°-Luecke
+  unten, Nadel, Naben-Punkt. Greift bewusst die Segment-Bar-Optik des echten RPM-Balkens im
+  Dashboard auf (s. Abschnitt „RPM-Balken" oben), statt ein generisches Tacho-Symbol zu sein.
+  Bogen in zwei Pfade geteilt (`#38BDF8` Blau 135°–315°, `#F97316` Orange 315°–45°, beide im
+  Uhrzeigersinn) — **kein Farbverlauf**: entspricht der echten Schwellwert-Logik des RPM-Balkens
+  (harter Farbwechsel am Schaltblitz-Schwellwert) und ist in einem Vector-Drawable zuverlaesiger
+  als ein Gradient-Fill. Nadel + Naben-Punkt in Weiß. Alle Formen innerhalb `r=29,5dp` um die
+  Mitte (54,54) bei 108×108dp-Viewport — klar innerhalb des 33dp-Sicherheitsradius fuer adaptive
+  Icons (66dp-Sicherheitszone), damit nichts von einer OEM-Kreis-/Squircle-Maske abgeschnitten
+  wird.
+- Themed Icons (Android 13+): `monochrome` referenziert weiterhin denselben Vordergrund wie
+  `foreground` (unveraendert seit vorher) — das OS ersetzt Fuellfarben beim Rendern ohnehin durch
+  einen einzigen Systemton, Blau/Orange-Unterscheidung ist dort naturgemaess nicht sichtbar.
+
 ### Komponent-Vokabular (verbindliche Namen)
 
 Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
