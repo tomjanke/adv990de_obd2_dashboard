@@ -1,5 +1,35 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.8 (versionCode 70)
+
+### Backlog-Cleanup: fünf kleine UI/Code-Punkte
+
+- Fehlende `@Preview` für `RpmThresholdSection` (Dashboard-Konfiguration) ergänzt.
+- Kachel-Taps (`LiveValueTile`) zeigen jetzt einen Ripple-Effekt in der Akzentfarbe der Kachel statt
+  keiner sichtbaren Rückmeldung.
+- Sparklines mit nahezu flachem Werteverlauf spreizen die Skala minimal, statt als einzelner Strich
+  am Kachelrand zu kleben.
+- Interner Code-Aufräum bei den drei Cockpit-Farbschemata (keine sichtbare Änderung).
+- Neues Einstellungsfeld **„Reconnect-Basisverzögerung"**: die Wartezeit vor dem ersten
+  Wiederverbindungsversuch ist jetzt einstellbar (Standard weiterhin 3 s, jeder weitere Versuch
+  verdoppelt sie wie bisher).
+
+### Test-Infrastruktur
+
+Bei der Umsetzung eine eigene Regression gefunden und behoben: das neue Einstellungsfeld hatte zwei
+darunterliegende Schalter aus dem sichtbaren Bereich verdrängt. Zusätzlich zwei vorbestehende,
+von dieser Änderung unabhängige Testfehler untersucht (per Vergleich gegen den unveränderten
+vorherigen Stand bestätigt) — einer davon behoben (fehlendes Scrollen zu einer Listenzeile
+außerhalb des initial sichtbaren Bereichs), der zweite tiefergehend analysiert (ein Compose/
+Material3-Testartefakt bei Bottom Sheets) und bewusst als bekannt markiert statt weiter verzögert.
+
+### Tests
+
+798 Unit- (+10) und 155 Instrumentation-Tests (154 grün + 1 bewusst markiert, s.o.), Lint
+unverändert bei 0 Fehlern, 30 Warnungen.
+
+---
+
 ## Version 1.17.7 (versionCode 69)
 
 ### Neues App-Icon
