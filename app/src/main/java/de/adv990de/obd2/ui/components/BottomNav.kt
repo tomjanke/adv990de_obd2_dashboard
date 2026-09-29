@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.components
 
+import android.app.Activity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -8,33 +9,49 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
+import de.adv990de.obd2.ui.ExitAppViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.weather.WeatherViewModel
+import kotlinx.coroutines.launch
 
 private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
     Triple(Screen.Dashboard, Icons.Default.Home,     R.string.nav_live),
@@ -69,11 +86,28 @@ fun BottomNav(
     vm: DriveStateViewModel = hiltViewModel(),
     weatherVm: WeatherViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
+    exitAppVm: ExitAppViewModel = hiltViewModel(),
 ) {
     val isNavHidden by vm.isNavHidden.collectAsState()
     val useImperial by displayVm.useImperial.collectAsState()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    var showExitConfirmation by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    if (showExitConfirmation) {
+        ExitConfirmationDialog(
+            onConfirm = {
+                showExitConfirmation = false
+                coroutineScope.launch {
+                    exitAppVm.exitApp()
+                    (context as? Activity)?.finishAffinity()
+                }
+            },
+            onDismiss = { showExitConfirmation = false },
+        )
+    }
 
     AnimatedContent(
         targetState = isNavHidden,
@@ -97,6 +131,19 @@ fun BottomNav(
                     containerColor = MaterialTheme.colorScheme.surface,
                     windowInsets = WindowInsets(0)
                 ) {
+                    // Explizite 10sp statt MaterialTheme.typography.labelSmall (Stand 2026-09-29,
+                    // User-Wunsch "kleinere Schrift"): labelSmall traegt wie jede Rolle in
+                    // AppTypography BIKE_SCALE (1.18x), macht "Einstellungen" also nur geringfuegig
+                    // kleiner (~13sp statt ~14sp) — im Portraet-Modus (5 Spalten, ~72dp breit)
+                    // reichte das nicht, das Wort brach weiterhin um und die zweite Zeile wurde vom
+                    // festen 64dp-Leistenrahmen abgeschnitten (visuell auf dem Pixel 8 Pro
+                    // bestaetigt). Bewusst UNSKALIERT, nur fuer diesen einen Anwendungsfall (Nav-
+                    // Labels stehen in keiner Zeile der Typografie-Hierarchie in CLAUDE.md) —
+                    // andere Textrollen/Live-Werte bleiben von BIKE_SCALE unberuehrt. Im Querformat
+                    // (viel breitere Spalten) waere das nicht noetig gewesen, gilt hier aber
+                    // einheitlich fuer beide Ausrichtungen. fontFamily/Farbe erbt Text() weiterhin
+                    // vom umgebenden LocalTextStyle (Space Grotesk, onSurfaceVariant).
+                    val navLabelStyle = TextStyle(fontSize = 10.sp)
                     navItems.forEach { (screen, icon, labelRes) ->
                         val label = stringResource(labelRes)
                         NavigationBarItem(
@@ -109,12 +156,62 @@ fun BottomNav(
                                 }
                             },
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
+                            label = { Text(label, style = navLabelStyle) },
                             alwaysShowLabel = true
                         )
                     }
+                    // Kein Navigationsziel, deshalb ausserhalb von navItems: loest den
+                    // Bestaetigungsdialog aus statt navController.navigate(). NavigationBar
+                    // gewichtet alle Kinder automatisch gleich, damit sind alle fuenf Punkte
+                    // gleichmaessig verteilt, ohne eigene Layout-Logik.
+                    val exitLabel = stringResource(R.string.nav_exit)
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { showExitConfirmation = true },
+                        icon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = exitLabel) },
+                        label = { Text(exitLabel, style = navLabelStyle) },
+                        alwaysShowLabel = true
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Sicherheitsabfrage vor [ExitAppViewModel.exitApp] — sitzt permanent im Hauptmenue, ein
+ * versehentlicher Treffer mit Handschuhen auf holpriger Strecke soll die App nicht sofort beenden.
+ */
+@Composable
+private fun ExitConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.exit_app_dialog_title)) },
+        text = { Text(stringResource(R.string.exit_app_dialog_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.exit_app_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
+@Preview(name = "ExitConfirmationDialog · dark (blue cockpit)")
+@Composable
+private fun PreviewExitConfirmationDialogDark() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        ExitConfirmationDialog(onConfirm = {}, onDismiss = {})
+    }
+}
+
+@Preview(name = "ExitConfirmationDialog · light (Default scheme)")
+@Composable
+private fun PreviewExitConfirmationDialogLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        ExitConfirmationDialog(onConfirm = {}, onDismiss = {})
     }
 }

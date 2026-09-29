@@ -23,9 +23,11 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
+import de.adv990de.obd2.ui.ExitAppViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -165,8 +167,14 @@ class BottomNavTest {
             every { this@mockk.outsideTempC } returns MutableStateFlow(outsideTempC)
         }
 
+    /** Real [ExitAppViewModel], mocked [ObdRepository]/[Context] — same pattern as [makeVm]:
+     *  its constructor does nothing dangerous, so there is no reason to mock the class itself. */
+    private fun makeExitAppVm(obdRepo: ObdRepository = mockk(relaxed = true)): ExitAppViewModel =
+        ExitAppViewModel(obdRepo, mockk(relaxed = true))
+
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel
+    private lateinit var exitAppObdRepo: ObdRepository
 
     private fun launchBottomNav(
         isMoving: Boolean,
@@ -179,6 +187,8 @@ class BottomNavTest {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
             weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
             val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
+            exitAppObdRepo = remember { mockk(relaxed = true) }
+            val exitAppVm = remember { makeExitAppVm(obdRepo = exitAppObdRepo) }
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
@@ -186,7 +196,13 @@ class BottomNavTest {
                 composable(Screen.History.route) { Text(HISTORY_MARKER) }
                 composable(Screen.Settings.route) { Text(SETTINGS_MARKER) }
             }
-            BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm)
+            BottomNav(
+                navController = navController,
+                vm = vm,
+                weatherVm = weatherVm,
+                displayVm = displayVm,
+                exitAppVm = exitAppVm,
+            )
         }
         composeRule.waitForIdle()
     }
@@ -282,5 +298,45 @@ class BottomNavTest {
         launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = null)
 
         composeRule.onNodeWithText(label(R.string.nav_live)).assertDoesNotExist()
+    }
+
+    // --- exit button + confirmation dialog ---
+    //
+    // No test here ever taps the dialog's confirm button: that path calls
+    // Activity.finishAffinity() on whatever hosts the compose tree, which in this test class is
+    // the real HiltTestActivity backing composeRule — actually finishing it mid-test would leave
+    // the test rule operating on a destroyed Activity for the remainder of the run. Same category
+    // of gap as this project's established "never drive the real MainActivity in a test" rule
+    // (s. MEMORY.md), extended here to "never call finishAffinity() in a test". ExitAppViewModelTest
+    // already covers exitApp()'s own logic (disconnect + stop service) on the JVM; what's left to
+    // verify here is purely the dialog's own show/dismiss wiring, which the cancel path exercises
+    // just as well without terminating the host Activity.
+
+    @Test
+    fun exitButton_isDisplayed() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false)
+
+        composeRule.onNodeWithText(label(R.string.nav_exit)).assertIsDisplayed()
+    }
+
+    @Test
+    fun clickingExitButton_showsConfirmationDialog() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false)
+
+        composeRule.onNodeWithText(label(R.string.nav_exit)).performClick()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertIsDisplayed()
+    }
+
+    @Test
+    fun dialogCancel_dismissesWithoutDisconnecting() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false)
+        composeRule.onNodeWithText(label(R.string.nav_exit)).performClick()
+
+        composeRule.onNodeWithText(label(R.string.cancel)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
+        coVerify(exactly = 0) { exitAppObdRepo.disconnect() }
     }
 }

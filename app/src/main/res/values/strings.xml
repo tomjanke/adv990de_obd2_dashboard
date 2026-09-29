@@ -89,6 +89,7 @@
     <string name="nav_live">Live</string>
     <string name="nav_dtcs">DTCs</string>
     <string name="nav_history">History</string>
+    <string name="nav_exit">Exit</string>
 
     <!-- Shared actions -->
     <string name="retry">Retry</string>
@@ -106,6 +107,11 @@
     <string name="history_delete_confirm">Delete the session from %1$s? All recorded data will be lost.</string>
     <string name="history_delete_action">Delete</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Exit app dialog -->
+    <string name="exit_app_dialog_title">Exit app?</string>
+    <string name="exit_app_dialog_message">This disconnects from the OBD2 adapter and closes the app.</string>
+    <string name="exit_app_confirm">Yes, exit</string>
 
     <!-- Recording settings section -->
     <string name="settings_recording_section">Recording</string>
