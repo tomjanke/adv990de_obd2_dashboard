@@ -1,5 +1,20 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.6 (versionCode 68)
+
+### Bildschirm sperrte sich im Dashboard ohne Verbindung
+
+Der Bildschirm blieb bisher nur an, solange eine aktive Verbindung zum OBD2-Adapter bestand — ohne
+Verbindung griff nach der eingestellten Zeit die normale Bildschirmsperre, auch wenn das Dashboard
+sichtbar war. Bleibt jetzt an, solange das Dashboard offen ist, unabhängig vom Verbindungsstatus.
+Andere Screens (Einstellungen, Verlauf, DTCs) sperren weiterhin normal.
+
+### Tests
+
+788 Unit- und 155 Instrumentation-Tests grün, Lint unverändert bei 0 Fehlern, 30 Warnungen.
+
+---
+
 ## Version 1.17.5 (versionCode 67)
 
 ### Neuer Beenden-Button im Hauptmenü
