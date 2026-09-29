@@ -1,5 +1,20 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.9 (versionCode 71)
+
+### Code-Cleanup
+
+Die Einstellungsfelder „OBD-Watchdog-Timeout" und „Reconnect-Basisverzögerung" waren jeweils mit
+identischem Code für Zwischenspeicher, Validierung und Anzeige nachgebaut. Jetzt teilen sich beide
+eine gemeinsame Komponente — keine sichtbare Änderung, nur intern weniger Duplikation.
+
+### Tests
+
+798 Unit-Tests unverändert (0 Fehler), 155 Instrumentation-Tests unverändert (154 grün + 1 bewusst
+markiert, s. v1.17.8), Lint unverändert bei 0 Fehlern, 30 Warnungen.
+
+---
+
 ## Version 1.17.8 (versionCode 70)
 
 ### Backlog-Cleanup: fünf kleine UI/Code-Punkte
