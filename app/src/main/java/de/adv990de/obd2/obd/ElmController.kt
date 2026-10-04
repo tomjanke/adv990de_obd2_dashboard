@@ -65,8 +65,16 @@ class ElmController(
             try {
                 withTimeout(READ_TIMEOUT_MS) {
                     runInterruptible {
-                        outputStream.write("$command\r".toByteArray())
-                        outputStream.flush()
+                        // Ein Schreibfehler heisst dasselbe wie ein Lesefehler: Die Verbindung ist weg (der
+                        // Adapter oder das Funkmodul hat sie waehrend der Pause des Pollers geschlossen,
+                        // naechster Schreibzugriff: "Broken pipe"). Als rohe IOException entkaeme das der
+                        // ConnectionLost-Kette — kein Reconnect, die Anzeige bliebe "verbunden".
+                        try {
+                            outputStream.write("$command\r".toByteArray())
+                            outputStream.flush()
+                        } catch (e: IOException) {
+                            throw ObdException.ConnectionLost()
+                        }
                         readResponse()
                     }
                 }

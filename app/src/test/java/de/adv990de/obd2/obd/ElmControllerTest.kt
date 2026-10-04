@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 
 class ElmControllerTest {
 
@@ -76,6 +77,27 @@ class ElmControllerTest {
             override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("pipe broken")
         }
         ElmController(failingInput, ByteArrayOutputStream()).sendCommand("010C")
+    }
+
+    @Test(expected = ObdException.ConnectionLost::class)
+    fun `sendCommand throws ConnectionLost when writing to the adapter fails`() = runTest {
+        // Der Adapter (oder das Funkmodul) hat die Verbindung geschlossen, waehrend der Poller pausierte:
+        // der naechste Schreibzugriff scheitert ("Broken pipe"). Das muss wie ein Lesefehler als
+        // Verbindungsverlust gelten, damit der Reconnect greift — nicht als rohe IOException.
+        val failingOutput = object : OutputStream() {
+            override fun write(b: Int) = throw IOException("Broken pipe")
+            override fun write(b: ByteArray, off: Int, len: Int) = throw IOException("Broken pipe")
+        }
+        ElmController(ByteArrayInputStream(ByteArray(0)), failingOutput).sendCommand("010C")
+    }
+
+    @Test(expected = ObdException.ConnectionLost::class)
+    fun `sendCommand throws ConnectionLost when flushing to the adapter fails`() = runTest {
+        val failingFlush = object : OutputStream() {
+            override fun write(b: Int) {}
+            override fun flush() = throw IOException("socket closed")
+        }
+        ElmController(ByteArrayInputStream(ByteArray(0)), failingFlush).sendCommand("010C")
     }
 
     @Test(expected = ObdException.ConnectionLost::class)
