@@ -514,7 +514,8 @@ internal fun SlotPickerSheet(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    // Volle Hoehe statt halb: im Querformat zeigte das halbhohe Sheet anfangs nur ~3 Zeilen.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState

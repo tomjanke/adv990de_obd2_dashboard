@@ -131,7 +131,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
 | JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 820 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 126 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 131 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 18 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
@@ -303,7 +303,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 |---|---|
 | `app/src/main/` | Produktiv-Code |
 | `app/src/test/` | JVM-Unit-Tests (820) |
-| `app/src/androidTest/` | Instrumented Tests (159, Hilt + Compose + Room) |
+| `app/src/androidTest/` | Instrumented Tests (160, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

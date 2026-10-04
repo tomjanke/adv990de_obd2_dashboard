@@ -207,6 +207,12 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 - Landscape: 3-4 Spalten (DMD2 erlaubt bis zu 9 Slots)
 - `LazyVerticalGrid` mit `GridCells.Fixed`, `verticalArrangement = spacedBy(12.dp)`, `horizontalArrangement = spacedBy(12.dp)`
 
+**Slot-Picker (Long-Press auf eine Kachel, seit 2026-10-04, Nutzerentscheidung):** `ModalBottomSheet` mit
+`skipPartiallyExpanded = true` — öffnet immer in voller Höhe. Das halbhohe M3-Standardverhalten zeigte im
+Querformat (~1008 px Fensterhöhe) anfangs nur ~3 Zeilen, im Hochformat ~8; der Preis der vollen Höhe ist, dass die
+Kachel dahinter nicht mehr sichtbar bleibt. Nicht zurück auf den Default stellen, ohne diese Abwägung neu zu treffen.
+Regressionstest: `DashboardScreenTest.dashboard_slotPicker_opensFullyExpanded_soLowerRowsAreVisibleInLandscape`.
+
 ### RPM-Balken
 
 Segmentanzeige statt durchgehendem Balken: 50 Stufen à 200 rpm über die volle Breite, 1,5 dp
@@ -425,7 +431,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 820 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 159 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 160 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

@@ -1,12 +1,11 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.view.WindowManager
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -19,7 +18,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -391,12 +389,6 @@ class DashboardScreenTest {
         composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }
         composeRule.waitForIdle()
 
-        // ModalBottomSheet opens half-expanded: rows below the half-height line are composed but
-        // off-screen, so assertIsDisplayed() below would fail without expanding it first.
-        composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand))
-            .performSemanticsAction(SemanticsActions.Expand)
-        composeRule.waitForIdle()
-
         // Der Picker zeigt echte Daten aus dem ViewModel: der aktuelle Coolant-Messwert (90) taucht
         // als eigener Listeneintrag auf — das beweist, dass SlotPickerSheet tatsaechlich mit
         // state.readings/availablePids aus DashboardScreen komponiert wurde, nicht nur irgendein
@@ -427,6 +419,39 @@ class DashboardScreenTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runBlocking { appPreferences.slotPids.first() }[0] == PidRegistry.INTAKE_AIR_TEMP.id
         }
+    }
+
+    /**
+     * Der Slot-Picker oeffnet in voller Hoehe (`skipPartiallyExpanded = true`): Ein halbhohes
+     * ModalBottomSheet liess im Querformat (~1008 px Fensterhoehe) anfangs nur ~3 Zeilen sichtbar, alle
+     * weiteren erst nach Hochziehen. Das Querformat wird ueber die Test-Activity erzwungen (nicht ueber
+     * LocalConfiguration — es geht um die echte Fensterhoehe), damit der Test unabhaengig davon laeuft,
+     * wie das Geraet gerade gehalten wird. Ohne `skipPartiallyExpanded` liegt die Zeile unter dem
+     * Bildschirmrand und `assertIsDisplayed()` scheitert.
+     */
+    @Test
+    fun dashboard_slotPicker_opensFullyExpanded_soLowerRowsAreVisibleInLandscape() {
+        composeRule.activityRule.scenario.onActivity {
+            it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        composeRule.waitForIdle()
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        stubConnectedSessionWithRealReadings()
+
+        launchDashboardScreen()
+
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        val coolantLabel = composeRule.activity.getString(R.string.pid_coolant_temp)
+        composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG)
+            .performScrollToNode(hasText("$coolantLabel: 90 (°C)"))
+        composeRule.onNodeWithText("$coolantLabel: 90 (°C)").assertIsDisplayed()
     }
 
     /**
