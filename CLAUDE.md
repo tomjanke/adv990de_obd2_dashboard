@@ -419,6 +419,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 - **Coroutines:** `viewModelScope` für ViewModel-internes, `applicationScope` (definiert in `AppModule`) für Lifecycle-überspannendes (Foreground-Service-Repository-Calls).
 - **Hilt:** `@Singleton` nur wo unverzichtbar. Repositories ja, ViewModels nie.
 - **Logging:** `AppLogRepository` für persistente App-Logs (Settings-Screen sichtbar). `Log.d/w/e` nur in Tests oder für Debug-Build-Output.
+- **Compose-UI-Tests (`androidTest`):** `createAndroidComposeRule` aus `androidx.compose.ui.test.junit4.v2` importieren — die v1-Variante ist deprecated (die v2-Rule nutzt `StandardTestDispatcher` statt `UnconfinedTestDispatcher`; alle bestehenden Tests laufen damit unverändert).
 
 ## Build & Test (lokal)
 

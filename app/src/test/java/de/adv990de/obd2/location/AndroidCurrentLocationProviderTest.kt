@@ -32,6 +32,7 @@ import org.junit.Test
  * fuer den GPS-Provider FINE und wirft, der Netzwerk-Provider muss dann trotzdem noch versucht werden.
  */
 @SuppressLint("UseCheckPermission") // s. LocationPermissionsTest: MockK-Matcher, kein echter Aufruf
+@Suppress("DEPRECATION") // requestSingleUpdate: Produktion nutzt bewusst dieselbe API (kein Ersatz mit minSdk 26)
 class AndroidCurrentLocationProviderTest {
 
     private val context = mockk<Context>()

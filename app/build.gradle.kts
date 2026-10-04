@@ -80,7 +80,7 @@ android {
         // Exposes the exported Room schema JSONs (app/schemas/…) as instrumentation-test
         // assets so androidx.room.testing.MigrationTestHelper can load them by version.
         getByName("androidTest") {
-            assets.srcDirs("$projectDir/schemas")
+            assets.directories.add("schemas")
         }
     }
 }
