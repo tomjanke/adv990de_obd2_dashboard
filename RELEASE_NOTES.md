@@ -1,5 +1,45 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.21.0 (versionCode 77)
+
+### Einstellungen: eine gruppierte Seite — „Dashboard konfigurieren" ist aufgegangen
+
+Die Einstellungen sind jetzt eine einzige Seite in fünf Gruppen: **Verbindung**, **Dashboard & Anzeige**,
+**Aufzeichnung**, **Fahrzeug** und **Info & Wartung**. Die eigene Seite „Dashboard konfigurieren" (ein
+Regler und ein Schalter) gibt es nicht mehr: Drehzahl-Blinkgrenze und der dynamische Modus stehen jetzt
+in „Dashboard & Anzeige", direkt bei Farbschema, Einheiten und Ganganzeige.
+
+Die Unterseiten (Getriebe, Aufgezeichnete PIDs, Fahrzeuginfo, App-Logs, App-Info) öffnen sich über Zeilen
+mit Kurzbeschreibung und Pfeil statt über nackte Textknöpfe. Jeder Schalter lässt sich über die ganze
+Zeile bedienen, nicht nur über den kleinen Schieber; jede Zeile ist mindestens 64 dp hoch. Auf allen
+Unterseiten bleibt der Haupt-Tab im Menü markiert (Einstellungen bzw. DTC). Die Segmente der
+Farbschema- und Helligkeitswahl waren nur 40 dp hoch und sind jetzt 56 dp (handschuhtauglich).
+
+### Cockpit-Farben vollständiger
+
+Die drei Cockpit-Farbschemata (Blau, Orange, Grün) definierten mehrere Farbrollen nicht, die
+Material-3-Komponenten benutzen — dort erschien M3-Violett bzw. -Grau (gewähltes Segment, Menü-Indikator,
+Dialog, „Rückgängig"-Meldung). Jetzt tragen sie die Töne des jeweiligen Schemas; Kontrast und Farbton sind
+per Test abgesichert, auf dem Gerät in Orange, Blau und Hell geprüft. Noch nicht angepasst: die
+Log-Stufen-Chips in den App-Logs und die feinen Linien zwischen den Dashboard-Kacheln — sie zeigen weiter
+die M3-Standardfarben und folgen separat.
+
+### Unter der Haube
+
+`parentTab(route)` bestimmt für jede Unterseite den markierten Tab; `SettingsGroupHeader`,
+`SettingsLinkRow` und `SettingsSwitchRow` ersetzen die wiederholten `ListItem`-Blöcke.
+`RpmThresholdSection` ist nach `ui/settings/` umgezogen und wird vom `DisplaySettingsViewModel`
+gespeist; `DashboardConfigScreen` und -`ViewModel` sind entfernt (samt der ungenutzten
+`isConnected`-Eigenschaft). Die drei doppelten Zurück-Beschreibungen sind eine (`nav_back_desc`), die
+App-Logs hatten bisher keine.
+
+### Tests
+
+872 Unit-Tests (+10) und 201 Instrumentation-Tests (+13), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen.
+
+---
+
 ## Version 1.20.0 (versionCode 76)
 
 ### App-Logs: Löschen mit Rückfrage und „Rückgängig"
