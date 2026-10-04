@@ -1,5 +1,46 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.23.2 (versionCode 81)
+
+Weitere Fehlerbehebungen aus der Qualitätssicherung (Bericht: `docs/qa/2026-10-04-qa-report.md`, Befunde A4–A6).
+
+### Behoben
+
+- **Verbindungsabbruch beim Auslesen der Fehlercodes wurde still verschluckt.** Antwortet das Steuergerät auf
+  `03`/`07` nicht rechtzeitig, trennt die App den Adapter bewusst (ein später Rest der Antwort würde sonst den
+  nächsten Befehl verfälschen). Danach zeigte das Dashboard „getrennt“, aber es folgte **kein** neuer Verbindungs-
+  versuch — nur ein Verbindungsverlust beim Messen löste ihn aus. Das Auslesen läuft bei jedem Verbinden **und bei
+  jedem Wechsel einer Kachel**; ein langsames Steuergerät konnte die Verbindung also schon beim Umbelegen kappen.
+  Jetzt stößt die Pipeline in diesem Fall den Reconnect an, beendet die Sitzung sauber und schreibt die Warnung ins
+  App-Log (auch wenn die Sitzung gerade abgebrochen wird). Ein Lesefehler bei bestehender Verbindung ändert nichts.
+  Außerdem trennt `readDtcs()` jetzt auch bei einem Verbindungsverlust (wie das Messen und Freeze-Frame) und lässt
+  keinen toten Adapter als „verbunden“ stehen.
+- **Schreibfehler am Adapter umgingen den Reconnect.** Schloss der Adapter (oder das Funkmodul) die Verbindung,
+  während die App pausierte, scheiterte der nächste Schreibzugriff mit einer rohen `IOException`: kein
+  Reconnect, die Anzeige blieb „verbunden“, die Sitzung endete mit einer Fehlermeldung im Klartext. Ein
+  Schreib- oder Flush-Fehler gilt jetzt wie ein Lesefehler als Verbindungsverlust.
+- **Die Fahrgestellnummer war der rohe Adaptertext.** Die Antwort auf Modus 09 wurde unverändert als „FIN“
+  gespeichert und angezeigt — ein Hexdump (`49 02 01 57 …`) oder bei Fahrzeugen ohne Modus 09 (viele Motorräder)
+  „NO DATA“; so stand es in jeder Fahrt des Verlaufs. Neu dekodiert ein `VinDecoder` die Antwort: CAN mit mehreren
+  Frames (Längenzeile, `0:`/`1:`/`2:`), K-Line/J1850 mit Kopf und Auffüllung je Zeile, ohne Leerzeichen, mit
+  vorangestelltem „SEARCHING...“ oder „BUS INIT: OK“, in Kleinbuchstaben und doppelt von zwei Steuergeräten. Ergibt
+  die Antwort keine 17 Zeichen (oder ist sie ein Fehlertext), ist die FIN unbekannt — nie mehr ein Hexdump.
+  Bereits gespeicherte Fahrten behalten ihren Rohwert in der Datenbank (keine Migration); der Verlauf zeigt für sie
+  „FIN unbekannt“, nur echte FINs werden angezeigt.
+
+### Tests
+
+24 neue JVM-Tests (VinDecoder mit den realen Antwortformen, Schreib-/Flush-Fehler, Verbindungsverlust in
+`readDtcs()`, Reconnect-Signal und Log der Pipeline) und 1 neuer Instrumentation-Test (Verlauf mit altem Rohwert).
+Die bisherigen Verlaufs-Tests nutzen jetzt gültige 17-stellige FINs.
+
+### Bekannte Grenzen
+
+Die Dekodierung ist gegen die in ISO 15765-4/SAE J1979 beschriebenen Antwortformen getestet, **nicht** gegen einen
+echten Adapter — ob Ihr Fahrzeug eine FIN liefert, zeigt erst eine Fahrt (viele Motorräder kennen Modus 09 nicht;
+dann bleibt „Kein VIN verfügbar“, ohne Fehler). Offen bleiben u. a. der Freeze-Frame-Frame-Byte und das
+Anzahl-Byte der Fehlercodes auf CAN (beides braucht eine echte Antwort) — siehe Backlog im QS-Bericht.
+
 ## Version 1.23.1 (versionCode 80)
 
 Fehlerbehebungen aus der Qualitätssicherung über den gesamten Code (Bericht: `docs/qa/2026-10-04-qa-report.md`).
