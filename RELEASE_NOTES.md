@@ -1,5 +1,49 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.0 (versionCode 82)
+
+Robustheit der Aufzeichnung und automatische Aufbewahrung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B13, B14, B16, B17).
+
+### Die Live-Anzeige überlebt Datenbankfehler
+
+Bisher beendete **jeder** Datenbankfehler beim Anlegen der Fahrt oder beim Schreiben der Messwerte (Speicher voll, Datenbank
+gesperrt) die gesamte Anzeige mit einer Fehlermeldung — obwohl das Aufzeichnen nur Beiwerk ist. Jetzt läuft die Messung
+weiter; der Fehler wird einmal je Sitzung im App-Log vermerkt („Recording failed …“) und an den Crash-Reporter gemeldet, nicht
+bei jedem Zyklus (ein Fehler mit 2 Hz würde sonst das ebenfalls betroffene Log fluten). Auch `AppLogRepository.log()` wirft
+nicht mehr in den Aufrufer: eine Protokollzeile konnte über Verbindungs-, Wetter- und Messpfade den ganzen Prozess beenden.
+
+### Keine Geisterfahrten mehr
+
+- **Abbruch beim Anlegen einer Fahrt.** Wurde die Verbindung genau dann getrennt (oder eine Kachel umbelegt), während die
+  Fahrt angelegt wurde, ging die Fahrt-Id verloren: eine leere Fahrt blieb für immer als „aktiv“ geschützt und
+  unlöschbar. Das Anlegen ist jetzt abbruchsicher; wird der Aufrufer währenddessen abgebrochen, verwirft die App die leere
+  Fahrt wieder, und ein bereits abgebrochener Aufrufer legt gar keine an.
+- **„Nur Fahrten mit DTCs speichern“.** Meldet das Fahrzeug keine Fehlercodes, wurde die Fahrt trotzdem angelegt,
+  aufgezeichnet und erst am Ende verworfen. Jetzt entsteht sie gar nicht — keine unnötige Schreiblast, und ein App-Absturz
+  mittendrin hinterlässt keine DTC-freie Fahrt entgegen der Einstellung.
+
+### Aufbewahrung beim App-Start — Verhaltensänderung
+
+Das Löschen alter Daten lief bisher nur, wenn man **Verlauf** bzw. **App-Logs** öffnete. Es läuft jetzt **einmal bei jedem
+App-Start**, im Hintergrund:
+
+- Fahrten, die älter als **90 Tage** sind, werden gelöscht (in kleinen Blöcken; eine laufende Fahrt wird nie angefasst).
+- App-Log-Zeilen älter als **30 Tage** werden gelöscht, und das Log wird auf die neuesten **1000 Zeilen** begrenzt — das war
+  bisher nur das Anzeige-Limit, die Tabelle wuchs weiter.
+
+Das geschieht **ohne Rückfrage und ohne „Rückgängig“**. Wer Fahrten länger als 90 Tage braucht, exportiert sie vorher als CSV
+(Verlauf → Teilen). Gelöscht wird nur lokal, nie im Fahrzeug. Ein Fehler in einem Schritt stoppt die anderen nicht und steht
+im App-Log. Die Fristen stehen jetzt in der README.
+
+### Tests
+
+16 neue JVM-Tests (Aufbewahrung, Abbruchsicherheit von `startSession`, Aufzeichnungsfehler in der Pipeline, `log()`) und 3 neue
+Datenbank-Tests auf dem Gerät. Sechs bewusst eingebaute Fehler (Wächter entfernt) wurden jeweils von einem Test erkannt.
+
+### Bekannte Grenze
+
+Der Altersschnitt hängt an der Geräteuhr: stellt man sie weit vor, löscht der nächste Start entsprechend viele Fahrten.
+
 ## Version 1.23.2 (versionCode 81)
 
 Weitere Fehlerbehebungen aus der Qualitätssicherung (Bericht: `docs/qa/2026-10-04-qa-report.md`, Befunde A4–A6).
