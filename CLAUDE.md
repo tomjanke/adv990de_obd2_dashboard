@@ -415,6 +415,25 @@ ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeich
   abgebrochenen Coroutine sofort — vor v1.22.0 bekamen solche Fahrten nie ein `endTime`, und „Nur Fahrten mit DTCs speichern“ verwarf
   sie nicht. Die aktive Id wird vor dem Datenbankzugriff geleert, damit ein Fehler dort keine beendete Fahrt geschützt zurücklässt.
 
+### Automatische Aufbewahrung (seit v1.24.0)
+
+`DataRetention` (`data/`, `@Inject`-Klasse ohne Scope) läuft **einmal je App-Start** aus `Obd2Application.onCreate` im
+`@ApplicationScope`: Fahrten älter als 90 Tage (`SessionRepository.deleteOldSessions`: Ids per `SessionDao.idsOlderThan`, in
+50er-Blöcken, die laufende Fahrt wird übersprungen), App-Log-Zeilen älter als 30 Tage und das Log auf die neuesten
+`AppLogRepository.MAX_ROWS` = 1000 Zeilen (`deleteBeyondNewest`). Jeder Schritt ist „best effort“ (Fehler → WARN im App-Log, die
+übrigen Schritte laufen weiter). Früher lief das nur beim Öffnen von Verlauf bzw. App-Logs (`init` der ViewModels — entfernt); wer
+die Seiten nie öffnete, hatte unbegrenztes Wachstum. Kein Undo, kein Dialog: es ist Aufbewahrung, kein Nutzer-Löschen (README
+nennt die Fristen). Bekannte Grenze: der Schnitt hängt an der Wanduhr — ein stark vorgestellter Geräte-Zeitstempel löscht Fahrten.
+
+### Aufzeichnen ist Beiwerk der Live-Anzeige (seit v1.24.0)
+
+Ein Datenbankfehler beim Anlegen der Fahrt oder beim Schreiben der Messwerte beendet die Anzeige **nicht**: `ReadingsPipeline`
+fängt ihn, meldet ihn **einmal je Sitzung** (App-Log WARN „Recording failed …“ + Crash-Reporter) und misst weiter.
+`AppLogRepository.log()` wirft nie (nur die Abbruch-Ausnahme des Aufrufers). `SessionRepository.startSession` ist abbruchsicher: ein
+bereits abgebrochener Aufrufer legt keine Fahrt an, und wird er während des Inserts abgebrochen, wird die leere Fahrt wieder
+verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs“ legt bei DTC-freiem Fahrzeug **gar keine Fahrt** mehr an
+(statt aufzuzeichnen und am Ende zu verwerfen).
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
@@ -532,8 +551,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 967 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 249 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 983 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 252 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
