@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.17.10 (versionCode 72)
+
+### Kleinere APK und Aufräumarbeiten
+
+- Die Release-APK ist durch Ressourcen-Shrinking rund 0,5 MB kleiner (6,2 → 5,7 MB, −8 %). Entfernt
+  werden nur ungenutzte Bibliotheks-Ressourcen, keine eigenen der App.
+- Interne Aufräumarbeiten ohne sichtbare Änderung: eine Compiler-Warnung im Vordergrunddienst
+  behoben, der Launcher-Icon-Ordner verzichtet auf den überflüssigen `-v26`-Qualifier (minSdk ist
+  26), zwei Lint-Fehlalarme bei den Gang-Texten gezielt unterdrückt (Lint-Warnungen 30 → 26).
+
+### Test-Infrastruktur
+
+Der seit v1.17.8 ignorierte Instrumentationstest für den Slot-Picker läuft wieder. Die Ursache war
+nicht das vermutete Popup-Fenster-Problem, sondern ein nur halb ausgeklapptes Bottom Sheet: Zeilen
+unterhalb der halben Höhe waren zwar komponiert, lagen aber außerhalb des Bildschirms. Der Test
+klappt das Sheet jetzt vor dem Scrollen auf.
+
+### Tests
+
+798 Unit-Tests unverändert (0 Fehler), 155 Instrumentation-Tests alle grün (zuvor 154 + 1
+ignoriert), Lint 0 Fehler, 26 Warnungen (zuvor 30).
+
+---
+
 ## Version 1.17.9 (versionCode 71)
 
 ### Code-Cleanup
