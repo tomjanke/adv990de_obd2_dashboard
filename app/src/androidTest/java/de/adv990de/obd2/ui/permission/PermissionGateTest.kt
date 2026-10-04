@@ -1,11 +1,15 @@
 package de.adv990de.obd2.ui.permission
 
 import android.Manifest
+import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import dagger.hilt.android.testing.BindValue
@@ -17,6 +21,7 @@ import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -30,10 +35,11 @@ import org.junit.runner.RunWith
  * ## What is covered here
  *
  * Only the "permissions already granted" path: [GrantPermissionRule] pre-grants exactly the set
- * `requiredPermissions()` resolves to on this test device's real `Build.VERSION.SDK_INT` (API 31+:
- * `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`; API 33+ additionally `POST_NOTIFICATIONS` — this device
- * is API 37, so all three apply). With that pre-granted, `PermissionGate`'s initial `allGranted`
- * computation (`ContextCompat.checkSelfPermission(...).all { GRANTED }`) is `true` *before*
+ * `requestedPermissions()` resolves to on this test device's real `Build.VERSION.SDK_INT` (API 31+:
+ * `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`; API 33+ additionally the OPTIONAL `POST_NOTIFICATIONS` —
+ * this device is API 37, so all three apply; granting the optional one keeps the system dialog from
+ * being launched). With that pre-granted, `PermissionGate`'s initial `allGranted`
+ * computation (`allRequiredGranted`) is `true` *before*
  * composition starts, so:
  * - `content()` is rendered directly ([allPermissionsGranted_rendersContentDirectly]), and
  * - the rationale screen (title/rationale/grant-button text) is never composed
@@ -149,5 +155,54 @@ class PermissionGateTest {
             .assertDoesNotExist()
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.permission_grant))
             .assertDoesNotExist()
+    }
+
+    // ── Sperrbildschirm: zustandslos getestet, ohne den echten System-Dialog auszuloesen ──────────
+
+    @Test
+    fun permissionRequiredScreen_showsExplanationAndBothButtons() {
+        composeRule.setContent { MaterialTheme { PermissionRequiredScreen(onGrant = {}, onOpenSettings = {}) } }
+
+        val a = composeRule.activity
+        composeRule.onNodeWithText(a.getString(R.string.permission_bt_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(a.getString(R.string.permission_bt_rationale)).assertIsDisplayed()
+        composeRule.onNodeWithText(a.getString(R.string.permission_settings_hint)).assertIsDisplayed()
+        composeRule.onNodeWithText(a.getString(R.string.permission_grant)).assertIsDisplayed()
+        composeRule.onNodeWithText(a.getString(R.string.permission_open_settings)).assertIsDisplayed()
+    }
+
+    @Test
+    fun permissionRequiredScreen_buttonsInvokeTheirOwnCallback() {
+        var grant = 0
+        var settings = 0
+        composeRule.setContent {
+            MaterialTheme { PermissionRequiredScreen(onGrant = { grant++ }, onOpenSettings = { settings++ }) }
+        }
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.permission_open_settings)).performClick()
+        assertEquals("settings button must not request again", 0, grant)
+        assertEquals(1, settings)
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.permission_grant)).performClick()
+        assertEquals(1, grant)
+        assertEquals(1, settings)
+    }
+
+    @Test
+    fun permissionRequiredScreen_buttonsAreGloveFriendly() {
+        composeRule.setContent { MaterialTheme { PermissionRequiredScreen(onGrant = {}, onOpenSettings = {}) } }
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.permission_grant))
+            .assertHeightIsAtLeast(56.dp)
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.permission_open_settings))
+            .assertHeightIsAtLeast(56.dp)
+    }
+
+    @Test
+    fun appSettingsIntent_pointsAtTheDetailsPageOfThisApp() {
+        val intent = appSettingsIntent("de.adv990de.obd2")
+
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
+        assertEquals("package:de.adv990de.obd2", intent.data.toString())
     }
 }

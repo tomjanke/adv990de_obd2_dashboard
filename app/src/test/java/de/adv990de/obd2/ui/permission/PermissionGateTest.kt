@@ -42,23 +42,53 @@ class PermissionGateTest {
     }
 
     @Test
-    fun `below API 33 does not request POST_NOTIFICATIONS`() {
-        val result = requiredPermissions(sdkInt = 32)
-        assertFalse(result.contains(Manifest.permission.POST_NOTIFICATIONS))
-        assertArrayEquals(modernSet, result)
+    fun `POST_NOTIFICATIONS is never a required permission`() {
+        // Ohne sie laeuft die App und der Vordergrunddienst; nur die Benachrichtigung bleibt unsichtbar.
+        // Als Pflicht sperrte sie die ganze App aus, sobald der Nutzer sie zweimal ablehnte.
+        for (sdk in listOf(26, 30, 31, 32, 33, 34, 36)) {
+            assertFalse("API $sdk", requiredPermissions(sdkInt = sdk).contains(Manifest.permission.POST_NOTIFICATIONS))
+        }
     }
 
     @Test
-    fun `at API 33 adds POST_NOTIFICATIONS on top of the modern set`() {
-        val result = requiredPermissions(sdkInt = 33)
-        assertTrue(result.contains(Manifest.permission.POST_NOTIFICATIONS))
-        assertArrayEquals(modernSet + Manifest.permission.POST_NOTIFICATIONS, result)
+    fun `below API 33 there is no optional permission`() {
+        assertArrayEquals(emptyArray<String>(), optionalPermissions(sdkInt = 32))
     }
 
     @Test
-    fun `above API 33 keeps requesting POST_NOTIFICATIONS`() {
-        val result = requiredPermissions(sdkInt = 34)
-        assertTrue(result.contains(Manifest.permission.POST_NOTIFICATIONS))
-        assertArrayEquals(modernSet + Manifest.permission.POST_NOTIFICATIONS, result)
+    fun `from API 33 POST_NOTIFICATIONS is requested as optional permission`() {
+        assertArrayEquals(arrayOf(Manifest.permission.POST_NOTIFICATIONS), optionalPermissions(sdkInt = 33))
+        assertArrayEquals(arrayOf(Manifest.permission.POST_NOTIFICATIONS), optionalPermissions(sdkInt = 36))
+    }
+
+    @Test
+    fun `the system dialog asks for required and optional permissions together`() {
+        assertArrayEquals(
+            modernSet + Manifest.permission.POST_NOTIFICATIONS,
+            requestedPermissions(sdkInt = 34),
+        )
+        assertArrayEquals(modernSet, requestedPermissions(sdkInt = 32))
+    }
+
+    @Test
+    fun `the gate opens when only the optional permission is missing`() {
+        val grantedExceptNotifications = { p: String -> p != Manifest.permission.POST_NOTIFICATIONS }
+        assertTrue(allRequiredGranted(sdkInt = 34, isGranted = grantedExceptNotifications))
+    }
+
+    @Test
+    fun `the gate stays closed when a required bluetooth permission is missing`() {
+        val connectMissing = { p: String -> p != Manifest.permission.BLUETOOTH_CONNECT }
+        assertFalse(allRequiredGranted(sdkInt = 34, isGranted = connectMissing))
+        val nothing = { _: String -> false }
+        assertFalse(allRequiredGranted(sdkInt = 30, isGranted = nothing))
+    }
+
+    @Test
+    fun `an optional permission is only asked for while it is missing`() {
+        val allGranted = { _: String -> true }
+        assertFalse(anyRequestedMissing(sdkInt = 34, isGranted = allGranted))
+        val notificationsMissing = { p: String -> p != Manifest.permission.POST_NOTIFICATIONS }
+        assertTrue(anyRequestedMissing(sdkInt = 34, isGranted = notificationsMissing))
     }
 }

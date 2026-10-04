@@ -105,6 +105,8 @@
     <string name="permission_bt_title">Bluetooth-Berechtigung erforderlich</string>
     <string name="permission_bt_rationale">Die App benötigt Bluetooth-Zugriff, um mit dem OBD2-Adapter zu kommunizieren.</string>
     <string name="permission_grant">Berechtigung erteilen</string>
+    <string name="permission_settings_hint">Zeigt Android den Berechtigungsdialog nicht mehr, erlaube Bluetooth in den App-Einstellungen.</string>
+    <string name="permission_open_settings">App-Einstellungen öffnen</string>
 
     <!-- BottomNav labels -->
     <string name="nav_live">Live</string>
