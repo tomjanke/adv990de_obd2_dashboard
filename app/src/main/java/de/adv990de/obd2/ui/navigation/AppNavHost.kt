@@ -10,7 +10,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import de.adv990de.obd2.ui.components.BottomNav
 import de.adv990de.obd2.ui.dashboard.DashboardScreen
-import de.adv990de.obd2.ui.dashboardconfig.DashboardConfigScreen
 import de.adv990de.obd2.ui.dtc.DtcScreen
 import de.adv990de.obd2.ui.freezeframe.FreezeFrameScreen
 import de.adv990de.obd2.ui.history.HistoryScreen
@@ -43,7 +42,6 @@ fun AppNavHost(navController: NavHostController) {
             composable(Screen.VehicleInfo.route) { VehicleInfoScreen(navController) }
             composable(Screen.History.route) { HistoryScreen(navController) }
             composable(Screen.Settings.route) { SettingsScreen(navController) }
-            composable(Screen.DashboardConfig.route) { DashboardConfigScreen(navController) }
             composable(Screen.LoggingConfig.route) { LoggingConfigScreen(navController) }
             composable(Screen.AppLogs.route) { AppLogsScreen(navController) }
             composable(Screen.GearSettings.route) { GearSettingsScreen(navController) }

@@ -47,6 +47,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.parentTab
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -147,7 +148,8 @@ fun BottomNav(
                     navItems.forEach { (screen, icon, labelRes) ->
                         val label = stringResource(labelRes)
                         NavigationBarItem(
-                            selected = currentRoute == screen.route,
+                            // parentTab(): a sub-page keeps the tab it was opened from highlighted.
+                            selected = parentTab(currentRoute) == screen,
                             onClick = {
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.startDestinationId) { saveState = true }

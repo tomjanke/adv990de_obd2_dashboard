@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.settings
 import androidx.annotation.PluralsRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,29 +14,38 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
+import de.adv990de.obd2.ui.theme.greenColorScheme
 
 /**
  * Klassifiziert einen Theme-Konstantenwert (s. `AppPreferences.THEME_*`) als Farbschema
@@ -75,6 +85,7 @@ internal fun ThemePickerItem(
                 selected = !isColorTheme,
                 onClick = { onThemeChange(AppPreferences.THEME_SYSTEM) },
                 shape = SegmentedButtonDefaults.itemShape(0, 4),
+                modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                 icon = {},
                 label = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -87,10 +98,11 @@ internal fun ThemePickerItem(
                 selected = theme == AppPreferences.THEME_BLUE,
                 onClick = { onThemeChange(AppPreferences.THEME_BLUE) },
                 shape = SegmentedButtonDefaults.itemShape(1, 4),
+                modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                 icon = {},
                 label = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFF38BDF8), RoundedCornerShape(1.dp)))
+                        Box(Modifier.width(16.dp).height(3.dp).background(blueColorScheme.primary, RoundedCornerShape(1.dp)))
                         Text(stringResource(R.string.settings_theme_blue), softWrap = false)
                     }
                 }
@@ -99,10 +111,11 @@ internal fun ThemePickerItem(
                 selected = theme == AppPreferences.THEME_AMBER,
                 onClick = { onThemeChange(AppPreferences.THEME_AMBER) },
                 shape = SegmentedButtonDefaults.itemShape(2, 4),
+                modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                 icon = {},
                 label = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFFFB923C), RoundedCornerShape(1.dp)))
+                        Box(Modifier.width(16.dp).height(3.dp).background(amberColorScheme.primary, RoundedCornerShape(1.dp)))
                         Text(stringResource(R.string.settings_theme_amber), softWrap = false)
                     }
                 }
@@ -111,10 +124,11 @@ internal fun ThemePickerItem(
                 selected = theme == AppPreferences.THEME_GREEN,
                 onClick = { onThemeChange(AppPreferences.THEME_GREEN) },
                 shape = SegmentedButtonDefaults.itemShape(3, 4),
+                modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                 icon = {},
                 label = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Box(Modifier.width(16.dp).height(3.dp).background(Color(0xFF4ADE80), RoundedCornerShape(1.dp)))
+                        Box(Modifier.width(16.dp).height(3.dp).background(greenColorScheme.primary, RoundedCornerShape(1.dp)))
                         Text(stringResource(R.string.settings_theme_green), softWrap = false)
                     }
                 }
@@ -152,6 +166,7 @@ internal fun ThemePickerItem(
                         selected = theme == option,
                         onClick = { onThemeChange(option) },
                         shape = SegmentedButtonDefaults.itemShape(index, brightnessOptions.size),
+                        modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                         icon = {},
                         label = { Text(brightnessLabels[index]) }
                     )
@@ -161,9 +176,10 @@ internal fun ThemePickerItem(
     }
 }
 
-/** Minimum touch height of one [ChoiceSetting] segment — CLAUDE.md design principle 4
- *  (glove-friendly tap targets, 56 dp). The M3 default of a segmented button is only 40 dp. */
-private val ChoiceSegmentMinHeight = 56.dp
+/** Minimum touch height of every segmented-button segment on the Settings page ([ChoiceSetting] and
+ *  [ThemePickerItem]) — CLAUDE.md design principle 4 (glove-friendly tap targets, 56 dp). The M3
+ *  default of a segmented button is only 40 dp. */
+private val SegmentedButtonMinHeight = 56.dp
 
 /** Horizontal content padding of one [ChoiceSetting] segment. The M3 default (12 dp per side)
  *  leaves only ~34 dp for the number on a 320 dp phone — "120" then overflows at a system font
@@ -187,7 +203,7 @@ private val ChoiceSegmentContentPadding = PaddingValues(horizontal = 4.dp)
  * value) simply no segment is highlighted. [additionalSupportingText] is an optional extra line
  * under the supporting text (the reconnect row uses it for the resulting wait series).
  *
- * Every segment is at least [ChoiceSegmentMinHeight] high; the icon slot is empty (the check-mark
+ * Every segment is at least [SegmentedButtonMinHeight] high; the icon slot is empty (the check-mark
  * would eat the width the digits need).
  */
 @Composable
@@ -232,7 +248,7 @@ internal fun ChoiceSetting(
                     contentPadding = ChoiceSegmentContentPadding,
                     // The min height has to sit on EACH segment: a min height on the row only makes
                     // the row taller, the buttons keep their 40 dp M3 default (ChoiceSettingTest).
-                    modifier = Modifier.heightIn(min = ChoiceSegmentMinHeight),
+                    modifier = Modifier.heightIn(min = SegmentedButtonMinHeight),
                     icon = {},
                     label = {
                         Text(
@@ -250,6 +266,74 @@ internal fun ChoiceSetting(
         }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+/** Minimum height of every row of the Settings page (CLAUDE.md design principle 4: settings lists at
+ *  least 64 dp, the whole row is the touch target). */
+private val SettingsRowMinHeight = 64.dp
+
+/**
+ * Header of one group of the Settings page: the cockpit-style ALL-CAPS [SectionLabel] in the accent
+ * color, with air above (the previous group ends there) and a little below, and marked as a heading
+ * so screen-reader users can jump from group to group.
+ */
+@Composable
+internal fun SettingsGroupHeader(text: String, modifier: Modifier = Modifier) {
+    SectionLabel(
+        text = text,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp, bottom = 8.dp)
+            .semantics { heading() },
+    )
+}
+
+/**
+ * A row that opens a sub-page: title, a one-line [summary] of what is behind it and a chevron. The
+ * whole row is the touch target (at least [SettingsRowMinHeight]) — replaces the bare full-width
+ * `TextButton`s the page used to end with, which told the user nothing about their target.
+ */
+@Composable
+internal fun SettingsLinkRow(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(summary) },
+        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+        modifier = modifier
+            .heightIn(min = SettingsRowMinHeight)
+            .clickable(role = Role.Button, onClick = onClick),
+    )
+}
+
+/**
+ * A setting that is on or off. The whole row is the toggle — tapping anywhere on it flips it, not
+ * just the small switch (glove-friendly, CLAUDE.md design principle 4); the [Switch] itself only
+ * shows the state (`onCheckedChange = null`), so there is exactly one toggle node: the row. A
+ * `testTag` passed in [modifier] therefore sits on the node that carries the toggle state
+ * (`assertIsOn` / `performClick` work on it).
+ */
+@Composable
+internal fun SettingsSwitchRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(summary) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        modifier = modifier
+            .heightIn(min = SettingsRowMinHeight)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+    )
 }
 
 // region — Previews
@@ -280,6 +364,32 @@ private fun PreviewChoiceSettingLight() {
 private fun PreviewChoiceSettingDark() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) { PreviewChoiceSettingContent() }
+    }
+}
+
+@Composable
+private fun PreviewSettingsRowsContent() {
+    Column {
+        SettingsGroupHeader("Dashboard & Anzeige")
+        SettingsSwitchRow("Imperiale Einheiten", "Geschwindigkeit in mph, Temperatur in °F", checked = true, onCheckedChange = {})
+        SettingsSwitchRow("GPS-Geschwindigkeit", "Wenn das Fahrzeug keine liefert", checked = false, onCheckedChange = {})
+        SettingsLinkRow("Getriebe", "Radumfang und Übersetzungen für die Ganganzeige", onClick = {})
+    }
+}
+
+@Preview(name = "Settings rows · light", showBackground = true)
+@Composable
+private fun PreviewSettingsRowsLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { PreviewSettingsRowsContent() }
+    }
+}
+
+@Preview(name = "Settings rows · dark (blue)", showBackground = true)
+@Composable
+private fun PreviewSettingsRowsDark() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { PreviewSettingsRowsContent() }
     }
 }
 

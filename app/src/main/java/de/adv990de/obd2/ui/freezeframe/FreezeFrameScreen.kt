@@ -53,7 +53,7 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
                 title = { Text(stringResource(R.string.freeze_frame_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.dashboard_config_back_desc))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 }
             )

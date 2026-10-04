@@ -25,7 +25,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -218,16 +217,21 @@ fun SettingsScreen(
     val theme by displayVm.theme.collectAsState()
     val showAllBtDevices by vm.showAllBtDevices.collectAsState()
     LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
+    val rpmBlinkThreshold by displayVm.rpmBlinkThreshold.collectAsState()
+    val rpmDynamicThreshold by displayVm.rpmDynamicThreshold.collectAsState()
     val watchdogTimeoutSeconds by vm.obdWatchdogTimeoutSeconds.collectAsState()
     val reconnectBaseDelaySeconds by vm.reconnectBaseDelaySeconds.collectAsState()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
     ) { padding ->
+        // One flat, grouped page (AOSP settings guideline: related settings clustered under a heading and
+        // hairlines): Verbindung · Dashboard & Anzeige · Aufzeichnung · Fahrzeug · Info & Wartung.
+        // Sub-pages are LINK rows with a summary and a chevron; every switch is a whole-row toggle.
         LazyColumn(
             modifier = Modifier.testTag(SETTINGS_LIST_TEST_TAG),
             contentPadding = PaddingValues(
-                top = padding.calculateTopPadding() + 16.dp,
+                top = padding.calculateTopPadding() + 8.dp,
                 bottom = padding.calculateBottomPadding() + 16.dp,
                 start = 16.dp,
                 end = 16.dp
@@ -241,22 +245,23 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Paired devices ────────────────────────────────────────────
+            // ═══ Verbindung: Adapter + Reconnect-Verhalten ════════════════
+            item { SettingsGroupHeader(stringResource(R.string.settings_connection_section)) }
             item {
-                Text(stringResource(R.string.settings_paired_devices), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_paired_devices),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.height(8.dp))
                 if (state.isConnecting) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_show_all_bt_devices)) },
-                    supportingContent = { Text(stringResource(R.string.settings_show_all_bt_devices_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = showAllBtDevices,
-                            onCheckedChange = { vm.toggleShowAllBtDevices() }
-                        )
-                    }
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_show_all_bt_devices),
+                    summary = stringResource(R.string.settings_show_all_bt_devices_desc),
+                    checked = showAllBtDevices,
+                    onCheckedChange = { vm.toggleShowAllBtDevices() },
                 )
                 HorizontalDivider()
             }
@@ -281,54 +286,6 @@ fun SettingsScreen(
                 }
             }
             item { HorizontalDivider() }
-
-            // ── Recording section ─────────────────────────────────────────
-            item {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.settings_recording_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(4.dp))
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_log_only_dtc)) },
-                    supportingContent = { Text(stringResource(R.string.settings_log_only_dtc_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = logOnlyDtc,
-                            onCheckedChange = { recordingVm.toggleLogOnlyDtc() }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_log_only_discovered)) },
-                    supportingContent = { Text(stringResource(R.string.settings_log_only_discovered_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = logOnlyDiscovered,
-                            onCheckedChange = { recordingVm.toggleLogOnlyDiscovered() }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-
-            // ── Connection section ────────────────────────────────────────
-            item {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.settings_connection_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(4.dp))
-            }
             item {
                 ChoiceSetting(
                     headline = stringResource(R.string.settings_obd_watchdog_timeout),
@@ -364,110 +321,133 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
 
-            // ── Display section ───────────────────────────────────────────
-            item {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.settings_display_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(4.dp))
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_hide_nav_on_drive)) },
-                    supportingContent = { Text(stringResource(R.string.settings_hide_nav_on_drive_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = hideNavOnDrive,
-                            // Die Standortanfrage selbst laeuft ausschliesslich ueber
-                            // LaunchedEffect(hideNavOnDrive) oben (reagiert auf genau diese
-                            // Zustandsaenderung) — das mirrort, wie useGpsSpeed oben seine
-                            // Hintergrund-Standort-Eskalation ausschliesslich ueber deren eigenen
-                            // LaunchedEffect abwickelt statt zusaetzlich hier direkt.
-                            onCheckedChange = { driveVm.toggleHideNavOnDrive() },
-                            modifier = Modifier.testTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG)
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_gps_speed)) },
-                    supportingContent = { Text(stringResource(R.string.settings_gps_speed_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = useGpsSpeed,
-                            onCheckedChange = { wanted ->
-                                val granted = LocationPermissions.hasFineLocation(context)
-                                when (determineGpsSpeedSwitchAction(wanted, granted)) {
-                                    GpsSpeedSwitchAction.SET_OFF -> displayVm.setUseGpsSpeed(false)
-                                    GpsSpeedSwitchAction.SET_ON -> displayVm.setUseGpsSpeed(true)
-                                    GpsSpeedSwitchAction.REQUEST_PERMISSION -> locationPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                                        )
-                                    )
-                                }
-                            },
-                            modifier = Modifier.testTag(GPS_SPEED_SWITCH_TEST_TAG)
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_imperial_units)) },
-                    supportingContent = { Text(stringResource(R.string.settings_imperial_units_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = useImperial,
-                            onCheckedChange = { displayVm.toggleUseImperial() }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
+            // ═══ Dashboard & Anzeige ═════════════════════════════════════
+            item { SettingsGroupHeader(stringResource(R.string.settings_display_section)) }
             item {
                 ThemePickerItem(theme = theme, onThemeChange = { displayVm.setTheme(it) })
                 HorizontalDivider()
             }
-
-            // ── Navigation ────────────────────────────────────────────────
             item {
-                TextButton(
-                    onClick = { navController.navigate(Screen.DashboardConfig.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_configure_dashboard)) }
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_imperial_units),
+                    summary = stringResource(R.string.settings_imperial_units_desc),
+                    checked = useImperial,
+                    onCheckedChange = { displayVm.toggleUseImperial() },
+                )
                 HorizontalDivider()
-                TextButton(
-                    onClick = { navController.navigate(Screen.LoggingConfig.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_logging_pids)) }
+            }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_hide_nav_on_drive),
+                    summary = stringResource(R.string.settings_hide_nav_on_drive_desc),
+                    checked = hideNavOnDrive,
+                    // Die Standortanfrage selbst laeuft ausschliesslich ueber
+                    // LaunchedEffect(hideNavOnDrive) oben (reagiert auf genau diese
+                    // Zustandsaenderung) — das mirrort, wie useGpsSpeed oben seine
+                    // Hintergrund-Standort-Eskalation ausschliesslich ueber deren eigenen
+                    // LaunchedEffect abwickelt statt zusaetzlich hier direkt.
+                    onCheckedChange = { driveVm.toggleHideNavOnDrive() },
+                    modifier = Modifier.testTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG),
+                )
                 HorizontalDivider()
-                TextButton(
-                    onClick = { navController.navigate(Screen.AppLogs.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_app_logs)) }
+            }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_gps_speed),
+                    summary = stringResource(R.string.settings_gps_speed_desc),
+                    checked = useGpsSpeed,
+                    onCheckedChange = { wanted ->
+                        val granted = LocationPermissions.hasFineLocation(context)
+                        when (determineGpsSpeedSwitchAction(wanted, granted)) {
+                            GpsSpeedSwitchAction.SET_OFF -> displayVm.setUseGpsSpeed(false)
+                            GpsSpeedSwitchAction.SET_ON -> displayVm.setUseGpsSpeed(true)
+                            GpsSpeedSwitchAction.REQUEST_PERMISSION -> locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                )
+                            )
+                        }
+                    },
+                    modifier = Modifier.testTag(GPS_SPEED_SWITCH_TEST_TAG),
+                )
                 HorizontalDivider()
-                TextButton(
+            }
+            // Fruehere eigene Seite "Dashboard konfigurieren": Blinkgrenze + dynamische Schwelle.
+            item {
+                RpmThresholdSection(
+                    rpmBlinkThreshold = rpmBlinkThreshold,
+                    rpmDynamicThreshold = rpmDynamicThreshold,
+                    onThresholdChangeFinished = displayVm::setRpmBlinkThreshold,
+                    onDynamicThresholdChange = displayVm::setRpmDynamicThreshold,
+                )
+            }
+            item {
+                SettingsLinkRow(
+                    title = stringResource(R.string.settings_gear_ratios),
+                    summary = stringResource(R.string.settings_gear_ratios_summary),
                     onClick = { navController.navigate(Screen.GearSettings.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_gear_ratios)) }
+                )
                 HorizontalDivider()
-                TextButton(
+            }
+
+            // ═══ Aufzeichnung ════════════════════════════════════════════
+            item { SettingsGroupHeader(stringResource(R.string.settings_recording_section)) }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_log_only_dtc),
+                    summary = stringResource(R.string.settings_log_only_dtc_desc),
+                    checked = logOnlyDtc,
+                    onCheckedChange = { recordingVm.toggleLogOnlyDtc() },
+                )
+                HorizontalDivider()
+            }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_log_only_discovered),
+                    summary = stringResource(R.string.settings_log_only_discovered_desc),
+                    checked = logOnlyDiscovered,
+                    onCheckedChange = { recordingVm.toggleLogOnlyDiscovered() },
+                )
+                HorizontalDivider()
+            }
+            item {
+                SettingsLinkRow(
+                    title = stringResource(R.string.settings_logging_pids),
+                    summary = stringResource(R.string.settings_logging_pids_summary),
+                    onClick = { navController.navigate(Screen.LoggingConfig.route) },
+                )
+                HorizontalDivider()
+            }
+
+            // ═══ Fahrzeug ════════════════════════════════════════════════
+            item { SettingsGroupHeader(stringResource(R.string.settings_group_vehicle)) }
+            item {
+                SettingsLinkRow(
+                    title = stringResource(R.string.settings_vehicle_info),
+                    summary = stringResource(R.string.settings_vehicle_info_summary),
                     onClick = { navController.navigate(Screen.VehicleInfo.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_vehicle_info)) }
+                )
                 HorizontalDivider()
-                TextButton(
+            }
+
+            // ═══ Info & Wartung ══════════════════════════════════════════
+            item { SettingsGroupHeader(stringResource(R.string.settings_group_info)) }
+            item {
+                SettingsLinkRow(
+                    title = stringResource(R.string.settings_app_logs),
+                    summary = stringResource(R.string.settings_app_logs_summary),
+                    onClick = { navController.navigate(Screen.AppLogs.route) },
+                )
+                HorizontalDivider()
+            }
+            item {
+                SettingsLinkRow(
+                    title = stringResource(R.string.settings_app_info),
+                    summary = stringResource(R.string.settings_app_info_summary),
                     onClick = { navController.navigate(Screen.AppInfo.route) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.settings_app_info)) }
+                )
+                HorizontalDivider()
             }
         }
     }

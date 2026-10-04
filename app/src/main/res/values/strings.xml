@@ -30,9 +30,15 @@
     <string name="settings_disconnect">Disconnect</string>
     <string name="settings_paired_devices">Paired Devices</string>
     <string name="settings_no_paired_devices">No paired OBD2 devices found.\nPlease pair the adapter in system Bluetooth settings first.</string>
-    <string name="settings_configure_dashboard">Configure Dashboard</string>
     <string name="settings_vehicle_info">Vehicle Info</string>
     <string name="settings_app_info">App Info</string>
+    <string name="settings_group_vehicle">Vehicle</string>
+    <string name="settings_group_info">Info &amp; maintenance</string>
+    <string name="settings_gear_ratios_summary">Wheel circumference and ratios for the gear indicator</string>
+    <string name="settings_logging_pids_summary">Which readings are stored in the trip history</string>
+    <string name="settings_vehicle_info_summary">VIN and vehicle data from the ECU</string>
+    <string name="settings_app_logs_summary">The app\'s event log</string>
+    <string name="settings_app_info_summary">Version, licenses and credits</string>
     <string name="settings_last_connected_desc">Last connected</string>
     <string name="settings_connect">Connect</string>
 
@@ -49,8 +55,7 @@
     <string name="app_info_open_license">open license</string>
 
     <!-- Dashboard config screen -->
-    <string name="dashboard_config_title">Configure Dashboard</string>
-    <string name="dashboard_config_back_desc">Back</string>
+    <string name="nav_back_desc">Back</string>
     <string name="dashboard_rpm_threshold_label">RPM Blink Threshold</string>
     <string name="dashboard_rpm_threshold_disabled">Disabled</string>
     <string name="dashboard_rpm_dynamic_label">Dynamic Threshold Scaling</string>
@@ -127,7 +132,6 @@
     <string name="logging_config_title">Recorded PIDs</string>
     <string name="logging_config_select_all">Select all</string>
     <string name="logging_config_deselect_all">Deselect all</string>
-    <string name="logging_config_back_desc">Back</string>
 
     <!-- Connection settings section (OBD watchdog) -->
     <string name="settings_connection_section">Connection</string>
@@ -145,7 +149,7 @@
     <string name="settings_reconnect_base_delay_series">Waits: %1$s s (%2$s min in total)</string>
 
     <!-- Display settings section -->
-    <string name="settings_display_section">Display</string>
+    <string name="settings_display_section">Dashboard &amp; display</string>
     <string name="settings_hide_nav_on_drive">Hide navigation bar while driving</string>
     <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary. While it is hidden, date, time and the outside temperature from Open-Meteo appear in its place (uses your approximate location).</string>
     <string name="settings_imperial_units">Imperial units</string>
@@ -157,7 +161,6 @@
     <!-- Gear ratio settings screen (virtual gear indicator) -->
     <string name="settings_gear_ratios">Gear ratios</string>
     <string name="gear_settings_title">Gear Ratios</string>
-    <string name="gear_settings_back_desc">Back</string>
     <string name="gear_settings_wheel_circumference">Wheel circumference (mm)</string>
     <string name="gear_settings_primary_ratio">Primary reduction ratio</string>
     <string name="gear_settings_secondary_ratio">Secondary (final drive) ratio</string>

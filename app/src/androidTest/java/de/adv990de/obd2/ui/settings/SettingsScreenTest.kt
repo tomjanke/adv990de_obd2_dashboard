@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import android.Manifest
+import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -13,6 +14,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
@@ -23,6 +27,7 @@ import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -316,5 +321,87 @@ class SettingsScreenTest {
             appPreferences.setObdWatchdogTimeoutSeconds(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
             appPreferences.setReconnectBaseDelaySeconds(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
+    }
+
+    // ── Grouped page: headers, link rows, the merged dashboard configuration ──
+
+    private lateinit var navController: NavHostController
+
+    /** The page inside a real NavHost, so link rows can really navigate (marker text per target). */
+    private fun launchSettingsInNavHost() {
+        composeRule.setContent {
+            navController = rememberNavController()
+            NavHost(navController = navController, startDestination = Screen.Settings.route) {
+                composable(Screen.Settings.route) { SettingsScreen(navController = navController) }
+                for (route in SUB_PAGE_ROUTES) composable(route) { Text("DESTINATION:$route") }
+            }
+        }
+        composeRule.waitForIdle()
+    }
+
+    private fun scrollTo(text: String) {
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasText(text))
+    }
+
+    private fun str(resId: Int): String = composeRule.activity.getString(resId)
+
+    @Test
+    fun allFiveGroupHeadersArePresent() {
+        launchSettingsInNavHost()
+
+        for (header in listOf(
+            R.string.settings_connection_section,
+            R.string.settings_display_section,
+            R.string.settings_recording_section,
+            R.string.settings_group_vehicle,
+            R.string.settings_group_info,
+        )) {
+            val text = str(header).uppercase()
+            scrollTo(text)
+            composeRule.onNodeWithText(text).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun linkRows_showASummary_andOpenTheirSubPage() {
+        launchSettingsInNavHost()
+
+        for ((title, summary, route) in listOf(
+            Triple(R.string.settings_gear_ratios, R.string.settings_gear_ratios_summary, Screen.GearSettings.route),
+            Triple(R.string.settings_logging_pids, R.string.settings_logging_pids_summary, Screen.LoggingConfig.route),
+            Triple(R.string.settings_vehicle_info, R.string.settings_vehicle_info_summary, Screen.VehicleInfo.route),
+            Triple(R.string.settings_app_logs, R.string.settings_app_logs_summary, Screen.AppLogs.route),
+            Triple(R.string.settings_app_info, R.string.settings_app_info_summary, Screen.AppInfo.route),
+        )) {
+            scrollTo(str(summary))
+            composeRule.onNodeWithText(str(summary)).assertIsDisplayed()
+
+            composeRule.onNodeWithText(str(title)).performClick()
+            composeRule.waitForIdle()
+            assertEquals(route, navController.currentDestination?.route)
+
+            composeRule.runOnIdle { navController.popBackStack() }
+            composeRule.waitForIdle()
+        }
+    }
+
+    @Test
+    fun theSeparateDashboardConfigurationEntryIsGone_itsContentLivesInDashboardAndDisplay() {
+        launchSettingsInNavHost()
+
+        // no stand-alone entry any more (either language)
+        composeRule.onNodeWithText("Dashboard konfigurieren").assertDoesNotExist()
+        composeRule.onNodeWithText("Configure Dashboard").assertDoesNotExist()
+
+        // ... the blink threshold and its dynamic variant are part of the page itself
+        scrollTo(str(R.string.dashboard_rpm_threshold_label))
+        composeRule.onNodeWithText(str(R.string.dashboard_rpm_threshold_label)).assertIsDisplayed()
+    }
+
+    private companion object {
+        val SUB_PAGE_ROUTES = listOf(
+            Screen.GearSettings.route, Screen.LoggingConfig.route, Screen.VehicleInfo.route,
+            Screen.AppLogs.route, Screen.AppInfo.route,
+        )
     }
 }

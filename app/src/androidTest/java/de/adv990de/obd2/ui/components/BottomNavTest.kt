@@ -157,6 +157,8 @@ class BottomNavTest {
             every { useGpsSpeed } returns flowOf(false)
             every { backgroundLocationPrompted } returns flowOf(false)
             every { weatherLocationPrompted } returns flowOf(false)
+            every { rpmBlinkThreshold } returns flowOf(0)
+            every { rpmDynamicThreshold } returns flowOf(false)
         }
         return DisplaySettingsViewModel(prefs)
     }
@@ -195,6 +197,8 @@ class BottomNavTest {
                 composable(Screen.Dtc.route) { Text(DTC_MARKER) }
                 composable(Screen.History.route) { Text(HISTORY_MARKER) }
                 composable(Screen.Settings.route) { Text(SETTINGS_MARKER) }
+                composable(Screen.AppLogs.route) { Text(APP_LOGS_MARKER) }
+                composable(Screen.FreezeFrame.route) { Text(FREEZE_FRAME_MARKER) }
             }
             BottomNav(
                 navController = navController,
@@ -214,6 +218,8 @@ class BottomNavTest {
         private const val DTC_MARKER = "DTC_DESTINATION_MARKER"
         private const val HISTORY_MARKER = "HISTORY_DESTINATION_MARKER"
         private const val SETTINGS_MARKER = "SETTINGS_DESTINATION_MARKER"
+        private const val APP_LOGS_MARKER = "APP_LOGS_DESTINATION_MARKER"
+        private const val FREEZE_FRAME_MARKER = "FREEZE_FRAME_DESTINATION_MARKER"
     }
 
     // --- tests ---
@@ -230,6 +236,23 @@ class BottomNavTest {
         launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
 
         composeRule.onNodeWithText(label(R.string.nav_live)).assertIsNotSelected()
+    }
+
+    @Test
+    fun onASettingsSubPage_theSettingsItemStaysSelected() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.AppLogs.route)
+
+        composeRule.onNodeWithText(label(R.string.settings_title)).assertIsSelected()
+        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsNotSelected()
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsNotSelected()
+    }
+
+    @Test
+    fun onTheFreezeFramePage_theDtcItemStaysSelected() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.FreezeFrame.route)
+
+        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsSelected()
+        composeRule.onNodeWithText(label(R.string.settings_title)).assertIsNotSelected()
     }
 
     @Test

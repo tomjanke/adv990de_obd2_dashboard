@@ -1,23 +1,13 @@
-package de.adv990de.obd2.ui.dashboardconfig
+package de.adv990de.obd2.ui.settings
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -26,57 +16,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DashboardConfigScreen(
-    navController: NavController,
-    vm: DashboardConfigViewModel = hiltViewModel()
-) {
-    val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
-    val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsState()
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.dashboard_config_title)) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.dashboard_config_back_desc))
-                    }
-                }
-            )
-        },
-    ) { padding ->
-        LazyColumn(Modifier.padding(padding)) {
-            // ── RPM blink threshold ──────────────────────────────────────────
-            item {
-                RpmThresholdSection(
-                    rpmBlinkThreshold = rpmBlinkThreshold,
-                    rpmDynamicThreshold = rpmDynamicThreshold,
-                    onThresholdChangeFinished = vm::setRpmBlinkThreshold,
-                    onDynamicThresholdChange = vm::setRpmDynamicThreshold,
-                )
-            }
-        }
-    }
-}
-
 /**
  * RPM-Blink-Schwelle: Slider + Label + der davon abhaengige dynamische-Schwelle-Schalter.
- * Extrahiert (2026-09-23) aus [DashboardConfigScreen], damit dieser ViewModel-lose Baustein wie
+ * Extrahiert (2026-09-23) aus der damaligen Seite "Dashboard konfigurieren" und seit der
+ * Einstellungs-Umstrukturierung Teil der Gruppe "Dashboard & Anzeige" in `SettingsScreen`; bleibt ein
+ * ViewModel-loser Baustein, damit er wie
  * `GearRatioField` (s. `GearSettingsScreen.kt`) direkt in einem Compose-UI-Test getrieben werden
- * kann, ohne den echten `AppPreferences`/DataStore-Umweg.
+ * kann, ohne den echten `AppPreferences`/DataStore-Umweg (s. `RpmThresholdSectionTest`).
  *
  * [rpmBlinkThreshold] und [rpmDynamicThreshold] kommen aus StateFlows, die per
  * `stateIn(viewModelScope, WhileSubscribed(5_000), DEFAULT)` gebaut sind (s.
- * `DashboardConfigViewModel`): `collectAsState()` liest bei der ersten Komposition synchron den
+ * `DisplaySettingsViewModel`): `collectAsState()` liest bei der ersten Komposition synchron den
  * Default (0 / false), waehrend der echte, in AppPreferences/DataStore gespeicherte Wert erst
  * asynchron nachtraeglich eintrifft.
  *
@@ -122,15 +77,11 @@ internal fun RpmThresholdSection(
     )
     HorizontalDivider()
     if (localThreshold > 0) {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.dashboard_rpm_dynamic_label)) },
-            supportingContent = { Text(stringResource(R.string.dashboard_rpm_dynamic_desc)) },
-            trailingContent = {
-                Switch(
-                    checked = rpmDynamicThreshold,
-                    onCheckedChange = onDynamicThresholdChange
-                )
-            }
+        SettingsSwitchRow(
+            title = stringResource(R.string.dashboard_rpm_dynamic_label),
+            summary = stringResource(R.string.dashboard_rpm_dynamic_desc),
+            checked = rpmDynamicThreshold,
+            onCheckedChange = onDynamicThresholdChange,
         )
         HorizontalDivider()
     }

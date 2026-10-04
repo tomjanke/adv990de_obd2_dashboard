@@ -1,12 +1,14 @@
 package de.adv990de.obd2.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -247,6 +249,22 @@ class ThemePickerItemTest {
 
         assert(newTheme == AppPreferences.THEME_SYSTEM) {
             "expected onThemeChange(THEME_SYSTEM), got $newTheme"
+        }
+    }
+
+    // --- glove-friendly touch height (CLAUDE.md design principle 4) ---
+
+    @Test
+    fun everySegmentOfBothRows_isAtLeast56dpHigh() {
+        // THEME_SYSTEM = the Default scheme, so both the color-scheme row and the brightness row show.
+        launch(theme = AppPreferences.THEME_SYSTEM) {}
+
+        for (labelRes in listOf(
+            R.string.settings_theme_default, R.string.settings_theme_blue, R.string.settings_theme_amber,
+            R.string.settings_theme_green, R.string.settings_theme_system, R.string.settings_theme_light,
+            R.string.settings_theme_dark,
+        )) {
+            composeRule.onNodeWithText(label(labelRes)).assertHeightIsAtLeast(56.dp)
         }
     }
 }

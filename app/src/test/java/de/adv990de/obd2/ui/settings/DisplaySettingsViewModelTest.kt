@@ -39,13 +39,17 @@ class DisplaySettingsViewModelTest {
         theme: String = THEME_SYSTEM,
         useGpsSpeed: Boolean = false,
         backgroundLocationPrompted: Boolean = false,
-        weatherLocationPrompted: Boolean = false
+        weatherLocationPrompted: Boolean = false,
+        rpmBlinkThreshold: Int = 0,
+        rpmDynamicThreshold: Boolean = false
     ): AppPreferences = mockk {
         every { this@mockk.useImperial }  returns flowOf(useImperial)
         every { this@mockk.theme }        returns flowOf(theme)
         every { this@mockk.useGpsSpeed }  returns flowOf(useGpsSpeed)
         every { this@mockk.backgroundLocationPrompted } returns flowOf(backgroundLocationPrompted)
         every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)
+        every { this@mockk.rpmBlinkThreshold } returns flowOf(rpmBlinkThreshold)
+        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
     }
 
     @Test
@@ -229,5 +233,59 @@ class DisplaySettingsViewModelTest {
         job.cancel()
 
         coVerify { prefs.setWeatherLocationPrompted(true) }
+    }
+
+    // ── RPM blink threshold (absorbed from the former DashboardConfigViewModel) ──
+
+    @Test
+    fun `rpmBlinkThreshold reflects AppPreferences flow`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(rpmBlinkThreshold = 4000))
+
+        val collected = mutableListOf<Int>()
+        val job = launch { vm.rpmBlinkThreshold.collect { collected.add(it) } }
+        advanceUntilIdle()
+        job.cancel()
+
+        // stateIn emits the initial default (0) then the upstream value (4000)
+        assertTrue("expected ≥ 2 emissions, got ${collected.size}", collected.size >= 2)
+        assertEquals(4000, collected.last())
+    }
+
+    @Test
+    fun `setRpmBlinkThreshold delegates to AppPreferences`() = runTest {
+        val prefs = makePrefs()
+        coEvery { prefs.setRpmBlinkThreshold(any()) } just Runs
+        val vm = DisplaySettingsViewModel(prefs)
+
+        vm.setRpmBlinkThreshold(6000)
+        advanceUntilIdle()
+
+        coVerify { prefs.setRpmBlinkThreshold(6000) }
+    }
+
+    @Test
+    fun `rpmDynamicThreshold reflects AppPreferences flow`() = runTest {
+        val vm = DisplaySettingsViewModel(makePrefs(rpmDynamicThreshold = true))
+
+        val collected = mutableListOf<Boolean>()
+        val job = launch { vm.rpmDynamicThreshold.collect { collected.add(it) } }
+        advanceUntilIdle()
+        job.cancel()
+
+        // stateIn emits the initial default (false) then the upstream value (true)
+        assertTrue("expected ≥ 2 emissions, got ${collected.size}", collected.size >= 2)
+        assertEquals(true, collected.last())
+    }
+
+    @Test
+    fun `setRpmDynamicThreshold delegates to AppPreferences`() = runTest {
+        val prefs = makePrefs()
+        coEvery { prefs.setRpmDynamicThreshold(any()) } just Runs
+        val vm = DisplaySettingsViewModel(prefs)
+
+        vm.setRpmDynamicThreshold(true)
+        advanceUntilIdle()
+
+        coVerify { prefs.setRpmDynamicThreshold(true) }
     }
 }

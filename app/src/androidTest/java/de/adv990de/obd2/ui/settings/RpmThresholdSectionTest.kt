@@ -1,4 +1,4 @@
-package de.adv990de.obd2.ui.dashboardconfig
+package de.adv990de.obd2.ui.settings
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -26,12 +26,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Compose UI tests for [RpmThresholdSection], extracted (2026-09-23) out of
- * [DashboardConfigScreen] so this ViewModel-less local-state buffer can be driven directly, the
+ * Compose UI tests for [RpmThresholdSection], extracted (2026-09-23) out of the former
+ * "Dashboard konfigurieren" page (now part of `SettingsScreen`'s "Dashboard & Anzeige" group) so this
+ * ViewModel-less local-state buffer can be driven directly, the
  * same way [de.adv990de.obd2.ui.settings.GearRatioFieldUiTest] drives `GearRatioField` (see that file
  * and `GearRatioField`'s KDoc in `GearSettingsScreen.kt` for the direct precedent this mirrors).
  *
- * [DashboardConfigViewModel] wires `rpmBlinkThreshold` / `rpmDynamicThreshold` from StateFlows
+ * [DisplaySettingsViewModel] wires `rpmBlinkThreshold` / `rpmDynamicThreshold` from StateFlows
  * built with `stateIn(viewModelScope, WhileSubscribed(5_000), DEFAULT)`: `collectAsState()` reads
  * the DEFAULT (0 / false) synchronously at first composition, while the real, DataStore-backed
  * value only arrives asynchronously afterwards. These tests drive `rpmBlinkThreshold` directly
@@ -47,7 +48,7 @@ import org.junit.runner.RunWith
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class DashboardConfigScreenTest {
+class RpmThresholdSectionTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -195,7 +196,7 @@ class DashboardConfigScreenTest {
     fun localThreshold_isNotClobbered_whenUpstreamEchoesBackTheSameValueTheUserJustSet() {
         var threshold by mutableIntStateOf(2000)
         composeRule.setContent {
-            // Mirrors the real wiring: DashboardConfigScreen passes vm::setRpmBlinkThreshold as
+            // Mirrors the real wiring: SettingsScreen passes displayVm::setRpmBlinkThreshold as
             // onThresholdChangeFinished, whose write round-trips through AppPreferences/DataStore
             // and back out through the StateFlow, landing here as the same value the user set.
             RpmThresholdSection(

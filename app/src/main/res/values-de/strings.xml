@@ -30,9 +30,15 @@
     <string name="settings_disconnect">Trennen</string>
     <string name="settings_paired_devices">Gekoppelte Geräte</string>
     <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
-    <string name="settings_configure_dashboard">Dashboard konfigurieren</string>
     <string name="settings_vehicle_info">Fahrzeuginfo</string>
     <string name="settings_app_info">App-Info</string>
+    <string name="settings_group_vehicle">Fahrzeug</string>
+    <string name="settings_group_info">Info &amp; Wartung</string>
+    <string name="settings_gear_ratios_summary">Radumfang und Übersetzungen für die Ganganzeige</string>
+    <string name="settings_logging_pids_summary">Welche Messwerte in der Fahrt-Historie gespeichert werden</string>
+    <string name="settings_vehicle_info_summary">FIN und Fahrzeugdaten aus dem Steuergerät</string>
+    <string name="settings_app_logs_summary">Ereignisprotokoll der App</string>
+    <string name="settings_app_info_summary">Version, Lizenzen und Quellen</string>
     <string name="settings_last_connected_desc">Zuletzt verbunden</string>
     <string name="settings_connect">Verbinden</string>
 
@@ -49,8 +55,7 @@
     <string name="app_info_open_license">Lizenz öffnen</string>
 
     <!-- Dashboard config screen -->
-    <string name="dashboard_config_title">Dashboard konfigurieren</string>
-    <string name="dashboard_config_back_desc">Zurück</string>
+    <string name="nav_back_desc">Zurück</string>
     <string name="dashboard_rpm_threshold_label">Drehzahl-Blinkgrenze</string>
     <string name="dashboard_rpm_threshold_disabled">Deaktiviert</string>
     <string name="dashboard_rpm_dynamic_label">Dynamische Schwellenskalierung</string>
@@ -118,7 +123,7 @@
     <string name="exit_app_confirm">Ja, beenden</string>
 
     <!-- Recording settings section -->
-    <string name="settings_recording_section">Protokollierung</string>
+    <string name="settings_recording_section">Aufzeichnung</string>
     <string name="settings_log_only_dtc">Nur Fahrten mit DTCs speichern</string>
     <string name="settings_log_only_dtc_desc">Fahrten ohne Fahrzeug-Fehlercodes werden verworfen</string>
     <string name="settings_log_only_discovered">Nur ECU-bestätigte PIDs aufzeichnen</string>
@@ -127,7 +132,6 @@
     <string name="logging_config_title">Aufgezeichnete PIDs</string>
     <string name="logging_config_select_all">Alle auswählen</string>
     <string name="logging_config_deselect_all">Alle abwählen</string>
-    <string name="logging_config_back_desc">Zurück</string>
 
     <!-- Verbindungs-Einstellungen (OBD-Watchdog) -->
     <string name="settings_connection_section">Verbindung</string>
@@ -145,7 +149,7 @@
     <string name="settings_reconnect_base_delay_series">Wartezeiten: %1$s s (insgesamt %2$s min)</string>
 
     <!-- Display settings section -->
-    <string name="settings_display_section">Anzeige</string>
+    <string name="settings_display_section">Dashboard &amp; Anzeige</string>
     <string name="settings_hide_nav_on_drive">Navigationsleiste beim Fahren ausblenden</string>
     <string name="settings_hide_nav_on_drive_desc">Wird bei Stillstand automatisch wieder eingeblendet. Solange sie ausgeblendet ist, erscheinen dort Datum, Uhrzeit und die Außentemperatur von Open-Meteo (nutzt den ungefähren Standort).</string>
     <string name="settings_imperial_units">Imperiale Einheiten</string>
@@ -157,7 +161,6 @@
     <!-- Getriebe-Einstellungen (virtuelle Ganganzeige) -->
     <string name="settings_gear_ratios">Getriebe</string>
     <string name="gear_settings_title">Getriebeübersetzungen</string>
-    <string name="gear_settings_back_desc">Zurück</string>
     <string name="gear_settings_wheel_circumference">Radumfang (mm)</string>
     <string name="gear_settings_primary_ratio">Primärübersetzung</string>
     <string name="gear_settings_secondary_ratio">Sekundärübersetzung (Endantrieb)</string>

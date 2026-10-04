@@ -97,7 +97,7 @@ beides per `javap` im Material3-1.4.0-AAR geprüft). Zwei Gründe: (1) Die `Ambi
 Leiste während der Fahrt ersetzt, ist eine `surface`-Fläche — mit dem Default gäbe es beim
 `AnimatedContent`-Wechsel einen Farbsprung. Auf dem Pixel 8 Pro pixelgenau gemessen: Trennlinie,
 64-dp-Fläche und System-Inset-Streifen sind in beiden Zuständen identisch (Blau und Default-Hell).
-(2) Die drei Cockpit-Schemata definieren kein `surfaceContainer`; der Default fiel dort auf das
+(2) [seit 2026-10-04 erledigt: die drei Cockpit-Schemata definieren `surfaceContainer` jetzt selbst, = `surface`, s. „Ergänzte Farbrollen“ unten — Grund (1) trägt die Abweichung allein] Die drei Cockpit-Schemata definierten kein `surfaceContainer`; der Default fiel dort auf das
 neutrale M3-Grau (`#211F26`) zurück statt auf die Cockpit-Tönung. Nebenwirkung im Default-Farbschema:
 dort sind `surface` und `background` gleich, die Leiste hebt sich nur noch über die Trennlinie ab.
 
@@ -120,6 +120,24 @@ jede Rolle in `AppTypography` `BIKE_SCALE` (1.18×) und wurde dadurch nur unwese
 bewusst ohne `BIKE_SCALE` — Nav-Labels sind sekundäre Chrome-Elemente, keine Live-Werte, und stehen
 in keiner Zeile der Typografie-Hierarchie unten. Im Querformat (deutlich breitere Spalten) wäre die
 Kürzung nicht nötig gewesen, gilt hier aber einheitlich für beide Ausrichtungen.
+
+**Ergänzte Farbrollen der Cockpit-Schemata (Stand 2026-10-04, v1.21.0):** Die drei Cockpit-Schemata
+(`ui/theme/ColorSchemes.kt`) definierten neben den zwölf Basisfarben keine der Rollen, die Material-3-Komponenten
+tatsächlich benutzen — M3 fiel dort auf seine violett-grauen Standardtöne zurück (gewähltes Segment und Nav-Indikator
+im Orange-Schema violett-grau, Snackbar helles Lavendel mit violetter Aktion, Dialog neutral-grau). Jetzt definiert
+jedes Schema: `secondaryContainer`/`onSecondaryContainer` (gewählte Segmente, Nav-Indikator), `inverseSurface`/
+`inverseOnSurface`/`inversePrimary` (Snackbar), `surfaceContainerLowest…Highest` (Dialog = `High`; Schalter- und
+Slider-Spur = `Highest`). Ableitung aus der eigenen Palette: Container = `surface` zu 28 % Richtung `primary`;
+`inverse*` = helle `onSurface`-Tonlage mit dunklem `inversePrimary`; Container-Leiter = `surfaceVariant` zu 6 % bzw.
+12 % Richtung `onSurface`. `ColorSchemesTest` hält fest: Text ≥ 7:1, Snackbar-Aktion ≥ 4,5:1, gewähltes Segment
+≥ 1,5:1 gegen `surface`, alle neuen Rollen im Farbton ihres Schemas (≤ 30°) und eine aufsteigende Leiter. **Neue
+Material-Komponenten zuerst im Orange-Schema ansehen** — fehlt eine Rolle, erscheint wieder M3-Violett; dann die
+Rolle im Schema ergänzen und im Test abdecken. Das „Default“-Farbschema (M3-Standardfarben) bleibt unberührt.
+**Bekannte Restlücke (Stand 2026-10-04, im Orange-Schema per Screenshot bestätigt):** `primaryContainer`/
+`tertiaryContainer`/`errorContainer` samt `on…`-Rollen — die Log-Level-Chips in `AppLogsScreen` (INFO violett,
+WARN mauve) — und `outlineVariant` (die 1-dp-Linien zwischen den Dashboard-Kacheln, `DashboardScreen.kt`) sind in
+den Cockpit-Schemata noch M3-Standard. `error` bleibt bewusst M3-Standard (s. „Statusfarben“ oben). Offen als
+Folgearbeit: Rollen aus der Palette ableiten oder die Chips auf `StatusColors` abbilden.
 
 ### Typografie
 
@@ -350,6 +368,24 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   bevor `@After` läuft — ein dann noch aktiver Polling-Loop läuft in virtueller Zeit davon bis zum
   `OutOfMemoryError` (s. `WeatherViewModelTest.runVmTest`).
 
+### Einstellungen: Struktur (seit 2026-10-04, v1.21.0)
+
+Eine flache, gruppierte Seite (`SettingsScreen`) im Sinne der AOSP-Settings-Richtlinie (verwandtes unter einer
+Überschrift, Trennlinien, keine gerundeten Karten — passt zu „scharfe Kanten“; Material3 1.4.0 hat ohnehin kein
+`SegmentedListItem`): **Verbindung** (gekoppelte Geräte + „Alle gekoppelten Geräte“, Reconnect-Timeout, Basisverzögerung)
+· **Dashboard & Anzeige** (Farbschema, Einheiten, Hauptmenü beim Fahren ausblenden, GPS-Geschwindigkeit,
+Drehzahl-Blinkgrenze + dynamische Schwelle, Getriebe →) · **Aufzeichnung** (Nur Fahrten mit DTCs, Nur ECU-bestätigte
+PIDs, Aufgezeichnete PIDs →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wartung** (App-Logs →, App-Info →).
+- **Unterseiten** sind `SettingsLinkRow`s (Titel, Einzeiler-Zusammenfassung, Chevron), nie nackte `TextButton`s.
+- **Jede Zeile ≥ 64 dp, jeder Schalter ist eine Ganz-Zeilen-Fläche** (`SettingsSwitchRow`: `toggleable` an der Zeile, der
+  `Switch` zeigt nur den Zustand; ein `testTag` am Modifier sitzt damit am Knoten mit dem Toggle-Zustand).
+- **Segmente ≥ 56 dp** (`ChoiceSetting` und `ThemePickerItem`; der M3-Default wäre 40 dp).
+- **„Dashboard konfigurieren“ gibt es nicht mehr als eigene Seite:** die Drehzahl-Blinkgrenze (Slider) und die dynamische
+  Schwellenskalierung sind `RpmThresholdSection` in „Dashboard & Anzeige“, gespeist von `DisplaySettingsViewModel`.
+- **Eltern-Tab:** `parentTab(route)` (`ui/navigation/ParentTab.kt`, rein) ordnet jeder Unterseite ihren Tab zu; `BottomNav`
+  markiert ihn, die Leiste steht auf Unterseiten also nie ohne Auswahl. Ein neuer `Screen` zwingt `ParentTabTest` (exhaustives
+  `when`) zu einer Entscheidung. Die Zurück-Beschreibung der Pfeile ist überall `R.string.nav_back_desc`.
+
 ### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0)
 
 Gilt für jede Liste, die Daten löschen lässt (heute App-Logs; Verlauf und Fehlerhistorie folgen). **Gelöscht wird
@@ -414,6 +450,9 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
 | `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
 | `ChoiceSetting(headline, supportingText, options, selected, onSelect, optionDescriptionPlural, additionalSupportingText?)` | Einstellung aus wenigen festen Ganzzahlen (`ui/settings/SettingsComponents.kt`): `ListItem` + `SingleChoiceSegmentedButtonRow`, Segmente ≥ 56 dp hoch, nur die Zahl im Segment — die Einheit steht im Hilfetext, Vorlesetext je Segment über Plurals ("20 Sekunden"). Ersetzt freie Zahleneingabe; Altwerte außerhalb der Liste setzt `AppPreferences` beim Lesen per `snapToOption` auf die nächste Option (Gleichstand → größere), ohne Migration. Genutzt für Watchdog-Timeout (10/20/30/60/120 s) und Reconnect-Basisverzögerung (3/10/30 s) |
+| `SettingsGroupHeader(text)` | Gruppenüberschrift der Einstellungsseite: `SectionLabel` in `primary` mit Luft oben/unten und `heading()`-Semantik |
+| `SettingsLinkRow(title, summary, onClick)` | Zeile zu einer Unterseite: Titel + Einzeiler-Zusammenfassung + Chevron, ≥ 64 dp, ganze Zeile klickbar (`ui/settings/SettingsComponents.kt`) |
+| `SettingsSwitchRow(title, summary, checked, onCheckedChange)` | Ein/Aus-Einstellung als Ganz-Zeilen-Toggle (`Modifier.toggleable`, ≥ 64 dp), `Switch` nur als Zustandsanzeige |
 | `ConfirmDeleteDialog(title, message, confirmLabel, dismissLabel, onConfirm, onDismiss)` | Bestätigung vor „Alles löschen“ (`ui/components/`): M3-`AlertDialog` (bewusst keine Bottom Sheet), Löschen-Button in `colorScheme.error`, beide Buttons ≥ 56 dp |
 | `UndoSnackbarEffect(batchId, message, undoLabel, snackbarHostState, onUndo)` | „… gelöscht · Rückgängig“-Snackbar als reine ANSICHT von `UndoableDeletion.openBatchId`: ohne eigenen Timeout (`Indefinite`), verschwindet, wenn die Id null wird; braucht einen `SnackbarHost` im `Scaffold` |
 | `EmptyState(icon, text, modifier?)` | Leerer Zustand einer Liste: 48-dp-Icon + eine Textzeile, beides in `onSurfaceVariant`; füllt den gegebenen Platz |
@@ -450,8 +489,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 862 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 188 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 872 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 201 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

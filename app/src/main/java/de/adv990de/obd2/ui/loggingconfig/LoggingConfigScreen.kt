@@ -56,7 +56,7 @@ fun LoggingConfigScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.logging_config_back_desc)
+                            contentDescription = stringResource(R.string.nav_back_desc)
                         )
                     }
                 }

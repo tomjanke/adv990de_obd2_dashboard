@@ -57,7 +57,7 @@ fun GearSettingsScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.gear_settings_back_desc)
+                            contentDescription = stringResource(R.string.nav_back_desc)
                         )
                     }
                 }

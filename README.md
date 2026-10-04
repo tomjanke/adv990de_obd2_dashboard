@@ -121,7 +121,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (862 Tests, < 30 Sekunden)
+# JVM Unit Tests (872 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -130,8 +130,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 862 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 156 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Dashboard Config, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 872 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 169 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 21 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
@@ -156,12 +156,12 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── components/              # Wiederverwendbare Composables (LiveValueText/-Tile, Sparkline,
 │   │                            # BottomNav, AmbientStatusRow = Datum/Uhrzeit/Außentemperatur)
 │   ├── dashboard/               # Live-Werte
-│   ├── dashboardconfig/         # PID-Slot-Belegung
 │   ├── dtc/                     # Fehlercode-Reader
 │   ├── freezeframe/             # Snapshot-Daten
 │   ├── history/                 # Fahrt-Sessions
 │   ├── loggingconfig/           # Aufzeichnungs-Einstellungen
-│   ├── settings/                # Verbindung, Display, App-Logs, Getriebe-/Gangverhältnisse
+│   ├── settings/                # gruppierte Einstellungsseite (Verbindung · Dashboard & Anzeige · Aufzeichnung · Fahrzeug · Info),
+│   │                            # App-Logs, Getriebe-/Gangverhältnisse, Drehzahl-Blinkgrenze
 │   ├── vehicleinfo/             # Mode 09 (VIN etc.)
 │   ├── appinfo/                 # Über-Bildschirm
 │   ├── permission/              # Runtime-Permissions Gate
@@ -303,8 +303,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (862) |
-| `app/src/androidTest/` | Instrumented Tests (188, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (872) |
+| `app/src/androidTest/` | Instrumented Tests (201, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

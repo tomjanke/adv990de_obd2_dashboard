@@ -52,4 +52,21 @@ class DisplaySettingsViewModel @Inject constructor(
     fun setTheme(value: String) {
         viewModelScope.launch { appPreferences.setTheme(value) }
     }
+
+    // ── Drehzahl-Blinkgrenze — frueher eigene Seite "Dashboard konfigurieren", seit der
+    // Einstellungs-Umstrukturierung Teil der Gruppe "Dashboard & Anzeige" ───────────────────────
+
+    val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun setRpmBlinkThreshold(value: Int) {
+        viewModelScope.launch { appPreferences.setRpmBlinkThreshold(value) }
+    }
+
+    val rpmDynamicThreshold: StateFlow<Boolean> = appPreferences.rpmDynamicThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setRpmDynamicThreshold(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setRpmDynamicThreshold(enabled) }
+    }
 }

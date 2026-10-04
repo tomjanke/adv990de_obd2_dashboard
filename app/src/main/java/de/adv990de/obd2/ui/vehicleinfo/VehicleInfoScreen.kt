@@ -42,7 +42,7 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
                 title = { Text(stringResource(R.string.vehicle_info_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.dashboard_config_back_desc))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 }
             )
