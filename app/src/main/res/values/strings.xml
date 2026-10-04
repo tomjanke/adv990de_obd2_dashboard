@@ -66,6 +66,20 @@
     <string name="dtc_empty">No fault codes present.</string>
     <string name="dtc_badge_pending">Pending</string>
     <string name="dtc_freeze_frame_link">Show Freeze Frame</string>
+    <string name="dtc_tab_current">Current</string>
+    <string name="dtc_tab_history">History</string>
+    <string name="dtc_not_connected">Not connected</string>
+    <string name="dtc_badge_active">Active</string>
+    <string name="dtc_history_empty">No faults recorded yet</string>
+    <string name="dtc_history_dates">First seen %1$s · Last seen %2$s</string>
+    <string name="dtc_history_cd_delete">Delete entry</string>
+    <string name="dtc_history_cd_delete_all">Clear history</string>
+    <string name="dtc_history_delete_all_title">Clear the fault history?</string>
+    <string name="dtc_history_delete_all_message">All recorded fault codes will be deleted. Faults that are active right now will appear again at the next read. You can undo this in a moment.</string>
+    <plurals name="dtc_history_deleted">
+        <item quantity="one">%1$d entry deleted</item>
+        <item quantity="other">%1$d entries deleted</item>
+    </plurals>
 
     <!-- Freeze Frame screen -->
     <string name="freeze_frame_title">Freeze Frame</string>

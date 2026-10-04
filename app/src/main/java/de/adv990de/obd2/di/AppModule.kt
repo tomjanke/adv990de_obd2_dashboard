@@ -18,7 +18,9 @@ import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
+import de.adv990de.obd2.data.db.DtcHistoryDao
 import de.adv990de.obd2.data.db.MIGRATION_1_2
+import de.adv990de.obd2.data.db.MIGRATION_2_3
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +35,7 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .addCallback(object : RoomDatabase.Callback() {
                 // SQLite disables foreign key constraints by default. Enable them on every
                 // connection so that onDelete = CASCADE in SensorReadingEntity is enforced.
@@ -64,6 +66,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideAppLogDao(db: AppDatabase): AppLogDao = db.appLogDao()
+
+    @Provides @Singleton
+    fun provideDtcHistoryDao(db: AppDatabase): DtcHistoryDao = db.dtcHistoryDao()
 
     /** Never cancelled; a failing child does not take the others down (SupervisorJob). The work
      *  inside is suspend calls into Room, which switch threads themselves, so Default is enough. */

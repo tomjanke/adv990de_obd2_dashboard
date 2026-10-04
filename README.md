@@ -10,7 +10,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 
 - **Live-Dashboard** mit frei konfigurierbaren PID-Kacheln (Drehzahl, Geschwindigkeit, Kühlmitteltemperatur, Motorlast, Kraftstoffstand, etc.)
 - **Automatische PID-Discovery** — die App fragt das Steuergerät, welche PIDs überhaupt unterstützt werden, und filtert die Live-Abfrage entsprechend
-- **DTC-Lesen & Löschen** (Diagnostic Trouble Codes) mit menschenlesbaren Beschreibungen
+- **DTCs lesen** (Diagnostic Trouble Codes, nur lesend — die App schreibt nie ins Fahrzeug) mit menschenlesbaren Beschreibungen und **lokaler Fehlerhistorie** (erstmals/zuletzt gesehen, auch offline; einzeln oder komplett löschbar mit 10 s „Rückgängig“)
 - **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
 - **Fahrzeug-Info** (VIN, ECU-Name, Kalibrier-IDs via Mode 09)
 - **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
@@ -121,7 +121,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (895 Tests, < 30 Sekunden)
+# JVM Unit Tests (936 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -130,9 +130,9 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 895 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 181 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 29 (AppLogDao, SensorReadingDao, SessionDao, AppDatabase-Migration, SessionRepository) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 936 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 192 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 41 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
 
@@ -156,7 +156,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── components/              # Wiederverwendbare Composables (LiveValueText/-Tile, Sparkline,
 │   │                            # BottomNav, AmbientStatusRow = Datum/Uhrzeit/Außentemperatur)
 │   ├── dashboard/               # Live-Werte
-│   ├── dtc/                     # Fehlercode-Reader
+│   ├── dtc/                     # Fehlercodes: Aktuell | Historie (lokale Fehlerhistorie)
 │   ├── freezeframe/             # Snapshot-Daten
 │   ├── history/                 # Fahrtenverlauf (Papierkorb/Swipe mit Undo, Alle löschen, aktive Fahrt geschützt)
 │   ├── loggingconfig/           # Aufzeichnungs-Einstellungen
@@ -303,8 +303,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (895) |
-| `app/src/androidTest/` | Instrumented Tests (221, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (936) |
+| `app/src/androidTest/` | Instrumented Tests (244, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

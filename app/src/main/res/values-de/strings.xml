@@ -66,6 +66,20 @@
     <string name="dtc_empty">Keine Fehlercodes vorhanden.</string>
     <string name="dtc_badge_pending">Ausstehend</string>
     <string name="dtc_freeze_frame_link">Freeze Frame anzeigen</string>
+    <string name="dtc_tab_current">Aktuell</string>
+    <string name="dtc_tab_history">Historie</string>
+    <string name="dtc_not_connected">Nicht verbunden</string>
+    <string name="dtc_badge_active">Aktiv</string>
+    <string name="dtc_history_empty">Noch keine Fehler aufgezeichnet</string>
+    <string name="dtc_history_dates">Erstmals %1$s · Zuletzt %2$s</string>
+    <string name="dtc_history_cd_delete">Eintrag löschen</string>
+    <string name="dtc_history_cd_delete_all">Historie löschen</string>
+    <string name="dtc_history_delete_all_title">Fehlerhistorie löschen?</string>
+    <string name="dtc_history_delete_all_message">Alle aufgezeichneten Fehlercodes werden gelöscht. Aktuell aktive Fehler erscheinen beim nächsten Auslesen erneut. Du kannst das gleich noch rückgängig machen.</string>
+    <plurals name="dtc_history_deleted">
+        <item quantity="one">%1$d Eintrag gelöscht</item>
+        <item quantity="other">%1$d Einträge gelöscht</item>
+    </plurals>
 
     <!-- Freeze Frame screen -->
     <string name="freeze_frame_title">Freeze Frame</string>

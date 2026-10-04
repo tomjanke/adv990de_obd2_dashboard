@@ -14,6 +14,7 @@ import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
+import de.adv990de.obd2.data.db.DtcHistoryDao
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,12 @@ object TestAppModule {
     @Provides
     @Singleton
     fun provideAppLogDao(db: AppDatabase): AppLogDao = db.appLogDao()
+
+    /** Same provider as [AppModule.provideDtcHistoryDao] — this module replaces AppModule, so
+     *  everything that injects the DAO (DtcHistoryRepository) needs it here too. */
+    @Provides
+    @Singleton
+    fun provideDtcHistoryDao(db: AppDatabase): DtcHistoryDao = db.dtcHistoryDao()
 
     /** Same provider as [AppModule.provideApplicationScope] — this module replaces AppModule, so
      *  everything that injects the app-wide scope (e.g. AppLogsViewModel) needs it here too. */

@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.dashboard
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -71,6 +72,7 @@ class ReadingsPipeline @Inject constructor(
     private val appLogRepository: AppLogRepository,
     private val crashReporter: CrashReporter,
     private val gpsSpeedSource: GpsSpeedSource,
+    private val dtcHistoryRepository: DtcHistoryRepository,
 ) {
 
     /**
@@ -219,6 +221,14 @@ class ReadingsPipeline @Inject constructor(
         }
         if (dtcList?.isNotEmpty() == true) {
             appLogRepository.log(LogLevel.WARN, "Active DTCs on connect: ${dtcList.joinToString()}")
+        }
+        // Lokale Fehlerhistorie: jede Fahrt fuellt sie passiv. Nur nach einem erfolgreichen Auslesen
+        // (null = Lesefehler: nichts aufzeichnen). record() ist selbst "best effort" — die Absicherung
+        // hier deckt das Unerwartete ab, denn eine Ausnahme an dieser Stelle wuerde die ganze Sitzung kosten.
+        if (dtcList != null) {
+            try { dtcHistoryRepository.record(dtcList) } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
         }
         val hasDtcForRecording: Boolean = dtcList?.isNotEmpty() ?: true
 

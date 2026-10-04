@@ -1669,7 +1669,7 @@ class DashboardViewModelTest {
             obdRepo,
             prefs,
             mockk<ConnectionCoordinator>(relaxed = true),
-            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
+            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
             SavedStateHandle(),
         )
         isConnectedFlow.value = true
@@ -1862,7 +1862,7 @@ class DashboardViewModelTest {
             obdRepo,
             prefs,
             mockk<ConnectionCoordinator>(relaxed = true),
-            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
+            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
             SavedStateHandle(),
         )
         isConnectedFlow.value = true
@@ -2367,7 +2367,7 @@ class DashboardViewModelTest {
         obdRepo,
         prefs,
         ConnectionCoordinator(obdRepo, prefs, logRepo, btAdapter, appContext),
-        ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource),
+        ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource, mockk(relaxed = true)),
         savedStateHandle,
     ).also { it.nowMillis = nowMillis }
 }

@@ -3,10 +3,12 @@ package de.adv990de.obd2.ui.dashboard
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
@@ -98,7 +100,8 @@ class ReadingsPipelineTest {
         gps: GpsSpeedSource = makeGps(),
         crashReporter: CrashReporter = mockk(relaxed = true),
         logRepo: AppLogRepository = mockk(relaxed = true),
-    ) = ReadingsPipeline(repo, sessionRepo, prefs, logRepo, crashReporter, gps)
+        dtcHistory: DtcHistoryRepository = mockk(relaxed = true),
+    ) = ReadingsPipeline(repo, sessionRepo, prefs, logRepo, crashReporter, gps, dtcHistory)
 
     // --- Test 1 ---
 
@@ -415,4 +418,55 @@ class ReadingsPipelineTest {
 
             assertEquals(listOf(SessionEvent.ConnectionLost), events)
         }
+
+    // --- Test 16: the local fault history ---
+
+    @Test
+    fun `the DTCs read at connect are recorded in the fault history`() = runTest {
+        val dtcs = listOf(DtcEntry("P0301", "Cylinder 1 Misfire Detected", false), DtcEntry("P0420", "Catalyst", true))
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } returns dtcs
+        val history = mockk<DtcHistoryRepository>(relaxed = true)
+
+        makePipeline(repo, dtcHistory = history).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { history.record(dtcs, any()) }
+    }
+
+    @Test
+    fun `an empty reading is passed on too - the repository ignores it`() = runTest {
+        val history = mockk<DtcHistoryRepository>(relaxed = true)
+
+        makePipeline(makeRepo(connected = true), dtcHistory = history).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { history.record(emptyList(), any()) }
+    }
+
+    @Test
+    fun `a failed DTC read records nothing`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } throws IllegalStateException("ELM327 timeout")
+        val history = mockk<DtcHistoryRepository>(relaxed = true)
+
+        makePipeline(repo, dtcHistory = history).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 0) { history.record(any(), any()) }
+    }
+
+    @Test
+    fun `a throwing fault history does not stop the session`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", "x", false))
+        val history = mockk<DtcHistoryRepository> {
+            coEvery { record(any(), any()) } throws IllegalStateException("history exploded")
+        }
+        val sessionRepo = makeSessionRepo()
+
+        val events = makePipeline(repo, sessionRepo = sessionRepo, dtcHistory = history)
+            .events(backgroundScope).take(1).toList()
+
+        // The history is a side record: whatever goes wrong there must not cost the user the live session.
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+        coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
+    }
 }

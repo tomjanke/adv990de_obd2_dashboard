@@ -388,7 +388,7 @@ PIDs, Aufgezeichnete PIDs →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wa
 
 ### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0; Verlauf ergänzt mit Phase 3)
 
-Gilt für jede Liste, die Daten löschen lässt (heute App-Logs und Verlauf; die Fehlerhistorie folgt). **Gelöscht wird
+Gilt für jede Liste, die Daten löschen lässt (App-Logs, Verlauf, Fehlerhistorie). **Gelöscht wird
 ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeicher-Löschen, kein Modus 04).
 - **Papierkorb in der Top-Bar** (56 dp, ausgegraut ohne Einträge) → `ConfirmDeleteDialog` (Titel · Folge · Abbrechen/Löschen) →
   die Einträge verschwinden **sofort** → `UndoSnackbarEffect` mit „Rückgängig“ für 10 s (`UNDO_WINDOW_MS`, so lang wie
@@ -400,9 +400,9 @@ ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeich
 - **Löschen per „bis einschließlich Id“** (`AppLogDao.deleteUpTo(maxId)`), nicht „alles“: Zeilen, die im Fenster neu entstehen,
   überleben. Der Commit läuft im `@ApplicationScope`, damit er das ViewModel überlebt.
 - **Einzelne Zeile (Verlauf): Papierkorb ODER Swipe, ohne Dialog, nur Undo.** Nur „Alle löschen“ (Top-Bar) fragt vorher. Das Swipe
-  (`SwipeToDeleteRow`, `ui/components/`) ist **nur zusätzlich** zum Button (Prinzip 4): eine Richtung (zum Zeilenende), erst ab
-  50 % der Zeilenbreite, Hintergrund `errorContainer` mit Papierkorb nur während des Ziehens. `onDelete` feuert genau **einmal**
-  über `LaunchedEffect(state.currentValue)` — **nie** aus `confirmValueChange` (Material3 fragt es pro Geste mehrfach ab, gemessen 4×;
+  (`SwipeToDeleteRow`, `ui/components/`) ist **nur zusätzlich** zum Button (Prinzip 4): eine Richtung (zum Zeilenende), ab
+  50 % der Zeilenbreite — oder mit dem Material3-Schwung beim Loslassen (≥ 125 dp/s, nicht konfigurierbar), Hintergrund `errorContainer` mit Papierkorb nur während des Ziehens. `onDelete` feuert genau **einmal**
+  über `SwipeToDismissBox(onDismiss = …)` — **nie** aus `confirmValueChange` (in Material3 1.4.0 deprecated; fragt pro Geste mehrfach ab, gemessen 4×;
   jedes weitere `schedule()` committet den vorigen Löschvorgang sofort und hebelt das Undo-Fenster aus).
 - **Verlauf: die laufende Aufzeichnung ist unlöschbar.** `SessionRepository.activeSessionId` (gesetzt von `startSession`, geleert von
   `endSession`/`discardSession`) — `endTime == null` markiert sie nicht verlässlich. Die Zeile zeigt ein Badge „Aufzeichnung läuft“
@@ -414,6 +414,35 @@ ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeich
   `finally`, und eine Fahrt endet normalerweise DURCH Abbruch (Trennen, Slot-Wechsel, App-Ende); `withContext` wirft in einer bereits
   abgebrochenen Coroutine sofort — vor v1.22.0 bekamen solche Fahrten nie ein `endTime`, und „Nur Fahrten mit DTCs speichern“ verwarf
   sie nicht. Die aktive Id wird vor dem Datenbankzugriff geleert, damit ein Fehler dort keine beendete Fahrt geschützt zurücklässt.
+
+### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
+
+Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
+**Rein lokal; das Fahrzeug bleibt rein lesend:** Quelle sind die bestehenden Modus-03/07-Lesezugriffe, „Historie löschen“ löscht nur die
+lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
+- **Datenmodell:** Room-Tabelle `dtc_history` (Datenbank **v3**), eine Zeile je Code: `code` (PK), `firstSeen` (nie überschrieben), `lastSeen`
+  (nur vorwärts), `lastWasPending`. Die Beschreibung wird zur Anzeige per `dtcDescription(code)` (öffentlich, rein, aus `DtcParser` extrahiert)
+  aufgelöst, nicht gespeichert. `MIGRATION_2_3` ist von Hand geschrieben, `app/schemas/…/3.json` liegt im Repo, `AppDatabaseMigrationTest` prüft
+  2→3 und 1→3 gegen das exportierte Schema und dass Altdaten (Fahrten, Messwerte, Logs) erhalten bleiben. Es ist **kein destruktiver Fallback**
+  konfiguriert: ein falsches SQL würde jeden Update-Nutzer beim ersten Öffnen crashen. Ein Rückweg auf ältere APKs ist voraussichtlich nur mit
+  gelöschten App-Daten möglich (kein Downgrade-Pfad, nicht ausprobiert).
+- **Kein UPSERT:** SQLite auf API 26 ist 3.18, `ON CONFLICT DO UPDATE` gibt es erst ab 3.24 → `DtcHistoryDao.recordSeen` = `INSERT OR IGNORE` +
+  `UPDATE … WHERE lastSeen < :now` in einer `@Transaction` (deshalb eine abstrakte DAO-Klasse). Ein Code, der in einem Auslesen als bestätigt UND als
+  ausstehend vorkommt, zählt als bestätigt.
+- **Aufzeichnung ist „best effort“:** `DtcHistoryRepository.record()` fängt Datenbankfehler (App-Log-WARN) und wirft sie nie (nur
+  `CancellationException`); Obergrenze 200 Codes (das älteste `lastSeen` fliegt raus — schützt vor Phantomcodes eines defekten Adapters). Zwei
+  Stellen, beide nur nach erfolgreichem Lesen: `ReadingsPipeline.runSession` (passiv bei jedem Verbinden, zusätzlich per try/catch abgesichert, weil
+  eine Ausnahme dort die ganze Sitzung kosten würde) und `DtcViewModel.refresh()` (Seite öffnen, Pull-to-Refresh). Bewusst **nicht** in
+  `ObdRepository.readDtcs()`: Persistenz gehört nicht in die Protokollschicht.
+- **DTC-Seite:** Umschalter „Aktuell | Historie“ (Segmente ≥ 56 dp). „Aktuell“ = Live-Liste; **ohne Verbindung wird nichts gelesen** und die Seite sagt
+  „Nicht verbunden“ — `readDtcs()` liefert dann `emptyList()`, was als „Keine Fehlercodes vorhanden“ ein falscher Entwarnungs-Hinweis wäre. „Historie“ =
+  Code · Beschreibung · „Erstmals … · Zuletzt …“; Badge „Aktiv“ nur, wenn der Code im letzten erfolgreichen Auslesen stand UND die Verbindung steht
+  (nach Abbruch oder fehlgeschlagenem Lesen nie), „Ausstehend“, wenn er zuletzt nur als pending gesehen wurde. Löschen nach dem Lösch-Vertrag
+  (`UndoableDeletion<String>`, Schlüssel = Code): Papierkorb oder Swipe je Zeile ohne Dialog; „Historie löschen“ (Top-Bar, nur in der Historie-Ansicht)
+  mit Dialog. Ein Code, der im Undo-Fenster erneut gelesen wird, wird beim Commit mitgelöscht und kommt beim nächsten Auslesen zurück — gewollt.
+- **Hilt/Tests:** `DtcHistoryDao` hat einen Provider in `AppModule` **und** in `TestAppModule` (dieses ersetzt jenes in den androidTests; fehlt er dort,
+  bricht der Hilt-Graph aller UI-Tests).
+- **Nicht in v1:** Zähler/Episoden, Fahrzeugtrennung (VIN), Export, Verknüpfung mit Fahrten.
 
 ### Animation-Disziplin
 
@@ -503,8 +532,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 895 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 221 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 936 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 244 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
