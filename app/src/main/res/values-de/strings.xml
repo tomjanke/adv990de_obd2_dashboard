@@ -110,9 +110,14 @@
     <string name="history_export_error_prefix">Export fehlgeschlagen: %1$s</string>
     <string name="history_cd_export">CSV exportieren</string>
     <string name="history_cd_delete">Fahrt löschen</string>
-    <string name="history_delete_title">Fahrt löschen</string>
-    <string name="history_delete_confirm">Fahrt vom %1$s löschen? Alle Daten gehen verloren.</string>
-    <string name="history_delete_action">Löschen</string>
+    <string name="history_cd_delete_all">Alle Fahrten löschen</string>
+    <string name="history_delete_all_title">Alle Fahrten löschen?</string>
+    <string name="history_delete_all_message">Alle gespeicherten Fahrten werden gelöscht. Eine laufende Aufzeichnung bleibt erhalten. Du kannst das gleich noch rückgängig machen.</string>
+    <plurals name="history_deleted">
+        <item quantity="one">%1$d Fahrt gelöscht</item>
+        <item quantity="other">%1$d Fahrten gelöscht</item>
+    </plurals>
+    <string name="history_recording_active">Aufzeichnung läuft</string>
     <string name="cancel">Abbrechen</string>
     <string name="delete">Löschen</string>
     <string name="undo">Rückgängig</string>

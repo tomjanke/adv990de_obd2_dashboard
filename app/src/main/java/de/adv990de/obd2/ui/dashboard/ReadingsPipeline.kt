@@ -255,7 +255,7 @@ class ReadingsPipeline @Inject constructor(
             // Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern.
             if (sessionId != -1L) {
                 if (logOnlyDtc && !hasDtcForRecording) {
-                    try { sessionRepository.deleteSession(sessionId) } catch (_: Exception) {}
+                    try { sessionRepository.discardSession(sessionId) } catch (_: Exception) {}
                 } else {
                     try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
                 }

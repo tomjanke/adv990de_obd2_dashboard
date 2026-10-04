@@ -110,9 +110,14 @@
     <string name="history_export_error_prefix">Export failed: %1$s</string>
     <string name="history_cd_export">Export CSV</string>
     <string name="history_cd_delete">Delete session</string>
-    <string name="history_delete_title">Delete Session</string>
-    <string name="history_delete_confirm">Delete the session from %1$s? All recorded data will be lost.</string>
-    <string name="history_delete_action">Delete</string>
+    <string name="history_cd_delete_all">Delete all drives</string>
+    <string name="history_delete_all_title">Delete all drives?</string>
+    <string name="history_delete_all_message">All saved drives will be deleted. A recording in progress is kept. You can undo this in a moment.</string>
+    <plurals name="history_deleted">
+        <item quantity="one">%1$d drive deleted</item>
+        <item quantity="other">%1$d drives deleted</item>
+    </plurals>
+    <string name="history_recording_active">Recording</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
     <string name="undo">Undo</string>

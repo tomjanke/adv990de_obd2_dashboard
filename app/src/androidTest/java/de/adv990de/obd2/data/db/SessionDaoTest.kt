@@ -89,6 +89,48 @@ class SessionDaoTest {
     }
 
     @Test
+    fun observeIds_emitsEveryIdOldestFirstAndFollowsChanges() = runBlocking {
+        assertEquals(emptyList<Long>(), sessionDao.observeIds().first())
+
+        val first = sessionDao.insert(SessionEntity(startTime = 3000L))
+        val second = sessionDao.insert(SessionEntity(startTime = 1000L))
+
+        assertEquals(listOf(first, second), sessionDao.observeIds().first())
+
+        sessionDao.deleteByIds(listOf(first))
+        assertEquals(listOf(second), sessionDao.observeIds().first())
+    }
+
+    @Test
+    fun deleteByIds_removesOnlyTheGivenSessionsAndCascadesTheirReadings() = runBlocking {
+        val a = sessionDao.insert(SessionEntity(startTime = 1000L))
+        val b = sessionDao.insert(SessionEntity(startTime = 2000L))
+        val c = sessionDao.insert(SessionEntity(startTime = 3000L))
+        listOf(a, b, c).forEach { sid ->
+            readingDao.insert(SensorReadingEntity(sessionId = sid, timestamp = 1L, pidId = "010C", value = 0f))
+        }
+
+        sessionDao.deleteByIds(listOf(a, c))
+
+        assertEquals(listOf(b), sessionDao.observeIds().first())
+        fun readings(sid: Long) = readingDao.getBySessionCursor(
+            SimpleSQLiteQuery("SELECT * FROM sensor_readings WHERE sessionId = ?", arrayOf(sid))
+        ).use { it.count }
+        assertEquals("cascade: readings of a deleted trip are gone", 0, readings(a))
+        assertEquals("readings of a kept trip stay", 1, readings(b))
+        assertEquals(0, readings(c))
+    }
+
+    @Test
+    fun deleteByIds_withAnUnknownIdDoesNothing() = runBlocking {
+        val a = sessionDao.insert(SessionEntity(startTime = 1000L))
+
+        sessionDao.deleteByIds(listOf(9999L))
+
+        assertEquals(listOf(a), sessionDao.observeIds().first())
+    }
+
+    @Test
     fun pagingSource_notEmptyAfterInsert() = runBlocking {
         sessionDao.insert(SessionEntity(startTime = 1000L))
         val source = sessionDao.pagingSource()

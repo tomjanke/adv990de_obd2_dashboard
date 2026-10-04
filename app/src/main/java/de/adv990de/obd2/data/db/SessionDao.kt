@@ -15,4 +15,10 @@ interface SessionDao {
     @Delete suspend fun delete(session: SessionEntity)
     @Query("DELETE FROM sessions WHERE startTime < :cutoffMs")
     suspend fun deleteOlderThan(cutoffMs: Long)
+
+    /** Every trip id, oldest first — the history decides from this which trips "delete all" would touch. */
+    @Query("SELECT id FROM sessions ORDER BY id") fun observeIds(): Flow<List<Long>>
+
+    /** Callers pass at most a few dozen ids (the repository chunks): SQLite allows only 999 bound variables on API 26. */
+    @Query("DELETE FROM sessions WHERE id IN (:ids)") suspend fun deleteByIds(ids: List<Long>)
 }

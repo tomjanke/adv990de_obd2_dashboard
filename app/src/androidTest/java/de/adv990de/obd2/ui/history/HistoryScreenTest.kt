@@ -2,12 +2,17 @@ package de.adv990de.obd2.ui.history
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -44,47 +49,31 @@ import java.util.Locale
  * [HistoryViewModelTest] and are not re-tested here — only the real UI-to-VM wiring is):
  *
  * - `LaunchedEffect(exportErrorMessage)`: shows a Snackbar with the formatted error message.
- * - The delete-confirmation `AlertDialog`: `requestDelete` (delete icon tap) shows it with the
- *   date-formatted confirmation text; `cancelDelete` dismisses it without deleting;
- *   `confirmDelete` deletes the session, dismisses the dialog, and the list ends up empty.
- * - [SessionRow]'s own rendering: date formatting, and `vehicleVin` vs. the "unknown VIN"
- *   fallback string.
- * - The empty-list branch (`history_empty` text + icon column), both standalone (zero sessions)
- *   and as the end state of a successful delete.
+ * - [SessionRow]'s own rendering: date formatting, and `vehicleVin` vs. the "unknown VIN" fallback.
+ * - The shared local-delete contract: the row trash button and the swipe delete a trip WITHOUT a
+ *   dialog (the trip vanishes at once, a "Rückgängig" snackbar appears, nothing is deleted yet, undo
+ *   brings it back); the top-bar trash asks first, cancel keeps everything, confirm hides every
+ *   finished trip. The 10 s undo window itself is a ViewModel matter (virtual time in
+ *   [HistoryViewModelTest]); here only "not deleted yet" and "undo restores" are asserted.
+ * - The trip that is being recorded: badge, no trash button, no swipe, spared by "delete all".
+ * - The empty-list branch (`history_empty`), and the disabled top-bar trash when nothing can be deleted.
  *
  * Strategy:
  * - [TestAppModule] (TestInstallIn) still provides BluetoothAdapter/BluetoothDeviceScanner mocks,
- *   the real DataStore and its own in-memory AppDatabase/AppLogDao for the rest of the Hilt graph.
- * - [SessionRepository] is a concrete `@Inject constructor` class (not an interface), so instead of
- *   a bare relaxed mock (which would make `pagingSource()` return nothing and leave the list with
- *   no export button to click), a *second*, test-local in-memory [AppDatabase] is wired into a real
- *   [SessionRepository] instance, then wrapped with [spyk] via `@BindValue` — real paging/insert
- *   behaviour stays intact, and only `exportToCsv` is stubbed per test.
+ *   the real DataStore, the app-wide scope and its own in-memory AppDatabase/AppLogDao for the rest
+ *   of the Hilt graph.
+ * - [SessionRepository] is a concrete `@Inject constructor` class (not an interface), so a
+ *   *second*, test-local in-memory [AppDatabase] is wired into a real [SessionRepository], wrapped
+ *   with [spyk] via `@BindValue` — real paging/insert/active-trip behaviour stays intact, and only
+ *   `exportToCsv` is stubbed per test (`startSession` marks a trip as the one being recorded).
  *
  * Two documented items are intentionally NOT exercised here:
  *
- * - [ActivityNotFoundException] path of `LaunchedEffect(shareUri)`: `HistoryScreen` always wraps
- *   the share intent in `Intent.createChooser(...)`, and on a stock device/emulator image the
- *   system resolver/chooser activity that action always resolves to is present regardless of
- *   which apps can open "text/csv" — there is no way to make `context.startActivity(chooser)`
- *   throw `ActivityNotFoundException` from instrumented test code without swapping out the
- *   `Context`/`PackageManager` the composable itself resolves via `LocalContext.current`, which
- *   would stop exercising the real code path.
- * - The happy path of that same `LaunchedEffect` (a chooser is actually launched, then
- *   `consumeShareUri()` runs): this project has neither `espresso-intents` nor UiAutomator as a
- *   dependency, so there is no way to assert a chooser `Intent` was started without letting
- *   `context.startActivity(...)` really fire — which, on this task's real, actively-used Pixel 8
- *   Pro (not an emulator), would pop the system share sheet in front of the instrumentation app
- *   and risk leaving it open/blocking subsequent tests if a later assertion fails. Skipped per the
- *   task's own named example of an impractical case; the "no chooser available" branch of the same
- *   effect stays covered by the Snackbar assertion above via the export-error path's sibling logic.
- * - The paging-append `LinearProgressIndicator` (`sessions.loadState.append is LoadState.Loading`):
- *   triggering a second page load needs more than `PagingConfig.pageSize` (20) seeded rows, and
- *   even then the real in-memory Room `PagingSource`'s second query resolves synchronously — the
- *   `LoadState.Loading` frame is transient enough that Compose's idle-based `waitUntil` cannot
- *   reliably observe it without swapping in a bespoke delegating/blocking fake `PagingSource` just
- *   to hold the state open. That scaffolding, solely to catch one indicator with no visible text or
- *   content description, is exactly the kind of forced, flaky-prone test the task asked to avoid.
+ * - [ActivityNotFoundException] path and the happy path of `LaunchedEffect(shareUri)`: the share
+ *   chooser would pop up in front of the instrumentation app on a real device (no
+ *   espresso-intents / UiAutomator in this project).
+ * - The paging-append `LinearProgressIndicator`: its `LoadState.Loading` frame is too transient to
+ *   observe reliably without a bespoke blocking `PagingSource`.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -132,12 +121,11 @@ class HistoryScreenTest {
         // A row (and its export IconButton) only renders once at least one session exists.
         // startTime must be "now", not a fixed past timestamp: HistoryViewModel's init block
         // unconditionally calls sessionRepository.deleteOldSessions() (90-day cutoff), which would
-        // otherwise delete this row out from under the test before Compose ever renders it — the
-        // original fixed 2023 timestamp was already >90 days old and failed for exactly that reason.
+        // otherwise delete this row out from under the test before Compose ever renders it.
         insertedStartTime = System.currentTimeMillis()
         runBlocking {
             insertedSessionId = testDb.sessionDao()
-                .insert(SessionEntity(startTime = insertedStartTime, vehicleVin = "TESTVIN123"))
+                .insert(SessionEntity(startTime = insertedStartTime, endTime = insertedStartTime + 60_000L, vehicleVin = "TESTVIN123"))
         }
     }
 
@@ -154,6 +142,26 @@ class HistoryScreenTest {
         composeRule.waitForIdle()
     }
 
+    private fun string(id: Int) = composeRule.activity.getString(id)
+
+    private fun waitForText(text: String) = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    private fun waitForTextToDisappear(text: String) = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+    }
+
+    private fun waitForDescription(description: String) = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    /** "1 Fahrt gelöscht" / "n Fahrten gelöscht" — the snackbar text of the undoable batch. */
+    private fun deletedMessage(count: Int) =
+        composeRule.activity.resources.getQuantityString(R.plurals.history_deleted, count, count)
+
+    // ── export and rendering (unchanged behaviour) ────────────────────────────
+
     @Test
     fun historyScreen_showsExportErrorSnackbar_whenExportFails() {
         coEvery { sessionRepository.exportToCsv(any()) } throws RuntimeException("boom")
@@ -162,29 +170,19 @@ class HistoryScreenTest {
 
         // Paging3 loads the inserted session asynchronously; wait for the row (and its export
         // button) to actually appear before clicking, rather than relying on waitForIdle() alone.
-        val exportDescription = composeRule.activity.getString(R.string.history_cd_export)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithContentDescription(exportDescription)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule
-            .onNodeWithContentDescription(exportDescription)
-            .performClick()
+        val exportDescription = string(R.string.history_cd_export)
+        waitForDescription(exportDescription)
+        composeRule.onNodeWithContentDescription(exportDescription).performClick()
 
         val expectedMessage = composeRule.activity.getString(R.string.history_export_error_prefix, "boom")
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(expectedMessage).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule
-            .onNodeWithText(expectedMessage)
-            .assertIsDisplayed()
+        waitForText(expectedMessage)
+        composeRule.onNodeWithText(expectedMessage).assertIsDisplayed()
     }
 
     @Test
     fun sessionRow_showsFormattedDateAndVin_orUnknownVinFallback_whenVinMissing() {
         // Distinct from insertedStartTime by 5 minutes so the two rows never collide on the same
-        // "dd.MM.yyyy HH:mm" bucket (the format has no seconds), without depending on real-time
-        // timing between the two inserts.
+        // "dd.MM.yyyy HH:mm" bucket (the format has no seconds).
         val secondStartTime = insertedStartTime - 5 * 60_000L
         runBlocking {
             testDb.sessionDao().insert(SessionEntity(startTime = secondStartTime, vehicleVin = null))
@@ -192,10 +190,9 @@ class HistoryScreenTest {
 
         launchHistoryScreen()
 
-        val exportDescription = composeRule.activity.getString(R.string.history_cd_export)
+        val exportDescription = string(R.string.history_cd_export)
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithContentDescription(exportDescription)
-                .fetchSemanticsNodes().size >= 2
+            composeRule.onAllNodesWithContentDescription(exportDescription).fetchSemanticsNodes().size >= 2
         }
 
         // Row with a VIN.
@@ -204,94 +201,167 @@ class HistoryScreenTest {
 
         // Row without a VIN falls back to the "unknown VIN" string.
         composeRule.onNodeWithText(dateFormat.format(Date(secondStartTime))).assertIsDisplayed()
-        composeRule
-            .onNodeWithText(composeRule.activity.getString(R.string.history_vin_unknown))
-            .assertIsDisplayed()
-    }
-
-    @Test
-    fun historyScreen_deleteDialog_showsFormattedDate_andCancelDismissesWithoutDeleting() {
-        launchHistoryScreen()
-
-        val deleteDescription = composeRule.activity.getString(R.string.history_cd_delete)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithContentDescription(deleteDescription)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithContentDescription(deleteDescription).performClick()
-
-        val expectedTitle = composeRule.activity.getString(R.string.history_delete_title)
-        val expectedConfirmText = composeRule.activity.getString(
-            R.string.history_delete_confirm,
-            dateFormat.format(Date(insertedStartTime))
-        )
-        composeRule.onNodeWithText(expectedTitle).assertIsDisplayed()
-        composeRule.onNodeWithText(expectedConfirmText).assertIsDisplayed()
-
-        composeRule
-            .onNodeWithText(composeRule.activity.getString(R.string.cancel))
-            .performClick()
-
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(expectedTitle).fetchSemanticsNodes().isEmpty()
-        }
-        // Dialog gone, row still present, VM never asked to delete anything.
-        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
-        coVerify(exactly = 0) { sessionRepository.deleteSession(any()) }
-    }
-
-    @Test
-    fun historyScreen_deleteDialog_confirmDeletesSessionAndEndsInEmptyState() {
-        launchHistoryScreen()
-
-        val deleteDescription = composeRule.activity.getString(R.string.history_cd_delete)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithContentDescription(deleteDescription)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithContentDescription(deleteDescription).performClick()
-
-        val expectedTitle = composeRule.activity.getString(R.string.history_delete_title)
-        composeRule.onNodeWithText(expectedTitle).assertIsDisplayed()
-
-        composeRule
-            .onNodeWithText(composeRule.activity.getString(R.string.history_delete_action))
-            .performClick()
-
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(expectedTitle).fetchSemanticsNodes().isEmpty()
-        }
-
-        // Wait for the actual deletion's effect (Room's PagingSource invalidates on table change,
-        // re-querying down to zero rows) before verifying the call — confirmDelete() clears
-        // deleteConfirmation synchronously but launches the repository call in a coroutine, so
-        // asserting coVerify right after the dialog closes would race that coroutine.
-        val emptyText = composeRule.activity.getString(R.string.history_empty)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(emptyText).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithText(emptyText).assertIsDisplayed()
-        coVerify(exactly = 1) { sessionRepository.deleteSession(insertedSessionId) }
+        composeRule.onNodeWithText(string(R.string.history_vin_unknown)).assertIsDisplayed()
     }
 
     @Test
     fun historyScreen_showsEmptyState_whenNoSessionsExist() {
-        // Room's generated @Delete binds only the primary key column ("DELETE FROM sessions WHERE
-        // id = ?"), so this removes exactly the row setup() seeded, leaving the table empty without
-        // needing a dedicated DAO method just for this test.
         runBlocking {
             testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
         }
 
         launchHistoryScreen()
 
-        val emptyText = composeRule.activity.getString(R.string.history_empty)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(emptyText).fetchSemanticsNodes().isNotEmpty()
-        }
+        val emptyText = string(R.string.history_empty)
+        waitForText(emptyText)
         composeRule.onNodeWithText(emptyText).assertIsDisplayed()
         // No rows means no export/delete buttons either.
-        composeRule.onAllNodesWithContentDescription(composeRule.activity.getString(R.string.history_cd_export))
-            .assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(string(R.string.history_cd_export)).assertCountEquals(0)
+    }
+
+    // ── one trip: trash button or swipe, no dialog, undo only ─────────────────
+
+    @Test
+    fun rowTrash_hidesTheTripAtOnce_andOffersUndo_withoutAskingFirst() {
+        launchHistoryScreen()
+        waitForText("TESTVIN123")
+
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete)).performClick()
+
+        waitForTextToDisappear("TESTVIN123")
+        waitForText(deletedMessage(1))
+        composeRule.onNodeWithText(string(R.string.undo)).assertIsDisplayed()
+        // No dialog for a single trip, and nothing is deleted before the undo window ends.
+        composeRule.onAllNodesWithText(string(R.string.history_delete_all_title)).assertCountEquals(0)
+        coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
+    }
+
+    @Test
+    fun undo_bringsTheTripBack_andNothingIsDeleted() {
+        launchHistoryScreen()
+        waitForText("TESTVIN123")
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete)).performClick()
+        waitForText(deletedMessage(1))
+
+        composeRule.onNodeWithText(string(R.string.undo)).performClick()
+
+        waitForText("TESTVIN123")
+        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
+        composeRule.onAllNodesWithText(deletedMessage(1)).assertCountEquals(0)
+        coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
+    }
+
+    @Test
+    fun swipeLeft_hidesTheTrip_andOffersUndo_likeTheTrashButton() {
+        launchHistoryScreen()
+        waitForText("TESTVIN123")
+
+        composeRule.onNodeWithTag(historyRowTestTag(insertedSessionId)).performTouchInput { swipeLeft() }
+
+        waitForTextToDisappear("TESTVIN123")
+        waitForText(deletedMessage(1))
+        coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
+    }
+
+    // ── all trips: top-bar trash with a dialog ────────────────────────────────
+
+    @Test
+    fun topBarTrash_opensTheDialog_andCancelKeepsEverything() {
+        launchHistoryScreen()
+        waitForText("TESTVIN123")
+
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
+
+        composeRule.onNodeWithText(string(R.string.history_delete_all_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_delete_all_message)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.cancel)).performClick()
+
+        waitForTextToDisappear(string(R.string.history_delete_all_title))
+        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
+        coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
+    }
+
+    @Test
+    fun topBarTrash_confirmHidesEveryFinishedTrip_andOffersUndo() {
+        runBlocking {
+            testDb.sessionDao().insert(SessionEntity(startTime = insertedStartTime - 5 * 60_000L, endTime = insertedStartTime, vehicleVin = "SECONDVIN"))
+        }
+        launchHistoryScreen()
+        waitForText("SECONDVIN")
+
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
+        composeRule.onNodeWithText(string(R.string.delete)).performClick()
+
+        waitForTextToDisappear("TESTVIN123")
+        waitForTextToDisappear("SECONDVIN")
+        waitForText(deletedMessage(2))
+        // Everything is hidden: the empty state shows, the top-bar trash is disabled.
+        composeRule.onNodeWithText(string(R.string.history_empty)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsNotEnabled()
+        coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
+
+        composeRule.onNodeWithText(string(R.string.undo)).performClick()
+        waitForText("TESTVIN123")
+        waitForText("SECONDVIN")
+    }
+
+    @Test
+    fun topBarTrash_isDisabled_whenThereIsNothingToDelete() {
+        runBlocking { testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0)) }
+
+        launchHistoryScreen()
+        waitForText(string(R.string.history_empty))
+
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun topBarTrash_isEnabled_whenAFinishedTripExists() {
+        launchHistoryScreen()
+        waitForText("TESTVIN123")
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsEnabled()
+            }.isSuccess
+        }
+    }
+
+    // ── the trip that is being recorded ───────────────────────────────────────
+
+    @Test
+    fun theTripThatIsBeingRecorded_hasABadge_noTrashButton_cannotBeSwiped_andSurvivesDeleteAll() {
+        val recordingId = runBlocking { sessionRepository.startSession("ACTIVEVIN") }
+        launchHistoryScreen()
+        waitForText("ACTIVEVIN")
+
+        // Badge instead of the trash button: only the finished trip has one.
+        composeRule.onNodeWithText(string(R.string.history_recording_active)).assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription(string(R.string.history_cd_delete)).assertCountEquals(1)
+
+        // A swipe on the recording does nothing.
+        composeRule.onNodeWithTag(historyRowTestTag(recordingId)).performTouchInput { swipeLeft() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("ACTIVEVIN").assertIsDisplayed()
+
+        // "Delete all" takes the finished trip and leaves the recording alone.
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
+        composeRule.onNodeWithText(string(R.string.delete)).performClick()
+        waitForTextToDisappear("TESTVIN123")
+        composeRule.onNodeWithText("ACTIVEVIN").assertIsDisplayed()
+        waitForText(deletedMessage(1))
+    }
+
+    @Test
+    fun topBarTrash_isDisabled_whenOnlyTheRecordingExists() {
+        runBlocking {
+            testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
+            sessionRepository.startSession("ACTIVEVIN")
+        }
+
+        launchHistoryScreen()
+        waitForText("ACTIVEVIN")
+
+        composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsNotEnabled()
     }
 }

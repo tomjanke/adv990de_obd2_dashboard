@@ -58,17 +58,34 @@ class SensorReadingDaoTest {
     }
 
     @Test
-    fun deleteBySession_removesOnlyTargetSession() = runBlocking {
+    fun deleteBySessions_removesOnlyTargetSession() = runBlocking {
         val sid1 = insertSession()
         val sid2 = insertSession()
         dao.insert(SensorReadingEntity(sessionId = sid1, timestamp = 1L, pidId = "010C", value = 0f))
         dao.insert(SensorReadingEntity(sessionId = sid2, timestamp = 2L, pidId = "010C", value = 0f))
-        dao.deleteBySession(sid1)
+        dao.deleteBySessions(listOf(sid1))
         val cursor1 = dao.getBySessionCursor(SimpleSQLiteQuery("SELECT * FROM sensor_readings WHERE sessionId = ?", arrayOf(sid1)))
         val cursor2 = dao.getBySessionCursor(SimpleSQLiteQuery("SELECT * FROM sensor_readings WHERE sessionId = ?", arrayOf(sid2)))
         assertEquals(0, cursor1.count)
         assertEquals(1, cursor2.count)
         cursor1.close(); cursor2.close()
+    }
+
+    @Test
+    fun deleteBySessions_removesSeveralSessionsAndKeepsTheRest() = runBlocking {
+        val sid1 = insertSession()
+        val sid2 = insertSession()
+        val sid3 = insertSession()
+        listOf(sid1, sid2, sid3).forEach { sid ->
+            dao.insert(SensorReadingEntity(sessionId = sid, timestamp = 1L, pidId = "010C", value = 0f))
+        }
+        dao.deleteBySessions(listOf(sid1, sid3))
+        fun count(sid: Long) = dao.getBySessionCursor(
+            SimpleSQLiteQuery("SELECT * FROM sensor_readings WHERE sessionId = ?", arrayOf(sid))
+        ).use { it.count }
+        assertEquals(0, count(sid1))
+        assertEquals(1, count(sid2))
+        assertEquals(0, count(sid3))
     }
 
     @Test

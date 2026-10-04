@@ -67,7 +67,7 @@ class ReadingsPipelineTest {
         coEvery { startSession(any()) } returns 7L
         coEvery { writeReadings(any(), any()) } just Runs
         coEvery { endSession(any()) } just Runs
-        coEvery { deleteSession(any()) } returns null  // Rueckgabetyp ist Unit?
+        coEvery { discardSession(any()) } just Runs
     }
 
     private fun makePrefs(
@@ -194,7 +194,7 @@ class ReadingsPipelineTest {
             prefs = makePrefs(logOnlyDtc = true),
         ).events(backgroundScope).take(1).toList()
 
-        coVerify { sessionRepo.deleteSession(7L) }
+        coVerify { sessionRepo.discardSession(7L) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
     }
 
@@ -352,7 +352,7 @@ class ReadingsPipelineTest {
         coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
         // dtcList becomes null, so hasDtcForRecording falls back to true (fail-safe) — even with
         // logOnlyDtc enabled, the session must be kept, not discarded as a "no DTC" drive.
-        coVerify(exactly = 0) { sessionRepo.deleteSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
         coVerify { sessionRepo.endSession(7L) }
     }
 

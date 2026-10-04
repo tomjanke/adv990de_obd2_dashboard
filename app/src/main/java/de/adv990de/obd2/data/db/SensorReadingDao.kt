@@ -11,6 +11,6 @@ interface SensorReadingDao {
     @Insert suspend fun insertAll(readings: List<SensorReadingEntity>)
     @RawQuery
     fun getBySessionCursor(query: SupportSQLiteQuery): Cursor
-    @Query("DELETE FROM sensor_readings WHERE sessionId = :sessionId")
-    suspend fun deleteBySession(sessionId: Long)
+    @Query("DELETE FROM sensor_readings WHERE sessionId IN (:sessionIds)")
+    suspend fun deleteBySessions(sessionIds: List<Long>)
 }

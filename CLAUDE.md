@@ -23,7 +23,7 @@ Diese drei Worte sind **gleichberechtigt** — verletze keines davon:
 1. **Glanceability First.** Der Fahrer schaut max. 0.5 s aufs Display. Primäre Werte müssen ohne Lesen erfassbar sein — Größe + Position + Farbe transportieren Bedeutung, nicht Text.
 2. **Die drei Cockpit-Farbschemata (Blau/Amber/Grün) sind dark-only.** Keine Light-Variante für diese drei — Ambient-Light-Probleme im Auto/Motorrad bei Tag lösen sie über *Kontrast*, nicht über Helligkeit. Background ist immer fast-schwarz mit Farbhauch (`#050D1A` Blau, `#110A02` Amber, `#030F08` Grün — siehe `ui/theme/ColorSchemes.kt`). **Korrektur (2026-09-23):** Das gilt NUR für diese drei Cockpit-Schemata, nicht für die App insgesamt — das „Default"-Farbschema (M3-Standardfarben, keines der drei Cockpit-Schemata) bietet bewusst zusätzlich Hell/Dunkel/System zur Wahl (`AppPreferences.THEME_LIGHT`/`THEME_DARK`/`THEME_SYSTEM`, s. `SettingsComponents.kt`/`MainActivity.kt`) — Light Mode ist dort eine unterstützte, reguläre Option, kein Fehler. Eine frühere Version dieser Datei behauptete fälschlich „Dark Mode ist die einzige Realität" für die ganze App.
 3. **Tabular Numerals immer.** Wo Zahlen sich ändern (RPM, Speed, Temp, alle Sensorwerte), MUSS die Schrift `fontFeatureSettings = "tnum"` setzen. **IBM Plex Mono** ist als Live-Wert-Schrift in `R.font.ibm_plex_mono_{regular,medium,bold}` geladen; verwenden über `LiveValueText` Composable (`ui/components/LiveValueText.kt`) oder `TextStyle.asLiveValue()` Extension (`ui/theme/AppTypography.kt`). Space Grotesk bleibt für UI-Text (Labels, Body, Headlines).
-4. **Glove-Friendly Tap-Targets.** Minimum 56 dp × 56 dp für jeden Touch. Bei Settings-Listen mind. 64 dp Zeilenhöhe. Keine Swipe-Only-Gesten an kritischen Stellen (DMD2-Regel: „avoid swipes while wearing gloves").
+4. **Glove-Friendly Tap-Targets.** Minimum 56 dp × 56 dp für jeden Touch. Bei Settings-Listen mind. 64 dp Zeilenhöhe. Keine Swipe-Only-Gesten an kritischen Stellen (DMD2-Regel: „avoid swipes while wearing gloves"); Swipe-to-Delete gibt es nur **zusätzlich** zum sichtbaren Papierkorb-Button (s. „Lösch-Vertrag").
 5. **Information Density ≥ Decoration.** Karte ohne Daten ist verloren. Wenn ein Tile leerer Raum ist, dann mit Absicht (Atemraum), nicht aus Faulheit.
 
 ### Color & Theme
@@ -386,9 +386,9 @@ PIDs, Aufgezeichnete PIDs →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wa
   markiert ihn, die Leiste steht auf Unterseiten also nie ohne Auswahl. Ein neuer `Screen` zwingt `ParentTabTest` (exhaustives
   `when`) zu einer Entscheidung. Die Zurück-Beschreibung der Pfeile ist überall `R.string.nav_back_desc`.
 
-### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0)
+### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0; Verlauf ergänzt mit Phase 3)
 
-Gilt für jede Liste, die Daten löschen lässt (heute App-Logs; Verlauf und Fehlerhistorie folgen). **Gelöscht wird
+Gilt für jede Liste, die Daten löschen lässt (heute App-Logs und Verlauf; die Fehlerhistorie folgt). **Gelöscht wird
 ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeicher-Löschen, kein Modus 04).
 - **Papierkorb in der Top-Bar** (56 dp, ausgegraut ohne Einträge) → `ConfirmDeleteDialog` (Titel · Folge · Abbrechen/Löschen) →
   die Einträge verschwinden **sofort** → `UndoSnackbarEffect` mit „Rückgängig“ für 10 s (`UNDO_WINDOW_MS`, so lang wie
@@ -399,8 +399,21 @@ ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeich
   (sonst flackern gelöschte Zeilen kurz zurück). Verlässt der Nutzer die Seite, wird sofort committet (`onCleared` → `flush()`).
 - **Löschen per „bis einschließlich Id“** (`AppLogDao.deleteUpTo(maxId)`), nicht „alles“: Zeilen, die im Fenster neu entstehen,
   überleben. Der Commit läuft im `@ApplicationScope`, damit er das ViewModel überlebt.
-- Swipe-to-Delete ist erlaubt, aber **nur zusätzlich** zum sichtbaren Papierkorb-Button (Prinzip 4: keine Swipe-Only-Gesten) —
-  vorgesehen für den Verlauf (Phase 3 des UI-Plans).
+- **Einzelne Zeile (Verlauf): Papierkorb ODER Swipe, ohne Dialog, nur Undo.** Nur „Alle löschen“ (Top-Bar) fragt vorher. Das Swipe
+  (`SwipeToDeleteRow`, `ui/components/`) ist **nur zusätzlich** zum Button (Prinzip 4): eine Richtung (zum Zeilenende), erst ab
+  50 % der Zeilenbreite, Hintergrund `errorContainer` mit Papierkorb nur während des Ziehens. `onDelete` feuert genau **einmal**
+  über `LaunchedEffect(state.currentValue)` — **nie** aus `confirmValueChange` (Material3 fragt es pro Geste mehrfach ab, gemessen 4×;
+  jedes weitere `schedule()` committet den vorigen Löschvorgang sofort und hebelt das Undo-Fenster aus).
+- **Verlauf: die laufende Aufzeichnung ist unlöschbar.** `SessionRepository.activeSessionId` (gesetzt von `startSession`, geleert von
+  `endSession`/`discardSession`) — `endTime == null` markiert sie nicht verlässlich. Die Zeile zeigt ein Badge „Aufzeichnung läuft“
+  (Theme-`tertiary`) statt Papierkorb, ist nicht wischbar, und `deleteSessions` überspringt sie auch dann, wenn ein Aufrufer sie übergibt.
+  „Alle löschen“ nimmt beim Bestätigen einen **Schnappschuss der abgeschlossenen Fahrten** (Id-Menge, minus bereits ausstehende) und löscht
+  genau diese: eine Fahrt, die im Undo-Fenster endet, wird nicht mitgerissen. Gelöscht wird in Blöcken à 50 (SQLite erlaubt auf API 26
+  nur 999 Variablen; zwischen den Blöcken kommen die Schreibzugriffe des Recorders durch).
+- **Beenden einer Fahrt ist abbruchsicher** (`withContext(Dispatchers.IO + NonCancellable)`): `ReadingsPipeline` beendet die Fahrt im
+  `finally`, und eine Fahrt endet normalerweise DURCH Abbruch (Trennen, Slot-Wechsel, App-Ende); `withContext` wirft in einer bereits
+  abgebrochenen Coroutine sofort — vor v1.22.0 bekamen solche Fahrten nie ein `endTime`, und „Nur Fahrten mit DTCs speichern“ verwarf
+  sie nicht. Die aktive Id wird vor dem Datenbankzugriff geleert, damit ein Fehler dort keine beendete Fahrt geschützt zurücklässt.
 
 ### Animation-Disziplin
 
@@ -455,6 +468,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `SettingsSwitchRow(title, summary, checked, onCheckedChange)` | Ein/Aus-Einstellung als Ganz-Zeilen-Toggle (`Modifier.toggleable`, ≥ 64 dp), `Switch` nur als Zustandsanzeige |
 | `ConfirmDeleteDialog(title, message, confirmLabel, dismissLabel, onConfirm, onDismiss)` | Bestätigung vor „Alles löschen“ (`ui/components/`): M3-`AlertDialog` (bewusst keine Bottom Sheet), Löschen-Button in `colorScheme.error`, beide Buttons ≥ 56 dp |
 | `UndoSnackbarEffect(batchId, message, undoLabel, snackbarHostState, onUndo)` | „… gelöscht · Rückgängig“-Snackbar als reine ANSICHT von `UndoableDeletion.openBatchId`: ohne eigenen Timeout (`Indefinite`), verschwindet, wenn die Id null wird; braucht einen `SnackbarHost` im `Scaffold` |
+| `SwipeToDeleteRow(onDelete, modifier, enabled, content)` | Zeile mit Swipe-zum-Löschen (`ui/components/`, Material3 `SwipeToDismissBox`): nur Richtung Zeilenende, ab 50 % der Breite, `enabled = false` für nicht löschbare Zeilen; **nur zusätzlich** zum Papierkorb-Button. `content` braucht einen deckenden Hintergrund (ein `ListItem` hat ihn) |
 | `EmptyState(icon, text, modifier?)` | Leerer Zustand einer Liste: 48-dp-Icon + eine Textzeile, beides in `onSurfaceVariant`; füllt den gegebenen Platz |
 | `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar. Bei nahezu flachem Werteverlauf spreizt `effectiveSparklineRange` (Stand 2026-09-29) die Skala symmetrisch um mind. 5 % der Werte-Magnitude (Fallback ±0,05 bei exakt 0), damit die Linie nicht als einzelner Strich am Kachel-Rand klebt — reine Funktion, unabhängig von `sparklinePointOffset` |
 
@@ -489,8 +503,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 872 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 201 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 895 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 221 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

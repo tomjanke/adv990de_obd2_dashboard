@@ -16,6 +16,7 @@ import io.mockk.Runs
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -23,7 +24,11 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -129,6 +134,27 @@ class SessionRepositoryTest {
         coVerify(exactly = 0) { sessionDao.update(any()) }
     }
 
+    @Test
+    fun `endSession still completes when the calling coroutine is already cancelled`() = runTest {
+        // ReadingsPipeline ends the trip in a finally block — and a trip normally ends BY cancellation
+        // (disconnect, slot change, app closing). withContext() throws at once in a cancelled caller,
+        // so without NonCancellable the trip never got its endTime.
+        coEvery { sessionDao.getById(1L) } returns SessionEntity(id = 1L, startTime = 1000L)
+        coEvery { sessionDao.update(any()) } just Runs
+
+        val caller = launch {
+            try {
+                awaitCancellation()
+            } finally {
+                repo.endSession(1L)
+            }
+        }
+        runCurrent()
+        caller.cancelAndJoin()
+
+        coVerify(exactly = 1) { sessionDao.update(any()) }
+    }
+
     // ── writeReadings ─────────────────────────────────────────────────────────
 
     @Test
@@ -157,29 +183,166 @@ class SessionRepositoryTest {
         assertEquals(2_000L, entities[1].timestamp)
     }
 
-    // ── deleteSession ─────────────────────────────────────────────────────────
+    // ── active trip ───────────────────────────────────────────────────────────
 
     @Test
-    fun `deleteSession deletes readings and session`() = runTest {
-        coEvery { sensorReadingDao.deleteBySession(3L) } just Runs
-        coEvery { sessionDao.getById(3L) } returns SessionEntity(id = 3L, startTime = 0L)
-        coEvery { sessionDao.delete(any()) } just Runs
-
-        repo.deleteSession(3L)
-
-        coVerify(exactly = 1) { sensorReadingDao.deleteBySession(3L) }
-        coVerify(exactly = 1) { sessionDao.delete(any()) }
+    fun `no trip is active before the first session starts`() {
+        assertNull(repo.activeSessionId.value)
     }
 
     @Test
-    fun `deleteSession skips session delete when session not found`() = runTest {
-        coEvery { sensorReadingDao.deleteBySession(99L) } just Runs
-        coEvery { sessionDao.getById(99L) } returns null
+    fun `startSession publishes the new id as the active trip`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 42L
 
-        repo.deleteSession(99L)
+        repo.startSession()
 
-        coVerify(exactly = 1) { sensorReadingDao.deleteBySession(99L) }
-        coVerify(exactly = 0) { sessionDao.delete(any()) }
+        assertEquals(42L, repo.activeSessionId.value)
+    }
+
+    @Test
+    fun `endSession clears the active trip`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 5L
+        coEvery { sessionDao.getById(5L) } returns SessionEntity(id = 5L, startTime = 1000L)
+        coEvery { sessionDao.update(any()) } just Runs
+        repo.startSession()
+
+        repo.endSession(5L)
+
+        assertNull(repo.activeSessionId.value)
+    }
+
+    @Test
+    fun `endSession clears the active trip even when the update fails`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 5L
+        coEvery { sessionDao.getById(5L) } returns SessionEntity(id = 5L, startTime = 1000L)
+        coEvery { sessionDao.update(any()) } throws IllegalStateException("disk full")
+        repo.startSession()
+
+        runCatching { repo.endSession(5L) }
+
+        // A stale "active" id would make the finished trip undeletable until the next recording.
+        assertNull(repo.activeSessionId.value)
+    }
+
+    @Test
+    fun `ending another trip leaves the active trip alone`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 8L
+        coEvery { sessionDao.getById(3L) } returns SessionEntity(id = 3L, startTime = 1000L)
+        coEvery { sessionDao.update(any()) } just Runs
+        repo.startSession()
+
+        repo.endSession(3L)
+
+        assertEquals(8L, repo.activeSessionId.value)
+    }
+
+    // ── discardSession (the pipeline drops a trip without DTCs) ──────────────
+
+    @Test
+    fun `discardSession clears the active trip and deletes its readings and the session`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 6L
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+        repo.startSession()
+
+        repo.discardSession(6L)
+
+        assertNull(repo.activeSessionId.value)
+        coVerify(exactly = 1) { sensorReadingDao.deleteBySessions(listOf(6L)) }
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(6L)) }
+    }
+
+    @Test
+    fun `discardSession still completes when the calling coroutine is already cancelled`() = runTest {
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+
+        val caller = launch {
+            try {
+                awaitCancellation()
+            } finally {
+                repo.discardSession(6L)
+            }
+        }
+        runCurrent()
+        caller.cancelAndJoin()
+
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(6L)) }
+    }
+
+    // ── deleteSessions (the user deletes trips from the history) ─────────────
+
+    @Test
+    fun `deleteSessions deletes the readings and the sessions of the given ids`() = runTest {
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+
+        repo.deleteSessions(listOf(3L, 4L))
+
+        coVerify(exactly = 1) { sensorReadingDao.deleteBySessions(listOf(3L, 4L)) }
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(3L, 4L)) }
+    }
+
+    @Test
+    fun `deleteSessions never deletes the trip that is being recorded`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 9L
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+        repo.startSession()
+
+        repo.deleteSessions(listOf(3L, 9L, 4L))
+
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(3L, 4L)) }
+        coVerify(exactly = 0) { sessionDao.deleteByIds(match { 9L in it }) }
+        coVerify(exactly = 0) { sensorReadingDao.deleteBySessions(match { 9L in it }) }
+    }
+
+    @Test
+    fun `deleteSessions of only the active trip touches nothing`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 9L
+        repo.startSession()
+
+        repo.deleteSessions(listOf(9L))
+
+        coVerify(exactly = 0) { sessionDao.deleteByIds(any()) }
+        coVerify(exactly = 0) { sensorReadingDao.deleteBySessions(any()) }
+    }
+
+    @Test
+    fun `deleteSessions with an empty collection touches nothing`() = runTest {
+        repo.deleteSessions(emptyList())
+
+        coVerify(exactly = 0) { sessionDao.deleteByIds(any()) }
+        coVerify(exactly = 0) { sensorReadingDao.deleteBySessions(any()) }
+    }
+
+    @Test
+    fun `deleteSessions ignores duplicate ids`() = runTest {
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+
+        repo.deleteSessions(listOf(3L, 3L, 4L))
+
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(3L, 4L)) }
+    }
+
+    @Test
+    fun `deleteSessions works in chunks so no statement exceeds the SQLite variable limit`() = runTest {
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+        val ids = (1L..120L).toList()
+
+        repo.deleteSessions(ids)
+
+        // 120 ids -> chunks of 50, 50 and 20; the readings go first within each chunk.
+        coVerifyOrder {
+            sensorReadingDao.deleteBySessions(ids.subList(0, 50))
+            sessionDao.deleteByIds(ids.subList(0, 50))
+            sensorReadingDao.deleteBySessions(ids.subList(50, 100))
+            sessionDao.deleteByIds(ids.subList(50, 100))
+            sensorReadingDao.deleteBySessions(ids.subList(100, 120))
+            sessionDao.deleteByIds(ids.subList(100, 120))
+        }
     }
 
     // ── deleteOldSessions ─────────────────────────────────────────────────────

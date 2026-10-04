@@ -570,7 +570,7 @@ class DashboardViewModelTest {
             coEvery { startSession(any()) } returns 99L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
-            coEvery { deleteSession(any()) } returns null  // Unit? return type
+            coEvery { discardSession(any()) } just Runs
         }
 
         makeVmFrom(
@@ -582,7 +582,7 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        coVerify { sessionRepo.deleteSession(99L) }
+        coVerify { sessionRepo.discardSession(99L) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
     }
 
@@ -603,7 +603,7 @@ class DashboardViewModelTest {
             coEvery { startSession(any()) } returns 77L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
-            coEvery { deleteSession(any()) } returns null  // Unit? return type
+            coEvery { discardSession(any()) } just Runs
         }
 
         makeVmFrom(
@@ -616,7 +616,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         coVerify { sessionRepo.endSession(77L) }
-        coVerify(exactly = 0) { sessionRepo.deleteSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
     }
 
     @Test
