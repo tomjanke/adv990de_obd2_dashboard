@@ -48,6 +48,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
@@ -199,7 +200,9 @@ fun SessionRow(
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     ListItem(
         headlineContent = { Text(fmt.format(Date(session.startTime))) },
-        supportingContent = { Text(session.vehicleVin ?: stringResource(R.string.history_vin_unknown)) },
+        // Aeltere Fahrten (bis v1.23.1) tragen die rohe Antwort auf Modus 09 ("NO DATA", Hexdump): nur eine
+        // echte FIN wird angezeigt, alles andere gilt als unbekannt.
+        supportingContent = { Text(session.vehicleVin?.takeIf(VinDecoder::isValidVin) ?: stringResource(R.string.history_vin_unknown)) },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isRecording) {

@@ -125,7 +125,7 @@ class HistoryScreenTest {
         insertedStartTime = System.currentTimeMillis()
         runBlocking {
             insertedSessionId = testDb.sessionDao()
-                .insert(SessionEntity(startTime = insertedStartTime, endTime = insertedStartTime + 60_000L, vehicleVin = "TESTVIN123"))
+                .insert(SessionEntity(startTime = insertedStartTime, endTime = insertedStartTime + 60_000L, vehicleVin = "WP0ZZZ99ZTS392124"))
         }
     }
 
@@ -180,6 +180,27 @@ class HistoryScreenTest {
     }
 
     @Test
+    fun sessionRow_showsUnknownVin_forTripsStoredWithTheRawAdapterAnswer() {
+        // Bis v1.23.1 landete die rohe Antwort auf Modus 09 als "FIN" in der Fahrt ("NO DATA" oder ein
+        // Hexdump). Diese alten Zeilen bleiben in der Datenbank; angezeigt wird nur, was eine FIN ist.
+        val rawStartTime = insertedStartTime - 5 * 60_000L
+        runBlocking {
+            testDb.sessionDao().insert(SessionEntity(startTime = rawStartTime, vehicleVin = "NO DATA"))
+        }
+
+        launchHistoryScreen()
+
+        val exportDescription = string(R.string.history_cd_export)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription(exportDescription).fetchSemanticsNodes().size >= 2
+        }
+        composeRule.onNodeWithText(dateFormat.format(Date(rawStartTime))).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_vin_unknown)).assertIsDisplayed()
+        composeRule.onNodeWithText("NO DATA").assertDoesNotExist()
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
+    }
+
+    @Test
     fun sessionRow_showsFormattedDateAndVin_orUnknownVinFallback_whenVinMissing() {
         // Distinct from insertedStartTime by 5 minutes so the two rows never collide on the same
         // "dd.MM.yyyy HH:mm" bucket (the format has no seconds).
@@ -197,7 +218,7 @@ class HistoryScreenTest {
 
         // Row with a VIN.
         composeRule.onNodeWithText(dateFormat.format(Date(insertedStartTime))).assertIsDisplayed()
-        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
 
         // Row without a VIN falls back to the "unknown VIN" string.
         composeRule.onNodeWithText(dateFormat.format(Date(secondStartTime))).assertIsDisplayed()
@@ -224,11 +245,11 @@ class HistoryScreenTest {
     @Test
     fun rowTrash_hidesTheTripAtOnce_andOffersUndo_withoutAskingFirst() {
         launchHistoryScreen()
-        waitForText("TESTVIN123")
+        waitForText("WP0ZZZ99ZTS392124")
 
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete)).performClick()
 
-        waitForTextToDisappear("TESTVIN123")
+        waitForTextToDisappear("WP0ZZZ99ZTS392124")
         waitForText(deletedMessage(1))
         composeRule.onNodeWithText(string(R.string.undo)).assertIsDisplayed()
         // No dialog for a single trip, and nothing is deleted before the undo window ends.
@@ -239,14 +260,14 @@ class HistoryScreenTest {
     @Test
     fun undo_bringsTheTripBack_andNothingIsDeleted() {
         launchHistoryScreen()
-        waitForText("TESTVIN123")
+        waitForText("WP0ZZZ99ZTS392124")
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete)).performClick()
         waitForText(deletedMessage(1))
 
         composeRule.onNodeWithText(string(R.string.undo)).performClick()
 
-        waitForText("TESTVIN123")
-        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
+        waitForText("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
         composeRule.onAllNodesWithText(deletedMessage(1)).assertCountEquals(0)
         coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
     }
@@ -254,11 +275,11 @@ class HistoryScreenTest {
     @Test
     fun swipeLeft_hidesTheTrip_andOffersUndo_likeTheTrashButton() {
         launchHistoryScreen()
-        waitForText("TESTVIN123")
+        waitForText("WP0ZZZ99ZTS392124")
 
         composeRule.onNodeWithTag(historyRowTestTag(insertedSessionId)).performTouchInput { swipeLeft() }
 
-        waitForTextToDisappear("TESTVIN123")
+        waitForTextToDisappear("WP0ZZZ99ZTS392124")
         waitForText(deletedMessage(1))
         coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
     }
@@ -268,7 +289,7 @@ class HistoryScreenTest {
     @Test
     fun topBarTrash_opensTheDialog_andCancelKeepsEverything() {
         launchHistoryScreen()
-        waitForText("TESTVIN123")
+        waitForText("WP0ZZZ99ZTS392124")
 
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
 
@@ -277,23 +298,23 @@ class HistoryScreenTest {
         composeRule.onNodeWithText(string(R.string.cancel)).performClick()
 
         waitForTextToDisappear(string(R.string.history_delete_all_title))
-        composeRule.onNodeWithText("TESTVIN123").assertIsDisplayed()
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
         coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
     }
 
     @Test
     fun topBarTrash_confirmHidesEveryFinishedTrip_andOffersUndo() {
         runBlocking {
-            testDb.sessionDao().insert(SessionEntity(startTime = insertedStartTime - 5 * 60_000L, endTime = insertedStartTime, vehicleVin = "SECONDVIN"))
+            testDb.sessionDao().insert(SessionEntity(startTime = insertedStartTime - 5 * 60_000L, endTime = insertedStartTime, vehicleVin = "1HGBH41JXMN109186"))
         }
         launchHistoryScreen()
-        waitForText("SECONDVIN")
+        waitForText("1HGBH41JXMN109186")
 
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
         composeRule.onNodeWithText(string(R.string.delete)).performClick()
 
-        waitForTextToDisappear("TESTVIN123")
-        waitForTextToDisappear("SECONDVIN")
+        waitForTextToDisappear("WP0ZZZ99ZTS392124")
+        waitForTextToDisappear("1HGBH41JXMN109186")
         waitForText(deletedMessage(2))
         // Everything is hidden: the empty state shows, the top-bar trash is disabled.
         composeRule.onNodeWithText(string(R.string.history_empty)).assertIsDisplayed()
@@ -301,8 +322,8 @@ class HistoryScreenTest {
         coVerify(exactly = 0) { sessionRepository.deleteSessions(any()) }
 
         composeRule.onNodeWithText(string(R.string.undo)).performClick()
-        waitForText("TESTVIN123")
-        waitForText("SECONDVIN")
+        waitForText("WP0ZZZ99ZTS392124")
+        waitForText("1HGBH41JXMN109186")
     }
 
     @Test
@@ -318,7 +339,7 @@ class HistoryScreenTest {
     @Test
     fun topBarTrash_isEnabled_whenAFinishedTripExists() {
         launchHistoryScreen()
-        waitForText("TESTVIN123")
+        waitForText("WP0ZZZ99ZTS392124")
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
@@ -331,9 +352,9 @@ class HistoryScreenTest {
 
     @Test
     fun theTripThatIsBeingRecorded_hasABadge_noTrashButton_cannotBeSwiped_andSurvivesDeleteAll() {
-        val recordingId = runBlocking { sessionRepository.startSession("ACTIVEVIN") }
+        val recordingId = runBlocking { sessionRepository.startSession("5YJSA1E26HF000337") }
         launchHistoryScreen()
-        waitForText("ACTIVEVIN")
+        waitForText("5YJSA1E26HF000337")
 
         // Badge instead of the trash button: only the finished trip has one.
         composeRule.onNodeWithText(string(R.string.history_recording_active)).assertIsDisplayed()
@@ -342,13 +363,13 @@ class HistoryScreenTest {
         // A swipe on the recording does nothing.
         composeRule.onNodeWithTag(historyRowTestTag(recordingId)).performTouchInput { swipeLeft() }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("ACTIVEVIN").assertIsDisplayed()
+        composeRule.onNodeWithText("5YJSA1E26HF000337").assertIsDisplayed()
 
         // "Delete all" takes the finished trip and leaves the recording alone.
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).performClick()
         composeRule.onNodeWithText(string(R.string.delete)).performClick()
-        waitForTextToDisappear("TESTVIN123")
-        composeRule.onNodeWithText("ACTIVEVIN").assertIsDisplayed()
+        waitForTextToDisappear("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithText("5YJSA1E26HF000337").assertIsDisplayed()
         waitForText(deletedMessage(1))
     }
 
@@ -356,11 +377,11 @@ class HistoryScreenTest {
     fun topBarTrash_isDisabled_whenOnlyTheRecordingExists() {
         runBlocking {
             testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
-            sessionRepository.startSession("ACTIVEVIN")
+            sessionRepository.startSession("5YJSA1E26HF000337")
         }
 
         launchHistoryScreen()
-        waitForText("ACTIVEVIN")
+        waitForText("5YJSA1E26HF000337")
 
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsNotEnabled()
     }

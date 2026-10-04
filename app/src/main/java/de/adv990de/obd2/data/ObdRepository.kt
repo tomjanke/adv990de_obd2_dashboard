@@ -8,6 +8,7 @@ import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -288,6 +289,11 @@ class ObdRepository @Inject constructor(
             // is fully reset before the next caller sends anything.
             withContext(NonCancellable) { disconnect() }
             throw e
+        } catch (e: ObdException.ConnectionLost) {
+            // Wie livePids() und readFreezeFrame(): ein verlorener Link wird nie als "verbunden" stehen
+            // gelassen — sonst haelt isConnectedFlow einen toten Adapter fuer lebendig.
+            withContext(NonCancellable) { disconnect() }
+            throw e
         }
     }
 
@@ -326,8 +332,12 @@ class ObdRepository @Inject constructor(
         return result
     }
 
+    /**
+     * Die Fahrgestellnummer (17 Zeichen) oder `null`, wenn das Fahrzeug keine liefert (viele
+     * Motorraeder kennen Modus 09 nicht) oder die Antwort keine FIN ist — nie der rohe Adaptertext.
+     */
     suspend fun readVin(): String? {
         val controller = elm ?: return null
-        return controller.sendCommand("0902")
+        return VinDecoder.decode(controller.sendCommand("0902"))
     }
 }

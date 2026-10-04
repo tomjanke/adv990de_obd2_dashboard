@@ -239,6 +239,20 @@ class ObdRepositoryTest {
     }
 
     @Test
+    fun `readDtcs disconnects and rethrows when the link is lost while reading`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } throws ObdException.ConnectionLost()
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        var threw = false
+        try { repo.readDtcs() } catch (_: ObdException.ConnectionLost) { threw = true }
+
+        assertTrue(threw)
+        // Wie livePids() und readFreezeFrame(): ein verlorener Link wird nie als "verbunden" stehen gelassen.
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
     fun `readDtcs disconnects when sendCommand times out to prevent stream desync`() = runTest {
         val elmCtrl = mockk<ElmController>()
         // "03" times out — stale response may arrive during the "07" command if we continue
@@ -1001,12 +1015,23 @@ class ObdRepositoryTest {
     }
 
     @Test
-    fun `readVin returns raw sendCommand response when connected`() = runTest {
+    fun `readVin decodes the mode 09 answer into the 17 character VIN`() = runTest {
         val elmCtrl = mockk<ElmController>()
-        coEvery { elmCtrl.sendCommand("0902") } returns "49 02 01 57 50 30"
+        coEvery { elmCtrl.sendCommand("0902") } returns
+            "014 0: 49 02 01 57 50 30 1: 5A 5A 5A 39 39 5A 54 2: 53 33 39 32 31 32 34"
         val repo = makeConnectedRepo(elmCtrl)
 
-        assertEquals("49 02 01 57 50 30", repo.readVin())
+        assertEquals("WP0ZZZ99ZTS392124", repo.readVin())
+    }
+
+    @Test
+    fun `readVin returns null instead of the raw adapter text when the vehicle has no mode 09`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("0902") } returns "NO DATA"
+        val repo = makeConnectedRepo(elmCtrl)
+
+        // Vorher stand "NO DATA" als FIN in der Fahrt und in der Verlaufsliste.
+        assertNull(repo.readVin())
     }
 
     @Test
