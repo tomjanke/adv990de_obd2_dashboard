@@ -132,7 +132,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
 | JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1015 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 197 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 208 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 44 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
