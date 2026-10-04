@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.18.1 (versionCode 74)
+
+### Slot-Picker öffnet in voller Höhe
+
+Der Slot-Picker (Long-Press auf eine Kachel) öffnet jetzt immer in voller Höhe. Das halbhohe
+Standardverhalten zeigte im Querformat anfangs nur etwa 3 Zeilen, im Hochformat etwa 8 — der Rest war
+erst nach Hochziehen des Sheets erreichbar. Jetzt sind im Querformat 6 und im Hochformat rund 15 Zeilen
+sofort sichtbar (Pixel 8 Pro, volle PID-Liste). Der Preis: die Kachel hinter dem Sheet bleibt nicht mehr
+sichtbar. Geschlossen wird wie bisher per Wegwischen nach unten oder Tippen neben das Sheet.
+
+### Build-Wartung (ohne Auswirkung auf die App)
+
+Alle Kotlin-Warnungen beseitigt (Build-Skript, Unit-Tests, Instrumentation-Tests): die Room-Schema-Assets
+nutzen die AGP-9-Schreibweise, die Compose-Tests die aktuelle v2-Test-Rule, die bewusst verwendete
+`requestSingleUpdate`-API ist im Test passend unterdrückt. Das Release-Artefakt ist davon inhaltlich
+unverändert.
+
+### Tests
+
+820 Unit-Tests unverändert, 160 Instrumentation-Tests (+1: neuer Querformat-Test für das volle Sheet),
+alle grün; Lint unverändert bei 0 Fehlern, 26 Warnungen.
+
+---
+
 ## Version 1.18.0 (versionCode 73)
 
 ### Neu: Leerlauf als grünes „N"
