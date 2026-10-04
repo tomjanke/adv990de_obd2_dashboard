@@ -52,7 +52,7 @@ class ObdForegroundService : Service() {
 
                 when (resolveForegroundStartMode()) {
                     ForegroundStartMode.TYPED -> {
-                        val includeLocationType = intent?.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false) ?: false
+                        val includeLocationType = intent.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false)
                         startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
                     }
                     ForegroundStartMode.LEGACY -> startForeground(NOTIF_ID, notification)

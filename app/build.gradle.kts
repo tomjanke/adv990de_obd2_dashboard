@@ -45,6 +45,7 @@ android {
         }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Only sign if keystore.jks exists — CI/dev builds without the keystore produce
             // an unsigned APK rather than failing the build.

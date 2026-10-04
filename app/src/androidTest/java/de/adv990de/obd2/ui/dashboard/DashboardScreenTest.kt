@@ -5,6 +5,8 @@ import android.view.WindowManager
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -40,7 +43,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -339,17 +341,6 @@ class DashboardScreenTest {
      * primaryRatio, secondaryRatio, gearRatios, useGpsSpeed, …) manuell zu stubben — ein fragiles
      * Duplikat der echten Klasse ohne Mehrwert gegenueber dem ohnehin vorhandenen In-Process-Fake.
      */
-    // Ignored 2026-09-29 — root-caused but not yet fixed, pre-existing and unrelated to any
-    // app-code change (confirmed via `git stash` against unmodified HEAD): a printToLog() dump
-    // showed the "Coolant Temp" row IS composed and its own laid-out bounds ARE within its
-    // LazyColumn's clip bounds, yet assertIsDisplayed() still reports it as not displayed. The
-    // Compose test root query separately reports TWO roots at identical (0,0)-(2244,1008)px
-    // bounds (the Activity content root and the ModalBottomSheet's own Popup window) — the
-    // Popup window's actual Android-View-level bounds likely haven't grown to match the sheet's
-    // semantics-layer layout yet. See android-test-environment-pitfalls.md (memory) pitfall #3
-    // for the full investigation; needs a Compose-Material3-testing-specific fix, not attempted
-    // further here to avoid blocking an unrelated release.
-    @Ignore("Pre-existing ModalBottomSheet Popup-window/semantics bounds mismatch, unrelated to app code — see android-test-environment-pitfalls.md #3")
     @Test
     fun dashboard_longPressOnTile_opensSlotPicker_andSelectionPersistsViaSetSlotPid() {
         // Slot-Defaults sind bereits durch @Before/setup() garantiert.
@@ -372,13 +363,19 @@ class DashboardScreenTest {
         composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }
         composeRule.waitForIdle()
 
+        // ModalBottomSheet opens half-expanded: rows below the half-height line are composed but
+        // off-screen, so assertIsDisplayed() below would fail without expanding it first.
+        composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand))
+            .performSemanticsAction(SemanticsActions.Expand)
+        composeRule.waitForIdle()
+
         // Der Picker zeigt echte Daten aus dem ViewModel: der aktuelle Coolant-Messwert (90) taucht
         // als eigener Listeneintrag auf — das beweist, dass SlotPickerSheet tatsaechlich mit
         // state.readings/availablePids aus DashboardScreen komponiert wurde, nicht nur irgendein
         // Bottom Sheet offen ist. availablePids ist hier (supportedPidIds=null) die volle, nach
         // Name alphabetisch sortierte PidRegistry (19 Eintraege) — RPM selbst stuende als "RPM"
         // erst an 15. Stelle und waere ohne Scrollen nicht sichtbar; "Coolant Temp" (6. Stelle)
-        // ist ein verlässlicherer Anker. Test currently @Ignore'd — see annotation above.
+        // ist ein verlässlicherer Anker.
         val coolantLabel = composeRule.activity.getString(R.string.pid_coolant_temp)
         composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG)
             .performScrollToNode(hasText("$coolantLabel: 90 (°C)"))

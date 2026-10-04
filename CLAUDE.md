@@ -342,7 +342,7 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
 
 Ersetzt das vorherige generische Material-Symbols-Tacho-Icon auf Teal. Adaptive Icon
 (`res/drawable/ic_launcher_foreground.xml` + `ic_launcher_background.xml`,
-`res/mipmap-anydpi-v26/ic_launcher.xml` unveraendert):
+`res/mipmap-anydpi/ic_launcher.xml` unveraendert):
 
 - **Hintergrund Release:** Navy `#0B1B2E` (vorher Teal `#006874`).
 - **Hintergrund Debug:** Amber `#B45309` (unveraendert, s. `app/src/debug/res/drawable/`) — bewusst
