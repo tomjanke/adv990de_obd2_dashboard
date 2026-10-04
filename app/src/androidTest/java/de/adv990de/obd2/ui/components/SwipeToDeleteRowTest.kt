@@ -98,9 +98,12 @@ class SwipeToDeleteRowTest {
     fun aShortSlowSwipeBelowTheThresholdDoesNothing() {
         launch()
 
-        // 15 % of the width, slow: neither the distance nor the velocity of a deliberate swipe.
+        // 15 % of the width, very slow: neither the distance nor the speed of a deliberate swipe. Material3 also
+        // completes a dismiss when the finger is released faster than 125 dp/s, whatever the distance — so the
+        // duration must make the speed small in EVERY orientation (the width is 1008 px upright, 2244 px sideways;
+        // 800 ms was slow enough upright and a 160 dp/s fling sideways). 3 s keeps it far below in both.
         composeRule.onNodeWithTag(ROW_TAG).performTouchInput {
-            swipeLeft(startX = width * 0.9f, endX = width * 0.75f, durationMillis = 800)
+            swipeLeft(startX = width * 0.9f, endX = width * 0.75f, durationMillis = 3_000)
         }
         composeRule.waitForIdle()
 

@@ -13,7 +13,9 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -116,6 +118,20 @@ class SettingsScreenTest {
         composeRule.waitForIdle()
     }
 
+    /**
+     * Scrolls [testTag] into view and then 300 px back. `performScrollToNode` aligns the row with the TOP
+     * edge of the list, and this list extends under the pinned top app bar (the Scaffold padding is its
+     * `contentPadding`): with the short viewport of a sideways-lying phone the row ends up BEHIND the bar,
+     * and a click at the centre of a short row (hide-nav: 198 px) hits the bar instead. Scrolling back
+     * brings it fully into view in either orientation.
+     */
+    private fun scrollToClearView(testTag: String) {
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(testTag))
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
+            .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -300f) }
+        composeRule.waitForIdle()
+    }
+
     /** Polls (like `SimulatedDashboardTest.awaitLiveTiles()`) instead of a single `waitForIdle()`:
      *  the switches' StateFlows (`useGpsSpeed`, `hideNavOnDrive`, ...) are seeded from
      *  AppPreferences/DataStore, whose real value can arrive a beat after the frame Compose
@@ -125,8 +141,7 @@ class SettingsScreenTest {
      *  the initially-composed [LazyColumn] viewport (since the reconnect-base-delay field landed
      *  right above these switches), so `onNodeWithTag` alone would never find them. */
     private fun waitUntilSwitchIsOn(testTag: String, expected: Boolean) {
-        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
-            .performScrollToNode(hasTestTag(testTag))
+        scrollToClearView(testTag)
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 if (expected) {
