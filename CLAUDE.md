@@ -350,6 +350,22 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   bevor `@After` läuft — ein dann noch aktiver Polling-Loop läuft in virtueller Zeit davon bis zum
   `OutOfMemoryError` (s. `WeatherViewModelTest.runVmTest`).
 
+### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0)
+
+Gilt für jede Liste, die Daten löschen lässt (heute App-Logs; Verlauf und Fehlerhistorie folgen). **Gelöscht wird
+ausschließlich lokal — die App schreibt nie ins Fahrzeug** (kein Fehlerspeicher-Löschen, kein Modus 04).
+- **Papierkorb in der Top-Bar** (56 dp, ausgegraut ohne Einträge) → `ConfirmDeleteDialog` (Titel · Folge · Abbrechen/Löschen) →
+  die Einträge verschwinden **sofort** → `UndoSnackbarEffect` mit „Rückgängig“ für 10 s (`UNDO_WINDOW_MS`, so lang wie
+  `SnackbarDuration.Long`) → erst danach wird wirklich gelöscht.
+- **Einen Takt, eine Wahrheit:** `UndoableDeletion<K>` (`ui/components/`, rein, mit virtueller Zeit getestet) besitzt die Uhr; die
+  Snackbar zeigt nur seinen Zustand. Nur der **letzte** Löschvorgang ist rückgängig-bar (ein neuer committet den vorigen sofort).
+  Die Schlüssel bleiben nach dem Commit noch `DELETE_SETTLE_MS` (300 ms) ausgeblendet, weil Room seinen Flow asynchron neu emittiert
+  (sonst flackern gelöschte Zeilen kurz zurück). Verlässt der Nutzer die Seite, wird sofort committet (`onCleared` → `flush()`).
+- **Löschen per „bis einschließlich Id“** (`AppLogDao.deleteUpTo(maxId)`), nicht „alles“: Zeilen, die im Fenster neu entstehen,
+  überleben. Der Commit läuft im `@ApplicationScope`, damit er das ViewModel überlebt.
+- Swipe-to-Delete ist erlaubt, aber **nur zusätzlich** zum sichtbaren Papierkorb-Button (Prinzip 4: keine Swipe-Only-Gesten) —
+  vorgesehen für den Verlauf (Phase 3 des UI-Plans).
+
 ### Animation-Disziplin
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
@@ -398,6 +414,9 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
 | `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
 | `ChoiceSetting(headline, supportingText, options, selected, onSelect, optionDescriptionPlural, additionalSupportingText?)` | Einstellung aus wenigen festen Ganzzahlen (`ui/settings/SettingsComponents.kt`): `ListItem` + `SingleChoiceSegmentedButtonRow`, Segmente ≥ 56 dp hoch, nur die Zahl im Segment — die Einheit steht im Hilfetext, Vorlesetext je Segment über Plurals ("20 Sekunden"). Ersetzt freie Zahleneingabe; Altwerte außerhalb der Liste setzt `AppPreferences` beim Lesen per `snapToOption` auf die nächste Option (Gleichstand → größere), ohne Migration. Genutzt für Watchdog-Timeout (10/20/30/60/120 s) und Reconnect-Basisverzögerung (3/10/30 s) |
+| `ConfirmDeleteDialog(title, message, confirmLabel, dismissLabel, onConfirm, onDismiss)` | Bestätigung vor „Alles löschen“ (`ui/components/`): M3-`AlertDialog` (bewusst keine Bottom Sheet), Löschen-Button in `colorScheme.error`, beide Buttons ≥ 56 dp |
+| `UndoSnackbarEffect(batchId, message, undoLabel, snackbarHostState, onUndo)` | „… gelöscht · Rückgängig“-Snackbar als reine ANSICHT von `UndoableDeletion.openBatchId`: ohne eigenen Timeout (`Indefinite`), verschwindet, wenn die Id null wird; braucht einen `SnackbarHost` im `Scaffold` |
+| `EmptyState(icon, text, modifier?)` | Leerer Zustand einer Liste: 48-dp-Icon + eine Textzeile, beides in `onSurfaceVariant`; füllt den gegebenen Platz |
 | `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar. Bei nahezu flachem Werteverlauf spreizt `effectiveSparklineRange` (Stand 2026-09-29) die Skala symmetrisch um mind. 5 % der Werte-Magnitude (Fallback ±0,05 bei exakt 0), damit die Linie nicht als einzelner Strich am Kachel-Rand klebt — reine Funktion, unabhängig von `sparklinePointOffset` |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
@@ -423,7 +442,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 - **Tests pflichtig** für jeden neuen ViewModel, jeden Parser, jede Repository-Methode. Erst Tests schreiben (TDD), dann Implementation (siehe `superpowers:test-driven-development`).
 - **UI-Strings** ausschließlich über `stringResource(R.string.…)`, niemals hardcoded. Beide Locales `values/` + `values-de/` pflegen.
-- **Coroutines:** `viewModelScope` für ViewModel-internes, `applicationScope` (definiert in `AppModule`) für Lifecycle-überspannendes (Foreground-Service-Repository-Calls).
+- **Coroutines:** `viewModelScope` für ViewModel-internes, `@ApplicationScope CoroutineScope` (`di/ApplicationScope.kt`, bereitgestellt in `AppModule` UND in `TestAppModule`, das `AppModule` in den Hilt-androidTests ersetzt) für Lifecycle-überspannendes, z. B. ein Löschen, das noch im Rückgängig-Fenster ist, wenn der Nutzer die Seite verlässt. **Korrektur (2026-10-04):** Diese Zeile behauptete früher, ein `applicationScope` sei bereits in `AppModule` definiert — er existierte nicht (nur `ObdForegroundService.scope`); er wurde mit dem Lösch-Vertrag (v1.20.0) tatsächlich angelegt.
 - **Hilt:** `@Singleton` nur wo unverzichtbar. Repositories ja, ViewModels nie.
 - **Logging:** `AppLogRepository` für persistente App-Logs (Settings-Screen sichtbar). `Log.d/w/e` nur in Tests oder für Debug-Build-Output.
 - **Compose-UI-Tests (`androidTest`):** `createAndroidComposeRule` aus `androidx.compose.ui.test.junit4.v2` importieren — die v1-Variante ist deprecated (die v2-Rule nutzt `StandardTestDispatcher` statt `UnconfinedTestDispatcher`; alle bestehenden Tests laufen damit unverändert).
@@ -431,8 +450,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 838 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 170 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 862 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 188 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

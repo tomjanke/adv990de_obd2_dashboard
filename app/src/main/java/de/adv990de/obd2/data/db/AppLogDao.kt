@@ -17,6 +17,9 @@ interface AppLogDao {
     @Query("DELETE FROM app_log WHERE timestamp < :cutoffMs")
     suspend fun deleteOlderThan(cutoffMs: Long)
 
-    @Query("DELETE FROM app_log")
-    suspend fun deleteAll()
+    /** Deletes every entry up to and including [maxId] — also rows beyond the 1000 the screen shows.
+     *  Newer rows (written while a delete is still undoable) are untouched, which `DELETE ... WHERE
+     *  id IN (...)` or "delete all" could not guarantee; ids only grow (`autoGenerate`). */
+    @Query("DELETE FROM app_log WHERE id <= :maxId")
+    suspend fun deleteUpTo(maxId: Long)
 }

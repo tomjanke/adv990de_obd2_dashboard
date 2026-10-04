@@ -19,5 +19,5 @@ class AppLogRepository @Inject constructor(private val dao: AppLogDao) {
         dao.deleteOlderThan(System.currentTimeMillis() - maxAgeMs)
     }
 
-    suspend fun clearAll() = dao.deleteAll()
+    suspend fun deleteUpTo(maxId: Long) = dao.deleteUpTo(maxId)
 }

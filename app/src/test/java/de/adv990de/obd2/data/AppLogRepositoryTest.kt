@@ -46,12 +46,12 @@ class AppLogRepositoryTest {
     }
 
     @Test
-    fun `clearAll delegates to dao`() = runTest {
-        coEvery { dao.deleteAll() } just Runs
+    fun `deleteUpTo delegates to dao with the given id`() = runTest {
+        coEvery { dao.deleteUpTo(any()) } just Runs
 
-        repo.clearAll()
+        repo.deleteUpTo(42L)
 
-        coVerify { dao.deleteAll() }
+        coVerify(exactly = 1) { dao.deleteUpTo(42L) }
     }
 
     @Test

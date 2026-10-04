@@ -58,9 +58,41 @@ class AppLogDaoTest {
     }
 
     @Test
-    fun deleteAll_emptyResult() = runBlocking {
-        dao.insert(AppLogEntity(timestamp = 1000L, level = "INFO", message = "a"))
-        dao.deleteAll()
+    fun deleteUpTo_removesEverythingUpToAndIncludingTheId_keepsNewerRows() = runBlocking {
+        for (i in 1..5) dao.insert(AppLogEntity(timestamp = i * 1000L, level = "INFO", message = "m$i"))
+        val ids = dao.getAllNewestFirst().first().map { it.id }.sorted()   // ascending insertion ids
+
+        dao.deleteUpTo(ids[2])                                              // drops the first three
+
+        val remaining = dao.getAllNewestFirst().first()
+        assertEquals(listOf("m5", "m4"), remaining.map { it.message })
+    }
+
+    @Test
+    fun deleteUpTo_keepsLinesWrittenAfterTheIdWasChosen() = runBlocking {
+        dao.insert(AppLogEntity(timestamp = 1000L, level = "INFO", message = "before"))
+        val maxAtPressTime = dao.getAllNewestFirst().first().maxOf { it.id }
+        dao.insert(AppLogEntity(timestamp = 2000L, level = "WARN", message = "written inside the undo window"))
+
+        dao.deleteUpTo(maxAtPressTime)
+
+        assertEquals(listOf("written inside the undo window"), dao.getAllNewestFirst().first().map { it.message })
+    }
+
+    @Test
+    fun deleteUpTo_onAnEmptyTable_isANoOp() = runBlocking {
+        dao.deleteUpTo(100L)
+        assertTrue(dao.getAllNewestFirst().first().isEmpty())
+    }
+
+    @Test
+    fun deleteUpTo_alsoRemovesRowsBeyondTheVisibleLimit() = runBlocking {
+        // The screen shows at most 1000 rows; "delete all" must not leave the older, invisible ones behind.
+        for (i in 1..1005) dao.insert(AppLogEntity(timestamp = i.toLong(), level = "INFO", message = "m$i"))
+        val maxVisible = dao.getAllNewestFirst().first().maxOf { it.id }
+
+        dao.deleteUpTo(maxVisible)
+
         assertTrue(dao.getAllNewestFirst().first().isEmpty())
     }
 

@@ -21,6 +21,9 @@ import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.MIGRATION_1_2
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 @Module
@@ -61,4 +64,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideAppLogDao(db: AppDatabase): AppLogDao = db.appLogDao()
+
+    /** Never cancelled; a failing child does not take the others down (SupervisorJob). The work
+     *  inside is suspend calls into Room, which switch threads themselves, so Default is enough. */
+    @Provides @Singleton @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 }

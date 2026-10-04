@@ -109,6 +109,8 @@
     <string name="history_delete_confirm">Delete the session from %1$s? All recorded data will be lost.</string>
     <string name="history_delete_action">Delete</string>
     <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="undo">Undo</string>
 
     <!-- Exit app dialog -->
     <string name="exit_app_dialog_title">Exit app?</string>
@@ -167,6 +169,9 @@
     <string name="app_logs_title">App Logs</string>
     <string name="app_logs_empty">No logs yet</string>
     <string name="app_logs_clear">Clear logs</string>
+    <string name="app_logs_clear_title">Delete all logs?</string>
+    <string name="app_logs_clear_message">All log entries will be deleted. You can undo this right afterwards.</string>
+    <string name="app_logs_deleted">Logs deleted</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Color scheme</string>
     <string name="settings_brightness">Brightness</string>

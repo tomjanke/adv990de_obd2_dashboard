@@ -15,6 +15,9 @@ import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 /**
@@ -48,6 +51,13 @@ object TestAppModule {
     @Provides
     @Singleton
     fun provideAppLogDao(db: AppDatabase): AppLogDao = db.appLogDao()
+
+    /** Same provider as [AppModule.provideApplicationScope] — this module replaces AppModule, so
+     *  everything that injects the app-wide scope (e.g. AppLogsViewModel) needs it here too. */
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * Returns a mock BluetoothAdapter. The real adapter requires hardware and the

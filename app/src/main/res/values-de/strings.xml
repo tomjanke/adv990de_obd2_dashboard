@@ -109,6 +109,8 @@
     <string name="history_delete_confirm">Fahrt vom %1$s löschen? Alle Daten gehen verloren.</string>
     <string name="history_delete_action">Löschen</string>
     <string name="cancel">Abbrechen</string>
+    <string name="delete">Löschen</string>
+    <string name="undo">Rückgängig</string>
 
     <!-- Exit app dialog -->
     <string name="exit_app_dialog_title">App beenden?</string>
@@ -167,6 +169,9 @@
     <string name="app_logs_title">App-Logs</string>
     <string name="app_logs_empty">Keine Logs vorhanden</string>
     <string name="app_logs_clear">Logs löschen</string>
+    <string name="app_logs_clear_title">Alle Logs löschen?</string>
+    <string name="app_logs_clear_message">Alle Log-Einträge werden gelöscht. Du kannst das gleich noch rückgängig machen.</string>
+    <string name="app_logs_deleted">Logs gelöscht</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Farbschema</string>
     <string name="settings_brightness">Helligkeit</string>

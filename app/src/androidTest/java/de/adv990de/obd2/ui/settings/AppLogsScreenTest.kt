@@ -1,9 +1,12 @@
 package de.adv990de.obd2.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,8 +24,10 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -196,5 +201,86 @@ class AppLogsScreenTest {
         composeRule.onNodeWithText("INFO").assertIsDisplayed()
         composeRule.onNodeWithText("WARN").assertIsDisplayed()
         composeRule.onNodeWithText("ERROR").assertIsDisplayed()
+    }
+
+    // --- delete all: confirmation, undo (the local delete contract) ---
+
+    private fun str(resId: Int) = composeRule.activity.getString(resId)
+
+    private fun waitUntilGone(text: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    private fun logsInDatabase() = runBlocking { testDb.appLogDao().getAllNewestFirst().first() }
+
+    private fun pressTrash() = composeRule.onNodeWithContentDescription(str(R.string.app_logs_clear)).performClick()
+
+    @Test
+    fun trashIcon_isDisabled_whenThereAreNoLogs() {
+        launchAppLogsScreen()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription(str(R.string.app_logs_clear)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun trashIcon_opensTheConfirmationDialog_withoutDeletingAnything() {
+        insertLog(level = "INFO", message = "keep me for now")
+        launchAppLogsScreen()
+        waitForText("keep me for now")
+
+        pressTrash()
+
+        composeRule.onNodeWithText(str(R.string.app_logs_clear_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.app_logs_clear_message)).assertIsDisplayed()
+        assertEquals(1, logsInDatabase().size)
+    }
+
+    @Test
+    fun cancel_closesTheDialog_andKeepsTheLogs() {
+        insertLog(level = "INFO", message = "still here")
+        launchAppLogsScreen()
+        waitForText("still here")
+
+        pressTrash()
+        composeRule.onNodeWithText(str(R.string.cancel)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(str(R.string.app_logs_clear_title)).assertDoesNotExist()
+        composeRule.onNodeWithText("still here").assertIsDisplayed()
+    }
+
+    @Test
+    fun confirm_hidesTheLogsAtOnce_showsTheEmptyStateAndOffersUndo_butDeletesNothingYet() {
+        insertLog(level = "INFO", message = "going away")
+        launchAppLogsScreen()
+        waitForText("going away")
+
+        pressTrash()
+        composeRule.onNodeWithText(str(R.string.delete)).performClick()
+        waitUntilGone("going away")
+
+        composeRule.onNodeWithText(str(R.string.app_logs_empty)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.app_logs_deleted)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.undo)).assertIsDisplayed()
+        assertEquals("the row must still be in the database inside the undo window", 1, logsInDatabase().size)
+    }
+
+    @Test
+    fun undo_bringsTheLogsBack_andDismissesTheSnackbar() {
+        insertLog(level = "WARN", message = "restore me")
+        launchAppLogsScreen()
+        waitForText("restore me")
+
+        pressTrash()
+        composeRule.onNodeWithText(str(R.string.delete)).performClick()
+        waitUntilGone("restore me")
+        composeRule.onNodeWithText(str(R.string.undo)).performClick()
+
+        waitForText("restore me")
+        waitUntilGone(str(R.string.app_logs_deleted))
+        assertEquals(1, logsInDatabase().size)
     }
 }
