@@ -1,5 +1,33 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.19.0 (versionCode 75)
+
+### Verbindungs-Einstellungen als feste Auswahl
+
+„Reconnect bei eingefrorenen Werten" und „Reconnect-Basisverzögerung" sind keine Zahlenfelder mehr,
+sondern eine Auswahl aus festen Werten: 10 / 20 / 30 / 60 / 120 s bzw. 3 / 10 / 30 s. Die Segmente sind
+56 dp hoch (handschuhtauglich), zeigen nur die Zahl und werden von Screenreadern als „20 Sekunden"
+vorgelesen; bei großer Systemschrift bleiben die Zahlen auch auf schmalen Telefonen lesbar. Ein Vertippen
+kann keinen unbrauchbaren Wert mehr erzeugen, und alle Optionen sind auf einen Blick sichtbar.
+
+Unter der Basisverzögerung steht jetzt, was die Wahl bedeutet: die Wartezeiten vor den fünf
+Reconnect-Versuchen, z. B. „Wartezeiten: 3 · 6 · 12 · 24 · 48 s (insgesamt 1:33 min)". Bei 30 s sind es
+zusammen 15:30 min — das war aus dem alten Zahlenfeld nicht ablesbar.
+
+Wichtig: Ein früher frei eingegebener Wert, der nicht in der Auswahl steht, gilt jetzt als der
+nächstliegende Auswahlwert (bei Gleichstand der größere): 45 s wirkt als 60 s, 5 s als 3 s. Die Umdeutung
+geschieht nur beim Lesen — gespeichert wird nichts um, eine Migration gibt es nicht. Wer die
+Standardwerte (20 s und 3 s) nutzt, merkt keinen Unterschied.
+
+### Tests
+
+838 Unit-Tests (+18) und 170 Instrumentation-Tests (+10), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen. Beim Bau haben die Tests zwei Fehler im ersten Entwurf gefunden — Segmente nur 40 statt
+56 dp hoch, und „120" lief bei Systemschrift 1,3 auf einem 320-dp-Telefon über — beide vor dem Release
+behoben.
+
+---
+
 ## Version 1.18.1 (versionCode 74)
 
 ### Slot-Picker öffnet in voller Höhe
