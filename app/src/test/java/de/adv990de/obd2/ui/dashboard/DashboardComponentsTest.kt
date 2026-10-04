@@ -280,4 +280,50 @@ class DashboardComponentsTest {
             assertEquals("color=$color", idleColor, oilBarStripColor(color, isLive = false, idleColor = idleColor))
         }
     }
+
+    // --- gearBoxContent / gearBoxColor ---
+    // Die Gang-Box neben dem RPM-Balken kennt drei Zustaende: Gang, Leerlauf ("N") und unbekannt
+    // ("–"). Praezedenz: ohne Verbindung immer unbekannt, sonst gewinnt "N" vor einem noch
+    // gesetzten Gang (die ECU meldet den Stillstand sofort, die GPS-Uebersetzung hinkt nach).
+
+    @Test
+    fun `a live determined gear shows that gear`() {
+        assertEquals(GearBoxContent.Engaged(3), gearBoxContent(gear = 3, isNeutral = false, isLive = true))
+    }
+
+    @Test
+    fun `a live undetermined gear shows the unknown placeholder`() {
+        assertEquals(GearBoxContent.Unknown, gearBoxContent(gear = null, isNeutral = false, isLive = true))
+    }
+
+    @Test
+    fun `neutral shows N and wins over a gear that is still set`() {
+        assertEquals(GearBoxContent.Neutral, gearBoxContent(gear = null, isNeutral = true, isLive = true))
+        assertEquals(GearBoxContent.Neutral, gearBoxContent(gear = 2, isNeutral = true, isLive = true))
+    }
+
+    @Test
+    fun `without a connection neither a gear nor neutral is shown`() {
+        assertEquals(GearBoxContent.Unknown, gearBoxContent(gear = 4, isNeutral = false, isLive = false))
+        assertEquals(GearBoxContent.Unknown, gearBoxContent(gear = null, isNeutral = true, isLive = false))
+    }
+
+    @Test
+    fun `neutral is the fixed traffic-light green, not a theme color`() {
+        // Wie die reale Leerlauf-Kontrollleuchte: dasselbe feste Gruen in jedem Farbschema.
+        assertEquals(
+            StatusColors.TrafficLightGreen,
+            gearBoxColor(GearBoxContent.Neutral, engagedColor = Color.Red, unknownColor = Color.Blue),
+        )
+        assertEquals(
+            StatusColors.TrafficLightGreen,
+            gearBoxColor(GearBoxContent.Neutral, engagedColor = Color.Blue, unknownColor = Color.Red),
+        )
+    }
+
+    @Test
+    fun `a gear uses the engaged color and the placeholder the unknown color`() {
+        assertEquals(Color.Red, gearBoxColor(GearBoxContent.Engaged(3), engagedColor = Color.Red, unknownColor = Color.Blue))
+        assertEquals(Color.Blue, gearBoxColor(GearBoxContent.Unknown, engagedColor = Color.Red, unknownColor = Color.Blue))
+    }
 }

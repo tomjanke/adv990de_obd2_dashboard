@@ -1726,6 +1726,152 @@ class DashboardViewModelTest {
         assertNull(vm.uiState.value.gear)
     }
 
+    // ── Leerlauf-Anzeige ("N") ─────────────────────────────────────────────────────
+    // Stand + laufender Motor → DashboardUiState.isNeutral (s. isNeutral() in GearIndicator.kt).
+    // Geschwindigkeit ist hier der zusammengefuehrte Anzeigewert (ECU zuerst, GPS-Fallback), nicht
+    // der rohe GPS-Wert wie beim Gang — die ECU meldet den Stillstand exakt und ohne GPS-Fix.
+
+    private fun cycle(rpm: Float, speedKmh: Float? = null, timestamp: Long = 1000L): List<SensorValue> =
+        listOfNotNull(
+            SensorValue(pid = PidRegistry.RPM, value = rpm, timestamp = timestamp),
+            speedKmh?.let { SensorValue(pid = PidRegistry.SPEED, value = it, timestamp = timestamp) },
+        )
+
+    private fun makeNeutralVm(vararg cycles: List<SensorValue>, gpsKmh: Float? = null): DashboardViewModel =
+        makeVmFrom(
+            makeConnectedObdRepo(flowOf(*cycles)),
+            mockk<SessionRepository> {
+                coEvery { startSession(any()) } returns 1L
+                coEvery { writeReadings(any(), any()) } just Runs
+                coEvery { endSession(any()) } just Runs
+            },
+            makePrefs(
+                useGpsSpeed = gpsKmh != null,
+                wheelCircumferenceMm = 2000f,
+                primaryRatio = 1f,
+                secondaryRatio = 1f,
+                gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+            ),
+            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
+            makeGpsSpeedSource(kmh = gpsKmh), mockk(relaxed = true),
+        )
+
+    @Test
+    fun `neutral is shown when the vehicle stands and the engine runs`() = runTest {
+        val vm = makeNeutralVm(cycle(rpm = 1200f, speedKmh = 0f))
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isNeutral)
+        assertNull(vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `neutral also works from GPS speed alone when the vehicle reports none`() = runTest {
+        // Kein SPEED-PID vom Fahrzeug, aber GPS meldet 0 km/h: die Zusammenfuehrung (mergeGpsSpeed)
+        // liefert den Wert als Anzeige-Geschwindigkeit, daraus wird "N".
+        val vm = makeNeutralVm(cycle(rpm = 1200f), gpsKmh = 0f)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `neutral is not shown without any speed`() = runTest {
+        // Weder ECU noch GPS: unbekannt statt "steht" — nie ein falsches "N".
+        val vm = makeNeutralVm(cycle(rpm = 1200f))
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `neutral is not shown when the engine is not running`() = runTest {
+        val vm = makeNeutralVm(cycle(rpm = 0f, speedKmh = 0f))
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `neutral holds through slow speed noise but slow speed alone does not enter it`() = runTest {
+        // Hysterese-Verdrahtung wie bei `gear stays locked across updates...`: 3 km/h liegen
+        // zwischen Eintritts- (2) und Haltegrenze (4). Mit wasNeutral aus dem vorigen Zyklus bleibt
+        // "N" stehen; ohne ihn (frischer Start) tritt es nicht ein. Eine Verdrahtung, die wasNeutral
+        // immer als false uebergibt, wuerde den ersten Fall brechen.
+        val holding = makeNeutralVm(cycle(1200f, 0f, 1000L), cycle(1200f, 3f, 2000L))
+        val fresh = makeNeutralVm(cycle(1200f, 3f))
+        advanceUntilIdle()
+
+        assertTrue("an already neutral state holds at 3 km/h", holding.uiState.value.isNeutral)
+        assertFalse("3 km/h alone does not enter neutral", fresh.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `neutral clears when the vehicle pulls away`() = runTest {
+        val vm = makeNeutralVm(cycle(1200f, 0f, 1000L), cycle(2500f, 5f, 2000L))
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isNeutral)
+        assertNull(vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `neutral wins over a gear that GPS still reports`() = runTest {
+        // Beim Anhalten meldet die ECU sofort 0 km/h, waehrend die (verzoegerte) GPS-Geschwindigkeit
+        // noch 60 km/h zeigt und mit 5000 rpm exakt Gang 1 trifft (Fixture wie `gear is computed
+        // from rpm and GPS speed...`). "N" gewinnt und der Gang wird geleert — die Invariante
+        // isNeutral => gear == null haelt Anzeige und Hysterese-Gedaechtnis konsistent.
+        val vm = makeNeutralVm(cycle(rpm = 5000f, speedKmh = 0f), gpsKmh = 60f)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isNeutral)
+        assertNull(vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `neutral resets after a disconnect during reconnect handling`() = runTest {
+        // Spiegel zu `gear resets to null after a disconnect during reconnect handling`: der
+        // applyIdle()-Zweig "Fehler/Wiederverbindung" setzt per copy() zurueck, ein vergessenes
+        // isNeutral = false liesse nach dem Abbruch ein altes "N" stehen. Relaxed
+        // ConnectionCoordinator aus demselben Grund wie dort (sonst ersetzt onConnectionEvent den
+        // ganzen State schon vor applyIdle()); delay(1) stellt die reale Zeit-Trennung zwischen
+        // zwei Zyklen nach, s. dortigen Kommentar.
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { setMoving(any()) } just Runs
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns flow {
+                emit(cycle(rpm = 1200f, speedKmh = 0f))
+                delay(1)
+                isConnectedFlow.value = false
+                throw ObdException.ConnectionLost()
+            }
+            every { updateLatestReadings(any()) } just Runs
+        }
+        val sessionRepo = mockk<SessionRepository> {
+            coEvery { startSession(any()) } returns 1L
+            coEvery { writeReadings(any(), any()) } just Runs
+            coEvery { endSession(any()) } just Runs
+        }
+        val prefs = makePrefs()
+
+        val vm = DashboardViewModel(
+            obdRepo,
+            prefs,
+            mockk<ConnectionCoordinator>(relaxed = true),
+            ReadingsPipeline(obdRepo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource()),
+            SavedStateHandle(),
+        )
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertFalse(vm.uiState.value.isNeutral)
+    }
+
     // ── Motortemperatur-Ableitung (rpmDynamicThreshold) ─────────────────────────
     // rpmDynamicThreshold ist ein WhileSubscribed(5_000)-StateFlow (anders als gearRatios,
     // s. dessen Kommentar oben) — ohne aktiven Collector bliebe `.value` fuer immer auf dem

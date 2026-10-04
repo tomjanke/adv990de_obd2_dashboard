@@ -16,6 +16,8 @@
     <string name="dashboard_bt_connecting_desc">Bluetooth connecting</string>
     <string name="dashboard_gear_desc">Gear %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gear unknown</string>
+    <string name="dashboard_gear_neutral_desc">Neutral</string>
+    <string name="dashboard_gear_neutral_symbol">N</string>
 
     <!-- Simulated oil temperature bar (no visible label, accessibility only) -->
     <string name="oil_bar_red_desc">Probable oil temperature: cold</string>

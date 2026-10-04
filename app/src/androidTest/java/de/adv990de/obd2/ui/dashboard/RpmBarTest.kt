@@ -28,7 +28,7 @@ import org.junit.runner.RunWith
  * `rpmThresholdTempScale`, `shouldStartRpmDemoSweep`) are already exhaustively covered as JVM tests
  * in `DashboardComponentsTest` (`app/src/test/java/de/adv990de/obd2/ui/dashboard/DashboardComponentsTest.kt`).
  * This class covers only what those cannot reach: the actual Composable output — the gear digit
- * ("N" vs. the "–" placeholder) and its accompanying `contentDescription`, the [OilTemperatureBarStrip]
+ * (or the neutral "N", or the "–" placeholder) and its accompanying `contentDescription`, the [OilTemperatureBarStrip]
  * `contentDescription` for each `OilBarColor` state (that composable has no visible text of its own,
  * s. its KDoc) — plus a basic "composes without crashing" smoke check across the segment `Canvas`
  * and the blink `produceState` loop's below-/above-threshold branches.
@@ -116,6 +116,46 @@ class RpmBarTest {
         val expectedDescription = composeRule.activity.getString(R.string.dashboard_gear_unknown_desc)
         composeRule.onNodeWithText(undeterminedGearGlyph).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun neutral_showsN_andNeutralContentDescription() {
+        composeRule.setContent {
+            RpmBar(rpm = 1100f, threshold = 7000, gear = null, isNeutral = true)
+        }
+        composeRule.waitForIdle()
+
+        val symbol = composeRule.activity.getString(R.string.dashboard_gear_neutral_symbol)
+        val expectedDescription = composeRule.activity.getString(R.string.dashboard_gear_neutral_desc)
+        composeRule.onNodeWithText(symbol).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(expectedDescription).assertIsDisplayed()
+    }
+
+    @Test
+    fun neutral_winsOverAGearThatIsStillPassedIn() {
+        composeRule.setContent {
+            RpmBar(rpm = 1100f, threshold = 7000, gear = 2, isNeutral = true)
+        }
+        composeRule.waitForIdle()
+
+        val symbol = composeRule.activity.getString(R.string.dashboard_gear_neutral_symbol)
+        composeRule.onNodeWithText(symbol).assertIsDisplayed()
+        composeRule.onNodeWithText("2").assertDoesNotExist()
+    }
+
+    @Test
+    fun notLive_hidesNeutral_evenWhenNeutralIsPassedIn() {
+        // Ohne Verbindung gibt es keinen Stillstand zu melden — dieselbe Regel wie fuer die Gangziffer.
+        composeRule.setContent {
+            RpmBar(rpm = 0f, threshold = 7000, gear = null, isNeutral = true, isLive = false)
+        }
+        composeRule.waitForIdle()
+
+        val neutralDescription = composeRule.activity.getString(R.string.dashboard_gear_neutral_desc)
+        val unknownDescription = composeRule.activity.getString(R.string.dashboard_gear_unknown_desc)
+        composeRule.onNodeWithText(undeterminedGearGlyph).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(unknownDescription).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(neutralDescription).assertDoesNotExist()
     }
 
     @Test

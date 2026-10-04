@@ -47,6 +47,8 @@ data class DashboardUiState(
     val engineTempC: Float? = null,
     val speedKmh: Float? = null,
     val gear: Int? = null,
+    /** Steht und Motor laeuft (s. [isNeutral]) — schliesst [gear] aus: gesetzt ist hoechstens eines. */
+    val isNeutral: Boolean = false,
     val oilBarColor: OilBarColor? = null
 ) {
     companion object {
@@ -273,7 +275,11 @@ class DashboardViewModel @Inject constructor(
         // was sich als zaeher Wiedereinstieg bemerkbar machte. holdGear() haelt den zuletzt
         // angezeigten Gang, solange die Geschwindigkeit ueber MIN_SPEED_KMH bleibt, und loescht
         // ihn nur bei echtem Stillstand oder fehlendem GPS-Fix.
-        val newGear = holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
+        // "N" nutzt bewusst newSpeedKmh (ECU zuerst): die ECU meldet den Stillstand sofort und ohne
+        // GPS-Fix, waehrend computedGear aus der verzoegerten GPS-Geschwindigkeit noch einen Gang
+        // liefern kann. Dann gewinnt "N" und der Gang wird geleert (isNeutral => gear == null).
+        val newNeutral = isNeutral(newRpmValue, newSpeedKmh, _uiState.value.isNeutral)
+        val newGear = if (newNeutral) null else holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
         // Oel-Balken-Farbe: unabhaengig von rpmDynamicThreshold (anders als engineTempC oben) —
         // die Kuehlmitteltemperatur wird hier immer gesucht, wenn ein plausibler Wert vorliegt.
         // Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z.B. NaN) oder ist sie nur
@@ -300,6 +306,7 @@ class DashboardViewModel @Inject constructor(
             engineTempC = engineTempC,
             speedKmh = newSpeedKmh,
             gear = newGear,
+            isNeutral = newNeutral,
             oilBarColor = newOilBarColor,
             isConnected = true,
             isReconnecting = false,
@@ -324,6 +331,7 @@ class DashboardViewModel @Inject constructor(
                 readings = emptyList(),
                 speedKmh = null,
                 gear = null,
+                isNeutral = false,
                 oilBarColor = null
             )
         } else {

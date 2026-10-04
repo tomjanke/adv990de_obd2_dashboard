@@ -23,6 +23,17 @@ private const val ENTER_TOLERANCE = 0.04f
  *  wuerde ein echter Gangwechsel zwischen ihnen nie erkannt. */
 private const val STAY_TOLERANCE = 0.06f
 
+/** Unter dieser Geschwindigkeit gilt das Fahrzeug als stehend (Eintritt in "N"). Bewusst weit unter
+ *  [MIN_SPEED_KMH]: dazwischen ist weder "N" noch ein Gang behauptbar, die Anzeige bleibt "–". */
+private const val NEUTRAL_ENTER_SPEED_KMH = 2.0f
+
+/** Ein bereits angezeigtes "N" bleibt, solange die Geschwindigkeit darunter bleibt — Schmitt-Trigger
+ *  gegen GPS-Rauschen um [NEUTRAL_ENTER_SPEED_KMH]. */
+private const val NEUTRAL_HOLD_SPEED_KMH = 4.0f
+
+/** Unter dieser Drehzahl laeuft der Motor nicht (Zuendung aus, Anlasser dreht mit ~250 rpm). */
+private const val ENGINE_RUNNING_MIN_RPM = 500f
+
 /**
  * Bestimmt den aktuell eingelegten Gang aus Motordrehzahl und GPS-Geschwindigkeit.
  *
@@ -78,6 +89,24 @@ fun holdGear(computedGear: Int?, speedKmh: Float?, heldGear: Int?): Int? = when 
     computedGear != null -> computedGear
     speedKmh == null || speedKmh < MIN_SPEED_KMH -> null
     else -> heldGear
+}
+
+/**
+ * Leerlauf-Erkennung ("N"): das Fahrzeug steht und der Motor laeuft. Reine Funktion wie
+ * [determineGear].
+ *
+ * OBD2 kennt weder Leerlaufschalter noch Gang-PID, "N" ist deshalb eine Heuristik und bedeutet
+ * "steht, Motor laeuft": Leerlauf ODER Kupplung gezogen (an der Ampel nicht unterscheidbar).
+ * Leerlauf im Rollen wird nicht erkannt.
+ *
+ * [speedKmh] ist die zusammengefuehrte Anzeige-Geschwindigkeit (ECU zuerst, GPS als Fallback), `null`
+ * heisst unbekannt — dann nie "N" (anders als die Fahrterkennung, wo "fehlt" als "steht" gilt).
+ * Hysterese: Eintritt unter [NEUTRAL_ENTER_SPEED_KMH], ein bereits angezeigtes "N" ([wasNeutral])
+ * bleibt bis [NEUTRAL_HOLD_SPEED_KMH]. Das negierte `>=` macht eine NaN-Drehzahl zu "Motor aus".
+ */
+fun isNeutral(engineRpm: Float, speedKmh: Float?, wasNeutral: Boolean): Boolean {
+    if (speedKmh == null || !(engineRpm >= ENGINE_RUNNING_MIN_RPM)) return false
+    return speedKmh < if (wasNeutral) NEUTRAL_HOLD_SPEED_KMH else NEUTRAL_ENTER_SPEED_KMH
 }
 
 /**

@@ -16,6 +16,8 @@
     <string name="dashboard_bt_connecting_desc">Bluetooth verbindet</string>
     <string name="dashboard_gear_desc">Gang %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gang unbekannt</string>
+    <string name="dashboard_gear_neutral_desc">Leerlauf</string>
+    <string name="dashboard_gear_neutral_symbol">N</string>
 
     <!-- Simulierte Oeltemperatur-Leiste (keine sichtbare Beschriftung, nur Accessibility) -->
     <string name="oil_bar_red_desc">Wahrscheinliche Öltemperatur: kalt</string>

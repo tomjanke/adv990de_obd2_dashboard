@@ -43,7 +43,7 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 - `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
 - `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
-- `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der beiden unten dokumentierten Rot/Gelb/Grün-Ampel-Ausnahmen (Bluetooth-Dot, Öl-Temperatur-Balken), **kein** allgemeines OK-Grün
+- `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der unten dokumentierten Ausnahmen (Bluetooth-Dot und Öl-Temperatur-Balken als Rot/Gelb/Grün-Ampel, Neutral-Anzeige „N“ der Ganganzeige), **kein** allgemeines OK-Grün
 - Form-Validation / Empty-State-Error-Texte: `MaterialTheme.colorScheme.error` (M3-Standard, andere Semantik als Dashboard-Critical)
 
 **Dokumentierte Ausnahme — Bluetooth-Verbindungs-Dot (Stand 2026-09-23, Nutzerwunsch):** Der
@@ -78,6 +78,17 @@ nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Alle drei Farbe
 `StatusColors`-Tokens; keine Hardcoded-Werte im Composable. Hysterese-Details: `GREEN_ENTER_THRESHOLD_C = 80 °C`,
 `GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min` — die Zone 78–80 °C hält den
 Timer unverändert (verhindert Thermostat-Pendeln).
+
+**Dokumentierte Ausnahme — Neutral-Anzeige „N“ in der Ganganzeige (Stand 2026-10-04, Nutzerwunsch):**
+Steht das Fahrzeug und läuft der Motor, zeigt die Gang-Box neben dem RPM-Balken (s. „RPM-Balken“) ein
+**grünes „N“** statt des „–“. Das Grün ist in jedem Farbschema `StatusColors.TrafficLightGreen`
+(`#22C55E`, dasselbe wie Bluetooth-Dot und Öl-Balken) — wie die grüne Leerlauf-Kontrollleuchte am
+Motorrad; Theme-`tertiary` scheidet aus, weil es nur im grünen Cockpit-Schema grün ist. Die
+Farbzuordnung steckt in `gearBoxColor()` (`ui/dashboard/DashboardComponents.kt`, reine Funktion,
+JVM-getestet). Kontrast: auf den drei dunklen Cockpit-Schemata ≈ 8:1; auf dem hellen Default-Schema
+nur ≈ 2,3:1, dort wegen der großen Ziffer (53 sp) und der gesättigten Farbe aber klar lesbar
+(Screenshot-Prüfung auf dem Pixel 8 Pro, 2026-10-04). Falls das je bemängelt wird: dunkleres Grün für
+helle Oberflächen (z. B. `#15803D`, ≈ 5:1) als zweiter Token.
 
 **Dokumentierte M3-Abweichung — Hintergrund der Navigationsleiste (Stand 2026-09-27):** Die
 `NavigationBar` in `ui/components/BottomNav.kt` setzt `containerColor = MaterialTheme.colorScheme.surface`
@@ -208,10 +219,18 @@ Neben dem Balken steht seit der virtuellen Ganganzeige (Stand 2026-09-23) keine 
 mehr, sondern eine schmale Box (40 dp breit, volle Balkenhöhe — Stand 2026-09-24, zuvor 32 dp,
 s. „`GearIndicatorStyle` == `ValueTileStyle`" oben) mit der aktuell erkannten
 Gangstufe als einzelne Ziffer (`GearIndicatorStyle`, Plex Mono, `tnum`) in `primary`. Ist der Gang
-nicht bestimmbar — keine Verbindung, oder verbunden aber z.B. im Stillstand — zeigt die Box „–“ in
-`onSurfaceVariant` statt einer Zahl. Die Berechnung selbst (`determineGear`, Hysterese via
-`STAY_TOLERANCE`/`ENTER_TOLERANCE`) liegt in `ui/dashboard/GearIndicator.kt`, domain-agnostisch und
-ohne Android-Bezug.
+nicht bestimmbar — keine Verbindung, 4–8 km/h, keine Geschwindigkeit oder keine passende
+Übersetzung — zeigt die Box „–“ in `onSurfaceVariant` statt einer Zahl. **Leerlauf (seit 2026-10-04):**
+Steht das Fahrzeug (zusammengeführte Geschwindigkeit < 2 km/h, ein bereits angezeigtes „N“ bleibt bis
+4 km/h) und läuft der Motor (≥ 500 rpm), zeigt die Box stattdessen ein grünes „N“ (s. „Dokumentierte
+Ausnahme — Neutral-Anzeige“ oben). Semantik: „N“ = „steht, Motor läuft“ — Leerlauf **oder Kupplung
+gezogen** (OBD2 hat keinen Leerlaufschalter, an der Ampel nicht unterscheidbar); Leerlauf im Rollen
+wird nicht erkannt. Anders als der Gang nutzt „N“ die zusammengeführte Anzeige-Geschwindigkeit (ECU
+zuerst, GPS als Fallback): die ECU meldet den Stillstand exakt und ohne GPS-Fix; fehlt jede
+Geschwindigkeit, bleibt es bei „–“. „N“ schließt einen Gang aus (`DashboardUiState.isNeutral` ⇒
+`gear == null`), ohne Verbindung zeigt die Box immer „–“ (`gearBoxContent()`). Die Berechnung selbst
+(`determineGear`, Hysterese via `STAY_TOLERANCE`/`ENTER_TOLERANCE`; `isNeutral`, Hysterese 2/4 km/h)
+liegt in `ui/dashboard/GearIndicator.kt`, domain-agnostisch und ohne Android-Bezug.
 
 **Anzeige-Persistenz (seit 2026-09-23, Nutzer-Feedback nach Testfahrt):** Ein einzelner
 unplausibler Messzyklus (Kupplung gezogen, Gas weg) soll die Anzeige nicht auf „–“ zurückfallen
@@ -404,8 +423,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 798 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 155 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 820 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 159 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

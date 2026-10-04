@@ -1,7 +1,9 @@
 package de.adv990de.obd2.ui.dashboard
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GearIndicatorTest {
@@ -255,5 +257,64 @@ class GearIndicatorTest {
     @Test
     fun `nothing to hold and no fresh gear yields null`() {
         assertNull(holdGear(computedGear = null, speedKmh = 60f, heldGear = null))
+    }
+
+    // --- isNeutral ---
+
+    @Test
+    fun `standing with the engine running is neutral`() {
+        assertTrue(isNeutral(engineRpm = 1200f, speedKmh = 0f, wasNeutral = false))
+    }
+
+    @Test
+    fun `a stopped or cranking engine is never neutral`() {
+        // Zuendung aus (0) und Anlasser (~250) sind kein Leerlauf — erst ab ENGINE_RUNNING_MIN_RPM.
+        assertFalse(isNeutral(engineRpm = 0f, speedKmh = 0f, wasNeutral = false))
+        assertFalse(isNeutral(engineRpm = 499f, speedKmh = 0f, wasNeutral = true))
+        assertTrue(isNeutral(engineRpm = 500f, speedKmh = 0f, wasNeutral = false))
+    }
+
+    @Test
+    fun `a NaN engine speed is not neutral`() {
+        assertFalse(isNeutral(engineRpm = Float.NaN, speedKmh = 0f, wasNeutral = false))
+    }
+
+    @Test
+    fun `an unknown speed is never neutral`() {
+        // Anders als die Fahrterkennung (fehlende Geschwindigkeit gilt dort als "steht"): ohne
+        // Geschwindigkeit ist unbekannt, ob das Fahrzeug steht — lieber "–" als ein falsches "N".
+        assertFalse(isNeutral(engineRpm = 1200f, speedKmh = null, wasNeutral = false))
+        assertFalse(isNeutral(engineRpm = 1200f, speedKmh = null, wasNeutral = true))
+    }
+
+    @Test
+    fun `entering neutral requires a speed below 2 kmh`() {
+        assertTrue(isNeutral(engineRpm = 1200f, speedKmh = 1.99f, wasNeutral = false))
+        assertFalse(isNeutral(engineRpm = 1200f, speedKmh = 2.0f, wasNeutral = false))
+    }
+
+    @Test
+    fun `an already neutral state holds up to 4 kmh, then drops`() {
+        // Schmitt-Trigger gegen GPS-Rauschen um die Eintrittsschwelle: 3 km/h reichen nicht zum
+        // Eintritt, halten aber ein bereits angezeigtes "N".
+        assertFalse(isNeutral(engineRpm = 1200f, speedKmh = 3f, wasNeutral = false))
+        assertTrue(isNeutral(engineRpm = 1200f, speedKmh = 3f, wasNeutral = true))
+        assertTrue(isNeutral(engineRpm = 1200f, speedKmh = 3.99f, wasNeutral = true))
+        assertFalse(isNeutral(engineRpm = 1200f, speedKmh = 4.0f, wasNeutral = true))
+    }
+
+    @Test
+    fun `moving is never neutral`() {
+        assertFalse(isNeutral(engineRpm = 3000f, speedKmh = 50f, wasNeutral = false))
+        assertFalse(isNeutral(engineRpm = 3000f, speedKmh = 50f, wasNeutral = true))
+    }
+
+    @Test
+    fun `between the neutral hold threshold and the minimum gear speed nothing is determined`() {
+        // Luecke zwischen "N" (< 4 km/h) und Gang (ab 8 km/h): bei 5 km/h zeigt die Anzeige weder
+        // "N" noch einen Gang, also bleibt es bei "–" — zu langsam fuer eine verlaessliche
+        // GPS-Uebersetzung, aber zu schnell, um "steht" zu behaupten.
+        assertFalse(isNeutral(engineRpm = 2000f, speedKmh = 5f, wasNeutral = true))
+        assertNull(determineGear(engineRpm = 2000f, speedKmh = 5f, lastGear = null, ratios = ratios))
     }
 }

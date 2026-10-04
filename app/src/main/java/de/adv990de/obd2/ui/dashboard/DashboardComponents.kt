@@ -166,6 +166,35 @@ internal fun oilBarStripColor(color: OilBarColor?, isLive: Boolean, idleColor: C
         OilBarColor.Green  -> StatusColors.TrafficLightGreen
     }
 
+/** Was die Gang-Box neben dem RPM-Balken zeigt: ein Gang, Leerlauf ("N") oder "–". */
+internal sealed interface GearBoxContent {
+    data object Neutral : GearBoxContent
+    data class Engaged(val gear: Int) : GearBoxContent
+    data object Unknown : GearBoxContent
+}
+
+/**
+ * Praezedenz der Gang-Box: ohne Verbindung immer [GearBoxContent.Unknown]; sonst gewinnt "N" vor
+ * einem noch gesetzten Gang (die ECU meldet den Stillstand sofort, die GPS-Uebersetzung hinkt nach).
+ */
+internal fun gearBoxContent(gear: Int?, isNeutral: Boolean, isLive: Boolean): GearBoxContent = when {
+    !isLive -> GearBoxContent.Unknown
+    isNeutral -> GearBoxContent.Neutral
+    gear != null -> GearBoxContent.Engaged(gear)
+    else -> GearBoxContent.Unknown
+}
+
+/**
+ * "N" ist wie die Leerlauf-Kontrollleuchte am Motorrad in jedem Farbschema das feste Ampel-Gruen
+ * (dritte dokumentierte Gruen-Ausnahme, s. CLAUDE.md); Gang und Platzhalter nehmen Theme-Farben.
+ */
+internal fun gearBoxColor(content: GearBoxContent, engagedColor: Color, unknownColor: Color): Color =
+    when (content) {
+        GearBoxContent.Neutral -> StatusColors.TrafficLightGreen
+        is GearBoxContent.Engaged -> engagedColor
+        GearBoxContent.Unknown -> unknownColor
+    }
+
 @Composable
 internal fun RpmBar(
     rpm: Float,
@@ -185,6 +214,9 @@ internal fun RpmBar(
      *  Lint-Warnungen). `trailingContent` bleibt der letzte Parameter (Trailing-Lambda-Konvention).
      *  Alle Call-Sites nutzen benannte Argumente, die Position aendert fuer sie nichts. */
     oilBarColor: OilBarColor? = null,
+    /** Fahrzeug steht und Motor laeuft: die Gang-Box zeigt ein gruenes "N" statt eines Gangs
+     *  (s. [gearBoxContent] fuer die Praezedenz). Position wie [oilBarColor] aus Lint-Gruenden. */
+    isNeutral: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
     val blinkPeriodMs: Long = rpmBlinkPeriodMs(rpm, threshold, isLive)
@@ -271,11 +303,11 @@ internal fun RpmBar(
                 modifier = Modifier.weight(0.2f).fillMaxWidth(),
             )
         }
-        val displayGear = if (isLive) gear else null
-        val gearDescription = if (displayGear != null) {
-            stringResource(R.string.dashboard_gear_desc, displayGear)
-        } else {
-            stringResource(R.string.dashboard_gear_unknown_desc)
+        val gearBox = gearBoxContent(gear, isNeutral, isLive)
+        val gearDescription = when (gearBox) {
+            GearBoxContent.Neutral -> stringResource(R.string.dashboard_gear_neutral_desc)
+            is GearBoxContent.Engaged -> stringResource(R.string.dashboard_gear_desc, gearBox.gear)
+            GearBoxContent.Unknown -> stringResource(R.string.dashboard_gear_unknown_desc)
         }
         Box(
             modifier = Modifier
@@ -295,10 +327,17 @@ internal fun RpmBar(
             val fixedScaleDensity = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(fixedScaleDensity.density, fontScale = 1f)) {
                 LiveValueText(
-                    value = displayGear?.toString() ?: "–",
+                    value = when (gearBox) {
+                        GearBoxContent.Neutral -> stringResource(R.string.dashboard_gear_neutral_symbol)
+                        is GearBoxContent.Engaged -> gearBox.gear.toString()
+                        GearBoxContent.Unknown -> "–"
+                    },
                     style = GearIndicatorStyle,
-                    color = if (displayGear != null) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = gearBoxColor(
+                        gearBox,
+                        engagedColor = MaterialTheme.colorScheme.primary,
+                        unknownColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                     textAlign = TextAlign.Center,
                 )
             }
@@ -521,6 +560,7 @@ private fun PreviewRpmBarGearLocked() {
             ) {
                 RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
                 RpmBar(rpm = 4500f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 1100f, threshold = 7000, gear = null, isNeutral = true, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
                 RpmBar(rpm = 0f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Red, isLive = false, modifier = Modifier.fillMaxWidth())
             }
         }
@@ -532,8 +572,24 @@ private fun PreviewRpmBarGearLocked() {
 private fun PreviewRpmBarGearLockedAmber() {
     MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 RpmBar(rpm = 6200f, threshold = 7000, gear = 5, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
+                RpmBar(rpm = 1100f, threshold = 7000, gear = null, isNeutral = true, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Preview(name = "RpmBar · neutral (default light)", showBackground = true)
+@Composable
+private fun PreviewRpmBarNeutralDefaultLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                RpmBar(rpm = 1100f, threshold = 7000, gear = null, isNeutral = true, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
             }
         }
     }

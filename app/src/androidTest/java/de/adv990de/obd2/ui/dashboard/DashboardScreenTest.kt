@@ -234,6 +234,34 @@ class DashboardScreenTest {
         // The composeRule.waitForIdle() call inside launchDashboardScreen() ensures all
         // coroutines launched by the ViewModel have settled before we return.
     }
+
+    /**
+     * Ende-zu-Ende fuer die Leerlauf-Anzeige: eine gestubbte Sitzung mit laufendem Motor (1200 rpm)
+     * und ECU-Geschwindigkeit 0 muss in der Gang-Box neben dem RPM-Balken "N" statt "–" ergeben.
+     * Die ECU-Geschwindigkeit reicht — GPS ist hier nicht im Spiel (kein Fix noetig).
+     */
+    @Test
+    fun dashboard_showsNeutral_whenStandingWithTheEngineRunning() {
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flowOf(
+            listOf(
+                SensorValue(PidRegistry.RPM, 1200f),
+                SensorValue(PidRegistry.SPEED, 0f),
+                SensorValue(PidRegistry.COOLANT_TEMP, 90f),
+            )
+        )
+
+        launchDashboardScreen()
+
+        val neutralDescription = composeRule.activity.getString(R.string.dashboard_gear_neutral_desc)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription(neutralDescription).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription(neutralDescription).assertIsDisplayed()
+    }
+
     /**
      * Ohne Verbindung zeigt das Dashboard eine Vorschau der Slot-Belegung. Das Band sagt das
      * ausdruecklich — bis 1.11.0 standen dort Kacheln mit dem Wert 0, die sich von echten
