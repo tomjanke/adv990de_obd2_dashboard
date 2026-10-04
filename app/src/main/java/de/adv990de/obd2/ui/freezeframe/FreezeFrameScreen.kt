@@ -45,7 +45,10 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
     val data by vm.data.collectAsState()
     val error by vm.error.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
-    LaunchedEffect(Unit) { vm.load() }
+    val isConnected by vm.isConnected.collectAsState()
+    // Reads when the page opens and again whenever the connection changes: connect -> read, drop -> clear.
+    // Without a connection load() reads nothing.
+    LaunchedEffect(isConnected) { vm.load() }
 
     Scaffold(
         topBar = {
@@ -71,9 +74,18 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
                 Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val currentError = error
                 when {
-                    error != null -> {
-                        Text(stringResource(R.string.freeze_frame_error_prefix, error!!), color = MaterialTheme.colorScheme.error)
+                    // Nothing was read — "no data available" would claim an answer the vehicle never gave.
+                    !isConnected -> Text(
+                        stringResource(R.string.not_connected),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    currentError != null -> {
+                        Text(
+                            stringResource(R.string.freeze_frame_error_prefix, currentError.asString()),
+                            color = MaterialTheme.colorScheme.error,
+                        )
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
                     }

@@ -240,7 +240,7 @@ fun SettingsScreen(
             // ── Connection error ──────────────────────────────────────────
             state.error?.let { error ->
                 item {
-                    Text(error, color = MaterialTheme.colorScheme.error)
+                    Text(error.asString(), color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))
                 }
             }

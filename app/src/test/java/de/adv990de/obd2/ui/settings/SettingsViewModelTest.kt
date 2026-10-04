@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import android.content.Context
 import de.adv990de.obd2.ObdForegroundService
+import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.bluetooth.BtType
@@ -9,6 +10,7 @@ import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ui.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -119,7 +121,38 @@ class SettingsViewModelTest {
         assertNull(vm.uiState.value.connectedDevice)
         assertTrue(!vm.uiState.value.isConnecting)
         assertNotNull(vm.uiState.value.error)
-        assertEquals("connection refused", vm.uiState.value.error)
+        assertEquals(UiText.DynamicString("connection refused"), vm.uiState.value.error)
+    }
+
+    @Test
+    fun `a failed connect shows the localized reason, not the raw English exception text`() = runTest {
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } throws BluetoothException.ConnectionFailed("read failed, socket might closed")
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        assertEquals(UiText.StringResource(R.string.obd_err_connection_failed), vm.uiState.value.error)
+    }
+
+    @Test
+    fun `a failed connect whose exception has no message still shows an error`() = runTest {
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } throws RuntimeException()
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        assertNotNull("ohne Meldung blieb der Fehlschlag bisher unsichtbar", vm.uiState.value.error)
+        assertFalse(vm.uiState.value.isConnecting)
     }
 
     @Test
@@ -373,7 +406,11 @@ class SettingsViewModelTest {
         vm.loadDevices()
 
         assertTrue(vm.uiState.value.bondedDevices.isEmpty())
-        assertNotNull("Der Nutzer soll erfahren, warum keine Geraete erscheinen", vm.uiState.value.error)
+        assertEquals(
+            "Der Nutzer soll erfahren, warum keine Geraete erscheinen",
+            UiText.StringResource(R.string.obd_err_bluetooth_permission),
+            vm.uiState.value.error,
+        )
     }
 
     @Test
@@ -387,6 +424,7 @@ class SettingsViewModelTest {
         vm.loadDevices()
 
         assertTrue(vm.uiState.value.bondedDevices.isEmpty())
+        assertEquals(UiText.StringResource(R.string.obd_err_bluetooth), vm.uiState.value.error)
     }
 
     @Test

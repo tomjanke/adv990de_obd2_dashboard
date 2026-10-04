@@ -1,5 +1,45 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.1 (versionCode 83)
+
+Ehrlichere Fehleranzeige und Schutz vor einer Absturzschleife (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B15, B18, B19, B25).
+
+### Keine falsche Entwarnung mehr
+
+- **Fehlermeldung ohne Text.** Die Fehlercode-Seite und die Verbindungsfehler in den Einstellungen speicherten nur `e.message`.
+  Hatte eine Ausnahme keine Meldung (`null`), sah die Oberfläche das als „kein Fehler“ — die Seite zeigte dann das grüne
+  „Keine Fehlercodes vorhanden“, obwohl das Lesen gescheitert war. Alle Fehlerzustände (Fehlercodes, Freeze-Frame, FIN,
+  Verbindung in den Einstellungen) laufen jetzt über den `ObdErrorMapper`, der **immer** einen Text liefert.
+- **Lokalisierte Gründe.** Bekannte Ursachen erscheinen in der Sprache der App statt als englischer Roh-Text. Neu:
+  „Verbindung zum Adapter fehlgeschlagen.“ und „Adapter nicht gefunden. Ist er gekoppelt und eingeschaltet?“. Unbekannte
+  Ausnahmen zeigen weiter ihre technische Meldung (oder den Klassennamen) — fürs Fehlersuchen am Fahrzeug nützlicher als ein
+  nichtssagendes „Unbekannter Fehler“.
+- **Freeze-Frame und FIN ohne Verbindung.** Beide Seiten sagten „nicht verfügbar“, als hätte das Fahrzeug nichts geliefert;
+  es war aber gar nicht gefragt worden. Jetzt steht dort „Nicht verbunden“, und es wird nichts gelesen. Die Seiten laden
+  **von selbst**, sobald die Verbindung steht (vorher half nur das erneute Öffnen), und leeren sich beim Abbruch. Ein Lesevorgang,
+  der erst nach dem Abbruch fertig wird, überschreibt nichts mehr.
+
+### Der Grund eines Verbindungsfehlers ist sichtbar
+
+Bisher war der rote Punkt am Bluetooth-Symbol das einzige Zeichen, dass etwas schiefging — nicht, **was**. Das Dashboard-Band
+„Vorschau · nicht verbunden“ nennt jetzt den Grund darunter (z. B. „Verbindung dauerhaft verloren.“, „Bluetooth ist
+deaktiviert.“, „Adapter antwortet nicht.“). Läuft gerade ein neuer Verbindungsversuch, bleibt das Band neutral, damit es nicht
+dem pulsierenden Punkt widerspricht. Zusätzlich schreibt die App jeden fehlgeschlagenen Reconnect-Versuch mit seiner
+Ursache ins App-Log (bisher nur das Endergebnis).
+
+### Beschädigte Einstellungsdatei führt nicht mehr zur Absturzschleife
+
+Wäre die Einstellungsdatei (DataStore) beschädigt, hätte schon das Lesen des Farbschemas beim Start eine Ausnahme geworfen —
+bei **jedem** Start, bis die App-Daten gelöscht werden. Jetzt wird eine beschädigte Datei durch leere Einstellungen ersetzt
+(alle Standardwerte), und ein E/A-Fehler beim Lesen liefert ebenfalls die Standardwerte. Die Einstellungen gehen in diesem
+Fall verloren; das ist der kleinere Schaden. (Auslöser sind in der Praxis extrem selten: das Schreiben ist atomar.)
+
+### Tests
+
++32 JVM-Tests und +11 Instrumentation-Tests. Elf bewusst eingebaute Fehler (Wächter entfernt) wurden jeweils von einem Test
+erkannt. Die Verdrahtung des Handlers im echten `Context.dataStore` (eine Zeile) lässt sich nicht ohne die echte
+Einstellungsdatei testen und ist daher nur durch den Test des Handlers selbst abgedeckt.
+
 ## Version 1.24.0 (versionCode 82)
 
 Robustheit der Aufzeichnung und automatische Aufbewahrung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B13, B14, B16, B17).

@@ -60,4 +60,28 @@ class ObdErrorMapperTest {
         val result = ObdErrorMapper.toUiText(BluetoothException.PermissionDenied("BLUETOOTH_CONNECT"))
         assertEquals(UiText.StringResource(R.string.obd_err_bluetooth_permission), result)
     }
+
+    @Test
+    fun `BluetoothException ConnectionFailed maps to a localized text instead of the raw English message`() {
+        val result = ObdErrorMapper.toUiText(BluetoothException.ConnectionFailed("read failed, socket might closed"))
+        assertEquals(UiText.StringResource(R.string.obd_err_connection_failed), result)
+    }
+
+    @Test
+    fun `BluetoothException DeviceNotFound maps to a localized text`() {
+        val result = ObdErrorMapper.toUiText(BluetoothException.DeviceNotFound("MWT_OBD2"))
+        assertEquals(UiText.StringResource(R.string.obd_err_device_not_found), result)
+    }
+
+    @Test
+    fun `BluetoothException ConnectionLost maps to the connection lost text`() {
+        val result = ObdErrorMapper.toUiText(BluetoothException.ConnectionLost())
+        assertEquals(UiText.StringResource(R.string.obd_err_connection_lost), result)
+    }
+
+    @Test
+    fun `unknown exception with a blank message falls back to the class name, never to an empty text`() {
+        val result = ObdErrorMapper.toUiText(IllegalStateException("   "))
+        assertEquals(UiText.DynamicString("IllegalStateException"), result)
+    }
 }

@@ -1,7 +1,9 @@
 package de.adv990de.obd2.ui.vehicleinfo
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
@@ -12,10 +14,13 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.model.ObdException
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -51,9 +56,13 @@ class VehicleInfoScreenTest {
     /** Never completes unless a test resolves/replaces it — keeps the VM in isLoading=true. */
     private val readVinDeferred = CompletableDeferred<String?>()
 
+    /** Drives `isConnectedFlow`: the screen reads nothing without a connection and reloads when it comes up. */
+    private val connected = MutableStateFlow(true)
+
     @BindValue
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
+        every { isConnectedFlow } returns connected
         coEvery { readVin() } coAnswers { readVinDeferred.await() }
     }
 
@@ -118,5 +127,55 @@ class VehicleInfoScreenTest {
 
         // Retry's onClick calls vm.load() again, independent of the initial LaunchedEffect call.
         coVerify(timeout = 5_000, exactly = 2) { obdRepository.readVin() }
+    }
+
+    /** B19: without a connection the screen says "Nicht verbunden" — not "no VIN available" — and reads nothing. */
+    @Test
+    fun vehicleInfoScreen_saysNotConnected_andReadsNothing_withoutAConnection() {
+        connected.value = false
+
+        launchVehicleInfoScreen()
+        composeRule.waitForIdle()
+
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.not_connected))
+            .assertIsDisplayed()
+        composeRule
+            .onAllNodesWithText(composeRule.activity.getString(R.string.vehicle_info_empty))
+            .assertCountEquals(0)
+        coVerify(exactly = 0) { obdRepository.readVin() }
+    }
+
+    /** B19: when the connection comes up while the page is open, the VIN is read by itself. */
+    @Test
+    fun vehicleInfoScreen_loadsByItself_whenTheConnectionComesUp() {
+        coEvery { obdRepository.readVin() } returns "1HGBH41JXMN109186"
+        connected.value = false
+        launchVehicleInfoScreen()
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.not_connected))
+            .assertIsDisplayed()
+
+        connected.value = true
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithText("1HGBH41JXMN109186").assertIsDisplayed()
+            }.isSuccess
+        }
+    }
+
+    /** B18: a known adapter failure is shown as its localized text. */
+    @Test
+    fun vehicleInfoScreen_showsALocalizedReason_forAKnownAdapterFailure() {
+        coEvery { obdRepository.readVin() } throws ObdException.ConnectionLost()
+
+        launchVehicleInfoScreen()
+        composeRule.waitForIdle()
+
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.obd_err_connection_lost))
+            .assertIsDisplayed()
     }
 }

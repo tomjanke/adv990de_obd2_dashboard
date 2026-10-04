@@ -68,7 +68,7 @@
     <string name="dtc_freeze_frame_link">Show Freeze Frame</string>
     <string name="dtc_tab_current">Current</string>
     <string name="dtc_tab_history">History</string>
-    <string name="dtc_not_connected">Not connected</string>
+    <string name="not_connected">Not connected</string>
     <string name="dtc_badge_active">Active</string>
     <string name="dtc_history_empty">No faults recorded yet</string>
     <string name="dtc_history_dates">First seen %1$s · Last seen %2$s</string>
@@ -97,6 +97,8 @@
     <string name="obd_err_bus_init">Vehicle bus not reachable.</string>
     <string name="obd_err_timeout">Adapter not responding.</string>
     <string name="obd_err_init_failed">Adapter initialisation failed.</string>
+    <string name="obd_err_connection_failed">Could not connect to the adapter.</string>
+    <string name="obd_err_device_not_found">Adapter not found. Is it paired and switched on?</string>
     <string name="obd_err_bluetooth">Bluetooth error.</string>
     <string name="obd_err_bluetooth_disabled">Bluetooth is disabled.</string>
     <string name="obd_err_bluetooth_permission">Bluetooth permission missing. Please grant it in the system settings.</string>

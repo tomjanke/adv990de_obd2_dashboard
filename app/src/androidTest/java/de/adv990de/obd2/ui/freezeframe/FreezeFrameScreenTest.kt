@@ -1,7 +1,9 @@
 package de.adv990de.obd2.ui.freezeframe
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -14,10 +16,13 @@ import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.ObdException
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -39,9 +44,13 @@ class FreezeFrameScreenTest {
     @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<HiltTestActivity>()
 
+    /** Drives `isConnectedFlow`: the screen reads nothing without a connection and reloads when it comes up. */
+    private val connected = MutableStateFlow(true)
+
     @BindValue
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
+        every { isConnectedFlow } returns connected
         coEvery { readFreezeFrame() } returns mapOf(PidRegistry.RPM.id to "1726.0 rpm")
     }
 
@@ -142,6 +151,59 @@ class FreezeFrameScreenTest {
         composeRule.waitForIdle()
 
         coVerify(exactly = 2) { obdRepository.readFreezeFrame() }
+    }
+
+    /**
+     * B19: without a connection the screen says "Nicht verbunden" — not "no freeze frame data
+     * available", which would claim the vehicle had been asked — and reads nothing.
+     */
+    @Test
+    fun freezeFrame_saysNotConnected_andReadsNothing_withoutAConnection() {
+        connected.value = false
+
+        launchFreezeFrameScreen()
+
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.not_connected))
+            .assertIsDisplayed()
+        composeRule
+            .onAllNodesWithText(composeRule.activity.getString(R.string.freeze_frame_empty))
+            .assertCountEquals(0)
+        coVerify(exactly = 0) { obdRepository.readFreezeFrame() }
+    }
+
+    /** B19: when the connection comes up while the page is open, it loads by itself. */
+    @Test
+    fun freezeFrame_loadsByItself_whenTheConnectionComesUp() {
+        connected.value = false
+        launchFreezeFrameScreen()
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.not_connected))
+            .assertIsDisplayed()
+
+        connected.value = true
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule
+                    .onNodeWithText(composeRule.activity.getString(R.string.pid_rpm))
+                    .assertIsDisplayed()
+            }.isSuccess
+        }
+        coVerify(exactly = 1) { obdRepository.readFreezeFrame() }
+    }
+
+    /** B18: a known adapter failure is shown as its localized text inside the "Error: %1$s" frame. */
+    @Test
+    fun freezeFrame_showsALocalizedReason_forAKnownAdapterFailure() {
+        coEvery { obdRepository.readFreezeFrame() } throws ObdException.Timeout("0202")
+
+        launchFreezeFrameScreen()
+
+        val reason = composeRule.activity.getString(R.string.obd_err_timeout)
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.freeze_frame_error_prefix, reason))
+            .assertIsDisplayed()
     }
 
     /**

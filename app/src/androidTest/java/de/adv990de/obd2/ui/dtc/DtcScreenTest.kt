@@ -26,6 +26,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.db.DtcHistoryDao
 import de.adv990de.obd2.obd.model.DtcEntry
+import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.coEvery
 import io.mockk.every
@@ -160,15 +161,37 @@ class DtcScreenTest {
 
     @Test
     fun dtcScreen_showsErrorMessage_whenReadDtcsFails() {
-        // DtcViewModel.refresh() catches any non-cancellation Exception and stores e.message
-        // verbatim as DtcUiState.error; DtcScreen renders that string directly (no string
-        // resource involved), so the mock's exception message is exactly what must appear.
+        // DtcViewModel.refresh() catches any non-cancellation Exception and maps it through
+        // ObdErrorMapper; an unknown exception keeps its technical message, so the mock's message
+        // is exactly what must appear.
         coEvery { obdRepository.readDtcs() } throws RuntimeException("Connection lost")
         launchDtcScreen()
         composeRule.waitForIdle()
         composeRule
             .onNodeWithText("Connection lost")
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun dtcScreen_showsALocalizedReason_forAKnownAdapterFailure() {
+        coEvery { obdRepository.readDtcs() } throws ObdException.Timeout("03")
+        launchDtcScreen()
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(R.string.obd_err_timeout))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun dtcScreen_neverClaimsNoFaultCodes_whenTheFailureHasNoMessage() {
+        // Before B18 the error was `e.message` = null, which rendered as the green "no fault codes".
+        coEvery { obdRepository.readDtcs() } throws RuntimeException()
+        launchDtcScreen()
+        composeRule.waitForIdle()
+        composeRule
+            .onAllNodesWithText(composeRule.activity.getString(R.string.dtc_empty))
+            .assertCountEquals(0)
+        composeRule.onNodeWithText("RuntimeException").assertIsDisplayed()
     }
 
     @Test
@@ -222,9 +245,9 @@ class DtcScreenTest {
         connected.value = false
         launchDtcScreen()
 
-        waitForText(string(R.string.dtc_not_connected))
+        waitForText(string(R.string.not_connected))
 
-        composeRule.onNodeWithText(string(R.string.dtc_not_connected)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.not_connected)).assertIsDisplayed()
         composeRule.onAllNodesWithText(string(R.string.dtc_empty)).assertCountEquals(0)
     }
 

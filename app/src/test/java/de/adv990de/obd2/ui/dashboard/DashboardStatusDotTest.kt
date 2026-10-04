@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.ui.graphics.Color
+import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.theme.StatusColors
 import org.junit.Assert.assertEquals
@@ -66,5 +68,32 @@ class DashboardStatusDotTest {
         // Not reachable via dashboardStatusDotState() today, but connectionDotColor() must still
         // return something sane for every StatusDotState value.
         assertEquals(StatusColors.Warning, connectionDotColor(StatusDotState.Warning))
+    }
+
+    // ── B25: the banner says WHY there is no connection ──────────────────────
+
+    private val someError = UiText.StringResource(R.string.err_reconnect_fail)
+
+    @Test
+    fun `an error without a connection is shown as the banner reason`() {
+        assertEquals(
+            someError,
+            previewBannerReason(isConnected = false, isReconnecting = false, error = someError)
+        )
+    }
+
+    @Test
+    fun `no error means no reason - the plain preview banner`() {
+        assertNull(previewBannerReason(isConnected = false, isReconnecting = false, error = null))
+    }
+
+    @Test
+    fun `a running reconnect hides a stale error so the banner does not contradict the pulsing dot`() {
+        assertNull(previewBannerReason(isConnected = false, isReconnecting = true, error = someError))
+    }
+
+    @Test
+    fun `a connection never shows a reason`() {
+        assertNull(previewBannerReason(isConnected = true, isReconnecting = false, error = someError))
     }
 }

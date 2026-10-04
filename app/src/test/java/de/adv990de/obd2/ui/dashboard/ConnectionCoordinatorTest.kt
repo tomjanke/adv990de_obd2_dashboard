@@ -6,6 +6,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.ui.UiText
 import io.mockk.Runs
@@ -216,6 +217,24 @@ class ConnectionCoordinatorTest {
             events.last()
         )
         verify { context.stopService(any()) }
+    }
+
+    // --- B25: the reason of every failed attempt is logged (the UI shows only the final verdict) ---
+
+    @Test
+    fun `every failed reconnect attempt logs its cause`() = runTest {
+        val repo = makeRepo(lastConnected = device)
+        coEvery { repo.reconnect() } throws IllegalStateException("socket closed")
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), logRepo = logRepo)
+        coordinator.start(coordinatorScope) {}
+        coordinator.requestReconnect()
+        advanceUntilIdle()
+
+        coVerify(exactly = RECONNECT_ATTEMPT_COUNT) {
+            logRepo.log(LogLevel.WARN, match { it.contains("socket closed") })
+        }
     }
 
     // --- Test 7 ---

@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -505,5 +506,79 @@ class AppPreferencesTest {
         assertEquals(3, prefs.reconnectBaseDelaySeconds.first())
         prefs.setReconnectBaseDelaySeconds(999)
         assertEquals(30, prefs.reconnectBaseDelaySeconds.first())
+    }
+
+    // ── B15: a damaged DataStore must not become a crash loop ────────────────
+
+    /**
+     * A truncated protobuf message: tag 0x0A (field 1, length-delimited) announces 127 bytes, one follows.
+     * (Plain text is NOT enough — its first byte reads as an "end group" tag, which the parser accepts as
+     * an empty message; the negative control below proves this file really fails without the handler.)
+     */
+    private val corruptBytes = byteArrayOf(0x0A, 0x7F, 0x01)
+
+    private fun corruptFile() = tempFolder.newFile("corrupt.preferences_pb").also { it.writeBytes(corruptBytes) }
+
+    private fun dataStoreOn(file: java.io.File, withHandler: Boolean): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create(
+            corruptionHandler = if (withHandler) appPreferencesCorruptionHandler() else null,
+            scope = TestScope(UnconfinedTestDispatcher()),
+            produceFile = { file },
+        )
+
+    @Test
+    fun `the test file is really corrupt - without the handler reading it throws`() = runTest {
+        val dataStore = dataStoreOn(corruptFile(), withHandler = false)
+
+        val failure = runCatching { dataStore.data.first() }.exceptionOrNull()
+
+        assertNotNull("Der Negativ-Gegenbeweis: ohne Handler wirft das Lesen", failure)
+    }
+
+    @Test
+    fun `a corrupt preferences file yields the defaults instead of throwing`() = runTest {
+        val prefs = AppPreferences(dataStoreOn(corruptFile(), withHandler = true), mockk())
+
+        assertEquals(AppPreferences.THEME_SYSTEM, prefs.theme.first())
+        assertEquals(AppPreferences.DEFAULT_SLOT_PIDS, prefs.slotPids.first())
+        assertNull(prefs.lastDevice.first())
+    }
+
+    @Test
+    fun `after a corrupt file was replaced new settings are stored normally`() = runTest {
+        val prefs = AppPreferences(dataStoreOn(corruptFile(), withHandler = true), mockk())
+
+        prefs.setTheme(AppPreferences.THEME_DARK)
+
+        assertEquals(AppPreferences.THEME_DARK, prefs.theme.first())
+    }
+
+    @Test
+    fun `an IOException while reading yields the defaults instead of throwing`() = runTest {
+        val failingStore = object : DataStore<Preferences> {
+            override val data: kotlinx.coroutines.flow.Flow<Preferences> =
+                kotlinx.coroutines.flow.flow { throw java.io.IOException("disk read error") }
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw java.io.IOException("disk write error")
+        }
+        val prefs = AppPreferences(failingStore, mockk())
+
+        assertEquals(AppPreferences.THEME_SYSTEM, prefs.theme.first())
+        assertEquals(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS, prefs.obdWatchdogTimeoutSeconds.first())
+    }
+
+    @Test
+    fun `a non-IO failure while reading still propagates`() = runTest {
+        val failingStore = object : DataStore<Preferences> {
+            override val data: kotlinx.coroutines.flow.Flow<Preferences> =
+                kotlinx.coroutines.flow.flow { throw IllegalStateException("programming error") }
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IllegalStateException("programming error")
+        }
+        val prefs = AppPreferences(failingStore, mockk())
+
+        val failure = runCatching { prefs.theme.first() }.exceptionOrNull()
+
+        assertTrue("Programmierfehler duerfen nicht still verschluckt werden", failure is IllegalStateException)
     }
 }

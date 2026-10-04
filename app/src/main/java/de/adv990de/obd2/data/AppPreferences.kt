@@ -4,9 +4,11 @@ package de.adv990de.obd2.data
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -16,13 +18,27 @@ import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.PidRegistry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Eine beschaedigte Einstellungsdatei wird durch leere Einstellungen ersetzt (= alle Standardwerte).
+ * Ohne diesen Handler wirft der erste Lesezugriff — schon beim Theme in `MainActivity` — und die App
+ * stuerzte bei jedem Start erneut ab, bis der Nutzer die App-Daten loescht. Verlust der Einstellungen
+ * ist der kleinere Schaden. Als Funktion herausgezogen, damit der Test denselben Handler benutzt.
+ */
+internal fun appPreferencesCorruptionHandler(): ReplaceFileCorruptionHandler<Preferences> =
+    ReplaceFileCorruptionHandler { emptyPreferences() }
+
 // Top-level extension — single DataStore instance per Application context
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_prefs")
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "app_prefs",
+    corruptionHandler = appPreferencesCorruptionHandler(),
+)
 
 @Singleton
 class AppPreferences @Inject constructor(
@@ -95,6 +111,16 @@ class AppPreferences @Inject constructor(
         val RECONNECT_BASE_DELAY_OPTIONS_SECONDS: List<Int> = listOf(3, 10, 30)
     }
 
+    /**
+     * Alle Lesezugriffe laufen hierueber: Ein E/A-Fehler beim Lesen (voller oder defekter Speicher)
+     * liefert leere Einstellungen = Standardwerte statt einer Ausnahme im Flow, die bis in die UI
+     * durchschluege. Alles andere (Programmierfehler) wird weitergereicht. Vor den Flows deklariert,
+     * weil Kotlin Property-Initialisierer in Reihenfolge ausfuehrt.
+     */
+    private val data: Flow<Preferences> = dataStore.data.catch { e ->
+        if (e is IOException) emit(emptyPreferences()) else throw e
+    }
+
     suspend fun persistDevice(device: ScannedDevice) {
         if (device.device == null) return   // simulator – nothing to persist
         dataStore.edit { prefs ->
@@ -104,7 +130,7 @@ class AppPreferences @Inject constructor(
         }
     }
 
-    val lastDevice: Flow<ScannedDevice?> = dataStore.data.map { prefs ->
+    val lastDevice: Flow<ScannedDevice?> = data.map { prefs ->
         val address = prefs[KEY_DEVICE_ADDRESS] ?: return@map null
         val name    = prefs[KEY_DEVICE_NAME]    ?: return@map null
         val type    = prefs[KEY_DEVICE_TYPE]
@@ -119,7 +145,7 @@ class AppPreferences @Inject constructor(
 
     // ── Device / BT preferences ───────────────────────────────────────────────
 
-    val showAllBtDevices: Flow<Boolean> = dataStore.data.map { prefs ->
+    val showAllBtDevices: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_SHOW_ALL_BT_DEVICES] ?: false
     }
 
@@ -129,15 +155,15 @@ class AppPreferences @Inject constructor(
 
     // ── Recording preferences ─────────────────────────────────────────────────
 
-    val logOnlyDtcSessions: Flow<Boolean> = dataStore.data.map { prefs ->
+    val logOnlyDtcSessions: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_LOG_ONLY_DTC] ?: false
     }
 
-    val logOnlyDiscoveredPids: Flow<Boolean> = dataStore.data.map { prefs ->
+    val logOnlyDiscoveredPids: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_LOG_ONLY_DISC] ?: false
     }
 
-    val loggedPidIds: Flow<Set<String>> = dataStore.data.map { prefs ->
+    val loggedPidIds: Flow<Set<String>> = data.map { prefs ->
         prefs[KEY_LOGGED_PIDS] ?: ALL_PID_IDS
     }
 
@@ -162,7 +188,7 @@ class AppPreferences @Inject constructor(
 
     // ── Drive state preferences ───────────────────────────────────────────────
 
-    val hideNavOnDrive: Flow<Boolean> = dataStore.data.map { prefs ->
+    val hideNavOnDrive: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_HIDE_NAV_ON_DRIVE] ?: false
     }
 
@@ -172,7 +198,7 @@ class AppPreferences @Inject constructor(
 
     /** Geschwindigkeit aus dem GPS, wenn das Fahrzeug PID 010D nicht liefert. Standard aus:
      *  die Standortberechtigung wird erst angefragt, wenn der Nutzer das Feature einschaltet. */
-    val useGpsSpeed: Flow<Boolean> = dataStore.data.map { prefs ->
+    val useGpsSpeed: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_USE_GPS_SPEED] ?: false
     }
 
@@ -183,7 +209,7 @@ class AppPreferences @Inject constructor(
     /** Ob die Hintergrund-Standort-Eskalation dem Nutzer schon einmal angeboten wurde. Verhindert,
      *  dass der System-Dialog bei jedem Settings-Besuch erneut aufpoppt, solange die Berechtigung
      *  nicht erteilt ist. */
-    val backgroundLocationPrompted: Flow<Boolean> = dataStore.data.map { prefs ->
+    val backgroundLocationPrompted: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_BACKGROUND_LOCATION_PROMPTED] ?: false
     }
 
@@ -195,7 +221,7 @@ class AppPreferences @Inject constructor(
      *  gezeigt wurde. Verhindert, wie [backgroundLocationPrompted], dass der System-Dialog bei
      *  jedem Settings-Besuch/jeder Rotation erneut aufpoppt, solange weder FINE noch COARSE
      *  erteilt ist. */
-    val weatherLocationPrompted: Flow<Boolean> = dataStore.data.map { prefs ->
+    val weatherLocationPrompted: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_WEATHER_LOCATION_PROMPTED] ?: false
     }
 
@@ -205,7 +231,7 @@ class AppPreferences @Inject constructor(
 
     // ── Display preferences ───────────────────────────────────────────────────
 
-    val useImperial: Flow<Boolean> = dataStore.data.map { prefs ->
+    val useImperial: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_USE_IMPERIAL] ?: false
     }
 
@@ -213,7 +239,7 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_USE_IMPERIAL] = enabled }
     }
 
-    val theme: Flow<String> = dataStore.data.map { prefs ->
+    val theme: Flow<String> = data.map { prefs ->
         prefs[KEY_THEME] ?: THEME_SYSTEM
     }
 
@@ -223,7 +249,7 @@ class AppPreferences @Inject constructor(
 
     // ── Dashboard preferences ─────────────────────────────────────────────────
 
-    val rpmBlinkThreshold: Flow<Int> = dataStore.data.map { prefs ->
+    val rpmBlinkThreshold: Flow<Int> = data.map { prefs ->
         prefs[KEY_RPM_BLINK_THRESHOLD] ?: 0
     }
 
@@ -231,7 +257,7 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_RPM_BLINK_THRESHOLD] = value }
     }
 
-    val rpmDynamicThreshold: Flow<Boolean> = dataStore.data.map { prefs ->
+    val rpmDynamicThreshold: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_RPM_DYNAMIC_THRESHOLD] ?: false
     }
 
@@ -239,7 +265,7 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_RPM_DYNAMIC_THRESHOLD] = enabled }
     }
 
-    val slotPids: Flow<List<String>> = dataStore.data.map { prefs ->
+    val slotPids: Flow<List<String>> = data.map { prefs ->
         val raw = prefs[KEY_SLOT_PIDS]
         val parts = if (raw.isNullOrBlank()) DEFAULT_SLOT_PIDS
                     else raw.split(",").map { it.trim() }
@@ -262,7 +288,7 @@ class AppPreferences @Inject constructor(
 
     // ── Getriebe-Einstellungen (virtuelle Ganganzeige) ────────────────────────
 
-    val wheelCircumferenceMm: Flow<Float> = dataStore.data.map { prefs ->
+    val wheelCircumferenceMm: Flow<Float> = data.map { prefs ->
         prefs[KEY_WHEEL_CIRCUMFERENCE_MM] ?: DEFAULT_WHEEL_CIRCUMFERENCE_MM
     }.distinctUntilChanged() // DataStore emits on every write; suppress value-equal emissions
 
@@ -270,7 +296,7 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_WHEEL_CIRCUMFERENCE_MM] = value }
     }
 
-    val primaryRatio: Flow<Float> = dataStore.data.map { prefs ->
+    val primaryRatio: Flow<Float> = data.map { prefs ->
         prefs[KEY_PRIMARY_RATIO] ?: DEFAULT_PRIMARY_RATIO
     }.distinctUntilChanged()
 
@@ -278,7 +304,7 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_PRIMARY_RATIO] = value }
     }
 
-    val secondaryRatio: Flow<Float> = dataStore.data.map { prefs ->
+    val secondaryRatio: Flow<Float> = data.map { prefs ->
         prefs[KEY_SECONDARY_RATIO] ?: DEFAULT_SECONDARY_RATIO
     }.distinctUntilChanged()
 
@@ -289,7 +315,7 @@ class AppPreferences @Inject constructor(
     /** Gesamt-Getriebeuebersetzung je Gang (Index 0 = 1. Gang ... Index 5 = 6. Gang). Sechs
      *  einzelne Keys statt einer CSV-kodierten Liste, damit jedes Settings-Eingabefeld
      *  unabhaengig von den anderen fuenf geschrieben werden kann. */
-    val gearRatios: Flow<List<Float>> = dataStore.data.map { prefs ->
+    val gearRatios: Flow<List<Float>> = data.map { prefs ->
         GEAR_RATIO_KEYS.mapIndexed { i, key -> prefs[key] ?: DEFAULT_GEAR_RATIOS[i] }
     }.distinctUntilChanged()
 
@@ -305,7 +331,7 @@ class AppPreferences @Inject constructor(
      *  Wert ausserhalb der Liste wird beim LESEN auf die naechste Option gesetzt ([snapToOption]) —
      *  ohne Migration und ohne Zurueckschreiben. Dadurch sehen Watchdog, Pipeline und
      *  Einstellungs-UI immer dieselbe Zahl. */
-    val obdWatchdogTimeoutSeconds: Flow<Int> = dataStore.data.map { prefs ->
+    val obdWatchdogTimeoutSeconds: Flow<Int> = data.map { prefs ->
         snapToOption(
             prefs[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] ?: DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
             OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS
@@ -322,7 +348,7 @@ class AppPreferences @Inject constructor(
 
     /** Immer ein Wert aus [RECONNECT_BASE_DELAY_OPTIONS_SECONDS], gleiche Begruendung wie bei
      *  [obdWatchdogTimeoutSeconds]. */
-    val reconnectBaseDelaySeconds: Flow<Int> = dataStore.data.map { prefs ->
+    val reconnectBaseDelaySeconds: Flow<Int> = data.map { prefs ->
         snapToOption(
             prefs[KEY_RECONNECT_BASE_DELAY_SECONDS] ?: DEFAULT_RECONNECT_BASE_DELAY_SECONDS,
             RECONNECT_BASE_DELAY_OPTIONS_SECONDS

@@ -34,7 +34,10 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
     val vin by vm.vin.collectAsState()
     val error by vm.error.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
-    LaunchedEffect(Unit) { vm.load() }
+    val isConnected by vm.isConnected.collectAsState()
+    // Reads when the page opens and again whenever the connection changes: connect -> read, drop -> clear.
+    // Without a connection load() reads nothing.
+    LaunchedEffect(isConnected) { vm.load() }
 
     Scaffold(
         topBar = {
@@ -55,8 +58,13 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
             Text(stringResource(R.string.vehicle_info_label_vin), style = MaterialTheme.typography.labelLarge)
             val currentError = error
             when {
+                // Nothing was read — "no VIN available" would claim an answer the vehicle never gave.
+                !isConnected -> Text(
+                    stringResource(R.string.not_connected),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 currentError != null -> {
-                    Text(currentError, color = MaterialTheme.colorScheme.error)
+                    Text(currentError.asString(), color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = { vm.load() }) { Text(stringResource(R.string.retry)) }
                 }

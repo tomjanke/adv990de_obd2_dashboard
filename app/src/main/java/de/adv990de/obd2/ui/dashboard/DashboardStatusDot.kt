@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.dashboard
 
 import androidx.compose.ui.graphics.Color
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.theme.StatusColors
 
@@ -18,8 +19,9 @@ import de.adv990de.obd2.ui.theme.StatusColors
  * attempt in progress must still show as "connecting", not "failed".
  *
  * [hasError] is `DashboardUiState.error != null` — set on [ConnectionEvent.Failed] (no device
- * configured, Bluetooth disabled, or all reconnect attempts exhausted). That field is never
- * otherwise shown to the user, so this dot is the only visual signal for that state.
+ * configured, Bluetooth disabled, or all reconnect attempts exhausted) and on a failed session
+ * ([SessionEvent.Failed]). The reason itself is written out in the preview banner
+ * ([previewBannerReason]); the dot only carries the colour.
  */
 fun dashboardStatusDotState(isConnected: Boolean, isReconnecting: Boolean, hasError: Boolean): StatusDotState? = when {
     isConnected -> StatusDotState.Ok
@@ -27,6 +29,19 @@ fun dashboardStatusDotState(isConnected: Boolean, isReconnecting: Boolean, hasEr
     hasError -> StatusDotState.Critical
     else -> null
 }
+
+/**
+ * The reason the preview banner prints under its "not connected" label, or `null` for the plain banner.
+ *
+ * Until v1.24.1 the error text of [DashboardUiState] was never rendered anywhere — the red dot was the
+ * only sign that something failed, not WHAT (no device, Bluetooth off, adapter silent, ...).
+ *
+ * A running reconnect hides the reason: [DashboardViewModel.startReconnecting] keeps the stale error of
+ * the earlier failure, and "Connection permanently lost" next to a pulsing "connecting" dot would
+ * contradict itself (the same precedence as [dashboardStatusDotState]). A connection never has one.
+ */
+fun previewBannerReason(isConnected: Boolean, isReconnecting: Boolean, error: UiText?): UiText? =
+    if (isConnected || isReconnecting) null else error
 
 /**
  * Feste Ampel-Farben (Rot/Gelb/Gruen) ausschliesslich fuer den Bluetooth-Verbindungsstatus-Dot im

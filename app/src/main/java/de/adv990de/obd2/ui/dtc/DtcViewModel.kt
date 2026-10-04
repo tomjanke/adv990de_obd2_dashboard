@@ -7,7 +7,9 @@ import de.adv990de.obd2.data.DtcHistoryEntry
 import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.obd.model.DtcEntry
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.UndoableDeletion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +25,8 @@ import javax.inject.Inject
 data class DtcUiState(
     val dtcs: List<DtcEntry> = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    /** Why the read failed. Always a visible text — a failure without one must not look like "no faults". */
+    val error: UiText? = null
 )
 
 /** One row of the history view: the recorded code plus whether the vehicle reports it right now. */
@@ -95,7 +98,7 @@ class DtcViewModel @Inject constructor(
                 dtcHistoryRepository.record(dtcs)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _uiState.value = DtcUiState(error = e.message)
+                _uiState.value = DtcUiState(error = ObdErrorMapper.toUiText(e))
                 liveCodes.value = null
             }
         }

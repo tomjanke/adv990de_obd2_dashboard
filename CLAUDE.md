@@ -434,6 +434,26 @@ bereits abgebrochener Aufrufer legt keine Fahrt an, und wird er während des Ins
 verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs“ legt bei DTC-freiem Fahrzeug **gar keine Fahrt** mehr an
 (statt aufzuzeichnen und am Ende zu verwerfen).
 
+### Fehlerzustände ehrlich anzeigen (seit v1.24.1)
+
+- **Ein Fehler hat immer einen sichtbaren Text.** Fehlerzustände in ViewModels sind `UiText?` und kommen aus
+  `ObdErrorMapper.toUiText(e)` — **nie** aus `e.message`: Eine Ausnahme ohne Meldung (`null`) sah die Oberfläche als „kein Fehler“,
+  die DTC-Seite zeigte dann das grüne „Keine Fehlercodes“. Der Mapper lokalisiert bekannte Ursachen (`ObdException`,
+  `BluetoothException`, `SecurityException`) und fällt sonst auf Meldung bzw. Klassenname zurück, nie auf leer. Neue Ausnahmetypen
+  dort ergänzen (+ Test, + beide `values*/strings.xml`).
+- **„Nicht verbunden“ ≠ „nicht verfügbar“.** Seiten, die etwas vom Fahrzeug lesen (Fehlercodes, Freeze-Frame, FIN), prüfen
+  `isConnectedFlow` zuerst: ohne Verbindung wird **nichts gelesen** und `R.string.not_connected` gezeigt — ein „keine Daten“ würde
+  eine Antwort behaupten, die das Fahrzeug nie gegeben hat. Sie laden per `LaunchedEffect(isConnected)` bei jedem Verbindungswechsel
+  neu; weil dabei ein älterer Lesevorgang noch laufen kann, verwirft das ViewModel späte Ergebnisse per Generationszähler
+  (`FreezeFrameViewModel`, `VehicleInfoViewModel`).
+- **Der Grund steht im Vorschau-Band.** `PreviewBanner(reason)` des Dashboards schreibt den Fehlertext des Zustands aus
+  (`previewBannerReason`: nur ohne Verbindung und **nicht** während eines Reconnects — sonst widerspräche das Band dem pulsierenden
+  Punkt, weil `startReconnecting()` den alten Fehler bewusst stehen lässt). Farbe `colorScheme.error` (themesicher), Größe `labelLarge`.
+  Jeder gescheiterte Reconnect-Versuch steht zusätzlich mit Ursache im App-Log.
+- **Beschädigte Einstellungen führen nicht zum Absturz.** `Context.dataStore` hat einen `corruptionHandler`
+  (`appPreferencesCorruptionHandler()`: leere Einstellungen = Standardwerte), und `AppPreferences` liest über einen Flow, der
+  `IOException` abfängt. Alle Lesezugriffe gehen über `AppPreferences.data`, nie direkt über `dataStore.data`.
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
@@ -551,8 +571,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 983 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 252 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1015 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 263 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

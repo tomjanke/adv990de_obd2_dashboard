@@ -196,10 +196,10 @@ private fun CurrentContent(
                 // Nothing was read — saying "no fault codes" here would be a wrong all-clear.
                 !isConnected -> EmptyState(
                     icon = ImageVector.vectorResource(R.drawable.ic_bluetooth),
-                    text = stringResource(R.string.dtc_not_connected),
+                    text = stringResource(R.string.not_connected),
                 )
                 currentError != null -> Text(
-                    currentError,
+                    currentError.asString(),
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(16.dp)
                 )

@@ -204,7 +204,10 @@ fun DashboardScreen(
                 // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
                 // die App nichts misst oder nichts messen kann.
                 if (!state.isConnected) {
-                    PreviewBanner(modifier = Modifier.fillMaxWidth())
+                    PreviewBanner(
+                        modifier = Modifier.fillMaxWidth(),
+                        reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
+                    )
                 }
 
                 // ── Sensor grid ───────────────────────────────────────────

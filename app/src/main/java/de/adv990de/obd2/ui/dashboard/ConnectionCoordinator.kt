@@ -130,7 +130,7 @@ class ConnectionCoordinator @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")
+            appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: e.javaClass.simpleName}")
             requestReconnect()
         }
     }
@@ -182,8 +182,13 @@ class ConnectionCoordinator @Inject constructor(
                     return@collect  // isConnectedFlow wird true → der Messwert-Strom startet neu
                 } catch (ce: CancellationException) {
                     throw ce
-                } catch (_: Exception) {
-                    // naechster Versuch
+                } catch (e: Exception) {
+                    // Naechster Versuch. Die Oberflaeche zeigt nur das Endergebnis; der Grund jedes
+                    // gescheiterten Versuchs steht im App-Log.
+                    appLogRepository.log(
+                        LogLevel.WARN,
+                        "Reconnect attempt ${attempt + 1}/$RECONNECT_ATTEMPT_COUNT failed: ${e.message ?: e.javaClass.simpleName}"
+                    )
                 }
             }
             appLogRepository.log(LogLevel.ERROR, "Connection failed after $RECONNECT_ATTEMPT_COUNT attempts")

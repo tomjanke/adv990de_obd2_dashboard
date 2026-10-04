@@ -15,6 +15,8 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.location.LocationPermissions
+import de.adv990de.obd2.obd.ObdErrorMapper
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.dashboard.shouldIncludeLocationServiceType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +36,8 @@ data class SettingsUiState(
     // Kept in sync with lastDevice flow so the auto-reconnect path can read the device name
     // from state without an extra DataStore I/O round-trip.
     val lastDeviceName: String? = null,
-    val error: String? = null
+    /** Why connecting or listing devices failed — localized for known causes, never empty. */
+    val error: UiText? = null
 )
 
 private const val TAG = "SettingsViewModel"
@@ -124,10 +127,10 @@ class SettingsViewModel @Inject constructor(
         val devices = try {
             scanner.bondedDevices(showAllBtDevices.value)
         } catch (e: BluetoothException.PermissionDenied) {
-            _uiState.value = _uiState.value.copy(error = e.message)
+            _uiState.value = _uiState.value.copy(error = ObdErrorMapper.toUiText(e))
             emptyList()
         } catch (e: SecurityException) {
-            _uiState.value = _uiState.value.copy(error = e.message)
+            _uiState.value = _uiState.value.copy(error = ObdErrorMapper.toUiText(e))
             emptyList()
         }
         _uiState.value = _uiState.value.copy(bondedDevices = devices)
@@ -167,8 +170,8 @@ class SettingsViewModel @Inject constructor(
                 appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: "unknown"}")
-                _uiState.value = _uiState.value.copy(isConnecting = false, error = e.message)
+                appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: e.javaClass.simpleName}")
+                _uiState.value = _uiState.value.copy(isConnecting = false, error = ObdErrorMapper.toUiText(e))
             }
         }
     }

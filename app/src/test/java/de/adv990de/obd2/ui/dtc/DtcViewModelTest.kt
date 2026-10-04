@@ -1,10 +1,13 @@
 package de.adv990de.obd2.ui.dtc
 
 import androidx.lifecycle.ViewModel
+import de.adv990de.obd2.R
 import de.adv990de.obd2.data.DtcHistoryEntry
 import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.model.DtcEntry
+import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.UNDO_WINDOW_MS
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -116,8 +119,31 @@ class DtcViewModelTest {
         f.vm.refresh()
         advanceUntilIdle()
 
-        assertEquals("DTC read failed", f.vm.uiState.value.error)
+        assertEquals(UiText.DynamicString("DTC read failed"), f.vm.uiState.value.error)
         assertFalse(f.vm.uiState.value.isLoading)
+    }
+
+    @Test
+    fun `refresh with an exception WITHOUT a message still sets an error (never a false all-clear)`() = runTest {
+        val f = fixture()
+        coEvery { f.obd.readDtcs() } throws RuntimeException()
+
+        f.vm.refresh()
+        advanceUntilIdle()
+
+        assertNotNull("null als Fehler liesse die Seite 'Keine Fehlercodes' zeigen", f.vm.uiState.value.error)
+        assertTrue(f.vm.uiState.value.dtcs.isEmpty())
+    }
+
+    @Test
+    fun `refresh maps a known adapter failure to its localized text`() = runTest {
+        val f = fixture()
+        coEvery { f.obd.readDtcs() } throws ObdException.Timeout("03")
+
+        f.vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(UiText.StringResource(R.string.obd_err_timeout), f.vm.uiState.value.error)
     }
 
     @Test

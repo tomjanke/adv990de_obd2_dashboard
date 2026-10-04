@@ -55,6 +55,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.LiveValueTile
 import de.adv990de.obd2.ui.components.SectionLabel
@@ -434,9 +435,13 @@ internal fun SensorCardSlot(
  *
  * Die Vorschau bleibt — sie zeigt die Slot-Belegung und macht das Layout begreifbar — aber sie
  * sagt jetzt, was sie ist.
+ *
+ * [reason] (siehe [previewBannerReason]) schreibt aus, WARUM nicht verbunden ist; ohne Grund bleibt es
+ * das schlichte Band. Der Grund steht in der Fehlerfarbe des Themes (theme-sicherer Kontrast, wie die
+ * uebrigen Leerzustands-Fehlertexte) in lesbarer Schriftgroesse, nicht in der ALL-CAPS-Beschriftung.
  */
 @Composable
-internal fun PreviewBanner(modifier: Modifier = Modifier) {
+internal fun PreviewBanner(modifier: Modifier = Modifier, reason: UiText? = null) {
     Surface(
         modifier = modifier,
         shape = RectangleShape,
@@ -444,11 +449,25 @@ internal fun PreviewBanner(modifier: Modifier = Modifier) {
         shadowElevation = 0.dp,
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        SectionLabel(
-            text = stringResource(R.string.dashboard_preview_banner),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SectionLabel(
+                text = stringResource(R.string.dashboard_preview_banner),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (reason != null) {
+                Text(
+                    text = reason.asString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                )
+            }
+        }
     }
 }
 
