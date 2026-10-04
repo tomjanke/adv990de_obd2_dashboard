@@ -275,8 +275,12 @@ class ObdRepository @Inject constructor(
         return try {
             val confirmed = controller.sendCommand("03")
             val pending   = controller.sendCommand("07")
-            dtcParser.parse(confirmed, isPending = false) +
-                    dtcParser.parse(pending, isPending = true)
+            // Ein Code kann in beiden Antworten stehen (bestaetigt UND noch ausstehend) oder von zwei
+            // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
+            // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
+            (dtcParser.parse(confirmed, isPending = false) +
+                    dtcParser.parse(pending, isPending = true))
+                .distinctBy { it.code }
         } catch (e: ObdException.Timeout) {
             // A timeout leaves the serial stream in an unknown state: the stale response may
             // arrive during the next sendCommand and corrupt it. Disconnect now so the stream
@@ -314,7 +318,9 @@ class ObdRepository @Inject constructor(
                   throw e
               } ?: continue
             val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
-            result[pid.id] = "%.1f ${pid.unit}".format(value)
+            // Die Einheit gehoert NICHT in den Formatstring: "%" (Last, Gaspedal, Trims, Tank) waere sonst ein
+            // unvollstaendiger Platzhalter und wirft UnknownFormatConversionException.
+            result[pid.id] = String.format("%.1f", value) + " ${pid.unit}"
         }
         return result
     }

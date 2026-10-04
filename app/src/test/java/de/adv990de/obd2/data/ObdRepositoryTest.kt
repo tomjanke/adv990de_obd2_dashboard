@@ -213,6 +213,32 @@ class ObdRepositoryTest {
     }
 
     @Test
+    fun `readDtcs merges a code that is both confirmed and pending into one confirmed entry`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        // P0134 is stored (mode 03) and still pending (mode 07) — typical for a persisting fault.
+        coEvery { elmCtrl.sendCommand("03") } returns "43 01 33 01 34"
+        coEvery { elmCtrl.sendCommand("07") } returns "47 01 34 01 35"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val result = repo.readDtcs()
+
+        // One row per code: the DTC page keys its LazyColumn by code, a duplicate would crash it.
+        assertEquals(listOf("P0133", "P0134", "P0135"), result.map { it.code })
+        assertFalse("confirmed wins over pending", result.first { it.code == "P0134" }.isPending)
+        assertTrue(result.first { it.code == "P0135" }.isPending)
+    }
+
+    @Test
+    fun `readDtcs drops a code that two ECUs report in the same answer`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "43 01 33 01 33"
+        coEvery { elmCtrl.sendCommand("07") } returns "47"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        assertEquals(listOf("P0133"), repo.readDtcs().map { it.code })
+    }
+
+    @Test
     fun `readDtcs disconnects when sendCommand times out to prevent stream desync`() = runTest {
         val elmCtrl = mockk<ElmController>()
         // "03" times out — stale response may arrive during the "07" command if we continue
@@ -256,6 +282,21 @@ class ObdRepositoryTest {
         // Value should use decimal precision (%.1f), not integer truncation.
         // RPM formula: (26*256 + 248) / 4 = 1726.0 → "1726.0 rpm"
         assertTrue("RPM value should contain decimal point: ${result["010C"]}", result["010C"]!!.contains("."))
+    }
+
+    @Test
+    fun `readFreezeFrame formats a percent PID without throwing`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
+        // Engine load (0104) has the unit "%": it must not be read as a format specifier.
+        coEvery { elmCtrl.sendCommand("02 04 00") } returns "42 04 80"
+        val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
+
+        val result = repo.readFreezeFrame()
+
+        val load = PidRegistry.all["0104"]!!.formula(byteArrayOf(0x80.toByte()))
+        // Same default-locale formatting as production, so the test holds under a decimal comma too.
+        assertEquals(String.format("%.1f", load) + " %", result["0104"])
     }
 
     @Test
