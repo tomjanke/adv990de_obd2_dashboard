@@ -136,10 +136,10 @@ class HistoryViewModelTest {
     }
 
     @Test
-    fun `init removes trips older than the retention period`() = runTest {
+    fun `opening the history does not purge anything - retention runs once at app start`() = runTest {
         val f = fixture()
         runCurrent()
-        coVerify { f.repo.deleteOldSessions(any()) }
+        coVerify(exactly = 0) { f.repo.deleteOldSessions(any()) }
     }
 
     // ── one trip: trash button or swipe, no dialog, undo only ─────────────────

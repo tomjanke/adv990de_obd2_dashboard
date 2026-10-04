@@ -85,10 +85,6 @@ class HistoryViewModel @Inject constructor(
     private val _exportError = MutableStateFlow<String?>(null)
     val exportError: StateFlow<String?> = _exportError
 
-    init {
-        viewModelScope.launch { sessionRepository.deleteOldSessions() }
-    }
-
     /** Row trash button or swipe: no dialog, the snackbar offers undo. The recording is refused. */
     fun deleteSession(session: SessionEntity) {
         if (session.id == activeSessionId.value) return

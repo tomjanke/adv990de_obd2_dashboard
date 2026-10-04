@@ -48,6 +48,25 @@ class AppLogDaoTest {
     }
 
     @Test
+    fun deleteBeyondNewest_keepsExactlyTheNewestRows() = runBlocking {
+        (1..10).forEach { dao.insert(AppLogEntity(timestamp = it * 1000L, level = "INFO", message = "m$it")) }
+
+        dao.deleteBeyondNewest(keep = 3)
+
+        val left = dao.getAllNewestFirst().first().map { it.message }
+        assertEquals(listOf("m10", "m9", "m8"), left)
+    }
+
+    @Test
+    fun deleteBeyondNewest_withFewerRowsThanTheCapDeletesNothing() = runBlocking {
+        dao.insert(AppLogEntity(timestamp = 1000L, level = "INFO", message = "only"))
+
+        dao.deleteBeyondNewest(keep = 1000)
+
+        assertEquals(1, dao.getAllNewestFirst().first().size)
+    }
+
+    @Test
     fun deleteOlderThan_removesOldKeepsNew() = runBlocking {
         dao.insert(AppLogEntity(timestamp = 1000L, level = "INFO", message = "old"))
         dao.insert(AppLogEntity(timestamp = 3000L, level = "INFO", message = "new"))

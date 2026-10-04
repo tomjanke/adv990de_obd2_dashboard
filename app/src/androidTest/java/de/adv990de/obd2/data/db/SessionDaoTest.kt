@@ -66,13 +66,17 @@ class SessionDaoTest {
     }
 
     @Test
-    fun deleteOlderThan_boundary() = runBlocking {
-        sessionDao.insert(SessionEntity(startTime = 1000L))
+    fun idsOlderThan_boundary() = runBlocking {
+        val old = sessionDao.insert(SessionEntity(startTime = 1000L))
+        sessionDao.insert(SessionEntity(startTime = 2000L)) // exactly at the cutoff: not older
         sessionDao.insert(SessionEntity(startTime = 3000L))
-        sessionDao.deleteOlderThan(cutoffMs = 2000L)
-        val sessions = sessionDao.getAll().first()
-        assertEquals(1, sessions.size)
-        assertEquals(3000L, sessions[0].startTime)
+        assertEquals(listOf(old), sessionDao.idsOlderThan(cutoffMs = 2000L))
+    }
+
+    @Test
+    fun idsOlderThan_isEmptyWhenNothingIsOld() = runBlocking {
+        sessionDao.insert(SessionEntity(startTime = 3000L))
+        assertEquals(emptyList<Long>(), sessionDao.idsOlderThan(cutoffMs = 2000L))
     }
 
     @Test

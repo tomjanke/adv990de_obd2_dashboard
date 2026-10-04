@@ -94,10 +94,10 @@ class AppLogsViewModelTest {
     }
 
     @Test
-    fun `init prunes old logs on startup`() = runTest {
+    fun `opening the log screen does not prune anything - retention runs once at app start`() = runTest {
         val f = fixture()
         runCurrent()
-        coVerify { f.repo.pruneOlderThan(any()) }
+        coVerify(exactly = 0) { f.repo.pruneOlderThan(any()) }
     }
 
     // ── confirmation dialog ───────────────────────────────────────────────────

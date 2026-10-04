@@ -4,6 +4,7 @@ import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.DtcHistoryRepository
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.location.GpsSpeedSource
@@ -190,16 +191,22 @@ class ReadingsPipelineTest {
     // --- Test 7 ---
 
     @Test
-    fun `a session without DTCs is discarded when only DTC drives are kept`() = runTest {
+    fun `no trip is created when only DTC drives are kept and the vehicle reports none`() = runTest {
         val sessionRepo = makeSessionRepo()
-        makePipeline(
+        val events = makePipeline(
             makeRepo(connected = true),
             sessionRepo = sessionRepo,
             prefs = makePrefs(logOnlyDtc = true),
         ).events(backgroundScope).take(1).toList()
 
-        coVerify { sessionRepo.discardSession(7L) }
+        // Die Entscheidung steht vor dem Start fest. Frueher wurde die Fahrt angelegt, aufgezeichnet und
+        // am Ende verworfen: unnoetige Schreiblast, und ein Prozess-Kill dazwischen hinterliess eine
+        // DTC-lose Fahrt entgegen der Einstellung.
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+        coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
     }
 
     // --- Test 8 ---
@@ -419,6 +426,44 @@ class ReadingsPipelineTest {
 
             assertEquals(listOf(SessionEvent.ConnectionLost), events)
         }
+
+    // --- Test 15a: recording is best effort — a database failure must not end the live display ---
+
+    @Test
+    fun `a failing write does not end the live display and is logged once per session`() = runTest {
+        val repo = makeRepo(connected = true)
+        val second = rpm.copy(value = 1600f, timestamp = 2000L)
+        every { repo.livePids(any()) } returns flowOf(listOf(rpm), listOf(second), listOf(second))
+        val sessionRepo = makeSessionRepo()
+        coEvery { sessionRepo.writeReadings(any(), any()) } throws IllegalStateException("database or disk is full")
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+        val crashReporter: CrashReporter = mockk(relaxed = true)
+
+        val events = makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo, crashReporter = crashReporter)
+            .events(backgroundScope).take(3).toList()
+
+        assertTrue("every cycle still reaches the display: $events", events.all { it is SessionEvent.Values })
+        assertEquals(3, events.size)
+        // Einmal je Sitzung, nicht je Zyklus: ein Fehler mit 2 Hz wuerde sonst das (ebenfalls betroffene) Log fluten.
+        coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, match { it.contains("Recording failed") }) }
+        verify(exactly = 1) { crashReporter.recordException(any()) }
+        coVerify { sessionRepo.endSession(7L) }
+    }
+
+    @Test
+    fun `a trip that cannot be created does not end the live display either`() = runTest {
+        val sessionRepo = makeSessionRepo()
+        coEvery { sessionRepo.startSession(any()) } throws IllegalStateException("database is locked")
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+
+        val events = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo, logRepo = logRepo)
+            .events(backgroundScope).take(1).toList()
+
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+        coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
+        coVerify(exactly = 0) { sessionRepo.endSession(any()) }
+        coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, match { it.contains("Recording failed") }) }
+    }
 
     // --- Test 15b: the fault-code read drops the link ---
 

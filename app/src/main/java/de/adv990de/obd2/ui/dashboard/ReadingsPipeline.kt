@@ -246,9 +246,31 @@ class ReadingsPipeline @Inject constructor(
         }
         val hasDtcForRecording: Boolean = dtcList?.isNotEmpty() ?: true
 
+        // "Nur Fahrten mit DTCs": Die Entscheidung steht schon fest — keine Fahrt anlegen, statt sie
+        // aufzuzeichnen und am Ende zu verwerfen (Schreiblast; ein Prozess-Kill dazwischen hinterliess
+        // eine DTC-lose Fahrt entgegen der Einstellung).
+        val recordThisTrip = !(logOnlyDtc && !hasDtcForRecording)
+
+        // Aufzeichnen ist Beiwerk der Live-Anzeige: Ein Datenbankfehler (Platte voll, Datenbank gesperrt)
+        // darf sie nicht beenden. Einmal je Sitzung melden — ein Fehler mit 2 Hz wuerde sonst das
+        // ebenfalls betroffene App-Log fluten.
+        var recordingFailureReported = false
+        suspend fun recordingFailed(e: Exception) {
+            if (recordingFailureReported) return
+            recordingFailureReported = true
+            crashReporter.recordException(e)
+            logBestEffort(LogLevel.WARN, "Recording failed, the live display continues: ${e.message}")
+        }
+
         var sessionId = -1L
         try {
-            sessionId = sessionRepository.startSession(vin)
+            if (recordThisTrip) {
+                sessionId = try { sessionRepository.startSession(vin) } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    recordingFailed(e)
+                    -1L
+                }
+            }
             emitAll(
                 obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
@@ -258,7 +280,15 @@ class ReadingsPipeline @Inject constructor(
                     // (s. SessionEvent.Values-KDoc) — die Ganganzeige braucht ihn unabhaengig davon,
                     // ob das Fahrzeug selbst eine Geschwindigkeit meldet.
                     .map { readings -> val gpsKmh = gpsSpeed.value; mergeGpsSpeed(readings, gpsKmh) to gpsKmh }
-                    .onEach { (values, _) -> record(sessionId, values, logOnlyDiscovered, loggedPidIds) }
+                    .onEach { (values, _) ->
+                        if (sessionId == -1L) return@onEach // keine Fahrt: nichts aufzuzeichnen
+                        try {
+                            record(sessionId, values, logOnlyDiscovered, loggedPidIds)
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            recordingFailed(e)
+                        }
+                    }
                     .onEach { (values, _) -> applyMerged(values) }
                     .map { (values, gpsKmh) -> SessionEvent.Values(values, gpsKmh) }
             )
@@ -278,25 +308,18 @@ class ReadingsPipeline @Inject constructor(
         } finally {
             // Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern.
             if (sessionId != -1L) {
-                if (logOnlyDtc && !hasDtcForRecording) {
-                    try { sessionRepository.discardSession(sessionId) } catch (_: Exception) {}
-                } else {
-                    try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
-                }
+                try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
             }
         }
     }
 
     /**
-     * Schreibt ins App-Log, auch wenn die Sitzung gerade abgebrochen wird, und schluckt Fehler: das Log
-     * ist Beiwerk und darf weder am Abbruch scheitern (der Schreibvorgang ist ein Suspendierungspunkt)
-     * noch die Sitzung mit einer Datenbankausnahme beenden.
+     * Schreibt ins App-Log, auch wenn die Sitzung gerade abgebrochen wird: der Schreibvorgang ist ein
+     * Suspendierungspunkt und wuerde sonst am Abbruch scheitern. Datenbankfehler wirft
+     * [AppLogRepository.log] selbst nie.
      */
     private suspend fun logBestEffort(level: LogLevel, message: String) {
-        try {
-            withContext(NonCancellable) { appLogRepository.log(level, message) }
-        } catch (_: Exception) {
-        }
+        withContext(NonCancellable) { appLogRepository.log(level, message) }
     }
 
     /**

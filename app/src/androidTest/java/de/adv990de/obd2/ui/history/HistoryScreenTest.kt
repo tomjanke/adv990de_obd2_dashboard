@@ -119,9 +119,9 @@ class HistoryScreenTest {
     fun setup() {
         hiltRule.inject()
         // A row (and its export IconButton) only renders once at least one session exists.
-        // startTime must be "now", not a fixed past timestamp: HistoryViewModel's init block
-        // unconditionally calls sessionRepository.deleteOldSessions() (90-day cutoff), which would
-        // otherwise delete this row out from under the test before Compose ever renders it.
+        // startTime is "now" rather than a fixed past timestamp. (Until v1.23.2 this was required:
+        // HistoryViewModel's init block called deleteOldSessions() with a 90-day cutoff. Retention now
+        // runs once at app start via DataRetention; "now" keeps the row inside the window regardless.)
         insertedStartTime = System.currentTimeMillis()
         runBlocking {
             insertedSessionId = testDb.sessionDao()

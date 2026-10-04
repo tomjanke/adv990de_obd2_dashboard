@@ -231,10 +231,11 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `startSession failure sets error state and skips endSession`() = runTest {
-        // Verifies: when startSession throws, the generic catch(Exception) handler fires —
-        // not the ConnectionLost handler (isReconnecting stays false) — and endSession is
-        // never called because sessionId was never assigned (guard: if (sessionId != -1L)).
+    fun `startSession failure does not end the live display and skips endSession`() = runTest {
+        // Aufzeichnen ist Beiwerk der Live-Anzeige: scheitert das Anlegen der Fahrt (Platte voll, Datenbank
+        // gesperrt), laeuft die Anzeige weiter — kein Fehlerzustand, kein Reconnect — und endSession wird nie
+        // gerufen, weil keine Fahrt existiert (Guard: if (sessionId != -1L)). Frueher beendete die
+        // generische catch(Exception)-Behandlung die ganze Sitzung mit einer Fehlermeldung.
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
@@ -253,9 +254,11 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        assertEquals(UiText.DynamicString("DB failure"), vm.uiState.value.error)
+        assertNull(vm.uiState.value.error)
         assertFalse(vm.uiState.value.isReconnecting)
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
+        verify { obdRepo.livePids(any()) } // die Messung lief trotz fehlgeschlagener Aufzeichnung an
     }
 
     @Test
@@ -582,7 +585,10 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        coVerify { sessionRepo.discardSession(99L) }
+        // Die Entscheidung steht vor dem Start fest: keine Fahrt anlegen, statt aufzuzeichnen und zu verwerfen.
+        coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
+        coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
     }
 

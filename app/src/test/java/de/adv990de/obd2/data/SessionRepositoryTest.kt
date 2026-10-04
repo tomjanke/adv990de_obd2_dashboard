@@ -24,6 +24,8 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -238,6 +240,49 @@ class SessionRepositoryTest {
         assertEquals(8L, repo.activeSessionId.value)
     }
 
+    // ── startSession is atomic with respect to cancellation ────────────────
+
+    @Test
+    fun `startSession in an already cancelled coroutine creates no trip`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 6L
+
+        var refused = false
+        val caller = launch {
+            try {
+                awaitCancellation()
+            } catch (e: CancellationException) {
+                try { repo.startSession("VIN") } catch (_: CancellationException) { refused = true }
+                throw e
+            }
+        }
+        runCurrent()
+        caller.cancelAndJoin()
+
+        assertTrue("a cancelled caller must not start a trip", refused)
+        coVerify(exactly = 0) { sessionDao.insert(any()) }
+        assertNull(repo.activeSessionId.value)
+    }
+
+    @Test
+    fun `a caller cancelled while the trip is being inserted does not leave an orphan trip behind`() = runTest {
+        // withContext verwirft das Ergebnis eines abgebrochenen Aufrufers: die Pipeline bekaeme die Id nie
+        // und koennte die Fahrt nie beenden — eine leere Zeile, fuer immer als "aktiv" geschuetzt.
+        val insertStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        coEvery { sessionDao.insert(any()) } coAnswers { insertStarted.complete(Unit); release.await(); 6L }
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+
+        val caller = launch { repo.startSession("VIN") }
+        insertStarted.await()
+        caller.cancel()
+        release.complete(Unit)
+        caller.join()
+
+        assertNull("the empty trip must not stay active", repo.activeSessionId.value)
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(6L)) }
+    }
+
     // ── discardSession (the pipeline drops a trip without DTCs) ──────────────
 
     @Test
@@ -350,9 +395,9 @@ class SessionRepositoryTest {
     // ── deleteOldSessions ─────────────────────────────────────────────────────
 
     @Test
-    fun `deleteOldSessions delegates to dao with cutoff calculated from maxAgeMs`() = runTest {
+    fun `deleteOldSessions asks for the trips older than the cutoff calculated from maxAgeMs`() = runTest {
         val captor = slot<Long>()
-        coEvery { sessionDao.deleteOlderThan(capture(captor)) } just Runs
+        coEvery { sessionDao.idsOlderThan(capture(captor)) } returns emptyList()
 
         val maxAgeMs = 1_000L
         val before = System.currentTimeMillis()
@@ -362,6 +407,46 @@ class SessionRepositoryTest {
         val cutoff = captor.captured
         assertTrue("cutoff should be within [before-maxAgeMs, after-maxAgeMs]",
             cutoff in (before - maxAgeMs)..(after - maxAgeMs))
+    }
+
+    @Test
+    fun `deleteOldSessions deletes in chunks of 50 so the recorder is never blocked for long`() = runTest {
+        val ids = (1L..120L).toList()
+        coEvery { sessionDao.idsOlderThan(any()) } returns ids
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+
+        repo.deleteOldSessions(1_000L)
+
+        coVerifyOrder {
+            sensorReadingDao.deleteBySessions(ids.subList(0, 50)); sessionDao.deleteByIds(ids.subList(0, 50))
+            sensorReadingDao.deleteBySessions(ids.subList(50, 100)); sessionDao.deleteByIds(ids.subList(50, 100))
+            sensorReadingDao.deleteBySessions(ids.subList(100, 120)); sessionDao.deleteByIds(ids.subList(100, 120))
+        }
+    }
+
+    @Test
+    fun `deleteOldSessions never touches the trip that is being recorded`() = runTest {
+        coEvery { sessionDao.insert(any()) } returns 6L
+        coEvery { sessionDao.idsOlderThan(any()) } returns listOf(5L, 6L, 7L)
+        coEvery { sensorReadingDao.deleteBySessions(any()) } just Runs
+        coEvery { sessionDao.deleteByIds(any()) } just Runs
+        repo.startSession()
+
+        repo.deleteOldSessions(1_000L)
+
+        coVerify(exactly = 1) { sessionDao.deleteByIds(listOf(5L, 7L)) }
+        coVerify(exactly = 0) { sessionDao.deleteByIds(match { 6L in it }) }
+    }
+
+    @Test
+    fun `deleteOldSessions with nothing old deletes nothing`() = runTest {
+        coEvery { sessionDao.idsOlderThan(any()) } returns emptyList()
+
+        repo.deleteOldSessions(1_000L)
+
+        coVerify(exactly = 0) { sessionDao.deleteByIds(any()) }
+        coVerify(exactly = 0) { sensorReadingDao.deleteBySessions(any()) }
     }
 
     // ── exportToCsv ───────────────────────────────────────────────────────────

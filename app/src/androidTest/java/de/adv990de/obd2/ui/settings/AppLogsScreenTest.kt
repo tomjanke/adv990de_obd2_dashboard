@@ -45,9 +45,9 @@ import org.junit.runner.RunWith
  * in-memory [AppDatabase] is wired into a real `AppLogRepository(dao)` instance, then wrapped with
  * [spyk] via `@BindValue`. Real Room query/Flow behavior stays intact; rows are inserted directly
  * through the test database's own `AppLogDao` before each test that needs a populated list.
- * `AppLogsViewModel.init` calls `pruneOlderThan()` unconditionally (30-day cutoff), so every
- * inserted row uses `System.currentTimeMillis()` rather than a fixed past timestamp — the same
- * pitfall `HistoryScreenTest`'s KDoc documents for `SessionRepository.deleteOldSessions()`.
+ * Rows use `System.currentTimeMillis()` rather than a fixed past timestamp. (Until v1.23.2 that
+ * was required because `AppLogsViewModel.init` pruned 30-day-old rows; retention now runs once at
+ * app start via `DataRetention`, but fresh timestamps keep the rows well inside the window anyway.)
  *
  * `ObdRepository` is still replaced via `@BindValue` even though `AppLogsScreen` never touches it:
  * it is reached through `ObdForegroundService`'s Hilt entry point, and Hilt validates the whole app

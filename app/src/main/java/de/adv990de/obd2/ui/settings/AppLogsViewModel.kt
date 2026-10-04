@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -31,10 +30,6 @@ class AppLogsViewModel @Inject constructor(
      */
     private val deletion = UndoableDeletion<Long>(scope = appScope) { maxIds ->
         appLogRepository.deleteUpTo(maxIds.max())
-    }
-
-    init {
-        viewModelScope.launch { appLogRepository.pruneOlderThan() }
     }
 
     /** What the user still sees: everything newer than the highest pending delete-all. */

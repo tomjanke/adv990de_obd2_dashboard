@@ -13,8 +13,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY startTime DESC") fun pagingSource(): PagingSource<Int, SessionEntity>
     @Query("SELECT * FROM sessions WHERE id = :id") suspend fun getById(id: Long): SessionEntity?
     @Delete suspend fun delete(session: SessionEntity)
-    @Query("DELETE FROM sessions WHERE startTime < :cutoffMs")
-    suspend fun deleteOlderThan(cutoffMs: Long)
+    /** Ids of the trips that started before [cutoffMs] — the caller deletes them in chunks (see [SessionRepository.deleteOldSessions]). */
+    @Query("SELECT id FROM sessions WHERE startTime < :cutoffMs ORDER BY id")
+    suspend fun idsOlderThan(cutoffMs: Long): List<Long>
 
     /** Every trip id, oldest first — the history decides from this which trips "delete all" would touch. */
     @Query("SELECT id FROM sessions ORDER BY id") fun observeIds(): Flow<List<Long>>

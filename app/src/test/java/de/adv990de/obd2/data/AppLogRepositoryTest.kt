@@ -9,6 +9,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
 import io.mockk.slot
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -32,6 +33,45 @@ class AppLogRepositoryTest {
         coVerify { dao.insert(any()) }
         assertEquals(LogLevel.ERROR.name, slot.captured.level)
         assertEquals("test error", slot.captured.message)
+    }
+
+    @Test
+    fun `log swallows a database failure instead of throwing into the caller`() = runTest {
+        // log() steht in Verbindungs-, Wetter- und Pipeline-Pfaden, die im viewModelScope laufen: eine
+        // Room-Ausnahme dort haette den ganzen Prozess beendet — fuer eine Protokollzeile.
+        coEvery { dao.insert(any()) } throws IllegalStateException("database is full")
+
+        repo.log(LogLevel.WARN, "anything")
+
+        coVerify(exactly = 1) { dao.insert(any()) }
+    }
+
+    @Test
+    fun `log still propagates the cancellation of its caller`() = runTest {
+        coEvery { dao.insert(any()) } throws CancellationException("cancelled")
+
+        var cancelled = false
+        try { repo.log(LogLevel.INFO, "x") } catch (_: CancellationException) { cancelled = true }
+
+        assertTrue("a cancelled coroutine must stay cancelled", cancelled)
+    }
+
+    @Test
+    fun `trimToNewest delegates the row cap to the dao`() = runTest {
+        coEvery { dao.deleteBeyondNewest(any()) } just Runs
+
+        repo.trimToNewest(250)
+
+        coVerify(exactly = 1) { dao.deleteBeyondNewest(250) }
+    }
+
+    @Test
+    fun `trimToNewest keeps 1000 entries by default - the number the screen shows`() = runTest {
+        coEvery { dao.deleteBeyondNewest(any()) } just Runs
+
+        repo.trimToNewest()
+
+        coVerify(exactly = 1) { dao.deleteBeyondNewest(1000) }
     }
 
     @Test

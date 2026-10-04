@@ -10,8 +10,11 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.model.SensorValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,10 +49,28 @@ class SessionRepository @Inject constructor(
 
     fun pagingSource(): PagingSource<Int, SessionEntity> = db.sessionDao().pagingSource()
 
-    suspend fun startSession(vin: String? = null): Long = withContext(Dispatchers.IO) {
-        val id = db.sessionDao().insert(SessionEntity(startTime = System.currentTimeMillis(), vehicleVin = vin))
-        _activeSessionId.value = id
-        id
+    /**
+     * Starts a trip. Atomic with respect to cancellation: a caller that is cancelled while the row is
+     * being inserted never receives the id (`withContext` drops the result of a cancelled caller), so
+     * the pipeline could never end the trip — an empty row, protected as "active" for ever. The insert
+     * therefore runs in [NonCancellable]; if the caller was cancelled meanwhile, the empty trip is
+     * discarded again before the cancellation continues. A caller that is already cancelled starts
+     * no trip at all.
+     */
+    suspend fun startSession(vin: String? = null): Long {
+        currentCoroutineContext().ensureActive()
+        var created: Long? = null
+        try {
+            return withContext(Dispatchers.IO + NonCancellable) {
+                val id = db.sessionDao().insert(SessionEntity(startTime = System.currentTimeMillis(), vehicleVin = vin))
+                _activeSessionId.value = id
+                created = id
+                id
+            }
+        } catch (e: CancellationException) {
+            created?.let { discardSession(it) }
+            throw e
+        }
     }
 
     /**
@@ -67,7 +88,7 @@ class SessionRepository @Inject constructor(
         }
     }
 
-    /** The pipeline drops a trip that recorded no DTC ("only trips with DTCs"). Same cancellation rules as [endSession]. */
+    /** Drops a trip (an empty one whose caller was cancelled, see [startSession]). Same cancellation rules as [endSession]. */
     suspend fun discardSession(sessionId: Long) {
         clearActive(sessionId)
         withContext(Dispatchers.IO + NonCancellable) { deleteRows(listOf(sessionId)) }
@@ -109,10 +130,18 @@ class SessionRepository @Inject constructor(
         db.sensorReadingDao().insertAll(entities)
     }
 
+    /**
+     * Retention: removes the trips that started more than [maxAgeMs] ago (default 90 days). Runs once
+     * per app start (see [DataRetention]). Same rules as a delete from the history: in chunks (a long
+     * cascade must not block the recorder, and SQLite allows only 999 bound variables on API 26), and
+     * the trip that is being recorded is never touched.
+     */
     suspend fun deleteOldSessions(
         maxAgeMs: Long = 90L * 24 * 60 * 60 * 1000
     ) = withContext(Dispatchers.IO) {
-        db.sessionDao().deleteOlderThan(System.currentTimeMillis() - maxAgeMs)
+        val active = _activeSessionId.value
+        val old = db.sessionDao().idsOlderThan(System.currentTimeMillis() - maxAgeMs)
+        deleteRows(old.filter { it != active })
     }
 
     /**
