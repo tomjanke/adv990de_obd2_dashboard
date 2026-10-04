@@ -1,5 +1,36 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.20.0 (versionCode 76)
+
+### App-Logs: Löschen mit Rückfrage und „Rückgängig"
+
+Das Papierkorb-Symbol in den App-Logs löschte bisher sofort und ohne Rückfrage. Jetzt fragt zuerst ein
+Dialog nach („Alle Logs löschen?"). Nach dem Bestätigen verschwinden die Einträge sofort, und eine
+Meldung „Logs gelöscht" bietet 10 Sekunden lang „Rückgängig" an. Erst danach — oder sobald du die Seite
+verlässt — wird wirklich gelöscht. Neue Log-Zeilen, die in dieser Zeit entstehen, bleiben erhalten. Das
+Symbol ist jetzt 56 dp groß (handschuhtauglich) und ausgegraut, solange nichts zu löschen da ist; die
+leere Seite zeigt ein Symbol statt nur Text.
+
+Gelöscht wird dabei ausschließlich lokal — die App schreibt weiterhin nie ins Fahrzeug.
+
+### Unter der Haube
+
+Die App-Logs sind der erste Anwender eines gemeinsamen Lösch-Bausteins; Verlauf und Fehlerhistorie
+folgen. `UndoableDeletion` besitzt die eine Uhr (ausblenden, nach dem Fenster endgültig löschen,
+rückgängig machen; nur der jeweils letzte Löschvorgang ist rückgängig-bar), die Snackbar zeigt nur
+seinen Zustand — so laufen Meldung und echtes Löschen nie auseinander. Dazu kommen
+`ConfirmDeleteDialog`, `EmptyState` und der `@ApplicationScope`, die app-weite Coroutine-Scope, die die
+Projektdoku bisher als vorhanden beschrieb, die es aber nie gab. Ein Test am echten Datenbankfall zeigte,
+dass gelöschte Zeilen nach dem Löschen kurz zurückflackern könnten (Room meldet Änderungen asynchron);
+der Baustein hält sie deshalb noch 300 ms verborgen.
+
+### Tests
+
+862 Unit-Tests (+24) und 188 Instrumentation-Tests (+18), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen.
+
+---
+
 ## Version 1.19.0 (versionCode 75)
 
 ### Verbindungs-Einstellungen als feste Auswahl
