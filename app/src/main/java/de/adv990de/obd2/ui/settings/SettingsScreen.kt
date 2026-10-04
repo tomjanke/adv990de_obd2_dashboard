@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
@@ -22,7 +20,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,25 +31,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.Surface
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
-import de.adv990de.obd2.ui.theme.AppTypography
-import de.adv990de.obd2.ui.theme.amberColorScheme
-import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
@@ -71,6 +59,11 @@ internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_dri
  *  `performScrollToNode` to items below the initially-composed viewport instead of relying on
  *  them already being laid out — needed once the list grew past what a single screen shows. */
 internal const val SETTINGS_LIST_TEST_TAG = "settings_list"
+
+/** Test-only selectors for the two fixed-choice rows of the Connection section. Both groups offer
+ *  "10" and "30", so instrumentation tests locate a segment by its text PLUS this ancestor tag. */
+internal const val OBD_WATCHDOG_CHOICE_TEST_TAG = "settings_obd_watchdog_choice"
+internal const val RECONNECT_BASE_DELAY_CHOICE_TEST_TAG = "settings_reconnect_base_delay_choice"
 
 /** The GPS-speed switch's three-way outcome once the user toggles it, decided purely from the
  *  requested state and the current fine-location grant — extracted so the branch is directly
@@ -121,64 +114,6 @@ internal fun shouldRequestLocationForWeather(
     fineGranted: Boolean,
     coarseGranted: Boolean,
 ): Boolean = !alreadyPrompted && turningOn && !fineGranted && !coarseGranted
-
-/** Validates the OBD watchdog timeout field below: a whole number of seconds, at least
- *  [AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS] — a few seconds would let the watchdog force
- *  reconnects on ordinary timeout noise. Returns null for anything else. Pulled into its own
- *  top-level function so it's JVM-testable without Compose, mirroring `GearSettingsScreen.kt`'s
- *  `parsePositiveFloat`. */
-internal fun parseWatchdogTimeoutSeconds(text: String): Int? =
-    text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS }
-
-/** Validates the reconnect base-delay field below, mirroring [parseWatchdogTimeoutSeconds]
- *  exactly (same reasoning, different floor: [AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS]). */
-internal fun parseReconnectBaseDelaySeconds(text: String): Int? =
-    text.toIntOrNull()?.takeIf { it >= AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS }
-
-/**
- * Shared "text + hasBeenEdited + LaunchedEffect" scaffold for the watchdog-timeout and
- * reconnect-base-delay fields below (previously duplicated verbatim) — same buffering guard as
- * [GearRatioField] in `GearSettingsScreen.kt`: every valid keystroke persists immediately, so a
- * plain `remember(value)` would re-seed the buffer from the DataStore round-trip of the user's OWN
- * previous keystroke. Once the user has edited, only their typing drives the buffer; the upstream
- * value still seeds it before that first edit.
- */
-@Composable
-private fun IntSettingField(
-    value: Int,
-    parse: (String) -> Int?,
-    onValueChange: (Int) -> Unit,
-    headline: String,
-    validDescription: String,
-    invalidDescription: String,
-) {
-    var text by remember { mutableStateOf(value.toString()) }
-    var hasBeenEdited by remember { mutableStateOf(false) }
-    LaunchedEffect(value) {
-        if (!hasBeenEdited) {
-            text = value.toString()
-        }
-    }
-    val isValid = parse(text) != null
-    ListItem(
-        headlineContent = { Text(headline) },
-        supportingContent = { Text(if (isValid) validDescription else invalidDescription) },
-        trailingContent = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { newText ->
-                    hasBeenEdited = true
-                    text = newText
-                    parse(newText)?.let(onValueChange)
-                },
-                isError = !isValid,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.width(80.dp),
-                singleLine = true,
-            )
-        }
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -395,32 +330,36 @@ fun SettingsScreen(
                 Spacer(Modifier.height(4.dp))
             }
             item {
-                IntSettingField(
-                    value = watchdogTimeoutSeconds,
-                    parse = ::parseWatchdogTimeoutSeconds,
-                    onValueChange = vm::setObdWatchdogTimeoutSeconds,
+                ChoiceSetting(
                     headline = stringResource(R.string.settings_obd_watchdog_timeout),
-                    validDescription = stringResource(R.string.settings_obd_watchdog_timeout_desc),
-                    invalidDescription = pluralStringResource(
-                        R.plurals.settings_obd_watchdog_timeout_invalid,
-                        AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
-                        AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS
-                    ),
+                    supportingText = stringResource(R.string.settings_obd_watchdog_timeout_desc),
+                    options = AppPreferences.OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS,
+                    selected = watchdogTimeoutSeconds,
+                    onSelect = vm::setObdWatchdogTimeoutSeconds,
+                    optionDescriptionPlural = R.plurals.settings_seconds_a11y,
+                    modifier = Modifier.testTag(OBD_WATCHDOG_CHOICE_TEST_TAG),
                 )
                 HorizontalDivider()
             }
             item {
-                IntSettingField(
-                    value = reconnectBaseDelaySeconds,
-                    parse = ::parseReconnectBaseDelaySeconds,
-                    onValueChange = vm::setReconnectBaseDelaySeconds,
+                // Shows what the chosen base really means (the waits are doubled per attempt) —
+                // derived from the production reconnectDelays(), so it cannot drift.
+                val backoff = remember(reconnectBaseDelaySeconds) {
+                    reconnectBackoffSummary(reconnectBaseDelaySeconds)
+                }
+                ChoiceSetting(
                     headline = stringResource(R.string.settings_reconnect_base_delay),
-                    validDescription = stringResource(R.string.settings_reconnect_base_delay_desc),
-                    invalidDescription = pluralStringResource(
-                        R.plurals.settings_reconnect_base_delay_invalid,
-                        AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS,
-                        AppPreferences.MIN_RECONNECT_BASE_DELAY_SECONDS
+                    supportingText = stringResource(R.string.settings_reconnect_base_delay_desc),
+                    options = AppPreferences.RECONNECT_BASE_DELAY_OPTIONS_SECONDS,
+                    selected = reconnectBaseDelaySeconds,
+                    onSelect = vm::setReconnectBaseDelaySeconds,
+                    optionDescriptionPlural = R.plurals.settings_seconds_a11y,
+                    additionalSupportingText = stringResource(
+                        R.string.settings_reconnect_base_delay_series,
+                        backoff.delaysSeconds.joinToString(" · "),
+                        formatMinutesSeconds(backoff.totalSeconds)
                     ),
+                    modifier = Modifier.testTag(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG),
                 )
                 HorizontalDivider()
             }
@@ -566,45 +505,3 @@ fun DeviceRow(
         }
     )
 }
-
-// region — Previews
-//
-// SettingsScreen selbst braucht hiltViewModel() und bekommt deshalb bewusst kein Preview — kein
-// Screen in diesem Projekt, der einen Hilt-ViewModel voraussetzt, hat eines (s. GearSettingsScreen.kt).
-// Stattdessen wird die ViewModel-lose Bausteinkomponente IntSettingField geprevit.
-
-@Preview(name = "IntSettingField · valid value (blue)", showBackground = true)
-@Composable
-private fun PreviewIntSettingFieldValid() {
-    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            IntSettingField(
-                value = AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS,
-                parse = ::parseWatchdogTimeoutSeconds,
-                onValueChange = {},
-                headline = "OBD-Watchdog-Timeout",
-                validDescription = "Sekunden bis zum Reconnect-Versuch",
-                invalidDescription = "Mindestens 10 Sekunden",
-            )
-        }
-    }
-}
-
-@Preview(name = "IntSettingField · invalid value (amber)", showBackground = true)
-@Composable
-private fun PreviewIntSettingFieldInvalid() {
-    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            IntSettingField(
-                value = AppPreferences.MIN_OBD_WATCHDOG_TIMEOUT_SECONDS - 1,
-                parse = ::parseWatchdogTimeoutSeconds,
-                onValueChange = {},
-                headline = "OBD-Watchdog-Timeout",
-                validDescription = "Sekunden bis zum Reconnect-Versuch",
-                invalidDescription = "Mindestens 10 Sekunden",
-            )
-        }
-    }
-}
-
-// endregion

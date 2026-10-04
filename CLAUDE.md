@@ -397,6 +397,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 | `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
 | `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
 | `SectionLabel(text, textAlign?)` | ALL-CAPS labelMedium für Section-Header (0.12.em letter-spacing) |
+| `ChoiceSetting(headline, supportingText, options, selected, onSelect, optionDescriptionPlural, additionalSupportingText?)` | Einstellung aus wenigen festen Ganzzahlen (`ui/settings/SettingsComponents.kt`): `ListItem` + `SingleChoiceSegmentedButtonRow`, Segmente ≥ 56 dp hoch, nur die Zahl im Segment — die Einheit steht im Hilfetext, Vorlesetext je Segment über Plurals ("20 Sekunden"). Ersetzt freie Zahleneingabe; Altwerte außerhalb der Liste setzt `AppPreferences` beim Lesen per `snapToOption` auf die nächste Option (Gleichstand → größere), ohne Migration. Genutzt für Watchdog-Timeout (10/20/30/60/120 s) und Reconnect-Basisverzögerung (3/10/30 s) |
 | `Sparkline(points, color)` | Trend-Linie (immer primary, unabhängig von TileStatus): 4 dp, runde Enden, darunter ein auslaufender Verlauf (32 % → transparent), Punkt auf dem jüngsten Wert, Band 48 dp — bei Tageslicht auf dem Motorrad war 2 dp ohne Fläche unlesbar. Bei nahezu flachem Werteverlauf spreizt `effectiveSparklineRange` (Stand 2026-09-29) die Skala symmetrisch um mind. 5 % der Werte-Magnitude (Fallback ±0,05 bei exakt 0), damit die Linie nicht als einzelner Strich am Kachel-Rand klebt — reine Funktion, unabhängig von `sparklinePointOffset` |
 
 Bestehende Screens vor neuen Composables prüfen — Pattern wiederverwenden.
@@ -430,8 +431,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 820 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 160 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 838 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 170 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

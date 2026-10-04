@@ -4,7 +4,10 @@ import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -252,5 +255,66 @@ class SettingsScreenTest {
         waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = false)
 
         assertEquals(false, appPreferences.hideNavOnDrive.first())
+    }
+
+    // ── Connection choices (fixed options instead of free-text number fields) ──
+
+    /** The segment showing [option] inside the choice group tagged [groupTag]. "10" and "30" exist
+     *  in BOTH groups, so the segment cannot be found by its text alone. */
+    private fun choiceOption(groupTag: String, option: Int) =
+        composeRule.onNode(hasText(option.toString()) and hasAnyAncestor(hasTestTag(groupTag)))
+
+    private fun waitUntilSelected(groupTag: String, option: Int) =
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching { choiceOption(groupTag, option).assertIsSelected() }.isSuccess
+        }
+
+    private fun seriesText(base: Int): String {
+        val summary = reconnectBackoffSummary(base)
+        return composeRule.activity.getString(
+            R.string.settings_reconnect_base_delay_series,
+            summary.delaysSeconds.joinToString(" · "),
+            formatMinutesSeconds(summary.totalSeconds)
+        )
+    }
+
+    @Test
+    fun connectionChoices_showTheFixedOptions_andPersistTheSelection() = runBlocking<Unit> {
+        // The DataStore file persists across tests on a real device: start from the defaults and
+        // put them back afterwards.
+        appPreferences.setObdWatchdogTimeoutSeconds(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+        appPreferences.setReconnectBaseDelaySeconds(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
+        try {
+            launchSettingsScreen()
+
+            // Watchdog timeout: 10/20/30/60/120, the default 20 selected.
+            composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
+                .performScrollToNode(hasTestTag(OBD_WATCHDOG_CHOICE_TEST_TAG))
+            for (option in AppPreferences.OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS) {
+                choiceOption(OBD_WATCHDOG_CHOICE_TEST_TAG, option).assertIsDisplayed()
+            }
+            waitUntilSelected(OBD_WATCHDOG_CHOICE_TEST_TAG, 20)
+
+            choiceOption(OBD_WATCHDOG_CHOICE_TEST_TAG, 60).performClick()
+            waitUntilSelected(OBD_WATCHDOG_CHOICE_TEST_TAG, 60)
+            assertEquals(60, appPreferences.obdWatchdogTimeoutSeconds.first())
+
+            // Reconnect base delay: 3/10/30, the default 3 selected, with its wait series shown.
+            composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
+                .performScrollToNode(hasTestTag(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG))
+            for (option in AppPreferences.RECONNECT_BASE_DELAY_OPTIONS_SECONDS) {
+                choiceOption(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG, option).assertIsDisplayed()
+            }
+            waitUntilSelected(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG, 3)
+            composeRule.onNodeWithText(seriesText(3)).assertIsDisplayed()
+
+            choiceOption(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG, 10).performClick()
+            waitUntilSelected(RECONNECT_BASE_DELAY_CHOICE_TEST_TAG, 10)
+            assertEquals(10, appPreferences.reconnectBaseDelaySeconds.first())
+            composeRule.onNodeWithText(seriesText(10)).assertIsDisplayed()
+        } finally {
+            appPreferences.setObdWatchdogTimeoutSeconds(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
+            appPreferences.setReconnectBaseDelaySeconds(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
+        }
     }
 }

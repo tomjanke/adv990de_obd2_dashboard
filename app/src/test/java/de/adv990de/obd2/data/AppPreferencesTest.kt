@@ -435,10 +435,36 @@ class AppPreferencesTest {
     }
 
     @Test
-    fun `setObdWatchdogTimeoutSeconds persists the value`() = runTest {
+    fun `setObdWatchdogTimeoutSeconds persists an option value`() = runTest {
         val prefs = makePreferences()
-        prefs.setObdWatchdogTimeoutSeconds(45)
-        assertEquals(45, prefs.obdWatchdogTimeoutSeconds.first())
+        for (option in AppPreferences.OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS) {
+            prefs.setObdWatchdogTimeoutSeconds(option)
+            assertEquals(option, prefs.obdWatchdogTimeoutSeconds.first())
+        }
+    }
+
+    @Test
+    fun `obdWatchdogTimeoutSeconds snaps a stored off-list value to the nearest option`() = runTest {
+        // Earlier versions took a free number; the UI now offers only the fixed options, so the
+        // old value is reinterpreted on read (no migration, nothing written back).
+        val prefs = makePreferences()
+        prefs.setObdWatchdogTimeoutSeconds(45)   // tie between 30 and 60 -> the larger one
+        assertEquals(60, prefs.obdWatchdogTimeoutSeconds.first())
+        prefs.setObdWatchdogTimeoutSeconds(14)
+        assertEquals(10, prefs.obdWatchdogTimeoutSeconds.first())
+        prefs.setObdWatchdogTimeoutSeconds(95)
+        assertEquals(120, prefs.obdWatchdogTimeoutSeconds.first())
+    }
+
+    @Test
+    fun `obdWatchdogTimeoutSeconds keeps absurd stored values inside the option range`() = runTest {
+        val prefs = makePreferences()
+        prefs.setObdWatchdogTimeoutSeconds(0)
+        assertEquals(10, prefs.obdWatchdogTimeoutSeconds.first())
+        prefs.setObdWatchdogTimeoutSeconds(-1)
+        assertEquals(10, prefs.obdWatchdogTimeoutSeconds.first())
+        prefs.setObdWatchdogTimeoutSeconds(86_400)
+        assertEquals(120, prefs.obdWatchdogTimeoutSeconds.first())
     }
 
     // ── Reconnect-Basis-Verzoegerung (Backlog-Cleanup, Sweep 2026-09-28/29) ───
@@ -453,9 +479,31 @@ class AppPreferencesTest {
     }
 
     @Test
-    fun `setReconnectBaseDelaySeconds persists the value`() = runTest {
+    fun `setReconnectBaseDelaySeconds persists an option value`() = runTest {
         val prefs = makePreferences()
-        prefs.setReconnectBaseDelaySeconds(5)
-        assertEquals(5, prefs.reconnectBaseDelaySeconds.first())
+        for (option in AppPreferences.RECONNECT_BASE_DELAY_OPTIONS_SECONDS) {
+            prefs.setReconnectBaseDelaySeconds(option)
+            assertEquals(option, prefs.reconnectBaseDelaySeconds.first())
+        }
+    }
+
+    @Test
+    fun `reconnectBaseDelaySeconds snaps a stored off-list value to the nearest option`() = runTest {
+        val prefs = makePreferences()
+        prefs.setReconnectBaseDelaySeconds(5)    // nearer to 3 than to 10
+        assertEquals(3, prefs.reconnectBaseDelaySeconds.first())
+        prefs.setReconnectBaseDelaySeconds(7)    // nearer to 10 than to 3
+        assertEquals(10, prefs.reconnectBaseDelaySeconds.first())
+        prefs.setReconnectBaseDelaySeconds(20)   // tie between 10 and 30 -> the larger one
+        assertEquals(30, prefs.reconnectBaseDelaySeconds.first())
+    }
+
+    @Test
+    fun `reconnectBaseDelaySeconds keeps absurd stored values inside the option range`() = runTest {
+        val prefs = makePreferences()
+        prefs.setReconnectBaseDelaySeconds(0)
+        assertEquals(3, prefs.reconnectBaseDelaySeconds.first())
+        prefs.setReconnectBaseDelaySeconds(999)
+        assertEquals(30, prefs.reconnectBaseDelaySeconds.first())
     }
 }

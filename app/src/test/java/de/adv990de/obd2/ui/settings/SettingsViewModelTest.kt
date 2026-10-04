@@ -456,7 +456,7 @@ class SettingsViewModelTest {
             every { lastDevice } returns flowOf(null)
             every { showAllBtDevices } returns flowOf(false)
             every { useGpsSpeed } returns flowOf(false)
-            every { obdWatchdogTimeoutSeconds } returns flowOf(45)
+            every { obdWatchdogTimeoutSeconds } returns flowOf(60)
             every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
         }
         val vm = makeVm(prefs = prefs)
@@ -470,7 +470,7 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        assertEquals(45, vm.obdWatchdogTimeoutSeconds.value)
+        assertEquals(60, vm.obdWatchdogTimeoutSeconds.value)
     }
 
     @Test
@@ -487,10 +487,10 @@ class SettingsViewModelTest {
         val vm = makeVm(prefs = prefs)
         advanceUntilIdle()
 
-        vm.setObdWatchdogTimeoutSeconds(45)
+        vm.setObdWatchdogTimeoutSeconds(60)
         advanceUntilIdle()
 
-        coVerify { prefs.setObdWatchdogTimeoutSeconds(45) }
+        coVerify { prefs.setObdWatchdogTimeoutSeconds(60) }
     }
 
     @Test
@@ -501,7 +501,7 @@ class SettingsViewModelTest {
             every { showAllBtDevices } returns flowOf(false)
             every { useGpsSpeed } returns flowOf(false)
             every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-            every { reconnectBaseDelaySeconds } returns flowOf(7)
+            every { reconnectBaseDelaySeconds } returns flowOf(10)
         }
         val vm = makeVm(prefs = prefs)
 
@@ -510,7 +510,7 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        assertEquals(7, vm.reconnectBaseDelaySeconds.value)
+        assertEquals(10, vm.reconnectBaseDelaySeconds.value)
     }
 
     @Test
@@ -527,9 +527,9 @@ class SettingsViewModelTest {
         val vm = makeVm(prefs = prefs)
         advanceUntilIdle()
 
-        vm.setReconnectBaseDelaySeconds(7)
+        vm.setReconnectBaseDelaySeconds(10)
         advanceUntilIdle()
 
-        coVerify { prefs.setReconnectBaseDelaySeconds(7) }
+        coVerify { prefs.setReconnectBaseDelaySeconds(10) }
     }
 }

@@ -1,29 +1,41 @@
 package de.adv990de.obd2.ui.settings
 
+import androidx.annotation.PluralsRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.blueColorScheme
 
 /**
  * Klassifiziert einen Theme-Konstantenwert (s. `AppPreferences.THEME_*`) als Farbschema
@@ -148,3 +160,127 @@ internal fun ThemePickerItem(
         }
     }
 }
+
+/** Minimum touch height of one [ChoiceSetting] segment — CLAUDE.md design principle 4
+ *  (glove-friendly tap targets, 56 dp). The M3 default of a segmented button is only 40 dp. */
+private val ChoiceSegmentMinHeight = 56.dp
+
+/** Horizontal content padding of one [ChoiceSetting] segment. The M3 default (12 dp per side)
+ *  leaves only ~34 dp for the number on a 320 dp phone — "120" then overflows at a system font
+ *  scale of 1.3 (`ChoiceSettingTest.labelsStayOnOneLineAtLargeFontScale`). The touch target stays
+ *  the whole segment; only the text area grows. */
+private val ChoiceSegmentContentPadding = PaddingValues(horizontal = 4.dp)
+
+/**
+ * A setting that is chosen from a few fixed whole numbers: a [ListItem] (headline + supporting
+ * text) with a [SingleChoiceSegmentedButtonRow] below it. Replaced the free-text number fields of
+ * the Settings "Connection" section — a typo can no longer produce a useless value, and every
+ * option is visible at a glance (same segmented-button pattern as [ThemePickerItem]).
+ *
+ * The segments show the bare number so five of them fit a narrow phone; the unit belongs in
+ * [supportingText], and each segment announces "N seconds" to screen readers via
+ * [optionDescriptionPlural] (a plurals resource taking the number twice, e.g.
+ * `<item quantity="other">%1$d seconds</item>`).
+ *
+ * Domain-agnostic like `LiveValueTile`: no preferences or ViewModel in here — the caller passes the
+ * current [selected] value and handles [onSelect]. If [selected] is not in [options] (a stale
+ * value) simply no segment is highlighted. [additionalSupportingText] is an optional extra line
+ * under the supporting text (the reconnect row uses it for the resulting wait series).
+ *
+ * Every segment is at least [ChoiceSegmentMinHeight] high; the icon slot is empty (the check-mark
+ * would eat the width the digits need).
+ */
+@Composable
+internal fun ChoiceSetting(
+    headline: String,
+    supportingText: String,
+    options: List<Int>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    @PluralsRes optionDescriptionPlural: Int,
+    modifier: Modifier = Modifier,
+    additionalSupportingText: String? = null,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(headline) },
+            supportingContent = {
+                Column {
+                    Text(supportingText)
+                    if (additionalSupportingText != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            additionalSupportingText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        )
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            options.forEachIndexed { index, option ->
+                val description = pluralStringResource(optionDescriptionPlural, option, option)
+                SegmentedButton(
+                    selected = option == selected,
+                    onClick = { onSelect(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                    contentPadding = ChoiceSegmentContentPadding,
+                    // The min height has to sit on EACH segment: a min height on the row only makes
+                    // the row taller, the buttons keep their 40 dp M3 default (ChoiceSettingTest).
+                    modifier = Modifier.heightIn(min = ChoiceSegmentMinHeight),
+                    icon = {},
+                    label = {
+                        Text(
+                            option.toString(),
+                            maxLines = 1,
+                            softWrap = false,
+                            // Spoken as "20 seconds" — the bare digits say nothing about the unit. On
+                            // the label, not on the button: a description on the button showed up as
+                            // a separate child node next to the digits in the accessibility tree.
+                            modifier = Modifier.semantics { contentDescription = description }
+                        )
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+// region — Previews
+
+@Composable
+private fun PreviewChoiceSettingContent() {
+    ChoiceSetting(
+        headline = "Reconnect-Basisverzögerung",
+        supportingText = "Sekunden bis zum ersten Reconnect-Versuch; jeder weitere Versuch verdoppelt die Wartezeit",
+        options = AppPreferences.RECONNECT_BASE_DELAY_OPTIONS_SECONDS,
+        selected = 10,
+        onSelect = {},
+        optionDescriptionPlural = R.plurals.settings_seconds_a11y,
+        additionalSupportingText = "Wartezeiten: 10 · 20 · 40 · 80 · 160 s (insgesamt 5:10 min)",
+    )
+}
+
+@Preview(name = "ChoiceSetting · light", showBackground = true)
+@Composable
+private fun PreviewChoiceSettingLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { PreviewChoiceSettingContent() }
+    }
+}
+
+@Preview(name = "ChoiceSetting · dark (blue)", showBackground = true)
+@Composable
+private fun PreviewChoiceSettingDark() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) { PreviewChoiceSettingContent() }
+    }
+}
+
+// endregion

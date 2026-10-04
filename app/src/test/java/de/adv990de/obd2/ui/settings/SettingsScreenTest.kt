@@ -1,9 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import android.os.Build
-import de.adv990de.obd2.data.AppPreferences
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -168,46 +166,5 @@ class SettingsScreenTest {
                 alreadyPrompted = true, turningOn = true, fineGranted = false, coarseGranted = false
             )
         )
-    }
-
-    // ── parseWatchdogTimeoutSeconds (OBD watchdog timeout field validation) ──
-
-    @Test
-    fun `a whole number of at least 10 seconds parses to itself`() {
-        assertEquals(10, parseWatchdogTimeoutSeconds("10"))  // the minimum itself is allowed
-        assertEquals(20, parseWatchdogTimeoutSeconds("20"))
-        assertEquals(300, parseWatchdogTimeoutSeconds("300"))
-    }
-
-    @Test
-    fun `a value below 10 seconds is rejected`() {
-        // Any positive number used to pass; at 1 s the watchdog would force a reconnect on
-        // ordinary timeout noise (a single PID timeout alone blocks for 5 s).
-        assertNull(parseWatchdogTimeoutSeconds("9"))
-        assertNull(parseWatchdogTimeoutSeconds("1"))
-    }
-
-    @Test
-    fun `zero is rejected`() {
-        assertNull(parseWatchdogTimeoutSeconds("0"))
-    }
-
-    @Test
-    fun `a negative number is rejected`() {
-        assertNull(parseWatchdogTimeoutSeconds("-5"))
-    }
-
-    @Test
-    fun `a decimal or non-numeric value is rejected`() {
-        assertNull(parseWatchdogTimeoutSeconds("12.5"))
-        assertNull(parseWatchdogTimeoutSeconds("abc"))
-        assertNull(parseWatchdogTimeoutSeconds(""))
-    }
-
-    @Test
-    fun `the default timeout passes its own validation`() {
-        // Otherwise the field would flag the untouched default as invalid on first open.
-        val default = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS
-        assertEquals(default, parseWatchdogTimeoutSeconds(default.toString()))
     }
 }

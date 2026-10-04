@@ -78,18 +78,21 @@ class AppPreferences @Inject constructor(
         // Deutlich ueber normalem Timeout-Rauschen (ein einzelner PID-Timeout ist bereits 5s),
         // aber kurz genug, dass der Fahrer nicht lange auf eingefrorene Werte schaut.
         const val DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS = 20
-        // Untergrenze der Eingabe in den Einstellungen (SettingsScreen validiert dagegen, der
-        // Setter selbst klemmt nicht): bei wenigen Sekunden wuerde der Watchdog schon bei
-        // normalem Timeout-Rauschen staendig einen Reconnect erzwingen.
-        const val MIN_OBD_WATCHDOG_TIMEOUT_SECONDS = 10
+        // Feste Auswahl in den Einstellungen (ChoiceSetting) statt freier Zahleneingabe. Die
+        // kleinste Option liegt deutlich ueber normalem Timeout-Rauschen: bei wenigen Sekunden
+        // wuerde der Watchdog schon dabei staendig einen Reconnect erzwingen. Der Default muss
+        // in der Liste stehen — sonst wuerde eine unberuehrte Installation ihren eigenen Default
+        // auf einen anderen Wert umdeuten (ChoiceOptionsTest). Aufsteigend sortiert: die Segmente
+        // werden in Listenreihenfolge angezeigt.
+        val OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS: List<Int> = listOf(10, 20, 30, 60, 120)
         // Backlog-Cleanup (Sweep 2026-09-28/29): vorher hartcodiert in ConnectionCoordinator.kt
         // als RECONNECT_DELAYS = listOf(3_000L, 6_000L, ...). 3s als Basis reproduziert exakt
         // diese bisherigen Werte (3, 6, 12, 24, 48s, s. ConnectionCoordinator.reconnectDelays()).
         const val DEFAULT_RECONNECT_BASE_DELAY_SECONDS = 3
-        // Untergrenze wie bei MIN_OBD_WATCHDOG_TIMEOUT_SECONDS oben: bei 0s wuerde der erste
-        // Versuch ohne jede Wartezeit sofort feuern, noch bevor der Adapter eine reale Chance
-        // hatte, sich vom vorherigen Abbruch zu erholen.
-        const val MIN_RECONNECT_BASE_DELAY_SECONDS = 1
+        // Feste Auswahl wie bei den Watchdog-Optionen oben. Die kleinste Option ist > 0: bei 0s
+        // wuerde der erste Versuch ohne jede Wartezeit sofort feuern, noch bevor der Adapter
+        // eine reale Chance hatte, sich vom vorherigen Abbruch zu erholen.
+        val RECONNECT_BASE_DELAY_OPTIONS_SECONDS: List<Int> = listOf(3, 10, 30)
     }
 
     suspend fun persistDevice(device: ScannedDevice) {
@@ -297,18 +300,33 @@ class AppPreferences @Inject constructor(
 
     // ── OBD-Watchdog (erzwungener Reconnect bei eingefrorenen Sensorwerten) ───
 
+    /** Immer ein Wert aus [OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS]: Aeltere Versionen nahmen eine
+     *  freie Zahl, die Einstellungen bieten jetzt nur noch die feste Auswahl. Ein gespeicherter
+     *  Wert ausserhalb der Liste wird beim LESEN auf die naechste Option gesetzt ([snapToOption]) —
+     *  ohne Migration und ohne Zurueckschreiben. Dadurch sehen Watchdog, Pipeline und
+     *  Einstellungs-UI immer dieselbe Zahl. */
     val obdWatchdogTimeoutSeconds: Flow<Int> = dataStore.data.map { prefs ->
-        prefs[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] ?: DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS
+        snapToOption(
+            prefs[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] ?: DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
+            OBD_WATCHDOG_TIMEOUT_OPTIONS_SECONDS
+        )
     }.distinctUntilChanged()
 
+    /** Speichert [value] unveraendert — das Einstellungs-UI bietet nur Listenwerte an; ein anderer
+     *  Wert wuerde ohnehin beim Lesen auf die naechste Option gesetzt. */
     suspend fun setObdWatchdogTimeoutSeconds(value: Int) {
         dataStore.edit { it[KEY_OBD_WATCHDOG_TIMEOUT_SECONDS] = value }
     }
 
     // ── Reconnect-Basis-Verzoegerung (Backlog-Cleanup, Sweep 2026-09-28/29) ───
 
+    /** Immer ein Wert aus [RECONNECT_BASE_DELAY_OPTIONS_SECONDS], gleiche Begruendung wie bei
+     *  [obdWatchdogTimeoutSeconds]. */
     val reconnectBaseDelaySeconds: Flow<Int> = dataStore.data.map { prefs ->
-        prefs[KEY_RECONNECT_BASE_DELAY_SECONDS] ?: DEFAULT_RECONNECT_BASE_DELAY_SECONDS
+        snapToOption(
+            prefs[KEY_RECONNECT_BASE_DELAY_SECONDS] ?: DEFAULT_RECONNECT_BASE_DELAY_SECONDS,
+            RECONNECT_BASE_DELAY_OPTIONS_SECONDS
+        )
     }.distinctUntilChanged()
 
     suspend fun setReconnectBaseDelaySeconds(value: Int) {
