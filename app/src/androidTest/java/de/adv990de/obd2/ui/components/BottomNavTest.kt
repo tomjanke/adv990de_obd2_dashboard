@@ -33,6 +33,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -277,9 +278,10 @@ class BottomNavTest {
         composeRule.onNodeWithText(label(R.string.nav_history)).performClick()
         composeRule.waitForIdle()
 
-        assert(navController.currentDestination?.route == Screen.History.route) {
-            "expected current destination ${Screen.History.route}, was ${navController.currentDestination?.route}"
-        }
+        assertTrue(
+            "expected current destination ${Screen.History.route}, was ${navController.currentDestination?.route}",
+            navController.currentDestination?.route == Screen.History.route,
+        )
         composeRule.onNodeWithText(HISTORY_MARKER).assertIsDisplayed()
     }
 

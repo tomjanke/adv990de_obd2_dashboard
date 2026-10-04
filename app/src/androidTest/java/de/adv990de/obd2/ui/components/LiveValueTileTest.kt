@@ -14,6 +14,7 @@ import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -91,8 +92,8 @@ class LiveValueTileTest {
         composeRule.onNodeWithText(label).performTouchInput { longClick() }
         composeRule.waitForIdle()
 
-        assert(longPressed) { "expected onLongPress to fire on a long-press gesture" }
-        assert(!clicked) { "onClick must not also fire for a long-press gesture" }
+        assertTrue("expected onLongPress to fire on a long-press gesture", longPressed)
+        assertTrue("onClick must not also fire for a long-press gesture", !clicked)
     }
 
     @Test
@@ -113,7 +114,7 @@ class LiveValueTileTest {
         composeRule.onNodeWithText(label).performClick()
         composeRule.waitForIdle()
 
-        assert(clicked) { "expected onClick to fire on a plain click" }
-        assert(!longPressed) { "onLongPress must not also fire for a plain click" }
+        assertTrue("expected onClick to fire on a plain click", clicked)
+        assertTrue("onLongPress must not also fire for a plain click", !longPressed)
     }
 }

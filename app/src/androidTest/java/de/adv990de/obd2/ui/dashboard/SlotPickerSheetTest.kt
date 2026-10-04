@@ -16,6 +16,7 @@ import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -123,8 +124,9 @@ class SlotPickerSheetTest {
         val coolantLabel = composeRule.activity.getString(R.string.pid_coolant_temp)
         composeRule.onNodeWithText("$coolantLabel: 87 (°C)").performClick()
 
-        assert(selected == PidRegistry.COOLANT_TEMP.id) {
-            "expected onSelect to be invoked with '${PidRegistry.COOLANT_TEMP.id}', was '$selected'"
-        }
+        assertTrue(
+            "expected onSelect to be invoked with '${PidRegistry.COOLANT_TEMP.id}', was '$selected'",
+            selected == PidRegistry.COOLANT_TEMP.id,
+        )
     }
 }

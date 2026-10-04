@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -479,10 +480,10 @@ class DashboardScreenTest {
         }
         composeRule.waitForIdle()
 
-        assert(
-            composeRule.activity.window.attributes.flags and
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to already be set while disconnected" }
+        assertTrue(
+            "expected FLAG_KEEP_SCREEN_ON to already be set while disconnected",
+            composeRule.activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0,
+        )
 
         isConnectedFlow.value = true
         val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
@@ -490,17 +491,17 @@ class DashboardScreenTest {
             composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm")
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        assert(
-            composeRule.activity.window.attributes.flags and
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to still be set while connected" }
+        assertTrue(
+            "expected FLAG_KEEP_SCREEN_ON to still be set while connected",
+            composeRule.activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0,
+        )
 
         showDashboard.value = false
         composeRule.waitForIdle()
-        assert(
-            composeRule.activity.window.attributes.flags and
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0
-        ) { "expected FLAG_KEEP_SCREEN_ON to be cleared after leaving the Dashboard screen" }
+        assertTrue(
+            "expected FLAG_KEEP_SCREEN_ON to be cleared after leaving the Dashboard screen",
+            composeRule.activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0,
+        )
     }
 
     /**
@@ -525,9 +526,10 @@ class DashboardScreenTest {
             .onNodeWithText(composeRule.activity.getString(R.string.pid_coolant_temp).uppercase())
             .getBoundsInRoot().top
 
-        assert(rpmTop == coolantTop) {
+        assertTrue(
             "expected slot 0 (RPM) and slot 2 (COOLANT_TEMP) to share one row in landscape, " +
-                "was RPM top=$rpmTop COOLANT top=$coolantTop"
-        }
+                    "was RPM top=$rpmTop COOLANT top=$coolantTop",
+            rpmTop == coolantTop,
+        )
     }
 }

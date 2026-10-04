@@ -20,6 +20,7 @@ import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -123,9 +124,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_default)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_SYSTEM) {
-            "expected onThemeChange(THEME_SYSTEM), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_SYSTEM), got $newTheme",
+            newTheme == AppPreferences.THEME_SYSTEM,
+        )
     }
 
     @Test
@@ -135,9 +137,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_blue)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_BLUE) {
-            "expected onThemeChange(THEME_BLUE), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_BLUE), got $newTheme",
+            newTheme == AppPreferences.THEME_BLUE,
+        )
     }
 
     @Test
@@ -147,9 +150,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_amber)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_AMBER) {
-            "expected onThemeChange(THEME_AMBER), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_AMBER), got $newTheme",
+            newTheme == AppPreferences.THEME_AMBER,
+        )
     }
 
     @Test
@@ -159,9 +163,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_green)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_GREEN) {
-            "expected onThemeChange(THEME_GREEN), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_GREEN), got $newTheme",
+            newTheme == AppPreferences.THEME_GREEN,
+        )
     }
 
     // --- color-scheme SegmentedButtons: 'selected' highlighting ---
@@ -223,9 +228,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_light)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_LIGHT) {
-            "expected onThemeChange(THEME_LIGHT), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_LIGHT), got $newTheme",
+            newTheme == AppPreferences.THEME_LIGHT,
+        )
     }
 
     @Test
@@ -235,9 +241,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_dark)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_DARK) {
-            "expected onThemeChange(THEME_DARK), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_DARK), got $newTheme",
+            newTheme == AppPreferences.THEME_DARK,
+        )
     }
 
     @Test
@@ -247,9 +254,10 @@ class ThemePickerItemTest {
 
         composeRule.onNodeWithText(label(R.string.settings_theme_system)).performClick()
 
-        assert(newTheme == AppPreferences.THEME_SYSTEM) {
-            "expected onThemeChange(THEME_SYSTEM), got $newTheme"
-        }
+        assertTrue(
+            "expected onThemeChange(THEME_SYSTEM), got $newTheme",
+            newTheme == AppPreferences.THEME_SYSTEM,
+        )
     }
 
     // --- glove-friendly touch height (CLAUDE.md design principle 4) ---
