@@ -1,5 +1,47 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.22.0 (versionCode 78)
+
+### Verlauf: Löschen mit „Rückgängig", Wischen, laufende Fahrt geschützt
+
+Fahrten im Verlauf lassen sich jetzt so löschen wie die App-Logs: Papierkorb **oder** Wischen nach links
+löscht eine Fahrt ohne Rückfrage, eine Meldung „Fahrt gelöscht" bietet 10 Sekunden lang „Rückgängig" an.
+Erst danach — oder sobald du die Seite verlässt — wird wirklich gelöscht. Neu ist „Alle löschen" in der
+Kopfzeile: mit Rückfrage und ebenfalls mit „Rückgängig". Der Papierkorb bleibt immer sichtbar (56 dp,
+handschuhtauglich), das Wischen ist nur ein Zusatz; es löst ab der halben Zeilenbreite oder bei
+schnellem Schwung aus (Material-3-Verhalten, nicht einstellbar) — dafür gibt es das „Rückgängig".
+
+Die Fahrt, die gerade aufgezeichnet wird, ist geschützt: Sie zeigt „Aufzeichnung läuft" statt des
+Papierkorbs, lässt sich nicht wischen und bleibt bei „Alle löschen" erhalten. Bisher ließ sie sich
+löschen — die nächste Speicherung scheiterte dann am Fremdschlüssel, und das Dashboard fiel auf „nicht
+verbunden" zurück.
+
+Gelöscht wird ausschließlich lokal — die App schreibt weiterhin nie ins Fahrzeug.
+
+### Fahrten werden sauber beendet
+
+Beim Trennen der Verbindung (und bei Slot-Wechsel oder App-Ende) lief der Abschluss der Fahrt in einer
+bereits abgebrochenen Coroutine und wurde sofort abgewiesen: Die Fahrt bekam nie eine Endzeit, und „Nur
+Fahrten mit DTCs speichern" konnte Fahrten ohne Fehlercodes in diesem Fall nicht verwerfen. Das stützt
+sich auf Code-Analyse und einen Test, der vorher fehlschlug — im Feld habe ich es nicht beobachtet. Jetzt
+läuft der Abschluss abbruchsicher durch; bereits gespeicherte Fahrten ändern sich nicht.
+
+### Unter der Haube
+
+`SwipeToDeleteRow` (Material3 `SwipeToDismissBox`, nur zum Zeilenende, Auslösung über `onDismiss`, nicht
+über das deprecatete `confirmValueChange`), `HistoryViewModel` auf `UndoableDeletion` (die „Alle
+löschen"-Menge ist der Schnappschuss der abgeschlossenen Fahrten beim Bestätigen — eine Fahrt, die im
+Rückgängig-Fenster endet, wird nicht mitgerissen), `SessionRepository` mit `activeSessionId`,
+`deleteSessions` (in Blöcken à 50 wegen SQLites 999-Variablen-Grenze auf API 26) und `discardSession`.
+
+### Tests
+
+895 Unit-Tests (+23) und 221 Instrumentation-Tests (+20), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen; 0 Kotlin-Warnungen. Sieben Mutationsprüfungen an der Kernlogik werden alle erkannt. Zwei
+ältere Tests waren von der Geräteausrichtung abhängig (quer liegendes Telefon) und sind korrigiert.
+
+---
+
 ## Version 1.21.0 (versionCode 77)
 
 ### Einstellungen: eine gruppierte Seite — „Dashboard konfigurieren" ist aufgegangen
