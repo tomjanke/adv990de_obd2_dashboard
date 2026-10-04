@@ -1,5 +1,41 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.23.1 (versionCode 80)
+
+Fehlerbehebungen aus der Qualitätssicherung über den gesamten Code (Bericht: `docs/qa/2026-10-04-qa-report.md`).
+
+### Behoben
+
+- **Absturz auf der DTC-Seite.** Steht ein Fehlercode im Auslesen sowohl als bestätigt (Modus 03) als auch als
+  ausstehend (Modus 07) — typisch für einen bleibenden Fehler — oder melden zwei Steuergeräte denselben Code, stürzte
+  die Seite „Aktuell" ab (doppelter Listen-Schlüssel). Jetzt steht jeder Code genau einmal da; bestätigt gewinnt
+  vor ausstehend.
+- **Freeze-Frame-Seite zeigte nur einen Fehler.** Bei Werten mit der Einheit „%“ (Motorlast, Gaspedal, Kraftstoff-
+  Trims, Tankfüllung) wurde die Einheit als Formatzeichen gelesen und das Auslesen brach ab — samt der Werte, die
+  davor gelesen waren. Die Einheit wird jetzt getrennt angehängt.
+- **Dauerhafte Sperre durch die Benachrichtigungs-Berechtigung (Android 13+).** Lehnte man „Benachrichtigungen"
+  zweimal ab, blieb die App für immer auf dem Berechtigungs-Bildschirm: Android zeigt den Dialog dann nicht mehr,
+  und die App bot keinen anderen Weg. Jetzt sperren nur noch die Bluetooth-Berechtigungen; die Benachrichtigung wird
+  weiter mit angefragt, blockiert aber nichts (der Vordergrunddienst läuft auch ohne sie, nur seine Anzeige fehlt).
+  Der Bildschirm hat außerdem einen Knopf **„App-Einstellungen öffnen"** und einen Hinweis dazu; beide Knöpfe sind
+  56 dp hoch, der Inhalt scrollt im Querformat und bei großer Schrift.
+
+### Tests
+
+17 Prüfungen in fünf Instrumentation-Testklassen (`ThemePickerItemTest`, `LiveValueTileTest`, `DashboardScreenTest`,
+`SlotPickerSheetTest`, `BottomNavTest`) nutzten Kotlins `assert()` — das ist auf Android wirkungslos
+(`Class.desiredAssertionStatus()` liefert dort immer `false`), die Prüfungen liefen nie. Sie sind jetzt
+JUnit-Assertions; eine bewusst umgedrehte Erwartung schlägt auf dem Gerät nun fehl. Neu: Tests für das
+Zusammenführen der Codes, die „%"-Einheit, die Aufteilung Pflicht/optional der Berechtigungen und den
+Sperrbildschirm samt Einstellungs-Intent.
+
+### Nicht Teil dieses Releases
+
+Aus dem Bericht bleiben u. a. die rohe FIN-Anzeige (Modus 09), der stille Verbindungsabbruch nach einem Zeitüberlauf
+beim Auslesen der Fehlercodes und der Schreibfehler am Adapter offen — sie stehen als Backlog im Bericht.
+Befunde, die ein echtes Fahrzeug brauchen (Frame-Byte der Freeze-Frame-Antwort, Anzahl-Byte der Fehlercodes auf
+CAN), sind nicht angefasst.
+
 ## Version 1.23.0 (versionCode 79)
 
 ### Lokale Fehlerhistorie

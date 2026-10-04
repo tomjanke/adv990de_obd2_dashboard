@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.17.7** (versionCode 69) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
+> Aktuelle Version: **1.23.1** (versionCode 80) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
 
 ---
 
@@ -62,8 +62,8 @@ Der Debug-Build trägt `applicationIdSuffix = ".debug"` und heißt im Launcher *
 seine Version endet auf `-debug`. Beide Varianten lassen sich damit gleichzeitig installieren,
 jede mit eigenen Daten — kein Deinstallieren, kein Datenverlust beim Wechsel.
 
-Optisch unterscheiden sie sich am Launcher-Icon: Der Release-Build behält den Teal-Hintergrund
-(`#006874`), der Debug-Build ist amber (`#B45309`). Überschrieben wird dafür allein
+Optisch unterscheiden sie sich am Launcher-Icon: Der Release-Build hat den marineblauen Hintergrund
+(`#0B1B2E`), der Debug-Build ist amber (`#B45309`). Überschrieben wird dafür allein
 `src/debug/res/drawable/ic_launcher_background.xml`; Vordergrund und Adaptive-Icon-Definition
 bleiben gemeinsam in `src/main`, sodass beide Icons dieselbe Form behalten.
 
@@ -121,7 +121,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (936 Tests, < 30 Sekunden)
+# JVM Unit Tests (943 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -130,8 +130,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 936 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 192 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 943 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 196 (Dashboard, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 41 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
@@ -189,7 +189,7 @@ Die zentrale Repository-Schicht ist als Hilt-`@Singleton` markiert. Foreground-S
 `BleConnection.kt` nutzt einen `Semaphore(0)` als Mutex für BLE-Writes: jeder Write blockiert, bis `onCharacteristicWrite` feuert (5 s Timeout). Verhindert verlorene Pakete bei schnellen Sequenzen.
 
 ### Foreground Service hält Verbindung
-`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice"` und einer persistenten Notification. Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft weiter.
+`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification. Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. **Bekannte Einschränkung:** Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; wird die Aktivität beendet (z. B. aus der Übersicht weggewischt), endet die Aufzeichnung, während Verbindung und Benachrichtigung stehen bleiben (QS-Bericht B1).
 
 ### Room mit Foreign Keys
 SQLite aktiviert Foreign-Key-Constraints standardmäßig **nicht**. Die App setzt `PRAGMA foreign_keys = ON` via `RoomDatabase.Callback` in `AppModule.kt` — sonst hätte `ON DELETE CASCADE` keine Wirkung.
@@ -198,7 +198,7 @@ SQLite aktiviert Foreign-Key-Constraints standardmäßig **nicht**. Die App setz
 Vor dem ersten Live-Polling fragt `ObdRepository.discoverSupportedPids()` per Mode 01, welche PIDs das Steuergerät überhaupt antwortet. Das Dashboard filtert die konfigurierten Slots gegen diese Menge — unbekannte PIDs werden übersprungen, RPM und Kühlmitteltemperatur werden immer abgefragt (Dashboard-Logik benötigt sie).
 
 ### Wake-Lock nur wo nötig
-`FLAG_KEEP_SCREEN_ON` wird ausschließlich im Dashboard-`DisposableEffect` gesetzt — und nur, wenn `isConnected = true`. Damit bleibt der Bildschirm während der Fahrt an, ohne die ganze App permanent wach zu halten.
+`FLAG_KEEP_SCREEN_ON` wird ausschließlich im Dashboard-`DisposableEffect` gesetzt — solange das Dashboard sichtbar ist — unabhängig vom Verbindungsstatus (seit v1.17.6), und er wird beim Verlassen des Dashboards wieder freigegeben. Damit bleibt der Bildschirm während der Fahrt an, ohne die ganze App permanent wach zu halten.
 
 ### Volle Displayhelligkeit im Vordergrund
 `MainActivity.onResume()`/`onPause()` setzen `Window.attributes.screenBrightness` auf `1f` bzw. `BRIGHTNESS_OVERRIDE_NONE` (System-Standard) zurück — ein reines Fenster-Attribut statt einer System-Einstellung, braucht daher keine `WRITE_SETTINGS`-Berechtigung. Gilt app-weit (jeder Screen, nicht nur das Dashboard) und ausschließlich solange die App im Vordergrund ist — für Sonnenlicht-Lesbarkeit auf dem Motorrad.
@@ -303,8 +303,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (936) |
-| `app/src/androidTest/` | Instrumented Tests (244, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (943) |
+| `app/src/androidTest/` | Instrumented Tests (248, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
@@ -314,6 +314,6 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 ## Bekannte Einschränkungen
 
 - **Kein iOS-Port** geplant.
-- **CAN-Bus direkt** wird nicht unterstützt — nur OBD2-PIDs (Mode 01, 02, 03, 04, 09).
+- **CAN-Bus direkt** wird nicht unterstützt — nur OBD2-PIDs (Mode 01, 02, 03, 07, 09) — die App liest nur und schreibt nie ins Fahrzeug (kein Mode 04).
 - **Multi-Frame-Antworten** (Mode 09 VIN, langwierige DTC-Listen) werden gelesen, aber die ELM327-Adapter müssen den `AT CAF1`-Modus unterstützen.
 - **Klassisches Bluetooth** ist ab Android 12 deprecated für neue Adapter — funktioniert noch, aber für neue Hardware-Käufe BLE-Adapter bevorzugen.
