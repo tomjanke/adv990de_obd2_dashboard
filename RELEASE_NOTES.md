@@ -1,5 +1,54 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.23.0 (versionCode 79)
+
+### Lokale Fehlerhistorie
+
+Die App merkt sich jetzt, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat und wann — auch nachdem es
+sie nicht mehr meldet und ohne Verbindung. Auf der DTC-Seite wechselst du mit **Aktuell | Historie**:
+„Aktuell" ist die Live-Liste wie bisher, „Historie" listet alle aufgezeichneten Codes mit Beschreibung,
+„Erstmals … · Zuletzt …" und den Markierungen „Aktiv" (der Code stand im letzten erfolgreichen Auslesen,
+bei bestehender Verbindung) und „Ausstehend" (zuletzt nur als pending gesehen). Aufgezeichnet wird passiv
+bei jedem Verbinden sowie beim Öffnen und Aktualisieren der DTC-Seite; die Historie hält höchstens 200
+Codes (das älteste fliegt raus — Schutz vor Phantomcodes eines defekten Adapters).
+
+Löschen wie im Verlauf: Papierkorb oder Wischen pro Eintrag ohne Rückfrage (10 Sekunden „Rückgängig"),
+„Historie löschen" in der Kopfzeile mit Rückfrage. Gelöscht wird ausschließlich die lokale Aufzeichnung —
+die App löscht nie den Fehlerspeicher im Fahrzeug und schreibt nie ins Fahrzeug. Ein Code, der im
+Rückgängig-Fenster erneut gelesen wird, wird mitgelöscht und erscheint beim nächsten Auslesen wieder.
+
+### „Nicht verbunden" statt falscher Entwarnung
+
+Ohne Verbindung zeigte die DTC-Seite „Keine Fehlercodes vorhanden." — obwohl das Fahrzeug gar nicht
+gefragt wurde. Jetzt steht dort „Nicht verbunden"; es wird nichts gelesen und nichts aufgezeichnet. Beim
+Verbinden liest die Seite automatisch neu, beim Trennen räumt sie die veraltete Liste weg.
+
+### Wichtig: Datenbank-Update
+
+Dieses Update erweitert die Datenbank (Version 2 → 3, eine neue Tabelle `dtc_history`). Das geschieht
+automatisch beim ersten Start; bestehende Fahrten, Messwerte und Logs bleiben erhalten (per Migrationstest
+auf dem Gerät geprüft, auch die Kette von Version 1 aus). Es ist kein destruktiver Fallback eingerichtet:
+Schlüge die Migration fehl, stürzte die App beim Start ab — die Daten blieben dabei unberührt (Room
+migriert in einer Transaktion). Ein Zurück auf eine ältere App-Version ist nach dem Update voraussichtlich
+nur mit gelöschten App-Daten möglich (nicht ausprobiert).
+
+### Unter der Haube
+
+`DtcHistoryDao` schreibt per `INSERT OR IGNORE` plus abgesichertem `UPDATE` in einer Transaktion — SQLite
+auf API 26 ist Version 3.18, `UPSERT` gibt es erst ab 3.24. `DtcHistoryRepository.record()` ist „best
+effort" (Fehler landen im App-Log, nie in der Pipeline). Die Beschreibung wird zur Anzeige per
+`dtcDescription(code)` aufgelöst (aus dem `DtcParser` herausgezogen), nicht gespeichert. Die README
+behauptete „DTC-Lesen & Löschen"; die App hat nie im Fahrzeug gelöscht — korrigiert.
+
+### Tests
+
+936 Unit-Tests (+41) und 244 Instrumentation-Tests (+23), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen; 0 Kotlin-Warnungen. Zwölf Mutationsprüfungen an der neuen Logik werden alle erkannt (eine
+zeigte zunächst eine Testlücke, die geschlossen wurde). Nicht geprüft: ein echtes Fahrzeug (kein
+bestromter Adapter) — das Aufzeichnen beim Verbinden ist nur mit Mocks getestet.
+
+---
+
 ## Version 1.22.0 (versionCode 78)
 
 ### Verlauf: Löschen mit „Rückgängig", Wischen, laufende Fahrt geschützt
