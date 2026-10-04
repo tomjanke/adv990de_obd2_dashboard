@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.TimeSource
@@ -320,7 +321,7 @@ class ObdRepository @Inject constructor(
             val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
             // Die Einheit gehoert NICHT in den Formatstring: "%" (Last, Gaspedal, Trims, Tank) waere sonst ein
             // unvollstaendiger Platzhalter und wirft UnknownFormatConversionException.
-            result[pid.id] = String.format("%.1f", value) + " ${pid.unit}"
+            result[pid.id] = String.format(Locale.getDefault(), "%.1f", value) + " ${pid.unit}"
         }
         return result
     }
