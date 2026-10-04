@@ -25,6 +25,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
@@ -418,6 +419,86 @@ class ReadingsPipelineTest {
 
             assertEquals(listOf(SessionEvent.ConnectionLost), events)
         }
+
+    // --- Test 15b: the fault-code read drops the link ---
+
+    // readDtcs() trennt bei einer Zeitueberschreitung absichtlich (ein spaeter Rest der Antwort wuerde
+    // sonst den naechsten Befehl verfaelschen). Vorher schluckte runSession() die Ausnahme wie jeden
+    // Lesefehler: die Verbindung war weg, die Sitzung endete als "Idle", aber nichts loeste den
+    // Reconnect aus — stiller Abbruch. Betroffen war auch jeder Slot-Wechsel, denn er startet
+    // runSession() und damit das Auslesen neu.
+    @Test
+    fun `a fault-code read that drops the link asks for a reconnect`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            coEvery { repo.readDtcs() } coAnswers {
+                isConnected.value = false // exactly what ObdRepository.readDtcs() does before it rethrows
+                throw ObdException.Timeout("03")
+            }
+            val logRepo: AppLogRepository = mockk(relaxed = true) {
+                coEvery { log(any(), any()) } coAnswers { delay(1) }
+            }
+
+            val event = makePipeline(repo, logRepo = logRepo).events(backgroundScope)
+                .first { it == SessionEvent.ConnectionLost }
+
+            assertEquals(SessionEvent.ConnectionLost, event)
+        }
+
+    @Test
+    fun `a fault-code read that drops the link does not start a recording`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            coEvery { repo.readDtcs() } coAnswers {
+                isConnected.value = false
+                throw ObdException.ConnectionLost()
+            }
+            val sessionRepo = makeSessionRepo()
+
+            makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope)
+                .first { it == SessionEvent.ConnectionLost }
+
+            coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+        }
+
+    @Test
+    fun `the lost-link warning is written even though the session is already being cancelled`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            coEvery { repo.readDtcs() } coAnswers {
+                isConnected.value = false
+                throw ObdException.Timeout("03")
+            }
+            var written = false
+            val logRepo: AppLogRepository = mockk(relaxed = true) {
+                // delay() ist ein Abbruchpunkt — ohne NonCancellable bliebe das Log unvollstaendig.
+                coEvery { log(any(), any()) } coAnswers { delay(1); written = true }
+            }
+
+            makePipeline(repo, logRepo = logRepo).events(backgroundScope)
+                .first { it == SessionEvent.ConnectionLost }
+            testScheduler.advanceUntilIdle()
+
+            assertTrue("the WARN line about the dropped link must be persisted", written)
+        }
+
+    @Test
+    fun `a fault-code read that fails while the link stays up keeps the session running`() = runTest {
+        val repo = makeRepo(connected = true)
+        // Zeitueberschreitung, aber der Link steht noch (isConnectedFlow bleibt true): kein Grund,
+        // die Sitzung zu beenden oder neu zu verbinden.
+        coEvery { repo.readDtcs() } throws ObdException.Timeout("03")
+
+        val events = makePipeline(repo).events(backgroundScope).take(1).toList()
+
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+    }
 
     // --- Test 16: the local fault history ---
 

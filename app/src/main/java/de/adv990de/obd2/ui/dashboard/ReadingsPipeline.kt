@@ -16,6 +16,7 @@ import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /** Was der Messwert-Strom dem ViewModel meldet. */
@@ -217,6 +219,18 @@ class ReadingsPipeline @Inject constructor(
         // verwenden. Kein Banner in der Oberflaeche — sichtbar sind sie im App-Log.
         val dtcList = try { obdRepository.readDtcs() } catch (e: Exception) {
             if (e is CancellationException) throw e
+            // readDtcs() trennt den Adapter selbst, wenn die Antwort ausbleibt (Zeitueberschreitung:
+            // ein spaeter Rest haette den naechsten Befehl verfaelscht) oder der Link abreisst. Ist das
+            // hier geschehen, steht die Verbindung nicht mehr — und weil nur ConnectionLost einen
+            // Reconnect ausloest, ginge sie sonst still verloren (Anzeige "getrennt", kein neuer
+            // Versuch; jeder Slot-Wechsel startet diese Sitzung und damit das Auslesen neu).
+            // tryEmit() (nicht-suspendierend) aus demselben Grund wie im ConnectionLost-Zweig unten:
+            // der Wechsel von isConnectedFlow bricht diese Coroutine am naechsten Suspendierungspunkt ab.
+            if ((e is ObdException.Timeout || e is ObdException.ConnectionLost) && !obdRepository.isConnectedFlow.value) {
+                connectionLostSignal.tryEmit(Unit)
+                logBestEffort(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting")
+                return@flow
+            }
             null
         }
         if (dtcList?.isNotEmpty() == true) {
@@ -270,6 +284,18 @@ class ReadingsPipeline @Inject constructor(
                     try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
                 }
             }
+        }
+    }
+
+    /**
+     * Schreibt ins App-Log, auch wenn die Sitzung gerade abgebrochen wird, und schluckt Fehler: das Log
+     * ist Beiwerk und darf weder am Abbruch scheitern (der Schreibvorgang ist ein Suspendierungspunkt)
+     * noch die Sitzung mit einer Datenbankausnahme beenden.
+     */
+    private suspend fun logBestEffort(level: LogLevel, message: String) {
+        try {
+            withContext(NonCancellable) { appLogRepository.log(level, message) }
+        } catch (_: Exception) {
         }
     }
 
