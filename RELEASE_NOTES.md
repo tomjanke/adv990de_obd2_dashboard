@@ -1,5 +1,30 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.18.0 (versionCode 73)
+
+### Neu: Leerlauf als grünes „N"
+
+Steht das Fahrzeug und läuft der Motor, zeigt die Ganganzeige neben dem Drehzahlbalken jetzt ein
+grünes „N" statt des „–" — wie die Leerlauf-Kontrollleuchte am Motorrad. Erkannt wird das aus
+Stillstand (unter 2 km/h, bevorzugt die Fahrzeuggeschwindigkeit, GPS als Ersatz) und laufendem Motor
+(ab 500 U/min). Ein angezeigtes „N" bleibt bis 4 km/h stehen, damit es nicht flackert; beim Anfahren
+wird daraus „–", ab 8 km/h wieder der Gang.
+
+Wichtig: Das Motorrad meldet keinen Leerlaufschalter. „N" bedeutet deshalb „steht, Motor läuft", also
+Leerlauf **oder** gezogene Kupplung (an der Ampel nicht zu unterscheiden). Leerlauf im Rollen wird
+nicht erkannt. Ohne Verbindung bleibt die Anzeige „–".
+
+Das Grün ist in allen Farbschemata das feste Grün von Bluetooth-Punkt und Öl-Balken. Auf den dunklen
+Cockpit-Schemata ist es besonders kontrastreich, im hellen Standard-Schema ebenfalls klar lesbar.
+
+### Tests
+
+820 Unit-Tests (+22) und 159 Instrumentation-Tests (+4), alle grün; Lint unverändert bei 0 Fehlern,
+26 Warnungen. Die neue Logik ist zusätzlich durch gezielte Fehlerinjektion abgesichert: sieben
+absichtlich eingebaute Fehler wurden jeweils von den dafür vorgesehenen Tests erkannt.
+
+---
+
 ## Version 1.17.10 (versionCode 72)
 
 ### Kleinere APK und Aufräumarbeiten
