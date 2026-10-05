@@ -1,5 +1,38 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.10 (versionCode 92)
+
+Statusleisten-Symbole und System-Splash passen zum Farbschema der App (zwei Punkte aus dem Backlog: „Statusleisten-Symbole folgen dem Systemthema“ und „Hintergrundfarbe des System-Splash“).
+
+### Statusleiste: Symbole passend zum App-Hintergrund
+
+Ab Android 15 zeichnet die App hinter die durchsichtige Statusleiste, die Farbe der Symbole (Uhr, Akku, Benachrichtigungen) kam aber vom `DayNight`-Theme, also aus dem **Systemmodus**: helles System + Cockpit-Schema (fast schwarz) ergab dunkle Symbole auf Schwarz, dunkles System + helles Standard-Schema weiße auf Hell.
+- **`AppTheme`** setzt die Symbolfarbe jetzt aus dem Hintergrund des Farbschemas (`useDarkStatusBarIcons`: Leuchtdichte > 0,5 → dunkle Symbole), über `isAppearanceLightStatusBars`. Die drei Cockpit-Schemata haben damit in jedem Systemmodus helle Symbole.
+- **Am Pixel nachgestellt und behoben:** „Standard + Hell“ bei dunklem System zeigt jetzt dunkle Symbole auf hellem Grund (Screenshot geprüft).
+- **Nur ab Android 15** (`controlsStatusBarIcons`, API 35): davor hat die Statusleiste eine eigene undurchsichtige Farbe aus dem Theme, und erzwungene Symbole könnten dort dunkel auf Schwarz werden. Die Navigationsleiste ist unberührt.
+
+### System-Splash in der Farbe der App
+
+Der Splash von Android 12+ (App-Icon auf einer Fläche) entsteht vor jedem App-Code und liest nur Ressourcen; seine Fläche kam aus dem `DayNight`-Theme — im dunklen System das neutrale Grau `#303030` (gemessen), danach der Wechsel auf das Cockpit-Schwarz.
+- **Statisch:** `Theme.OBD2Monitor` malt sein Fenster in `splash_background_system` — hell `#FEF7FF`, mit `-night` dunkel `#141218`, exakt die Hintergrundfarben des Standard-Schemas. Das gilt auch für den ersten Start und als das, was Android < 12 vor dem ersten Frame zeigt.
+- **Je Farbschema:** fünf Splash-Themes (`Light`, `Dark`, `Blue`, `Amber`, `Green`); `MainActivity` setzt das passende per `SplashScreen.setSplashScreenTheme` bei jedem Start und jeder Änderung — **wirksam ab dem nächsten Start** (das System persistiert es). „Wie das System“ setzt es zurück.
+- **Am Pixel gemessen** (Start mit `am start -D` angehalten, damit der Splash stehen bleibt; abgedunkelt vom Systemdialog, daher Verhältnisse): Standard dunkel → die Splash-Fläche trägt den Ton von `#141218` (vorher neutral grau), Orange → `#060401` (≙ `#110A02`), „Hell“ → hell. Gemeinsam mit dem App-Hintergrund ergibt sich beim Start kein Farbsprung mehr.
+- **`SplashThemeTest`** hält die Splash-Farben und die Hintergrundfarben der Kotlin-Schemata zusammen (XML und Schema können nicht auseinanderlaufen), die Zuordnung Schema → Theme und die Theme-Namen. **Die Namen persistiert das System — nie umbenennen.**
+
+### Tests
+
+- **1284 JVM-Unit-Tests** (vorher 1269, +15) und **312 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 307, +5, davon einer auf diesem Gerät übersprungen, s. Grenzen), 0 Fehler, 1 übersprungen; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Mutationsprüfung:** 11 gezielte Eingriffe (9 mit JVM-Tests, 2 mit Gerätetests: Statusleisten-Effekt entfernt, Symbolfarbe invertiert; JVM u. a. Schwelle, Hintergrund statt Primärfarbe, API-Grenzen, Zuordnung, Resource-Farben, `-night`-Override, `windowBackground`) — **alle erkannt**.
+- **Neue Tests:** `SystemBarsTest`, `SplashThemeTest` (JVM); `StatusBarIconsTest` (Gerät: helles Schema → dunkle Symbole und umgekehrt, Laufzeitwechsel, Cockpit-Schema in jedem Systemmodus).
+
+### Bekannte Grenzen
+
+- **Android ≤ 14 nicht am Gerät geprüft** (das Testgerät läuft auf API 37, kein Emulator installiert): die Statusleisten-Logik ist dort bewusst abgeschaltet; der statische Splash-/Fensterhintergrund und das Theme gelten dort ohne Prüfung am Gerät.
+- **Ein Gerätetest ist übersprungen** (`beforeAndroid15TheAppLeavesTheIconsToTheSystem`): er läuft nur unter API < 35.
+- **Wirksam ab dem nächsten Start:** Nach dem Wechsel des Farbschemas zeigt der nächste Start den passenden Splash; der allererste Start nach der Installation zeigt den Hell/Dunkel-Standard des Systems.
+- **Liegt die App noch in der Übersicht der zuletzt benutzten Apps,** zeigt Android beim Start deren letztes Bild statt des Splash — dann spielt die Splash-Farbe keine Rolle.
+- **Der Splash steht nur wenige Millisekunden** (Release: 153–170 ms bis zur Anzeige, gemessen); die Änderung betrifft den Farbsprung, nicht die Dauer. Einen Splash-Screen mit eigener Dauer gibt es bewusst nicht.
+
 ## Version 1.24.9 (versionCode 91)
 
 Aufräumen, Start, Standort, Lieferkette, Lizenzen, Farben (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: sieben C-Punkte — PRO-8/SCR-05/LIF-06, UID-12/LIF-21, SEC-5, SEC-7, DAT-12/14/16/18, SEC-10/SCR-24, Farbrollen).
