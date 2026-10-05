@@ -18,6 +18,8 @@ import de.adv990de.obd2.obd.PidRegistry
  * @param gpsSpeedEnabled ist der GPS-Schalter an, ist die Geschwindigkeit nicht "nicht
  *        unterstuetzt", sondern wartet auf einen Fix — eine Aussage ueber das Fahrzeug waere hier
  *        schlicht falsch
+ * @param gpsPermissionMissing bei eingeschaltetem GPS fehlt die Standortberechtigung (entzogen, B10):
+ *        "wartet auf ein GPS-Signal" wuerde ewig warten, deshalb sagt die Kachel, was fehlt
  */
 @StringRes
 fun slotPlaceholderRes(
@@ -25,8 +27,10 @@ fun slotPlaceholderRes(
     supportedPidIds: Set<String>?,
     isConnected: Boolean,
     gpsSpeedEnabled: Boolean = false,
+    gpsPermissionMissing: Boolean = false,
 ): Int = when {
     pidId.isNullOrBlank() -> R.string.dashboard_slot_empty
+    gpsSpeedEnabled && pidId == PidRegistry.SPEED.id && gpsPermissionMissing -> R.string.dashboard_slot_gps_permission
     gpsSpeedEnabled && pidId == PidRegistry.SPEED.id -> R.string.dashboard_slot_waiting_gps
     isConnected && supportedPidIds != null && pidId !in supportedPidIds ->
         R.string.dashboard_slot_unsupported

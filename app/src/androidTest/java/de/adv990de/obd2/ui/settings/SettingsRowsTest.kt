@@ -144,4 +144,34 @@ class SettingsRowsTest {
 
         composeRule.onNodeWithTag("row").assertHeightIsAtLeast(64.dp)
     }
+
+    // --- permission hint row (B10, B21) ---
+
+    @Test
+    fun permissionHint_showsTheTextAndTheButton_andTheButtonOpensTheSettings() {
+        var opened = 0
+        composeRule.setContent {
+            MaterialTheme {
+                PermissionHintRow(
+                    text = "Standortberechtigung fehlt",
+                    buttonLabel = "In den App-Einstellungen erteilen",
+                    onOpenSettings = { opened++ },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Standortberechtigung fehlt").assertIsDisplayed()
+        composeRule.onNodeWithText("In den App-Einstellungen erteilen").assertIsDisplayed().performClick()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun permissionHint_buttonIsGloveFriendly() {
+        composeRule.setContent {
+            MaterialTheme { PermissionHintRow(text = "T", buttonLabel = "Knopf", onOpenSettings = {}) }
+        }
+
+        composeRule.onNodeWithText("Knopf").assertHeightIsAtLeast(56.dp)
+    }
 }

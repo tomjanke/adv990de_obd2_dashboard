@@ -537,6 +537,19 @@ class ReadingsPipelineTest {
     }
 
     @Test
+    fun `an ECU that is silent from the very start is reported stale too (B24 - waiting must end)`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { awaitCancellation() }      // never delivers a cycle
+        val events = collect(makePipeline(repo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS - 1); runCurrent()
+        assertTrue("noch innerhalb der Frist: $events", events.none { it == SessionEvent.Stale })
+
+        advanceTimeBy(2); runCurrent()
+        assertEquals(listOf<SessionEvent>(SessionEvent.Stale), events)
+    }
+
+    @Test
     fun `fresh cycles keep the values from going stale`() = runTest {
         val repo = makeRepo(connected = true)
         every { repo.livePids(any()) } returns flow {

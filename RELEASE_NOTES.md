@@ -1,5 +1,59 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.4 (versionCode 86)
+
+Dashboard-Zustände und sichtbare Berechtigungen (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B10, B20, B21, B23, B24).
+
+### „Verbunden“ heißt verbunden — sofort (B24)
+
+Nach einem erfolgreichen Verbinden zeigte das Dashboard 2–10 s lang „Vorschau · nicht verbunden“ und einen roten/gelben Punkt, weil
+der Zustand „verbunden“ erst mit dem ersten Messwert kam (vorher liest die Sitzung FIN und Fehlercodes). Jetzt gilt der Link, sobald das
+Repository ihn meldet: der Punkt wird grün, das Band sagt **„Verbunden · warte auf Werte“**, die Kacheln zeigen „--“. Kommt auch nach
+10 s kein Wert (Steuergerät schweigt von Anfang an, z. B. Zündung aus), endet das bei „Keine aktuellen Werte“ statt bei ewigem
+„warte“ — die Frist aus 1.24.3 startet jetzt mit der Sitzung.
+
+### Kein Vollbild-Spinner mehr (B23)
+
+Der Spinner („verbunden, aber keine Werte für die Slots“) verdeckte die Kacheln. Belegten alle vier Slots PIDs, die das Fahrzeug nicht
+liefert, blieb er für immer stehen — der Slot-Picker war unerreichbar. Er ist entfernt. Das Dashboard kennt jetzt vier Zustände
+(`dashboardPhase`: Offline · Warte · Live · Veraltet), die Kacheln, Drehzahlbalken und Band gemeinsam steuern. Fließen Werte, aber
+keiner passt zu einem Slot, ist das **Live**: jede Kachel zeigt ihren Hinweis („Vom Fahrzeug nicht unterstützt“) und lässt sich per
+Long-Press neu belegen.
+
+### Fehlende Standortberechtigung wird gesagt (B10, B21)
+
+- **GPS-Schalter AN, Berechtigung weg** (in den Systemeinstellungen entzogen, „Nur dieses Mal“ abgelaufen): GPS lieferte still nichts. Jetzt
+  steht unter dem Schalter **„Standortberechtigung fehlt …“** mit dem Knopf **„In den App-Einstellungen erteilen“**; die Geschwindigkeits-Kachel
+  sagt „Standortberechtigung fehlt“ statt endlos „Warte auf GPS-Signal“.
+- **„Ungefähr“ oder „Ablehnen“ im System-Dialog:** Der Schalter blieb still aus. Jetzt erscheint derselbe Hinweis (die Geschwindigkeit
+  braucht den genauen Standort).
+- **Außentemperatur ohne Standort:** Die Berechtigung wird nur einmal angefragt; wer „Nicht erlauben“ wählte, sah nie, warum die
+  Temperatur fehlt. Unter „Navigationsleiste beim Fahren ausblenden“ steht jetzt der Grund samt Knopf (genau oder ungefähr genügt).
+- Der Stand wird bei jedem Zurückkehren in die App neu gelesen (`LocationPermissionState`, `ON_RESUME`).
+- **Nachträglich erteilt = sofort aktiv:** `GpsSpeedSource` prüfte die Berechtigung nur beim Start des Flusses; wer sie später erteilte,
+  bekam GPS-Speed erst nach einem Neustart. Jetzt wird alle 2 s neu geprüft, solange sie fehlt.
+
+### Fehlercodes: „Erneut versuchen“ und Pull-to-Refresh im Fehler- und Leerzustand (B20)
+
+Im Fehlerzustand gab es nur den Text, im Leerzustand („Keine Fehlercodes“) ließ sich die Seite nicht herunterziehen, weil
+`PullToRefreshBox` nur über einen scrollbaren Nachfahren erkennt, dass gezogen wird. Beide Zustände liegen jetzt in einem scrollbaren
+Container; der Fehlerzustand hat einen 56-dp-Knopf „Erneut versuchen“.
+
+### Tests
+
++27 JVM-Tests (Dashboard-Zustand, Hinweis-Entscheidungen, Platzhalter, GPS-Nachprüfung, Link-Hoch/Warten im ViewModel, Stale ab Sitzungsbeginn)
+und +6 Instrumentation-Tests (Warte-Band, kein Spinner bei Werten ohne Slot, DTC-Wiederholen und -Ziehen, Hinweiszeile). Dreizehn bewusst
+eingebaute Fehler wurden erkannt; einer überlebte zunächst (das Rücksetzen von „warte“ im Reconnect-Zweig) und bekam einen Test. Der erste Lauf der Instrumentation-Tests deckte eine Regression auf, die kein JVM-Test sah: `startReconnecting()` ließ `isConnected` wahr (aus `onLinkUp`), solange `isConnectedFlow` nicht gekippt war — das Dashboard zeigte „verbunden“ statt „verbindet“. Ein gemeldeter Verbindungsverlust setzt jetzt selbst `isConnected = false` (mit eigenem Test). Ein
+bestehender Test (GPS-Berechtigung fehlt: „nichts registrieren“) musste von `advanceUntilIdle()` auf `advanceTimeBy` umgestellt werden,
+weil die Nachprüfung endlos weiterläuft.
+
+### Bekannte Grenzen
+
+- Die Hinweiszeilen sind am Gerät nicht mit einer echten Berechtigungsänderung durchgespielt (das lässt sich im Instrumentation-Test
+  nicht ohne die Systemeinstellungen nachstellen); abgedeckt sind die Entscheidungsfunktionen und die Zeile selbst.
+- Wird die Berechtigung WÄHREND laufender Updates entzogen („Nur dieses Mal“ läuft ab), werden die Updates nicht neu registriert; die
+  Geschwindigkeit fällt nach 2 s auf „unbekannt“, und der Hinweis erscheint beim nächsten Zurückkehren in die App.
+
 ## Version 1.24.3 (versionCode 85)
 
 Verlässlichere Anzeige im Fahrbetrieb (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B11, B12, B29).

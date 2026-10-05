@@ -487,12 +487,31 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   `gpsRefresh` führt nichts mehr neu zusammen (`obdStale`), das ViewModel leert Readings/Drehzahl/Geschwindigkeit/Gang und setzt
   `isStale`. **Wichtig:** die Marke ist ein eigener Zustand, nicht `lastObdReadings = null` — ein Rückschreiben in den StateFlow, auf dem
   `flatMapLatest` sitzt, bräche die eigene Coroutine ab (dieselbe Reentrancy-Falle wie bei `connectionLostSignal`).
-- **Dashboard bei „veraltet“:** `isLive = isConnected && !isStale` steuert Kacheln und `RpmBar` („--“, leer, kein Alarmrot/Blinken);
-  der Verbindungs-Punkt bleibt am Verbindungsstatus. Das Band `PreviewBanner(labelRes = dashboard_stale_banner)` sagt „Keine
-  aktuellen Werte“ statt „Vorschau · nicht verbunden“. Der Vollbild-Spinner gilt nur für „noch kein Wert“
-  (`isConnected && readings.isEmpty() && !isStale`).
+- **Dashboard-Phasen (seit v1.24.4, `ui/dashboard/DashboardPhase.kt`).** `dashboardPhase(isConnected, awaitingFirstValues, isStale)` →
+  **Offline** (kein Link: Vorschau-Belegung, Band „Vorschau · nicht verbunden“ ggf. mit Grund) · **Waiting** (Link steht, noch kein Wert:
+  Band „Verbunden · warte auf Werte“) · **Live** (Werte fließen — auch wenn keiner zu einem Slot gehört) · **Stale** (Band „Keine aktuellen
+  Werte“). Nur Live zeigt Zahlen; sonst `placeholderReadings` mit „--“, `RpmBar(isLive = false)` (kein Alarmrot/Blinken). **Es gibt keinen
+  Vollbild-Spinner** (B23): in Live ohne Slot-Wert zeigt jede Kachel ihren Hinweis (`slotPlaceholderRes`) und bleibt per Long-Press bedienbar.
+  Der Verbindungs-Punkt hängt am Verbindungsstatus. **„Link steht“ kommt aus `obdRepository.isConnectedFlow`** (`DashboardViewModel.onLinkUp`,
+  setzt `isConnected` + `awaitingFirstValues`), nicht erst aus dem ersten `Values`-Ereignis (B24); die Stale-Frist startet mit der Sitzung.
 - **Test-Falle:** Tests, die einen Fluss mit `flowOf(...)` als `livePids` nutzen und `advanceUntilIdle()` rufen, sind unproblematisch (eine
   beendete Quelle meldet kein Stale); für „Quelle schweigt“ muss der Fluss offen bleiben (`awaitCancellation()`).
+
+### Berechtigungen sichtbar machen (seit v1.24.4)
+
+- **Eine Berechtigung kann sich außerhalb der App ändern.** `rememberLocationPermissionState()` (`ui/permission/`) liest FINE/COARSE bei jedem
+  `ON_RESUME` neu; Aufrufer, die selbst einen Dialog starten, rufen `refresh()` mit dem Ergebnis. Nie `LocationPermissions.hasFineLocation(context)`
+  einmal beim Komponieren lesen und weiterverwenden.
+- **Fehlt eine Berechtigung, sagt die Oberfläche es** — an der Stelle, die darunter leidet: `PermissionHintRow` (Text in `colorScheme.error`,
+  Knopf ≥ 56 dp „In den App-Einstellungen erteilen“, öffnet `appSettingsIntent`) unter dem GPS-Schalter und unter „Navigationsleiste ausblenden“;
+  die GPS-Geschwindigkeits-Kachel sagt „Standortberechtigung fehlt“ statt „Warte auf GPS-Signal“. Die Entscheidung „Hinweis ja/nein“ liegt in den
+  reinen Funktionen `gpsSpeedPermissionHint` / `weatherPermissionHint` (`ui/settings/LocationHints.kt`, JVM-getestet). Der Schalter selbst wird NICHT
+  still umgelegt.
+- **Der Knopf öffnet die Systemeinstellungen, nicht den Dialog:** nach zweimaligem Ablehnen zeigt Android ihn nicht mehr.
+- **Nachträglich erteilt wirkt sofort:** `GpsSpeedSource` prüft eine fehlende Berechtigung alle `PERMISSION_RECHECK_MS` = 2 s neu (Tests, die ohne
+  Berechtigung `advanceUntilIdle()` rufen, laufen sonst endlos — `advanceTimeBy(1); runCurrent()` verwenden).
+- **Listen mit Pull-to-Refresh:** Fehler- und Leerzustand gehören in einen scrollbaren Container (`PullableBox` in `DtcScreen`), sonst greift der Zug
+  nicht; der Fehlerzustand hat immer einen „Erneut versuchen“-Knopf.
 
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
@@ -611,8 +630,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1053 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 265 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1080 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 271 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

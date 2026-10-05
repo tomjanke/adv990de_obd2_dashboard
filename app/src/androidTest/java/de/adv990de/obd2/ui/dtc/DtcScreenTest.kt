@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
@@ -29,6 +30,7 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -181,6 +183,34 @@ class DtcScreenTest {
         composeRule
             .onNodeWithText(composeRule.activity.getString(R.string.obd_err_timeout))
             .assertIsDisplayed()
+    }
+
+    // --- B20: the error state offers a retry, and the "no fault codes" state can be pulled to refresh ---
+
+    @Test
+    fun dtcScreen_errorState_offersARetryButton_thatReadsAgain() {
+        coEvery { obdRepository.readDtcs() } throws RuntimeException("boom") andThen
+            listOf(DtcEntry(code = "P0300", description = "Random Misfire", isPending = false))
+        launchDtcScreen()
+        waitForText(string(R.string.retry))
+
+        composeRule.onNodeWithText(string(R.string.retry)).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
+        composeRule.onNodeWithText(string(R.string.retry)).performClick()
+
+        waitForText("P0300")
+        composeRule.onAllNodesWithText(string(R.string.retry)).assertCountEquals(0)
+    }
+
+    @Test
+    fun dtcScreen_noFaultCodesState_canBePulledToRefresh() {
+        // Default stub: readDtcs() returns an empty list -> the "no fault codes" state.
+        launchDtcScreen()
+        waitForText(string(R.string.dtc_empty))
+        coVerify(timeout = 5_000, exactly = 1) { obdRepository.readDtcs() }
+
+        composeRule.onNodeWithTag(DTC_PULL_AREA_TEST_TAG).performTouchInput { swipeDown() }
+
+        coVerify(timeout = 5_000, atLeast = 2) { obdRepository.readDtcs() }
     }
 
     @Test

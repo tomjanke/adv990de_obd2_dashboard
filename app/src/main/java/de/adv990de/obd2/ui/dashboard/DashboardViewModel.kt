@@ -56,6 +56,12 @@ data class DashboardUiState(
      * ([SessionEvent.Stale]). Mit der Verbindung ist [isConnected] false und dieses Feld auch.
      */
     val isStale: Boolean = false,
+    /**
+     * Der Link zum Adapter steht ([isConnected]), aber es kam noch kein Messwert: die Sitzung liest FIN und
+     * Fehlercodes und wartet auf den ersten Zyklus. Bis 1.24.3 galt der Link erst mit dem ersten Wert als
+     * "verbunden" — das Dashboard zeigte 2-10 s lang "Vorschau · nicht verbunden" (B24).
+     */
+    val awaitingFirstValues: Boolean = false,
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -230,6 +236,10 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             readingsPipeline.events(viewModelScope).collect(::onSessionEvent)
         }
+        // Der Link steht, sobald das Repository es sagt — nicht erst mit dem ersten Messwert (B24).
+        viewModelScope.launch {
+            obdRepository.isConnectedFlow.collect { up -> if (up) onLinkUp() }
+        }
         connectionCoordinator.start(viewModelScope, ::onConnectionEvent)
     }
 
@@ -243,6 +253,23 @@ class DashboardViewModel @Inject constructor(
             SessionEvent.ConnectionLost -> startReconnecting()
             is SessionEvent.Failed -> _uiState.value = DashboardUiState.disconnected(event.error)
         }
+    }
+
+    /**
+     * Der Link zum Adapter ist aufgebaut, Werte fehlen noch. Setzt nur, was bei einem schon "verbundenen"
+     * Zustand nicht ueberschrieben werden soll (kommt der erste Messwert vor diesem Aufruf, bleibt alles).
+     */
+    private fun onLinkUp() {
+        val current = _uiState.value
+        if (current.isConnected) return
+        _uiState.value = current.copy(
+            isConnected = true,
+            isReconnecting = false,
+            reconnectAttempt = 0,
+            error = null,
+            isStale = false,
+            awaitingFirstValues = true,
+        )
     }
 
     private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?) {
@@ -318,6 +345,7 @@ class DashboardViewModel @Inject constructor(
             isConnected = true,
             isReconnecting = false,
             isStale = false,
+            awaitingFirstValues = false,
             error = null,
             sparklines = sparklineBuffer.mapValues { (_, deque) -> deque.toList() }
         )
@@ -332,6 +360,7 @@ class DashboardViewModel @Inject constructor(
     private fun applyStale() {
         _uiState.value = _uiState.value.copy(
             isStale = true,
+            awaitingFirstValues = false,
             readings = emptyList(),
             rpmValue = 0f,
             engineTempC = null,
@@ -355,6 +384,7 @@ class DashboardViewModel @Inject constructor(
             _uiState.value.copy(
                 isConnected = false,
                 isStale = false,
+                awaitingFirstValues = false,
                 readings = emptyList(),
                 speedKmh = null,
                 gear = null,
@@ -404,6 +434,13 @@ class DashboardViewModel @Inject constructor(
      */
     private fun startReconnecting() {
         _uiState.value = _uiState.value.copy(
+            // Ein gemeldeter Verbindungsverlust heisst per Definition "nicht mehr verbunden" — unabhaengig davon,
+            // ob das Idle-Ereignis des Messwert-Stroms schon da ist. Seit onLinkUp() den Link vor dem ersten Wert
+            // als verbunden fuehrt, bliebe isConnected sonst wahr, solange isConnectedFlow nicht gekippt ist
+            // (die Reihenfolge der beiden Wege ist nicht garantiert). readings/Gang/... raeumt applyIdle() ab.
+            isConnected = false,
+            isStale = false,
+            awaitingFirstValues = false,
             isReconnecting = true,
             reconnectAttempt = 0,
             reconnectTotal = RECONNECT_ATTEMPT_COUNT

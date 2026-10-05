@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +47,8 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
+import de.adv990de.obd2.ui.permission.appSettingsIntent
+import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 
@@ -50,6 +56,10 @@ import de.adv990de.obd2.ui.navigation.Screen
  *  anchor to distinguish it from the other switches on this screen. Purely a semantics marker,
  *  no effect on production behavior. */
 internal const val GPS_SPEED_SWITCH_TEST_TAG = "settings_gps_speed_switch"
+
+/** Test-only selectors of the two permission hint rows under the GPS and hide-nav switches. */
+internal const val GPS_PERMISSION_HINT_TEST_TAG = "settings_gps_permission_hint"
+internal const val WEATHER_PERMISSION_HINT_TEST_TAG = "settings_weather_permission_hint"
 
 /** Test-only selector for the hideNavOnDrive [Switch], same reasoning as [GPS_SPEED_SWITCH_TEST_TAG]. */
 internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_drive_switch"
@@ -137,6 +147,18 @@ fun SettingsScreen(
     // er aus.
     val context = LocalContext.current
 
+    // Der Stand der Standortberechtigung (liest bei jedem ON_RESUME neu: sie kann in den Systemeinstellungen
+    // geaendert werden) und die Antwort auf die letzte GPS-Anfrage — beides speist die Hinweiszeilen (B10, B21).
+    val locationPermission = rememberLocationPermissionState()
+    var gpsRequestDenied by rememberSaveable { mutableStateOf(false) }
+    val openAppSettings: () -> Unit = {
+        try {
+            context.startActivity(appSettingsIntent(context.packageName))
+        } catch (_: ActivityNotFoundException) {
+            // Kein Einstellungs-Handler (exotisches OEM-Image): der Hinweistext bleibt stehen.
+        }
+    }
+
     // Ergebnis wird nicht ausgewertet: GPS-Speed funktioniert so oder so im Vordergrund weiter,
     // ob der Nutzer die zusaetzliche Hintergrund-Berechtigung erteilt oder ablehnt. Android
     // verlangt diese Anfrage getrennt von Fine/Coarse — beides zusammen wird ab API 30 ignoriert.
@@ -160,6 +182,10 @@ fun SettingsScreen(
     ) { results ->
         val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         displayVm.setUseGpsSpeed(granted)
+        // Ohne genauen Standort ("Ungefaehr" oder "Ablehnen" im System-Dialog) bleibt der Schalter aus — die
+        // Hinweiszeile sagt dann, warum (B21).
+        gpsRequestDenied = !granted
+        locationPermission.refresh()
     }
 
     // Ergebnis wird bewusst nicht ausgewertet (gleiches Muster wie backgroundLocationLauncher):
@@ -171,7 +197,7 @@ fun SettingsScreen(
     // Catch-up fuer schon laenger eingeschaltete Nutzer laufen darueber gemeinsam).
     val weatherLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { }
+    ) { locationPermission.refresh() }
 
     // Holt Nutzer nach, deren Schalter aus einer frueheren Version bereits an ist, aber die den
     // Hintergrund-Prompt sonst nie zu sehen bekaemen. Key ist useGpsSpeed statt Unit: der Wert
@@ -351,12 +377,26 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
             }
+            // Die Berechtigung wird nur EINMAL angefragt; wer "Nicht erlauben" waehlte, sah nie, warum die
+            // Aussentemperatur fehlt (B21).
+            if (weatherPermissionHint(hideNavOnDrive, locationPermission.fine, locationPermission.coarse)) {
+                item {
+                    PermissionHintRow(
+                        text = stringResource(R.string.settings_weather_permission_missing),
+                        buttonLabel = stringResource(R.string.settings_permission_open_settings),
+                        onOpenSettings = openAppSettings,
+                        modifier = Modifier.testTag(WEATHER_PERMISSION_HINT_TEST_TAG),
+                    )
+                    HorizontalDivider()
+                }
+            }
             item {
                 SettingsSwitchRow(
                     title = stringResource(R.string.settings_gps_speed),
                     summary = stringResource(R.string.settings_gps_speed_desc),
                     checked = useGpsSpeed,
                     onCheckedChange = { wanted ->
+                        gpsRequestDenied = false
                         val granted = LocationPermissions.hasFineLocation(context)
                         when (determineGpsSpeedSwitchAction(wanted, granted)) {
                             GpsSpeedSwitchAction.SET_OFF -> displayVm.setUseGpsSpeed(false)
@@ -372,6 +412,19 @@ fun SettingsScreen(
                     modifier = Modifier.testTag(GPS_SPEED_SWITCH_TEST_TAG),
                 )
                 HorizontalDivider()
+            }
+            // Schalter AN, Berechtigung weg (entzogen / "Nur dieses Mal" abgelaufen) oder die Anfrage ohne genauen
+            // Standort beantwortet: GPS liefert still nichts — der Hinweis sagt es (B10, B21).
+            if (gpsSpeedPermissionHint(useGpsSpeed, locationPermission.fine, gpsRequestDenied)) {
+                item {
+                    PermissionHintRow(
+                        text = stringResource(R.string.settings_gps_permission_missing),
+                        buttonLabel = stringResource(R.string.settings_permission_open_settings),
+                        onOpenSettings = openAppSettings,
+                        modifier = Modifier.testTag(GPS_PERMISSION_HINT_TEST_TAG),
+                    )
+                    HorizontalDivider()
+                }
             }
             // Fruehere eigene Seite "Dashboard konfigurieren": Blinkgrenze + dynamische Schwelle.
             item {

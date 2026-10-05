@@ -41,8 +41,10 @@ class GpsSpeedSource @Inject constructor(
     val speedKmh: Flow<Float?> = callbackFlow {
         if (!provider.hasPermission()) {
             trySend(null)
-            awaitClose { }
-            return@callbackFlow
+            // Die Berechtigung kann spaeter erteilt werden (System-Dialog, App-Einstellungen), ohne dass jemand
+            // den Schalter neu betaetigt — frueher wurde sie nur hier, beim Start des Flusses, geprueft, und
+            // GPS-Speed blieb bis zum App-Neustart stumm (B10). Die Schleife endet mit dem Abbruch des Sammlers.
+            while (!provider.hasPermission()) delay(PERMISSION_RECHECK_MS)
         }
 
         var staleJob: Job? = null
@@ -88,5 +90,8 @@ class GpsSpeedSource @Inject constructor(
          *  weniger Sekunden erkannt wird, statt eine veraltete Geschwindigkeit unbegrenzt lange
          *  weiterzureichen. */
         const val STALE_AFTER_MS = 2_000L
+
+        /** So oft wird eine fehlende Berechtigung erneut geprueft; ein Aufruf von `checkSelfPermission` kostet nichts. */
+        const val PERMISSION_RECHECK_MS = 2_000L
     }
 }

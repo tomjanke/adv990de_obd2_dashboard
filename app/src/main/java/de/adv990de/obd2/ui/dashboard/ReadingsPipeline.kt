@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -253,15 +252,15 @@ class ReadingsPipeline @Inject constructor(
 
     /**
      * Meldet [SessionEvent.Stale], wenn [OBD_STALE_AFTER_MS] lang kein Zyklus mit Messwerten kam. Die Frist
-     * startet mit jedem Zyklus neu ([obdCycles]); vor dem ersten Zyklus laeuft keine (es gibt noch nichts,
-     * was veralten koennte). Setzt die Fahrterkennung auf "steht" — eine Geschwindigkeit, die niemand mehr
-     * liefert, darf die Navigationsleiste nicht dauerhaft ausgeblendet halten.
+     * startet mit dem Sitzungsbeginn und mit jedem Zyklus neu ([obdCycles]): Ein Steuergeraet, das von
+     * Anfang an schweigt (Zuendung aus beim Verbinden), soll nicht ewig als "warte auf Werte" enden (B24).
+     * Setzt die Fahrterkennung auf "steht" — eine Geschwindigkeit, die niemand mehr liefert, darf die
+     * Navigationsleiste nicht dauerhaft ausgeblendet halten.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun staleness(): Flow<SessionEvent> = obdCycles
-        .flatMapLatest { cycles ->
-            if (cycles == 0) emptyFlow()
-            else flow {
+        .flatMapLatest {
+            flow {
                 delay(OBD_STALE_AFTER_MS)
                 if (sessionRunning) emit(SessionEvent.Stale)
             }

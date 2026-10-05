@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +46,7 @@ import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.StatusDot
 import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import kotlinx.coroutines.delay
 
@@ -66,12 +66,18 @@ fun DashboardScreen(
     val slotPids by vm.slotPids.collectAsState()
     val availablePids by vm.availablePids.collectAsState()
     var pickerSlot: Int? by remember { mutableStateOf(null) }
-    // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
-    val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
-    // "Live" heisst: Verbindung steht UND das Steuergeraet liefert (B29). Bei veralteten Werten zeigen
-    // Kacheln und Drehzahlbalken "--" bzw. leer statt alter Zahlen; der Verbindungs-Punkt bleibt am
-    // Verbindungsstatus (der Adapter ist ja da).
-    val isLive = state.isConnected && !state.isStale
+    // Vier Zustaende statt verstreuter Einzelabfragen (s. dashboardPhase): Kacheln, Drehzahlbalken und Band
+    // zeigen nie widerspruechliches. Nur "Live" zeigt echte Zahlen; sonst "--" bzw. leer (Waiting, Stale,
+    // Offline). Der Verbindungs-Punkt haengt weiter am Verbindungsstatus (der Adapter ist ja da).
+    val phase = dashboardPhase(state.isConnected, state.awaitingFirstValues, state.isStale)
+    val isLive = phase == DashboardPhase.Live
+    // Berechtigung fuer die GPS-Kachel (liest bei jedem ON_RESUME neu): bei eingeschaltetem GPS-Speed und
+    // fehlender Berechtigung wartet die Kachel nicht auf ein Signal, sondern sagt, was fehlt (B10).
+    val locationPermission = rememberLocationPermissionState()
+    val gpsPermissionMissing = useGpsSpeed && !locationPermission.fine
+    // Echte Messwerte nur in der Phase "Live" — auch wenn keiner zu einem Slot gehoert (dann zeigt jede Kachel ihren
+    // Hinweis, z. B. "Vom Fahrzeug nicht unterstuetzt"). In allen anderen Phasen die Vorschau-Belegung ("--").
+    val displayReadings = if (isLive) state.readings else placeholderReadings
 
     // Keep screen on for as long as the Dashboard screen is visible, connected or not (User-Wunsch
     // 2026-09-29 — vorher nur bei state.isConnected, s. MEMORY.md). DisposableEffect(Unit) statt
@@ -121,187 +127,187 @@ fun DashboardScreen(
             else -> (rpmBlinkThreshold * rpmThresholdTempScale(state.engineTempC)).toInt()
         }
 
-        // While connected but waiting for first readings: brief full-screen spinner.
-        if (state.isConnected && state.readings.isEmpty() && !state.isStale) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        // Es gibt keinen Vollbild-Spinner mehr (B23): Er verdeckte die Kacheln, und waren alle Slots mit PIDs belegt, die das
+        // Fahrzeug nicht liefert, blieb er fuer immer stehen — ohne Weg zum Slot-Picker. "Warte auf Werte" zeigt jetzt das
+        // Band unter dem Drehzahlbalken, die Kacheln bleiben sichtbar und per Long-Press bedienbar.
+        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val supportedPidIds by vm.supportedPidIds.collectAsState()
+        // Slot order is driven by slotPids; always exactly 4 entries.
+        val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
+            List(4) { i ->
+                val pidId = slotPids.getOrElse(i) { "" }
+                displayReadings.firstOrNull { it.pid.id == pidId }
             }
-        } else {
-            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val supportedPidIds by vm.supportedPidIds.collectAsState()
-            // Slot order is driven by slotPids; always exactly 4 entries.
-            val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
-                List(4) { i ->
-                    val pidId = slotPids.getOrElse(i) { "" }
-                    displayReadings.firstOrNull { it.pid.id == pidId }
-                }
-            }
+        }
 
-            Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
-                // ── RPM bar ───────────────────────────────────────────────
-                RpmBar(
-                    rpm = displayRpm,
-                    threshold = displayThreshold,
-                    gear = state.gear,
-                    isNeutral = state.isNeutral,
-                    oilBarColor = state.oilBarColor,
-                    modifier = Modifier.fillMaxWidth(),
-                    isLive = isLive,
-                    trailingContent = {
-                        val dotState = dashboardStatusDotState(
-                            isConnected = state.isConnected,
-                            isReconnecting = state.isReconnecting,
-                            hasError = state.error != null,
-                        )
-                        if (state.isConnected) {
-                            Row(
-                                modifier = Modifier.padding(start = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                // 0dp: Dot soll so nah wie moeglich am Bluetooth-Icon sitzen.
-                                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                            ) {
-                                if (dotState != null) {
-                                    StatusDot(state = dotState, color = connectionDotColor(dotState))
+        Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
+            // ── RPM bar ───────────────────────────────────────────────
+            RpmBar(
+                rpm = displayRpm,
+                threshold = displayThreshold,
+                gear = state.gear,
+                isNeutral = state.isNeutral,
+                oilBarColor = state.oilBarColor,
+                modifier = Modifier.fillMaxWidth(),
+                isLive = isLive,
+                trailingContent = {
+                    val dotState = dashboardStatusDotState(
+                        isConnected = state.isConnected,
+                        isReconnecting = state.isReconnecting,
+                        hasError = state.error != null,
+                    )
+                    if (state.isConnected) {
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            // 0dp: Dot soll so nah wie moeglich am Bluetooth-Icon sitzen.
+                            horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        ) {
+                            if (dotState != null) {
+                                StatusDot(state = dotState, color = connectionDotColor(dotState))
+                            }
+                            Icon(
+                                painterResource(R.drawable.ic_bluetooth),
+                                contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            // Negativer Abstand gleicht IconButtons eigenes ~12dp-Innenpolster
+                            // um sein 24dp-Icon aus (Default-Touch-Ziel 48dp) — sonst saehe der
+                            // Dot hier deutlich weiter vom Icon-Glyphen entfernt aus als bei der
+                            // verbundenen Variante oben, die ein reines Icon ohne Polster nutzt.
+                            horizontalArrangement = Arrangement.spacedBy((-12).dp),
+                        ) {
+                            if (dotState != null) {
+                                StatusDot(state = dotState, color = connectionDotColor(dotState))
+                            }
+                            IconButton(onClick = {
+                                navController.navigate(Screen.Settings.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
+                            }) {
                                 Icon(
                                     painterResource(R.drawable.ic_bluetooth),
-                                    contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
-                                    tint = MaterialTheme.colorScheme.primary
+                                    contentDescription = stringResource(
+                                        if (state.isReconnecting) R.string.dashboard_bt_connecting_desc
+                                        else R.string.dashboard_bt_disconnected_desc
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        } else {
+                        }
+                    }
+                }
+            )
+
+            // ── Vorschau-Band ─────────────────────────────────────────
+            // Ohne Verbindung zeigt das Dashboard die Slot-Belegung mit "--" statt Zahlen.
+            // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
+            // die App nichts misst oder nichts messen kann.
+            when (phase) {
+                DashboardPhase.Offline -> PreviewBanner(
+                    modifier = Modifier.fillMaxWidth(),
+                    reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
+                )
+                // Der Link steht, es kam noch kein Wert (B24): kein "Vorschau · nicht verbunden", das waere falsch.
+                DashboardPhase.Waiting -> PreviewBanner(
+                    modifier = Modifier.fillMaxWidth(),
+                    labelRes = R.string.dashboard_waiting_banner,
+                )
+                // Verbunden, aber das Steuergeraet schweigt (z. B. Zuendung aus).
+                DashboardPhase.Stale -> PreviewBanner(
+                    modifier = Modifier.fillMaxWidth(),
+                    labelRes = R.string.dashboard_stale_banner,
+                )
+                DashboardPhase.Live -> Unit
+            }
+
+            // ── Sensor grid ───────────────────────────────────────────
+            // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
+            // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
+            // hundert dp auseinanderlagen — bei 0,5 s Blickzeit nicht mehr zuzuordnen.
+            // Portrait (170dp) entspricht der Anatomie in CLAUDE.md. Querformat ist bewusst
+            // hoeher (200dp, dokumentierte Ausnahme in CLAUDE.md): dort bleibt sonst ein
+            // grosser Teil der Bildschirmhoehe unter der Kachel-Reihe leer. Das Ausblenden
+            // des Hauptmenues waehrend der Fahrt gibt seit 2026-09-27 keinen Platz mehr frei
+            // (die AmbientStatusRow nimmt exakt dessen Hoehe ein) — die Begruendung beruht
+            // allein auf der Querformat-Geometrie. Der zusaetzliche Raum ist bewusster
+            // Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher Inhalt — eine
+            // zweite Kachel-Reihe waere der groessere Eingriff gewesen.
+            val tileHeight = if (isLandscape) 200.dp else 170.dp
+            Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                if (isLandscape) {
+                    // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
+                    // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(tileHeight)
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                        horizontalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        repeat(4) { i ->
+                            SensorCardSlot(
+                                slots[i], state.sparklines, useImperial,
+                                Modifier.weight(1f).fillMaxHeight(),
+                                placeholderRes = slotPlaceholderRes(
+                                    slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
+                                ),
+                                isLive = isLive,
+                                onLongPress = { pickerSlot = i }
+                            )
+                        }
+                    }
+                } else {
+                    // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        repeat(2) { row ->
                             Row(
-                                modifier = Modifier.padding(start = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                // Negativer Abstand gleicht IconButtons eigenes ~12dp-Innenpolster
-                                // um sein 24dp-Icon aus (Default-Touch-Ziel 48dp) — sonst saehe der
-                                // Dot hier deutlich weiter vom Icon-Glyphen entfernt aus als bei der
-                                // verbundenen Variante oben, die ein reines Icon ohne Polster nutzt.
-                                horizontalArrangement = Arrangement.spacedBy((-12).dp),
+                                modifier = Modifier.fillMaxWidth().height(tileHeight),
+                                horizontalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                if (dotState != null) {
-                                    StatusDot(state = dotState, color = connectionDotColor(dotState))
-                                }
-                                IconButton(onClick = {
-                                    navController.navigate(Screen.Settings.route) {
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }) {
-                                    Icon(
-                                        painterResource(R.drawable.ic_bluetooth),
-                                        contentDescription = stringResource(
-                                            if (state.isReconnecting) R.string.dashboard_bt_connecting_desc
-                                            else R.string.dashboard_bt_disconnected_desc
-                                        ),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                repeat(2) { col ->
+                                    val i = row * 2 + col
+                                    SensorCardSlot(
+                                        slots[i], state.sparklines, useImperial,
+                                        Modifier.weight(1f).fillMaxHeight(),
+                                        placeholderRes = slotPlaceholderRes(
+                                    slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
+                                ),
+                                        isLive = isLive,
+                                        onLongPress = { pickerSlot = i }
                                     )
                                 }
                             }
                         }
                     }
-                )
-
-                // ── Vorschau-Band ─────────────────────────────────────────
-                // Ohne Verbindung zeigt das Dashboard die Slot-Belegung mit "--" statt Zahlen.
-                // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
-                // die App nichts misst oder nichts messen kann.
-                if (!state.isConnected) {
-                    PreviewBanner(
-                        modifier = Modifier.fillMaxWidth(),
-                        reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
-                    )
-                } else if (state.isStale) {
-                    // Verbunden, aber das Steuergeraet schweigt (z. B. Zuendung aus): kein "Vorschau"-Text,
-                    // der von fehlender Verbindung spraeche.
-                    PreviewBanner(
-                        modifier = Modifier.fillMaxWidth(),
-                        labelRes = R.string.dashboard_stale_banner,
-                    )
-                }
-
-                // ── Sensor grid ───────────────────────────────────────────
-                // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
-                // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
-                // hundert dp auseinanderlagen — bei 0,5 s Blickzeit nicht mehr zuzuordnen.
-                // Portrait (170dp) entspricht der Anatomie in CLAUDE.md. Querformat ist bewusst
-                // hoeher (200dp, dokumentierte Ausnahme in CLAUDE.md): dort bleibt sonst ein
-                // grosser Teil der Bildschirmhoehe unter der Kachel-Reihe leer. Das Ausblenden
-                // des Hauptmenues waehrend der Fahrt gibt seit 2026-09-27 keinen Platz mehr frei
-                // (die AmbientStatusRow nimmt exakt dessen Hoehe ein) — die Begruendung beruht
-                // allein auf der Querformat-Geometrie. Der zusaetzliche Raum ist bewusster
-                // Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher Inhalt — eine
-                // zweite Kachel-Reihe waere der groessere Eingriff gewesen.
-                val tileHeight = if (isLandscape) 200.dp else 170.dp
-                Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    if (isLandscape) {
-                        // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
-                        // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(tileHeight)
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                            horizontalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            repeat(4) { i ->
-                                SensorCardSlot(
-                                    slots[i], state.sparklines, useImperial,
-                                    Modifier.weight(1f).fillMaxHeight(),
-                                    placeholderRes = slotPlaceholderRes(
-                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
-                                    ),
-                                    isLive = isLive,
-                                    onLongPress = { pickerSlot = i }
-                                )
-                            }
-                        }
-                    } else {
-                        // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            repeat(2) { row ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().height(tileHeight),
-                                    horizontalArrangement = Arrangement.spacedBy(1.dp)
-                                ) {
-                                    repeat(2) { col ->
-                                        val i = row * 2 + col
-                                        SensorCardSlot(
-                                            slots[i], state.sparklines, useImperial,
-                                            Modifier.weight(1f).fillMaxHeight(),
-                                            placeholderRes = slotPlaceholderRes(
-                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
-                                            ),
-                                            isLive = isLive,
-                                            onLongPress = { pickerSlot = i }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
+        }
 
-            pickerSlot?.let { slot ->
-                SlotPickerSheet(
-                    currentPidId = slotPids.getOrElse(slot) { "" },
-                    availablePids = availablePids,
-                    readings = buildList {
-                        addAll(state.readings)
-                        if (state.rpmValue > 0f) add(SensorValue(PidRegistry.RPM, state.rpmValue))
-                    },
-                    useImperial = useImperial,
-                    onSelect = { pidId ->
-                        vm.setSlotPid(slot, pidId)
-                        pickerSlot = null
-                    },
-                    onDismiss = { pickerSlot = null }
-                )
-            }
+        pickerSlot?.let { slot ->
+            SlotPickerSheet(
+                currentPidId = slotPids.getOrElse(slot) { "" },
+                availablePids = availablePids,
+                readings = buildList {
+                    addAll(state.readings)
+                    if (state.rpmValue > 0f) add(SensorValue(PidRegistry.RPM, state.rpmValue))
+                },
+                useImperial = useImperial,
+                onSelect = { pidId ->
+                    vm.setSlotPid(slot, pidId)
+                    pickerSlot = null
+                },
+                onDismiss = { pickerSlot = null }
+            )
         }
     }
 }

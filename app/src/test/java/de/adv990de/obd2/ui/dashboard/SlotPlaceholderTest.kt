@@ -84,4 +84,50 @@ class SlotPlaceholderTest {
             slotPlaceholderRes(PidRegistry.INTAKE_AIR_TEMP.id, supported, isConnected = true, gpsSpeedEnabled = true)
         )
     }
+
+    // --- B10: GPS on, but the permission is missing ---
+
+    @Test
+    fun `GPS speed on without the location permission says the permission is missing, not that it waits for a fix`() {
+        assertEquals(
+            R.string.dashboard_slot_gps_permission,
+            slotPlaceholderRes(
+                PidRegistry.SPEED.id, supported, isConnected = true,
+                gpsSpeedEnabled = true, gpsPermissionMissing = true,
+            )
+        )
+    }
+
+    @Test
+    fun `with the permission the GPS slot waits for a fix as before`() {
+        assertEquals(
+            R.string.dashboard_slot_waiting_gps,
+            slotPlaceholderRes(
+                PidRegistry.SPEED.id, supported, isConnected = true,
+                gpsSpeedEnabled = true, gpsPermissionMissing = false,
+            )
+        )
+    }
+
+    @Test
+    fun `a missing permission does not matter while GPS speed is off`() {
+        assertEquals(
+            R.string.dashboard_slot_unsupported,
+            slotPlaceholderRes(
+                PidRegistry.SPEED.id, supported, isConnected = true,
+                gpsSpeedEnabled = false, gpsPermissionMissing = true,
+            )
+        )
+    }
+
+    @Test
+    fun `the permission hint only applies to the speed slot`() {
+        assertEquals(
+            R.string.dashboard_slot_empty,
+            slotPlaceholderRes(
+                PidRegistry.RPM.id, supported, isConnected = true,
+                gpsSpeedEnabled = true, gpsPermissionMissing = true,
+            )
+        )
+    }
 }

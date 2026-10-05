@@ -576,4 +576,58 @@ class DashboardScreenTest {
         composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("$rpmLabel: -- rpm").assertIsDisplayed()
     }
+
+    /**
+     * B24: Der Link steht, aber es kam noch kein Messwert (die Sitzung liest FIN und Fehlercodes). Das Band sagt
+     * "Verbunden · warte auf Werte" — nicht "Vorschau · nicht verbunden", und die Kacheln stehen (kein Spinner).
+     */
+    @Test
+    fun dashboard_saysConnectedAndWaiting_whileTheFirstReadingsAreOutstanding() {
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flow { awaitCancellation() }
+
+        launchDashboardScreen()
+
+        val waiting = composeRule.activity.getString(R.string.dashboard_waiting_banner).uppercase()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(waiting).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText(composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase())
+            .assertCountEquals(0)
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.pid_rpm).uppercase()).assertIsDisplayed()
+    }
+
+    /**
+     * B23: Es fliessen Werte, aber keiner gehoert zu einem belegten Slot (alle vier Slots belegen PIDs, die das
+     * Steuergeraet nicht liefert). Frueher: Vollbild-Spinner fuer immer, Slot-Picker unerreichbar. Jetzt zeigt jede
+     * Kachel ihren Hinweis, und ein Long-Press oeffnet den Picker.
+     */
+    @Test
+    fun dashboard_keepsTilesAndPickerReachable_whenNoValueBelongsToASlot() {
+        runBlocking {
+            appPreferences.setSlotPid(0, PidRegistry.THROTTLE.id)
+            appPreferences.setSlotPid(1, PidRegistry.ENGINE_LOAD.id)
+            appPreferences.setSlotPid(2, PidRegistry.INTAKE_AIR_TEMP.id)
+            appPreferences.setSlotPid(3, PidRegistry.MAF.id)
+        }
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flow {
+            emit(listOf(SensorValue(PidRegistry.RPM, 2500f), SensorValue(PidRegistry.COOLANT_TEMP, 90f)))
+            awaitCancellation()
+        }
+
+        launchDashboardScreen()
+
+        val hint = composeRule.activity.getString(R.string.dashboard_slot_empty)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(hint).fetchSemanticsNodes().size >= 4
+        }
+        composeRule.onAllNodesWithText(hint)[0].performTouchInput { longClick() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG).assertIsDisplayed()
+    }
 }

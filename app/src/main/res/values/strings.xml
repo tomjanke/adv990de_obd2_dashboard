@@ -6,8 +6,10 @@
     <string name="dashboard_slot_empty">Long-press to assign a sensor</string>
     <string name="dashboard_slot_unsupported">Not provided by this vehicle</string>
     <string name="dashboard_slot_waiting_gps">Waiting for a GPS fix</string>
+    <string name="dashboard_slot_gps_permission">Location permission missing</string>
     <string name="dashboard_preview_banner">Preview · not connected</string>
     <string name="dashboard_stale_banner">No current readings</string>
+    <string name="dashboard_waiting_banner">Connected · waiting for readings</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">No known device to reconnect to.</string>
@@ -176,6 +178,8 @@
     <string name="settings_display_section">Dashboard &amp; display</string>
     <string name="settings_hide_nav_on_drive">Hide navigation bar while driving</string>
     <string name="settings_hide_nav_on_drive_desc">Automatically re-shown when stationary. While it is hidden, date, time and the outside temperature from Open-Meteo appear in its place (uses your approximate location).</string>
+    <string name="settings_weather_permission_missing">Location permission missing: the outside temperature cannot be looked up. Date and time stay.</string>
+    <string name="settings_permission_open_settings">Grant in app settings</string>
     <string name="settings_imperial_units">Imperial units</string>
     <string name="settings_imperial_units_desc">Speed in mph, temperature in °F</string>
     <string name="settings_theme_system">System</string>
@@ -238,4 +242,5 @@
     <string name="pid_speed_gps">Speed (GPS)</string>
     <string name="settings_gps_speed">Speed from GPS</string>
     <string name="settings_gps_speed_desc">Uses the device GPS when the vehicle does not provide a speed signal. Requires location permission; also keeps working in the background if you allow that when asked.</string>
+    <string name="settings_gps_permission_missing">Location permission missing: without precise location the GPS cannot provide a speed.</string>
 </resources>

@@ -2,20 +2,26 @@ package de.adv990de.obd2.ui.dtc
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -71,6 +77,26 @@ private enum class DtcView(@StringRes val labelRes: Int) {
 
 /** Glove-friendly touch size of the segments and the buttons (CLAUDE.md design principle 4). */
 private val TouchSize = 56.dp
+
+/** Test tag of the scrollable area that holds the error and the "no fault codes" state (pull-to-refresh tests). */
+internal const val DTC_PULL_AREA_TEST_TAG = "dtc_pull_area"
+
+/**
+ * Inhalt, auf dem Pull-to-Refresh greift. `PullToRefreshBox` erkennt den Zug nur ueber einen scrollbaren
+ * Nachkommen: Ein nacktes `Text`/`EmptyState` ist keiner — im Fehler- und im Leerzustand liess sich die Seite
+ * deshalb nicht aktualisieren (B20). Der Container ist genau so hoch wie der sichtbare Bereich
+ * ([BoxWithConstraintsScope.maxHeight] fuer Zentrierung) und scrollt/ueberscrollt nur symbolisch.
+ */
+@Composable
+private fun PullableBox(content: @Composable BoxWithConstraintsScope.() -> Unit) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .testTag(DTC_PULL_AREA_TEST_TAG),
+        content = content,
+    )
+}
 
 /** Test tag of one history row — the full-width swipe container the UI tests swipe. */
 internal fun dtcHistoryRowTestTag(code: String) = "dtc_history_row_$code"
@@ -198,15 +224,23 @@ private fun CurrentContent(
                     icon = ImageVector.vectorResource(R.drawable.ic_bluetooth),
                     text = stringResource(R.string.not_connected),
                 )
-                currentError != null -> Text(
-                    currentError.asString(),
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp)
-                )
-                state.dtcs.isEmpty() && !state.isLoading -> EmptyState(
-                    icon = Icons.Default.CheckCircle,
-                    text = stringResource(R.string.dtc_empty),
-                )
+                // Fehler: Grund UND ein Knopf zum erneuten Versuchen (bis 1.24.4 gab es nur den Text; der Weg
+                // zurueck war ein Wisch, den es in dieser Ansicht nicht gab, s. PullableBox). 56 dp, Handschuh-tauglich.
+                currentError != null -> PullableBox {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(currentError.asString(), color = MaterialTheme.colorScheme.error)
+                        Button(onClick = onRefresh, modifier = Modifier.heightIn(min = TouchSize)) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
+                }
+                state.dtcs.isEmpty() && !state.isLoading -> PullableBox {
+                    EmptyState(
+                        icon = Icons.Default.CheckCircle,
+                        text = stringResource(R.string.dtc_empty),
+                        modifier = Modifier.height(maxHeight),
+                    )
+                }
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.dtcs, key = { it.code }) { dtc -> DtcRow(dtc) }
                 }

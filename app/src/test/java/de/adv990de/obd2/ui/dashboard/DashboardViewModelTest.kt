@@ -1794,6 +1794,147 @@ class DashboardViewModelTest {
         assertTrue(vm.uiState.value.readings.isNotEmpty())
     }
 
+    // ── B24/B23: the link is up before the first values; values for no slot are still "live" ──
+
+    private fun makeStaleVm(repo: ObdRepository, prefs: AppPreferences = makePrefs()): DashboardViewModel {
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        return makeVmFrom(repo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+    }
+
+    @Test
+    fun `a link that is up shows connected at once and waits for the first readings`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { kotlinx.coroutines.awaitCancellation() }))
+        assertFalse(vm.uiState.value.isConnected)
+
+        isConnected.value = true
+        advanceTimeBy(100)
+
+        val state = vm.uiState.value
+        assertTrue("Link steht = verbunden, nicht 'Vorschau · nicht verbunden'", state.isConnected)
+        assertTrue("noch keine Werte: wartet", state.awaitingFirstValues)
+        assertTrue(state.readings.isEmpty())
+        assertFalse(state.isReconnecting)
+        assertNull(state.error)
+    }
+
+    @Test
+    fun `the first readings end the waiting`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() }))
+
+        isConnected.value = true
+        advanceTimeBy(1_000)
+
+        assertTrue(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.awaitingFirstValues)
+        assertTrue(vm.uiState.value.readings.isNotEmpty())
+    }
+
+    @Test
+    fun `a silent ECU from the start turns waiting into stale`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { kotlinx.coroutines.awaitCancellation() }))
+        isConnected.value = true
+        advanceTimeBy(100)
+        assertTrue(vm.uiState.value.awaitingFirstValues)
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
+
+        assertTrue(vm.uiState.value.isStale)
+        assertFalse("kein 'warte' neben 'keine aktuellen Werte'", vm.uiState.value.awaitingFirstValues)
+    }
+
+    @Test
+    fun `values for none of the slots keep the display live - connected, not waiting, not stale (B23)`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        // Alle vier Slots belegen PIDs, die das Steuergeraet nicht liefert; RPM und Kuehlmittel werden immer abgefragt.
+        val slots = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id, PidRegistry.INTAKE_AIR_TEMP.id, PidRegistry.MAF.id)
+        val delivered = listOf(
+            SensorValue(pid = PidRegistry.RPM, value = 2500f, timestamp = 1000L),
+            SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 90f, timestamp = 1000L),
+        )
+        val vm = makeStaleVm(
+            staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(delivered); kotlinx.coroutines.awaitCancellation() }),
+            prefs = makePrefs(slotIds = slots),
+        )
+
+        isConnected.value = true
+        advanceTimeBy(1_000)
+
+        val state = vm.uiState.value
+        assertTrue(state.isConnected)
+        assertFalse("es fliessen Werte - nicht 'warte'", state.awaitingFirstValues)
+        assertFalse(state.isStale)
+        assertTrue("keiner gehoert zu einem Slot: ${state.readings}", state.readings.isEmpty())
+        assertEquals("die Drehzahl wird trotzdem gefuehrt", 2500f, state.rpmValue, 0f)
+    }
+
+    @Test
+    fun `a link lost while waiting leaves no waiting flag behind - the reconnect state stays clean`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow {
+            delay(1_000)
+            isConnected.value = false
+            throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
+        })
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val prefs = makePrefs()
+        val vm = DashboardViewModel(
+            repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
+            ReadingsPipeline(repo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
+            SavedStateHandle(),
+        )
+        isConnected.value = true
+        advanceTimeBy(100)
+        assertTrue(vm.uiState.value.awaitingFirstValues)
+
+        advanceTimeBy(2_000)
+
+        assertTrue("der Reconnect laeuft", vm.uiState.value.isReconnecting)
+        assertFalse("kein 'warte' in den Reconnect mitnehmen", vm.uiState.value.awaitingFirstValues)
+    }
+
+    @Test
+    fun `a reported connection loss means not connected even if isConnectedFlow has not flipped yet`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        // isConnectedFlow wird bewusst NICHT gekippt: Die Reihenfolge von Idle-Ereignis und Verlustmeldung ist nicht garantiert.
+        val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow {
+            delay(1_000)
+            throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
+        })
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val prefs = makePrefs()
+        val vm = DashboardViewModel(
+            repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
+            ReadingsPipeline(repo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
+            SavedStateHandle(),
+        )
+        isConnected.value = true
+        advanceTimeBy(100)
+        assertTrue(vm.uiState.value.isConnected)
+
+        advanceTimeBy(2_000)
+
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertFalse("verloren heisst nicht verbunden", vm.uiState.value.isConnected)
+    }
+
+    @Test
+    fun `losing the link ends the waiting`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { kotlinx.coroutines.awaitCancellation() }))
+        isConnected.value = true
+        advanceTimeBy(100)
+        assertTrue(vm.uiState.value.awaitingFirstValues)
+
+        isConnected.value = false
+        advanceTimeBy(100)
+
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.awaitingFirstValues)
+    }
+
     @Test
     fun `a link lost while stale ends the stale state too - the reconnect spinner takes over`() = runTest {
         val isConnected = MutableStateFlow(false)
@@ -2359,7 +2500,10 @@ class DashboardViewModelTest {
                 }
             }
         }
-        val obdRepo = mockk<ObdRepository> { every { supportedPidIds } returns MutableStateFlow(null) }
+        val obdRepo = mockk<ObdRepository> {
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { isConnectedFlow } returns MutableStateFlow(false)
+        }
         val vm = DashboardViewModel(
             obdRepo, makePrefs(), mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(),
         ).also { it.nowMillis = { testScheduler.currentTime } }

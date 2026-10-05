@@ -27,6 +27,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -334,6 +335,32 @@ internal fun SettingsSwitchRow(
             .heightIn(min = SettingsRowMinHeight)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
     )
+}
+
+/**
+ * Hinweis unter einer Einstellung, deren Berechtigung fehlt (B10, B21): was nicht geht und ein Knopf zu den
+ * App-Einstellungen. Der Knopf oeffnet immer die Systemeinstellungen statt den Dialog erneut anzufordern —
+ * nach zweimaligem Ablehnen zeigt Android ihn ohnehin nicht mehr, dort ist das der einzige Weg. Text in
+ * `colorScheme.error` (Empty-State-/Hinweis-Fehlertext, s. CLAUDE.md), Knopf >= 56 dp.
+ */
+@Composable
+internal fun PermissionHintRow(
+    text: String,
+    buttonLabel: String,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+        TextButton(
+            onClick = onOpenSettings,
+            modifier = Modifier.heightIn(min = SettingsRowMinHeight),
+        ) { Text(buttonLabel) }
+    }
 }
 
 // region — Previews

@@ -30,7 +30,7 @@ class GpsSpeedSourceTest {
      * registrierte Rueckmeldung fest, damit der Test Fixe von Hand einspielen kann.
      */
     private class FakeProvider(
-        private val permitted: Boolean = true,
+        var permitted: Boolean = true,
         private val registrationFails: Boolean = false,
     ) : LocationSpeedProvider {
 
@@ -59,11 +59,44 @@ class GpsSpeedSourceTest {
         val received = mutableListOf<Float?>()
 
         val job = launch { GpsSpeedSource(provider).speedKmh.toList(received) }
-        advanceUntilIdle()
+        advanceTimeBy(1); runCurrent()   // NICHT advanceUntilIdle(): die Berechtigungs-Pruefung laeuft endlos weiter
         job.cancel()
 
         assertEquals(listOf<Float?>(null), received)
         assertFalse("Ohne Berechtigung darf nichts registriert werden", provider.startUpdatesCalled)
+    }
+
+    // --- B10: a permission granted LATER must start the updates without anyone toggling the switch ---
+
+    @Test
+    fun `a permission granted later starts the updates by itself`() = runTest {
+        val provider = FakeProvider(permitted = false)
+        val received = mutableListOf<Float?>()
+        val job = launch { GpsSpeedSource(provider).speedKmh.toList(received) }
+        advanceTimeBy(GpsSpeedSource.PERMISSION_RECHECK_MS * 3); runCurrent()
+        assertFalse("noch keine Berechtigung: nichts registrieren", provider.startUpdatesCalled)
+
+        provider.permitted = true                       // im System-Dialog oder in den App-Einstellungen erteilt
+        advanceTimeBy(GpsSpeedSource.PERMISSION_RECHECK_MS + 1); runCurrent()
+        assertTrue("die Updates laufen an", provider.startUpdatesCalled)
+        provider.onSpeed!!.invoke(10f)
+        runCurrent()
+        job.cancel()
+
+        assertEquals(listOf<Float?>(null, 36f), received)
+    }
+
+    @Test
+    fun `cancelling while the permission is still missing ends the check`() = runTest {
+        val provider = FakeProvider(permitted = false)
+        val job = launch { GpsSpeedSource(provider).speedKmh.toList(mutableListOf()) }
+        advanceTimeBy(GpsSpeedSource.PERMISSION_RECHECK_MS * 2); runCurrent()
+
+        job.cancel(); job.join()
+
+        provider.permitted = true
+        advanceTimeBy(GpsSpeedSource.PERMISSION_RECHECK_MS * 3); runCurrent()
+        assertFalse("nach dem Abbruch registriert niemand mehr etwas", provider.startUpdatesCalled)
     }
 
     // --- Test 2 ---
