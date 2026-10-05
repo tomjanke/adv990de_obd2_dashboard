@@ -55,7 +55,7 @@ class DashboardStatusDotTest {
 
     @Test
     fun `Connecting is a real fixed yellow, not theme primary`() {
-        assertEquals(Color(0xFFEAB308), connectionDotColor(StatusDotState.Connecting))
+        assertEquals(StatusColors.Warning, connectionDotColor(StatusDotState.Connecting))
     }
 
     @Test

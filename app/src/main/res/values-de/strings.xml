@@ -4,6 +4,7 @@
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
     <string name="app_label">BOM</string>
     <string name="dashboard_slot_empty">Lang drücken, um einen Sensor zu belegen</string>
+    <string name="dashboard_slot_change_action">Messwert ändern</string>
     <string name="dashboard_slot_unsupported">Vom Fahrzeug nicht unterstützt</string>
     <string name="dashboard_slot_waiting_gps">Warte auf GPS-Signal</string>
     <string name="dashboard_slot_gps_permission">Standortberechtigung fehlt</string>
@@ -17,6 +18,8 @@
     <string name="dashboard_bt_connected_desc">Bluetooth verbunden</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth getrennt</string>
     <string name="dashboard_bt_connecting_desc">Bluetooth verbindet</string>
+    <string name="dashboard_rpm_bar_desc">Drehzahl %1$d rpm</string>
+    <string name="dashboard_rpm_bar_unavailable_desc">Drehzahl nicht verfügbar</string>
     <string name="dashboard_gear_desc">Gang %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gang unbekannt</string>
     <string name="dashboard_gear_neutral_desc">Leerlauf</string>
@@ -50,6 +53,12 @@
     <string name="app_info_name_label">App</string>
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
+    <string name="app_info_crash_reports_label">Absturzberichte</string>
+    <string name="app_info_crash_reports_on">An — Übertragung an Sentry (in den Einstellungen abschaltbar)</string>
+    <string name="app_info_crash_reports_off">Aus (in den Einstellungen abgeschaltet)</string>
+    <string name="app_info_crash_reports_not_included">In dieser Version nicht enthalten — es wird nichts gesendet</string>
+    <string name="settings_crash_reports_title">Absturzberichte senden</string>
+    <string name="settings_crash_reports_summary">Sendet bei einem Absturz oder unerwarteten Fehler technische Fehlerdetails, Gerätemodell und Android-Version an Sentry.</string>
     <string name="app_info_weather_attribution">Wetterdaten: Open-Meteo.com (CC BY 4.0)</string>
     <string name="app_info_weather_license">Lizenz: CC BY 4.0</string>
     <!-- TalkBack-Aktionsbezeichnung der Namensnennungs-Zeile ("Zum Website öffnen doppeltippen") -->

@@ -7,6 +7,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
@@ -96,6 +98,39 @@ class RpmThresholdSectionTest {
         composeRule
             .onNodeWithText(composeRule.activity.getString(R.string.dashboard_rpm_threshold_disabled))
             .assertIsDisplayed()
+    }
+
+    // --- QS C (UID-13/SCR-18): the slider says what it controls and what it is set to ---
+
+    @Test
+    fun slider_isDescribedByItsPurposeAndStateText_forAConcreteValue() {
+        composeRule.setContent {
+            RpmThresholdSection(
+                rpmBlinkThreshold = 3000, rpmDynamicThreshold = false,
+                onThresholdChangeFinished = {}, onDynamicThresholdChange = {},
+            )
+        }
+
+        composeRule.onNode(sliderNode)
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.dashboard_rpm_threshold_label))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "3000 rpm"))
+    }
+
+    @Test
+    fun slider_stateText_saysDisabled_atZero_notABarePercentage() {
+        composeRule.setContent {
+            RpmThresholdSection(
+                rpmBlinkThreshold = 0, rpmDynamicThreshold = false,
+                onThresholdChangeFinished = {}, onDynamicThresholdChange = {},
+            )
+        }
+
+        composeRule.onNode(sliderNode).assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                composeRule.activity.getString(R.string.dashboard_rpm_threshold_disabled),
+            )
+        )
     }
 
     @Test

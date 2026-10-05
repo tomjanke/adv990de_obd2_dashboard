@@ -39,6 +39,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import de.adv990de.obd2.crash.CrashReportingStatus
+import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -66,8 +71,12 @@ internal const val WEATHER_LICENSE_TEST_TAG = "app_info_weather_license"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppInfoScreen(navController: NavController) {
+fun AppInfoScreen(
+    navController: NavController,
+    crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
+    val crashStatus by crashVm.status.collectAsState()
     val packageInfo = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
@@ -103,6 +112,18 @@ fun AppInfoScreen(navController: NavController) {
             InfoRow(stringResource(R.string.app_info_version_label), packageInfo.versionName ?: "-")
             HorizontalDivider()
             InfoRow(stringResource(R.string.app_info_build_label), versionCode.toString())
+            HorizontalDivider()
+            // Was mit Fehlerdaten passiert, steht in der App selbst (QS B33/SEC-10: Sentry war nirgends offengelegt).
+            InfoRow(
+                stringResource(R.string.app_info_crash_reports_label),
+                stringResource(
+                    when (crashStatus) {
+                        CrashReportingStatus.On -> R.string.app_info_crash_reports_on
+                        CrashReportingStatus.Off -> R.string.app_info_crash_reports_off
+                        CrashReportingStatus.NotIncluded -> R.string.app_info_crash_reports_not_included
+                    }
+                ),
+            )
             HorizontalDivider()
             WeatherAttributionRow(onClick = { openInBrowser(context, OPEN_METEO_URL) })
             HorizontalDivider()

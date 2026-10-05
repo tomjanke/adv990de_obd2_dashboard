@@ -120,6 +120,9 @@ fun LiveValueTile(
     isPreview: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
+    /** Was der Long-Press tut, fuer Screenreader ("Messwert aendern") — ohne sie sagt TalkBack nur "Doppeltippen und
+     *  halten". Gehoert zu [onLongPress]; die Kachel selbst kennt die Domaene nicht. */
+    onLongPressLabel: String? = null,
 ) {
     // Im Vorschau-Zustand traegt die Kachel keine Statusfarbe: Eine gruene oder rote Akzentleiste
     // ueber einem Wert, den kein Fahrzeug geliefert hat, waere eine Aussage ohne Grundlage.
@@ -141,6 +144,7 @@ fun LiveValueTile(
             indication = ripple(color = accentColor),
             onClick = { onClick?.invoke() },
             onLongClick = { onLongPress?.invoke() },
+            onLongClickLabel = onLongPressLabel,
         )
     } else modifier
     Surface(

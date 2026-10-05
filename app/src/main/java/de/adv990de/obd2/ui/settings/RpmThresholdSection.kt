@@ -13,6 +13,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -67,13 +70,21 @@ internal fun RpmThresholdSection(
         headlineContent = { Text(stringResource(R.string.dashboard_rpm_threshold_label)) },
         supportingContent = { Text(thresholdLabel) }
     )
+    val sliderDescription = stringResource(R.string.dashboard_rpm_threshold_label)
     Slider(
         value = localThreshold.toFloat(),
         onValueChange = { localThreshold = it.toInt() },
         onValueChangeFinished = { onThresholdChangeFinished(localThreshold) },
         valueRange = 0f..10000f,
         steps = 19,
-        modifier = Modifier.padding(horizontal = 16.dp)
+        // Ohne das liest TalkBack nur "Schieberegler, 60 Prozent": weder wofuer, noch dass 0 "aus" heisst und der Wert in
+        // rpm gemeint ist (UID-13). Die sichtbare Zeile darueber ist ein eigener Knoten und gehoert nicht zum Slider.
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .semantics {
+                contentDescription = sliderDescription
+                stateDescription = thresholdLabel
+            }
     )
     HorizontalDivider()
     if (localThreshold > 0) {

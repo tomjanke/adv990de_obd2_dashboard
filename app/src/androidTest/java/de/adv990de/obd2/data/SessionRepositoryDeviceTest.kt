@@ -111,4 +111,44 @@ class SessionRepositoryDeviceTest {
 
         assertEquals(emptyList<Long>(), repo.sessionIds.first())
     }
+
+    // ── CSV export (QS C: DAT-06/07/09) ───────────────────────────────────────────────────────────────
+
+    @Test
+    fun exportQuery_needsNoSortStep_soMemoryStaysConstantOnLongTrips() {
+        // DAT-09: ORDER BY timestamp made SQLite read and sort ALL rows of the trip before writing the first one.
+        // ORDER BY id is satisfied by the sessionId index (it carries the rowid) — no temp b-tree.
+        val plan = db.openHelper.readableDatabase
+            .query("EXPLAIN QUERY PLAN $EXPORT_QUERY_SQL", arrayOf<Any>(1L))
+            .use { c ->
+                val detail = c.getColumnIndexOrThrow("detail")
+                generateSequence { if (c.moveToNext()) c.getString(detail) else null }.toList()
+            }
+        val text = plan.joinToString(" | ")
+
+        assertEquals("kein Sortierlauf: $text", false, text.contains("TEMP B-TREE", ignoreCase = true))
+        assertEquals("nutzt den Index auf sessionId: $text", true, text.contains("index_sensor_readings_sessionId"))
+    }
+
+    @Test
+    fun exportToCsv_writesTheTripsRowsInRecordingOrder_andNothingOfOtherTrips() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exportDir = java.io.File(ctx.cacheDir, "exports").also { it.deleteRecursively() }
+        val trip = repo.startSession()
+        val other = repo.startSession()
+        // Recording order differs from timestamp order (a clock jump during the trip): the file keeps the recording order.
+        for ((ts, pid) in listOf(300L to "010C", 100L to "0105", 200L to "01FF")) {
+            db.sensorReadingDao().insert(SensorReadingEntity(sessionId = trip, timestamp = ts, pidId = pid, value = 1.5f))
+        }
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = other, timestamp = 1L, pidId = "010C", value = 9f))
+
+        repo.exportToCsv(trip)
+
+        val file = exportDir.listFiles()!!.single()
+        assertEquals(
+            "timestamp,pid,value,name\n300,010C,1.5,RPM\n100,0105,1.5,Coolant Temp\n200,01FF,1.5,\n",
+            file.readText()
+        )
+    }
 }
+

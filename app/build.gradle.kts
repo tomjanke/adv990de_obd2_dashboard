@@ -137,7 +137,7 @@ dependencies {
     implementation(libs.paging.runtime)
     implementation(libs.paging.compose)
     implementation(libs.room.paging)
-    implementation(libs.sentry.android)
+    implementation(libs.sentry.android.core)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

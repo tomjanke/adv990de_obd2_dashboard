@@ -58,7 +58,7 @@ fun previewBannerReason(isConnected: Boolean, isReconnecting: Boolean, error: Ui
  */
 fun connectionDotColor(state: StatusDotState): Color = when (state) {
     StatusDotState.Ok         -> StatusColors.TrafficLightGreen
-    StatusDotState.Connecting -> Color(0xFFEAB308) // Tailwind Yellow 500
+    StatusDotState.Connecting -> StatusColors.Warning // Tailwind Yellow 500 (#EAB308) — dasselbe Gelb, ein Token
     StatusDotState.Critical   -> StatusColors.Critical
     StatusDotState.Warning    -> StatusColors.Warning
 }

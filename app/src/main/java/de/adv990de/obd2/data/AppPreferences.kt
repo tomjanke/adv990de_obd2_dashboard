@@ -55,6 +55,7 @@ class AppPreferences @Inject constructor(
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
+        private val KEY_CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
         private val KEY_BACKGROUND_LOCATION_PROMPTED = booleanPreferencesKey("background_location_prompted")
         private val KEY_WEATHER_LOCATION_PROMPTED = booleanPreferencesKey("weather_location_prompted")
@@ -194,6 +195,19 @@ class AppPreferences @Inject constructor(
 
     suspend fun setHideNavOnDrive(enabled: Boolean) {
         dataStore.edit { it[KEY_HIDE_NAV_ON_DRIVE] = enabled }
+    }
+
+    /**
+     * Ob Absturzberichte an Sentry gehen duerfen (nur wirksam, wenn die Version mit DSN gebaut ist, s.
+     * `CrashReportingController`). Standard an: Eine Version mit DSN meldete schon vor diesem Schalter — er aendert
+     * das Verhalten nur fuer den, der ihn ausschaltet.
+     */
+    val crashReportsEnabled: Flow<Boolean> = data.map { prefs ->
+        prefs[KEY_CRASH_REPORTS_ENABLED] ?: true
+    }
+
+    suspend fun setCrashReportsEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_CRASH_REPORTS_ENABLED] = enabled }
     }
 
     /** Geschwindigkeit aus dem GPS, wenn das Fahrzeug PID 010D nicht liefert. Standard aus:

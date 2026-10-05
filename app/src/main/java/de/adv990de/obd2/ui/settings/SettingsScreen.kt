@@ -57,6 +57,9 @@ import de.adv990de.obd2.ui.navigation.Screen
  *  no effect on production behavior. */
 internal const val GPS_SPEED_SWITCH_TEST_TAG = "settings_gps_speed_switch"
 
+/** Test-only selector for the crash-reports switch (only present in a build with a DSN). */
+internal const val CRASH_REPORTS_SWITCH_TEST_TAG = "settings_crash_reports_switch"
+
 /** Test-only selectors of the two permission hint rows under the GPS and hide-nav switches. */
 internal const val GPS_PERMISSION_HINT_TEST_TAG = "settings_gps_permission_hint"
 internal const val WEATHER_PERMISSION_HINT_TEST_TAG = "settings_weather_permission_hint"
@@ -131,7 +134,8 @@ fun SettingsScreen(
     vm: SettingsViewModel = hiltViewModel(),
     recordingVm: RecordingSettingsViewModel = hiltViewModel(),
     driveVm: DriveStateViewModel = hiltViewModel(),
-    displayVm: DisplaySettingsViewModel = hiltViewModel()
+    displayVm: DisplaySettingsViewModel = hiltViewModel(),
+    crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsState()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
@@ -486,6 +490,20 @@ fun SettingsScreen(
 
             // ═══ Info & Wartung ══════════════════════════════════════════
             item { SettingsGroupHeader(stringResource(R.string.settings_group_info)) }
+            // Nur in einer Version mit eingebautem DSN: ohne ihn gibt es nichts, was dieser Schalter abschalten koennte (QS B33).
+            if (crashVm.available) {
+                item {
+                    val crashReportsEnabled by crashVm.enabled.collectAsState()
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.settings_crash_reports_title),
+                        summary = stringResource(R.string.settings_crash_reports_summary),
+                        checked = crashReportsEnabled,
+                        onCheckedChange = { crashVm.setEnabled(it) },
+                        modifier = Modifier.testTag(CRASH_REPORTS_SWITCH_TEST_TAG),
+                    )
+                    HorizontalDivider()
+                }
+            }
             item {
                 SettingsLinkRow(
                     title = stringResource(R.string.settings_app_logs),

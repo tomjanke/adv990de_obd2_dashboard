@@ -28,6 +28,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -198,4 +199,27 @@ class LiveValueTileTest {
             short.size.height > long.size.height,
         )
     }
+
+    // --- QS C (UID-13/SCR-18): the long press is the ONLY way to assign a sensor — TalkBack must be able to name it ---
+
+    @Test
+    fun longPress_carriesAnAccessibilityLabel_whenOneIsGiven() {
+        composeRule.setContent {
+            LiveValueTile(
+                label = label, value = "87", unit = "°C",
+                onLongPress = {}, onLongPressLabel = "Messwert ändern",
+            )
+        }
+
+        val action = composeRule.onNodeWithText(label).fetchSemanticsNode().config[SemanticsActions.OnLongClick]
+        assertEquals("Messwert ändern", action.label)
+    }
+
+    @Test
+    fun aTileWithoutLongPress_hasNoLongClickAction() {
+        composeRule.setContent { LiveValueTile(label = label, value = "87", unit = "°C") }
+
+        assertEquals(false, composeRule.onNodeWithText(label).fetchSemanticsNode().config.contains(SemanticsActions.OnLongClick))
+    }
 }
+

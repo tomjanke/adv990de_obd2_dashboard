@@ -55,7 +55,9 @@ json = { group = "org.json", name = "json", version = "20260814" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 paging-runtime = { group = "androidx.paging", name = "paging-runtime-ktx", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
-sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+# Nur der Kern: das Sammelpaket io.sentry:sentry-android zieht den Native-Handler (libsentry.so, ~0,5-0,7 MB je ABI) und Replay
+# nach, die die App nicht braucht (kein eigener Native-Code, keine Bildschirmaufzeichnung). QS B33.
+sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
 mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }

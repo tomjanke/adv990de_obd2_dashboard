@@ -457,10 +457,20 @@ class SessionRepositoryTest {
     // are stubbed. Everything else (directory creation, CSV writing, column order, formatting) is
     // real and verified by reading the file back from disk.
 
-    @Test
-    fun `exportToCsv writes header and rows to a real CSV file in query order`() = runTest {
+    /** The one file the export wrote (its name carries the export time). */
+    private fun exportedFiles(): List<File> =
+        File(tempFolder.root, "exports").listFiles()!!.filter { it.isFile }.sortedBy { it.name }
+
+    private fun stubExportEnvironment() {
         every { context.cacheDir } returns tempFolder.root
         every { context.packageName } returns "de.adv990de.obd2"
+        mockkStatic(FileProvider::class)
+        every { FileProvider.getUriForFile(any(), any(), any()) } returns mockk<Uri>()
+    }
+
+    @Test
+    fun `exportToCsv writes header and rows to a real CSV file in query order`() = runTest {
+        stubExportEnvironment()
         val queryCaptor = slot<SupportSQLiteQuery>()
         every { sensorReadingDao.getBySessionCursor(capture(queryCaptor)) } returns makeCursor(
             listOf(
@@ -468,8 +478,6 @@ class SessionRepositoryTest {
                 Triple(2_000L, "010D", 80.5f)
             )
         )
-        mockkStatic(FileProvider::class)
-        every { FileProvider.getUriForFile(any(), any(), any()) } returns mockk<Uri>()
 
         val uri = repo.exportToCsv(sessionId = 7L)
 
@@ -479,25 +487,82 @@ class SessionRepositoryTest {
             "query should filter sensor_readings by the given sessionId",
             queryCaptor.captured.sql.contains("WHERE sessionId = ?")
         )
+        assertEquals("the export uses the shared query constant", EXPORT_QUERY_SQL, queryCaptor.captured.sql)
 
-        val exportedFile = File(File(tempFolder.root, "exports"), "session_7.csv")
+        val files = exportedFiles()
+        assertEquals(1, files.size)
+        assertTrue("name carries the trip id: ${files[0].name}", files[0].name.startsWith("session_7_"))
         assertEquals(
-            "timestamp,pid,value\n1000,010C,1200.0\n2000,010D,80.5\n",
-            exportedFile.readText()
+            "timestamp,pid,value,name\n1000,010C,1200.0,RPM\n2000,010D,80.5,Speed\n",
+            files[0].readText()
         )
     }
 
     @Test
     fun `exportToCsv writes only the header row when the session has no readings`() = runTest {
-        every { context.cacheDir } returns tempFolder.root
-        every { context.packageName } returns "de.adv990de.obd2"
+        stubExportEnvironment()
         every { sensorReadingDao.getBySessionCursor(any()) } returns makeCursor(emptyList())
-        mockkStatic(FileProvider::class)
-        every { FileProvider.getUriForFile(any(), any(), any()) } returns mockk<Uri>()
 
         repo.exportToCsv(sessionId = 99L)
 
-        val exportedFile = File(File(tempFolder.root, "exports"), "session_99.csv")
-        assertEquals("timestamp,pid,value\n", exportedFile.readText())
+        assertEquals("timestamp,pid,value,name\n", exportedFiles().single().readText())
+    }
+
+    @Test
+    fun `a PID the registry does not know gets an empty name, not a crash`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } returns makeCursor(listOf(Triple(5L, "01FF", 1f)))
+
+        repo.exportToCsv(sessionId = 1L)
+
+        assertEquals("timestamp,pid,value,name\n5,01FF,1.0,\n", exportedFiles().single().readText())
+    }
+
+    @Test
+    fun `two exports of the same trip are two files - the second never deletes what the first share is reading (DAT-06)`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } answers { makeCursor(listOf(Triple(1L, "010C", 1f))) }
+
+        repo.exportToCsv(sessionId = 7L)
+        repo.exportToCsv(sessionId = 7L)
+
+        assertEquals(2, exportedFiles().size)
+    }
+
+    @Test
+    fun `an export removes exports older than a day first (DAT-07)`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } returns makeCursor(emptyList())
+        val dir = File(tempFolder.root, "exports").also { it.mkdirs() }
+        val stale = File(dir, "session_1_20200101T000000000Z.csv").also {
+            it.writeText("old"); it.setLastModified(System.currentTimeMillis() - EXPORT_MAX_AGE_MS - 60_000)
+        }
+        val fresh = File(dir, "session_2_20261005T000000000Z.csv").also { it.writeText("fresh") }
+
+        repo.exportToCsv(sessionId = 3L)
+
+        assertTrue("alter Export weg", !stale.exists())
+        assertTrue("junger Export bleibt", fresh.exists())
+    }
+
+    @Test
+    fun `a failing export leaves no half-written file behind`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } throws IllegalStateException("database is locked")
+
+        try { repo.exportToCsv(sessionId = 7L) } catch (_: IllegalStateException) { }
+
+        assertTrue("keine Reste im Export-Ordner", exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `purgeStaleExports removes only the old exports and reports how many`() = runTest {
+        every { context.cacheDir } returns tempFolder.root
+        val dir = File(tempFolder.root, "exports").also { it.mkdirs() }
+        File(dir, "session_1_a.csv").also { it.writeText("x"); it.setLastModified(System.currentTimeMillis() - EXPORT_MAX_AGE_MS - 60_000) }
+        File(dir, "session_2_b.csv").writeText("y")
+
+        assertEquals(1, repo.purgeStaleExports())
+        assertEquals(listOf("session_2_b.csv"), exportedFiles().map { it.name })
     }
 }

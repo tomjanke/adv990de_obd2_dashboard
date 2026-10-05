@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.convertUnit
+import de.adv990de.obd2.obd.formatSensorNumber
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.UiText
@@ -62,6 +63,7 @@ import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.GearIndicatorStyle
+import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -196,6 +198,10 @@ internal fun gearBoxColor(content: GearBoxContent, engagedColor: Color, unknownC
         GearBoxContent.Unknown -> unknownColor
     }
 
+/** Die Drehzahl, wie der Screenreader sie ansagt: auf 100 gerundet und nie negativ. */
+internal fun rpmForSpeech(rpm: Float): Int =
+    if (rpm.isNaN() || rpm.isInfinite() || rpm <= 0f) 0 else (Math.round(rpm / 100f) * 100)
+
 @Composable
 internal fun RpmBar(
     rpm: Float,
@@ -263,7 +269,15 @@ internal fun RpmBar(
         // Segmente und Leiste zu einer Flaeche, sobald beide gleich gefaerbt sind — grau auf grau
         // ohne Verbindung, rot auf rot bei kaltem Motor im Schaltblitz-Bereich.
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            Box(modifier = Modifier.weight(0.8f).fillMaxWidth()) {
+            // Der Segmentbalken war ein nacktes Canvas — fuer TalkBack unsichtbar (UID-13). Die Beschreibung nennt die Drehzahl
+            // auf 100 gerundet, damit der Screenreader bei der 20-Hz-Demo-Bewegung nicht bei jedem Schritt spricht; ohne
+            // Verbindung gibt es keine Drehzahl, die man ansagen koennte.
+            val rpmDescription = if (isLive) {
+                stringResource(R.string.dashboard_rpm_bar_desc, rpmForSpeech(rpm))
+            } else {
+                stringResource(R.string.dashboard_rpm_bar_unavailable_desc)
+            }
+            Box(modifier = Modifier.weight(0.8f).fillMaxWidth().semantics { contentDescription = rpmDescription }) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -402,7 +416,11 @@ internal fun SensorCardSlot(
         Surface(
             modifier = modifier
                 .fillMaxSize()
-                .combinedClickable(onClick = {}, onLongClick = { onLongPress?.invoke() }),
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { onLongPress?.invoke() },
+                    onLongClickLabel = stringResource(R.string.dashboard_slot_change_action),
+                ),
             shape = RectangleShape,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
@@ -507,8 +525,7 @@ internal fun SensorCard(
     val displayValue = when {
         !isLive -> "--"
         value.value.isNaN() || value.value.isInfinite() -> "--"
-        value.pid.unit == "V" -> "%.1f".format(convertedValue)
-        else -> "%.0f".format(convertedValue)
+        else -> formatSensorNumber(convertedValue, value.pid.unit)
     }
     val pidLabel = stringResource(value.pid.labelRes)
     LiveValueTile(
@@ -520,6 +537,8 @@ internal fun SensorCard(
         status = if (isLive) pidTileStatus(value.pid.id, value.value) else TileStatus.Ok,
         isPreview = !isLive,
         onLongPress = onLongPress,
+        // Das Neubelegen per Long-Press ist die einzige Geste dafuer — TalkBack soll sie beim Namen nennen (UID-13).
+        onLongPressLabel = stringResource(R.string.dashboard_slot_change_action),
         modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
     )
 }
@@ -546,31 +565,34 @@ internal fun SlotPickerSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
-        LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
-            items(availablePids, key = { it.id }) { pid ->
-                val reading = readings.firstOrNull { it.pid.id == pid.id }
-                val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                    "${stringResource(pid.labelRes)}: -- (${pid.unit})"
-                } else {
-                    val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
-                    val formatted = if (pid.unit == "V") "%.1f".format(convertedValue)
-                                    else "%.0f".format(convertedValue)
-                    "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
+        // Das Sheet ist ein eigenes Fenster mit eigener ViewConfiguration: die 56-dp-Regel aus AppTheme gilt nur,
+        // wenn sie hier erneut gesetzt wird (s. ProvideMinTouchTarget).
+        ProvideMinTouchTarget {
+            LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
+                items(availablePids, key = { it.id }) { pid ->
+                    val reading = readings.firstOrNull { it.pid.id == pid.id }
+                    val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
+                        "${stringResource(pid.labelRes)}: -- (${pid.unit})"
+                    } else {
+                        val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
+                        val formatted = formatSensorNumber(convertedValue, pid.unit)
+                        "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
+                    }
+                    ListItem(
+                        modifier = Modifier.clickable { onSelect(pid.id) },
+                        headlineContent = { Text(label) },
+                        trailingContent = if (pid.id == currentPidId) {
+                            {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else null
+                    )
+                    HorizontalDivider()
                 }
-                ListItem(
-                    modifier = Modifier.clickable { onSelect(pid.id) },
-                    headlineContent = { Text(label) },
-                    trailingContent = if (pid.id == currentPidId) {
-                        {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else null
-                )
-                HorizontalDivider()
             }
         }
     }

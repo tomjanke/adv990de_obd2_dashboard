@@ -1,6 +1,12 @@
 package de.adv990de.obd2.ui.loggingconfig
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -172,6 +178,24 @@ class LoggingConfigScreenTest {
 
         waitUntilLoggedPidIds { PidRegistry.ACCELERATOR_PEDAL_POS.id in it }
         assertTrue(PidRegistry.ACCELERATOR_PEDAL_POS.id in runBlocking { appPreferences.loggedPidIds.first() })
+    }
+
+    // --- QS C (UID-13/SCR-18): the row is a checkbox for TalkBack, with its state ---
+
+    @Test
+    fun pidRow_reportsItsCheckedState_asACheckboxRole() {
+        runBlocking { appPreferences.setLoggedPids(AppPreferences.ALL_PID_IDS - PidRegistry.ACCELERATOR_PEDAL_POS.id) } // off
+        launchLoggingConfigScreen()
+        val rowLabel = "${composeRule.activity.getString(PidRegistry.ACCELERATOR_PEDAL_POS.labelRes)}: -- (${PidRegistry.ACCELERATOR_PEDAL_POS.unit})"
+
+        composeRule.onNodeWithText(rowLabel)
+            .assertIsOff()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox))
+
+        composeRule.onNodeWithText(rowLabel).performClick()
+        waitUntilLoggedPidIds { PidRegistry.ACCELERATOR_PEDAL_POS.id in it }
+
+        composeRule.onNodeWithText(rowLabel).assertIsOn()
     }
 
     // --- row label+value assembly ---

@@ -4,6 +4,7 @@
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
     <string name="app_label">BOM</string>
     <string name="dashboard_slot_empty">Long-press to assign a sensor</string>
+    <string name="dashboard_slot_change_action">Change sensor</string>
     <string name="dashboard_slot_unsupported">Not provided by this vehicle</string>
     <string name="dashboard_slot_waiting_gps">Waiting for a GPS fix</string>
     <string name="dashboard_slot_gps_permission">Location permission missing</string>
@@ -17,6 +18,8 @@
     <string name="dashboard_bt_connected_desc">Bluetooth connected</string>
     <string name="dashboard_bt_disconnected_desc">Bluetooth disconnected</string>
     <string name="dashboard_bt_connecting_desc">Bluetooth connecting</string>
+    <string name="dashboard_rpm_bar_desc">Engine speed %1$d rpm</string>
+    <string name="dashboard_rpm_bar_unavailable_desc">Engine speed not available</string>
     <string name="dashboard_gear_desc">Gear %1$d</string>
     <string name="dashboard_gear_unknown_desc">Gear unknown</string>
     <string name="dashboard_gear_neutral_desc">Neutral</string>
@@ -50,6 +53,12 @@
     <string name="app_info_name_label">App</string>
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
+    <string name="app_info_crash_reports_label">Crash reports</string>
+    <string name="app_info_crash_reports_on">On — sent to Sentry (can be turned off in the settings)</string>
+    <string name="app_info_crash_reports_off">Off (turned off in the settings)</string>
+    <string name="app_info_crash_reports_not_included">Not included in this version — nothing is sent</string>
+    <string name="settings_crash_reports_title">Send crash reports</string>
+    <string name="settings_crash_reports_summary">Sends technical error details, the device model and the Android version to Sentry when the app crashes or fails unexpectedly.</string>
     <string name="app_info_weather_attribution">Weather data: Open-Meteo.com (CC BY 4.0)</string>
     <!-- TalkBack action label for the attribution row ("Double-tap to open website") -->
     <string name="app_info_open_website">open website</string>

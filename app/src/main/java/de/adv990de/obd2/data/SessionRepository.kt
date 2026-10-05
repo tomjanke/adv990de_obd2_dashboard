@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -145,30 +146,55 @@ class SessionRepository @Inject constructor(
     }
 
     /**
+     * Retention for the exported CSV files (see [exportToCsv]): removes the ones older than a day. Runs once per app
+     * start from [DataRetention]; an export also cleans up before it writes. Returns how many files were deleted.
+     */
+    suspend fun purgeStaleExports(): Int = withContext(Dispatchers.IO) {
+        deleteStaleExports(File(context.cacheDir, "exports"), System.currentTimeMillis())
+    }
+
+    /**
      * Exports a session to a CSV file and returns a shareable [Uri].
-     * Uses a cursor-based approach so memory usage stays constant regardless
-     * of session length — rows are written as they are read from the database.
+     *
+     * Cursor-based: rows are written as they are read, and the query ([EXPORT_QUERY_SQL]) needs no sort, so memory
+     * stays constant however long the trip is. Columns: `timestamp,pid,value,name` — the first three are the
+     * original ones (a parser that reads by position keeps working), `name` is the stable English PID name: Excel
+     * turns `0105` into the number 105 when the file is opened by double click, the name column still identifies the PID.
+     *
+     * Every export gets its own file (DAT-06: a fixed name was deleted under a share that was still reading it);
+     * exports older than a day are removed first (DAT-07: they were never deleted). A failed export leaves no
+     * half-written file behind.
      */
     suspend fun exportToCsv(sessionId: Long): Uri = withContext(Dispatchers.IO) {
-        val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val file = File(exportDir, "session_$sessionId.csv")
+        val exportDir = File(context.cacheDir, "exports")
+        val now = System.currentTimeMillis()
+        deleteStaleExports(exportDir, now)
+        val file = createExportFile(exportDir, sessionId, now)
 
-        file.delete()
-
-        val query = SimpleSQLiteQuery(
-            "SELECT timestamp, pidId, value FROM sensor_readings WHERE sessionId = ? ORDER BY timestamp ASC",
-            arrayOf(sessionId)
-        )
-        db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
-            file.bufferedWriter().use { writer ->
-                writer.write("timestamp,pid,value\n")
-                val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
-                val colPid       = cursor.getColumnIndexOrThrow("pidId")
-                val colValue     = cursor.getColumnIndexOrThrow("value")
-                while (cursor.moveToNext()) {
-                    writer.write("${cursor.getLong(colTimestamp)},${cursor.getString(colPid).orEmpty()},${cursor.getFloat(colValue)}\n")
+        try {
+            val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(sessionId))
+            db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
+                file.bufferedWriter().use { writer ->
+                    writer.write(csvRow("timestamp", "pid", "value", "name"))
+                    val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
+                    val colPid       = cursor.getColumnIndexOrThrow("pidId")
+                    val colValue     = cursor.getColumnIndexOrThrow("value")
+                    while (cursor.moveToNext()) {
+                        val pidId = cursor.getString(colPid).orEmpty()
+                        writer.write(
+                            csvRow(
+                                cursor.getLong(colTimestamp).toString(),
+                                pidId,
+                                cursor.getFloat(colValue).toString(),
+                                PidRegistry.all[pidId]?.name.orEmpty(),
+                            )
+                        )
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            file.delete()
+            throw e
         }
 
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)

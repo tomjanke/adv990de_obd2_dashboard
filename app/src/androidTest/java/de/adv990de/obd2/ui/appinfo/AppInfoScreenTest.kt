@@ -8,9 +8,15 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.runtime.remember
+import androidx.compose.ui.test.onNodeWithText
+import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
+import kotlinx.coroutines.flow.flowOf
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -81,7 +87,9 @@ class AppInfoScreenTest {
     private fun assertIsClickableRow(testTag: String, expectedTextRes: Int) {
         launchAppInfoScreen()
 
+        // Der Inhalt scrollt (mit der Zeile "Absturzberichte" passt er im Querformat nicht mehr ganz auf den Schirm).
         composeRule.onNodeWithTag(testTag)
+            .performScrollTo()
             .assertIsDisplayed()
             .assertTextEquals(composeRule.activity.getString(expectedTextRes))
             .assertHasClickAction()
@@ -107,7 +115,7 @@ class AppInfoScreenTest {
         try {
             launchAppInfoScreen()
 
-            composeRule.onNodeWithTag(testTag).performClick()
+            composeRule.onNodeWithTag(testTag).performScrollTo().performClick()
             composeRule.waitForIdle()
 
             assertEquals(1, startedViewIntents.size)
@@ -132,4 +140,41 @@ class AppInfoScreenTest {
     @Test
     fun weatherLicense_click_opensCcBy4LicenseText() =
         assertClickOpensUrl(WEATHER_LICENSE_TEST_TAG, CC_BY_4_0_URL)
+
+    // ── QS B33/SEC-10: die App-Info sagt, ob Absturzberichte gesendet werden ──────────────────────────────────
+
+    private fun launchWithCrashStatus(available: Boolean, enabled: Boolean) {
+        val prefs: AppPreferences = mockk { every { crashReportsEnabled } returns flowOf(enabled) }
+        composeRule.setContent {
+            val vm = remember { CrashReportingSettingsViewModel(prefs, mockk { every { isAvailable } returns available }) }
+            AppInfoScreen(navController = rememberNavController(), crashVm = vm)
+        }
+        composeRule.waitForIdle()
+    }
+
+    private fun assertCrashStatusText(res: Int) {
+        val expected = composeRule.activity.getString(res)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching { composeRule.onNodeWithText(expected).assertIsDisplayed() }.isSuccess
+        }
+    }
+
+    @Test
+    fun crashReports_saysNothingIsSent_inABuildWithoutDsn() {
+        launchWithCrashStatus(available = false, enabled = true)
+        assertCrashStatusText(R.string.app_info_crash_reports_not_included)
+    }
+
+    @Test
+    fun crashReports_saysItIsOn_inABuildWithDsnAndTheSwitchOn() {
+        launchWithCrashStatus(available = true, enabled = true)
+        assertCrashStatusText(R.string.app_info_crash_reports_on)
+    }
+
+    @Test
+    fun crashReports_saysItIsOff_whenTheUserTurnedItOff() {
+        launchWithCrashStatus(available = true, enabled = false)
+        assertCrashStatusText(R.string.app_info_crash_reports_off)
+    }
 }
+

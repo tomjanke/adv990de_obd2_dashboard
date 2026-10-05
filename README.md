@@ -23,10 +23,10 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
   - **BLE** (ELM327-BLE-Adapter, z.B. Vgate, OBDLink CX)
   - **Klassisches Bluetooth (RFCOMM)** für ältere ELM327-Clones
   - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
-- **Aufbewahrung** — einmal je App-Start löscht die App lokal Fahrten, die älter als **90 Tage** sind (die laufende Fahrt nie), App-Log-Zeilen älter als **30 Tage** und alles über den neuesten **1000** Log-Zeilen. Es gibt dafür keine Rückfrage und kein „Rückgängig“; wer Fahrten länger braucht, exportiert sie vorher als CSV. Gelöscht wird nur lokal, nie im Fahrzeug.
+- **Aufbewahrung** — einmal je App-Start löscht die App lokal Fahrten, die älter als **90 Tage** sind (die laufende Fahrt nie), App-Log-Zeilen älter als **30 Tage** und alles über den neuesten **1000** Log-Zeilen. Es gibt dafür keine Rückfrage und kein „Rückgängig“; wer Fahrten länger braucht, exportiert sie vorher als CSV. Gelöscht wird nur lokal, nie im Fahrzeug. Exportierte CSV-Dateien (Cache) räumt die App nach **24 Stunden** auf.
 - **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit (greift beim App-Start), einsehbar im Settings-Bereich; Löschen mit Rückfrage und 10 s „Rückgängig“ (lokaler Lösch-Vertrag, nie ein Schreibzugriff aufs Fahrzeug)
 - **Material 3** UI mit drei dark-only Cockpit-Farbschemata (Blau/Amber/Grün, s. Design-Profil) sowie einem Default-Farbschema mit Hell/Dunkel/System-Wahl, deutsch und englisch lokalisiert
-- **Crash-Reporting** über Sentry (optional, deaktivierbar)
+- **Crash-Reporting** über Sentry — nur in einer Version, die beim Bauen einen DSN bekommen hat; dann in den Einstellungen abschaltbar („Absturzberichte senden“)
 
 ---
 
@@ -129,7 +129,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1197 Tests, < 30 Sekunden)
+# JVM Unit Tests (1248 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -138,7 +138,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1197 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1248 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -185,7 +185,7 @@ app/src/main/java/de/adv990de/obd2/
 │                                # WeatherRepository
 ├── di/                          # Hilt-Module (AppModule, CrashReporterModule, LocationModule,
 │                                # WeatherModule)
-└── crash/                       # CrashReporter (Sentry-Wrapper)
+└── crash/                       # CrashReporter (Sentry-Wrapper), CrashReportingController (Schalter)
 ```
 
 ---
@@ -214,7 +214,7 @@ Vor dem ersten Live-Polling fragt `ObdRepository.discoverSupportedPids()` per Mo
 `MainActivity.onResume()`/`onPause()` setzen `Window.attributes.screenBrightness` auf `1f` bzw. `BRIGHTNESS_OVERRIDE_NONE` (System-Standard) zurück — ein reines Fenster-Attribut statt einer System-Einstellung, braucht daher keine `WRITE_SETTINGS`-Berechtigung. Gilt app-weit (jeder Screen, nicht nur das Dashboard) und ausschließlich solange die App im Vordergrund ist — für Sonnenlicht-Lesbarkeit auf dem Motorrad.
 
 ### Live-Wert-Typografie
-Sich ändernde Werte (RPM, Speed, Temperatur, Spannung, VIN) werden in **IBM Plex Mono** mit OpenType-`tnum`-Feature gerendert — Ziffern haben konstante Glyph-Breite, springen also beim Update nicht horizontal. Kanonisches Composable: `LiveValueText` (`ui/components/`); für ad-hoc-Verwendung gibt es `TextStyle.asLiveValue()` als Extension. Restliche UI bleibt in Space Grotesk. Volle Design-Doku in [`CLAUDE.md`](CLAUDE.md).
+Sich ändernde Werte (RPM, Speed, Temperatur, Spannung, VIN) werden in **IBM Plex Mono** mit OpenType-`tnum`-Feature gerendert — Ziffern haben konstante Glyph-Breite, springen also beim Update nicht horizontal. Kanonisches Composable: `LiveValueText` (`ui/components/`); für ad-hoc-Verwendung gibt es `TextStyle.asLiveValue()` als Extension. Restliche UI bleibt in Space Grotesk. Beide Schriften stehen unter der SIL Open Font License 1.1; die Lizenztexte liegen in `docs/licenses/` (`IBMPlexMono-OFL.txt`, `SpaceGrotesk-OFL.txt`). Bekannte Grenze: Das APK selbst trägt die Texte nicht als eigene Seite — Urheberrecht und Lizenzhinweis stehen in der Namenstabelle der Schriftdateien; eine Lizenzseite in der App ist nicht gebaut. Volle Design-Doku in [`CLAUDE.md`](CLAUDE.md).
 
 ### Dashboard-Tiles & Status-Signale
 Sensor-Kacheln nutzen `LiveValueTile` (`ui/components/LiveValueTile.kt`) — domain-agnostische Kachel mit Label oben links, Plex-Mono-Wert + Einheit unten rechts, optionaler Trend-Sparkline und 4 dp Status-Side-Bar. Der `TileStatus`-Enum (`Ok | Warning | Critical`) treibt die Akzentfarbe: `MaterialTheme.colorScheme.primary` (theme-getönt) für OK, `StatusColors.Warning` (`#EAB308`) und `StatusColors.Critical` (`#EF4444`) cross-theme. `SensorCard` ist der Adapter für die PID-Domäne (Einheit-Konvertierung, NaN-Handling). Status-Tokens leben in `ui/theme/StatusColors.kt`.
@@ -281,7 +281,12 @@ ohnehin schon mit).
 ## Konfiguration
 
 ### Sentry (optional)
-Wenn die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt ist, wird der Crash-Reporter aktiviert. Ohne DSN bleibt Sentry inaktiv (kein Netzwerktraffic). Konfiguriert über Manifest-Placeholder in `app/build.gradle.kts`.
+Ist beim Bauen die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt (Manifest-Placeholder in `app/build.gradle.kts`), kann die App Fehlerberichte an Sentry senden. **Ohne DSN ist Sentry nicht aktiv** (kein Netzwerktraffic, auch kein Schalter in der App) — so sind die bisherigen Releases gebaut.
+
+Mit DSN gilt zur Laufzeit: Sentry startet **nicht von selbst** (`io.sentry.auto-init=false`), sondern erst, nachdem die Einstellung gelesen ist; die Einstellung **„Absturzberichte senden“** (Info & Wartung, Standard an) startet und stoppt es sofort. Gesendet werden bei einem Absturz oder unerwarteten Fehler technische Fehlerdetails, Gerätemodell und Android-Version. Die App-Info zeigt, ob Absturzberichte an, aus oder in dieser Version nicht enthalten sind. Eingebunden ist nur `sentry-android-core` — ohne Native-Handler und Replay (vorher lagen `libsentry.so`/`libsentry-android.so` in drei Architekturen im APK, obwohl die App keinen eigenen Native-Code hat). Bekannte Grenze: Ein Absturz in den ersten Millisekunden nach dem Prozessstart, bevor die Einstellung gelesen ist, wird nicht gemeldet.
+
+### CSV-Export einer Fahrt
+Ein Export (Verlauf → Teilen) schreibt `session_<Fahrt>_<UTC-Zeit>.csv` in den Cache — je Export eine eigene Datei, nie eine überschriebene. Spalten: `timestamp` (Millisekunden seit 1970), `pid` (z. B. `010C`), `value` (metrisch, Punkt als Dezimaltrennzeichen), `name` (stabiler englischer PID-Name, z. B. `RPM`). Die ersten drei Spalten sind unverändert; `name` steht hinten, damit Auswertungen nach Position weiterlaufen. Die Zeilen stehen in Aufzeichnungsreihenfolge und werden ohne Sortierlauf gestreamt (konstanter Speicher auch bei langen Fahrten). Bekannte Grenze: Excel macht beim Doppelklick-Öffnen aus der Spalte `pid` Zahlen wie `0105` → 105 (Anführungszeichen verhindern das nicht); die Spalte `name` identifiziert den Wert trotzdem, oder die Datei als Text importieren.
 
 ### Benutzerseitige Einstellungen
 Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
@@ -289,7 +294,7 @@ Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
 - **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“, „Nur ECU-bestätigte PIDs aufzeichnen“, Auswahl der aufgezeichneten PIDs
 - **Fahrzeug:** Fahrzeuginfo (FIN)
-- **Info & Wartung:** App-Logs, App-Info
+- **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte)
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
 
 Zu den beiden Zeitwerten der Verbindung:
@@ -348,8 +353,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1197) |
-| `app/src/androidTest/` | Instrumented Tests (282, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1248) |
+| `app/src/androidTest/` | Instrumented Tests (301, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

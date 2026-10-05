@@ -23,7 +23,7 @@ Diese drei Worte sind **gleichberechtigt** — verletze keines davon:
 1. **Glanceability First.** Der Fahrer schaut max. 0.5 s aufs Display. Primäre Werte müssen ohne Lesen erfassbar sein — Größe + Position + Farbe transportieren Bedeutung, nicht Text.
 2. **Die drei Cockpit-Farbschemata (Blau/Amber/Grün) sind dark-only.** Keine Light-Variante für diese drei — Ambient-Light-Probleme im Auto/Motorrad bei Tag lösen sie über *Kontrast*, nicht über Helligkeit. Background ist immer fast-schwarz mit Farbhauch (`#050D1A` Blau, `#110A02` Amber, `#030F08` Grün — siehe `ui/theme/ColorSchemes.kt`). **Korrektur (2026-09-23):** Das gilt NUR für diese drei Cockpit-Schemata, nicht für die App insgesamt — das „Default"-Farbschema (M3-Standardfarben, keines der drei Cockpit-Schemata) bietet bewusst zusätzlich Hell/Dunkel/System zur Wahl (`AppPreferences.THEME_LIGHT`/`THEME_DARK`/`THEME_SYSTEM`, s. `SettingsComponents.kt`/`MainActivity.kt`) — Light Mode ist dort eine unterstützte, reguläre Option, kein Fehler. Eine frühere Version dieser Datei behauptete fälschlich „Dark Mode ist die einzige Realität" für die ganze App.
 3. **Tabular Numerals immer.** Wo Zahlen sich ändern (RPM, Speed, Temp, alle Sensorwerte), MUSS die Schrift `fontFeatureSettings = "tnum"` setzen. **IBM Plex Mono** ist als Live-Wert-Schrift in `R.font.ibm_plex_mono_{regular,medium,bold}` geladen; verwenden über `LiveValueText` Composable (`ui/components/LiveValueText.kt`) oder `TextStyle.asLiveValue()` Extension (`ui/theme/AppTypography.kt`). Space Grotesk bleibt für UI-Text (Labels, Body, Headlines).
-4. **Glove-Friendly Tap-Targets.** Minimum 56 dp × 56 dp für jeden Touch. Bei Settings-Listen mind. 64 dp Zeilenhöhe. Keine Swipe-Only-Gesten an kritischen Stellen (DMD2-Regel: „avoid swipes while wearing gloves"); Swipe-to-Delete gibt es nur **zusätzlich** zum sichtbaren Papierkorb-Button (s. „Lösch-Vertrag").
+4. **Glove-Friendly Tap-Targets.** Minimum 56 dp × 56 dp für jeden Touch (seit v1.24.8 von `AppTheme` für alle Material-Komponenten erzwungen, s. „Touch-Ziele und Barrierefreiheit“). Bei Settings-Listen mind. 64 dp Zeilenhöhe. Keine Swipe-Only-Gesten an kritischen Stellen (DMD2-Regel: „avoid swipes while wearing gloves"); Swipe-to-Delete gibt es nur **zusätzlich** zum sichtbaren Papierkorb-Button (s. „Lösch-Vertrag").
 5. **Information Density ≥ Decoration.** Karte ohne Daten ist verloren. Wenn ein Tile leerer Raum ist, dann mit Absicht (Atemraum), nicht aus Faulheit.
 
 ### Color & Theme
@@ -565,6 +565,43 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   **Bewusst nicht gebaut:** Polling/Aufzeichnung in den Dienst zu verlegen, damit sie das Wegwischen überleben — das wäre ein großer Umbau und eine Produktentscheidung („Wegwischen heißt fertig“ ist die jetzige).
 - **Test-Falle:** Arbeit im `backgroundScope` eines `runTest` läuft mit `runCurrent()`, **nicht** mit `advanceUntilIdle()` — das hört auf, sobald nur noch Hintergrundaufgaben übrig sind, und führt sie nicht aus.
 
+### Touch-Ziele und Barrierefreiheit (seit v1.24.8)
+
+- **Die 56-dp-Regel steht im Theme, nicht an jeder Stelle:** `AppTheme(colorScheme, typography)` (`ui/theme/AppTheme.kt`, genutzt von `MainActivity`) setzt zwei Werte auf `MIN_TOUCH_TARGET` = 56 dp:
+  `LocalViewConfiguration.minimumTouchTargetSize` (Standard 48 dp) ist die **Trefferfläche** — das, was der Finger sieht und `SemanticsNode.touchBoundsInRoot` misst — und
+  `LocalMinimumInteractiveComponentSize` (Material, Standard 48 dp) reserviert den **Platz** im Layout. **Nur den zweiten anzuheben ändert die Trefferfläche nicht** (gemessen: weiter 48 dp). Gemessene Ausgangswerte vor v1.24.8:
+  Touch-Fläche 48 dp (sichtbar 40 dp) bei Button, TextButton, IconButton. Wer ein Touch-Ziel ohne Material-Komponente baut (`clickable`), setzt `heightIn(min = MIN_TOUCH_TARGET)` selbst.
+- **Fenster-Komponenten erben die Regel NICHT:** `AlertDialog`, `ModalBottomSheet`, Menüs und `Popup` haben ein eigenes Compose-Root mit der `ViewConfiguration` des Systems (der Exit-Dialog maß dort weiter 48 dp). Wer sie
+  benutzt, ruft **`ProvideMinTouchTarget { … }` INNERHALB ihrer Slots** auf. `UiRulesSourceTest` erzwingt das (jede Datei mit `AlertDialog(`/`ModalBottomSheet(`/`DropdownMenu(`/`Popup(`/`Dialog(` nennt `ProvideMinTouchTarget`) und
+  prüft, dass `MainActivity` `AppTheme(` statt eines nackten `MaterialTheme(` nutzt.
+- **Messen:** `assertHeightIsAtLeast` sieht nur die sichtbare Fläche (ein IconButton meldet 40 dp). Touch-Tests lesen `fetchSemanticsNode().touchBoundsInRoot` (`TouchTargetTest.assertTouchTarget`).
+- **Das Long-Press einer Dashboard-Kachel braucht eine Bezeichnung** (`LiveValueTile(onLongPressLabel)`, `R.string.dashboard_slot_change_action` — gefüllte Kachel UND leerer Slot): es ist die einzige Geste, die einen Slot belegt, TalkBack sagt sonst nur
+  „Doppeltippen und halten“. Auswahlzeilen sind `toggleable(role = Role.Checkbox)` mit `Checkbox(onCheckedChange = null)` (TalkBack liest den Zustand; ein nacktes `clickable` meldet ihn nicht). Ein `Slider` trägt `contentDescription`
+  (wofür) und `stateDescription` (der angezeigte Wert, „Deaktiviert“ bei 0) — sonst sagt TalkBack nur „60 Prozent“. Der Drehzahlbalken (Canvas) hat eine Beschreibung `Drehzahl N rpm`, auf 100 gerundet (`rpmForSpeech`), damit die 20-Hz-Demobewegung
+  TalkBack nicht zum Dauersprechen bringt; ohne Verbindung „Drehzahl nicht verfügbar“.
+- **Eine Stelle für Messwert-Zahlen:** `formatSensorNumber(value, rawUnit)` (`obd/UnitConverter.kt`): Volt mit einer Nachkommastelle, sonst ganze Zahl, Gerätelocale; **ein negativer Wert, der auf 0 rundet, zeigt kein Vorzeichen** (`"%.0f".format(-0.4f)` ergibt „-0“).
+  Kachel, Slot-Auswahl und Aufzeichnungs-Liste nutzen sie; die Prüfung ist numerisch (|Wert| < halbe letzte Stelle), nicht textuell.
+- **Test-Fallen:** (1) Der Inhalt von `AppInfoScreen` scrollt (mit der Zeile „Absturzberichte“ passt er im Querformat nicht mehr auf den Schirm) — Tests scrollen mit `performScrollTo()` zur Zeile. (2) `SettingsScreenTest.scrollToClearView` schiebt eine Zeile am **Listenende** per
+  Rückwärts-Scroll wieder aus dem Sichtbereich — dort genügt `performScrollToNode` (`waitUntilBottomSwitchIs`); eine nicht komponierte LazyColumn-Zeile gibt es im Baum nicht.
+
+### CSV-Export (seit v1.24.8)
+
+`SessionRepository.exportToCsv` (reine Teile in `data/CsvExport.kt`): **Spalten `timestamp,pid,value,name`** — die ersten drei unverändert (Positions-Parser laufen weiter), `name` = stabiler englischer PID-Name (`PidRegistry`, leer bei unbekanntem PID), angehängt, weil Excel aus `0105`
+beim Doppelklick-Öffnen 105 macht (Anführungszeichen verhindern das nicht; bekannte Grenze, README). **`ORDER BY id`** (`EXPORT_QUERY_SQL`) statt `ORDER BY timestamp`: der Index auf `sessionId` liefert die Einfügereihenfolge ohne Sortierlauf (konstanter Speicher, wie die KDoc behauptete;
+`SessionRepositoryDeviceTest` prüft `EXPLAIN QUERY PLAN` auf „kein TEMP B-TREE“); es ist zugleich die Aufzeichnungsreihenfolge. **Jeder Export eine eigene Datei** `session_<id>_<UTC-Zeit auf die Millisekunde>.csv` (`createExportFile`, atomar via `createNewFile`, bei Kollision `-1`, `-2` …) —
+vorher löschte ein zweiter Export derselben Fahrt die Datei unter einer noch laufenden Weitergabe. **Aufräumen:** Exporte älter als 24 h (`EXPORT_MAX_AGE_MS`, nur Dateien `session_*.csv`) löscht jeder Export vorab und `DataRetention` einmal je App-Start (`purgeStaleExports`). Ein fehlgeschlagener Export hinterlässt keine halbe Datei.
+Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilenumbruch gequotet).
+
+### Absturzberichte (Sentry) zur Laufzeit abschaltbar (seit v1.24.8, B33)
+
+- **Ohne DSN im Build ist Sentry nicht aktiv — und es gibt keinen Schalter** (so sind die ausgelieferten Releases gebaut): `SENTRY_DSN` (Gradle-Property/Umgebung) fließt als Manifest-Placeholder `sentryDsn` ein. Mit DSN: `io.sentry.auto-init` ist **false**; `Obd2Application` startet
+  `CrashReportingController.run()` im `@ApplicationScope`, das die Preference `crashReportsEnabled` (Standard **an**, Verhalten für DSN-Builds unverändert) liest und danach `SentryAndroid.init(context)` bzw. `Sentry.close()` aufruft. Der Controller hängt an einer Naht (`SentrySdk`), damit er ohne Android testbar ist.
+  **Begründete Grenze:** Ein Absturz in den ersten Millisekunden nach dem Prozessstart, bevor die Einstellung gelesen ist, wird nicht gemeldet — der Preis dafür, dass Sentry **nie** gegen die Einstellung des Nutzers startet (mit Auto-Init könnte genau das passieren).
+- **UI:** „Absturzberichte senden“ (Info & Wartung, `SettingsSwitchRow`, nur wenn `CrashReportingSettingsViewModel.available` = DSN eingebaut) und eine Statuszeile in der App-Info (`CrashReportingStatus`: NotIncluded / Off / On).
+- **Abhängigkeit:** `sentry-android-core` statt `sentry-android` — das Sammelpaket zog den Native-Handler (`libsentry.so`, `libsentry-android.so`, ~0,5–0,7 MB je ABI) und Replay nach, die die App nicht braucht; das Release-APK wurde dadurch von 5,73 auf 2,92 MB kleiner.
+  `CrashReportingConfigTest` hält `auto-init=false`, die Abhängigkeit und die README-Aussage fest. Wer später eine Sentry-Integration (NDK, Replay) braucht, ergänzt sie bewusst — nicht über das Sammelpaket.
+- Schriftlizenzen: `docs/licenses/` hält je Schrift den OFL-Text (`LicenseFilesTest`); das APK trägt keine eigene Lizenzseite (bekannte Grenze, README).
+
 ### Release-Signatur und Geheimnisse (seit v1.24.7, B31)
 
 - **Der Keystore liegt außerhalb des Projektbaums** (`~/.android-keys/<name>.jks`, Ordner 700, Datei 600); `KEYSTORE_FILE` (Property oder Umgebung, `~/` wird aufgelöst) sagt dem Build, wo.
@@ -665,6 +702,7 @@ Wenn du neue Composables schreibst, halte dich an dieses Vokabular:
 
 | Composable | Verwendung |
 |---|---|
+| `AppTheme(colorScheme, typography)` / `ProvideMinTouchTarget { }` | Theme der App inkl. 56-dp-Regel für Touch-Ziele (`ui/theme/AppTheme.kt`); `ProvideMinTouchTarget` setzt sie INNERHALB von Dialog-/Sheet-Slots erneut (eigenes Fenster, s. „Touch-Ziele und Barrierefreiheit“) |
 | `LiveValueText(value, style, color, animated)` | Inline-Wert in Plex Mono + `tnum`; `animated=true` für langsam wechselnde Werte (Snapshots/VIN) |
 | `LiveValueTile(label, value, unit, status, sparkline)` | Zentrales Tile-Pattern (s.o.) — Side-Bar-Akzent via `TileStatus` |
 | `StatusDot(state, size, color?)` | 8-dp Kreis, theme-`tertiary` ok / `StatusColors.Warning` / `StatusColors.Critical` / gepulst auf primary für „connecting"; optionaler `color`-Override für Ausnahmefälle (s. Dashboard-Verbindungs-Dot unten) |
@@ -717,8 +755,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1197 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 282 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1248 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 301 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

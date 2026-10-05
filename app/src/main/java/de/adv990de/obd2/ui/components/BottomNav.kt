@@ -50,6 +50,7 @@ import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.parentTab
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import kotlinx.coroutines.launch
@@ -185,7 +186,7 @@ fun BottomNav(
  * versehentlicher Treffer mit Handschuhen auf holpriger Strecke soll die App nicht sofort beenden.
  */
 @Composable
-private fun ExitConfirmationDialog(
+internal fun ExitConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -193,11 +194,13 @@ private fun ExitConfirmationDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exit_app_dialog_title)) },
         text = { Text(stringResource(R.string.exit_app_dialog_message)) },
+        // Ein Dialog ist ein eigenes Fenster mit eigener ViewConfiguration: die 56-dp-Regel aus AppTheme gilt hier nur,
+        // wenn sie in den Slots erneut gesetzt wird (s. ProvideMinTouchTarget).
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.exit_app_confirm)) }
+            ProvideMinTouchTarget { TextButton(onClick = onConfirm) { Text(stringResource(R.string.exit_app_confirm)) } }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            ProvideMinTouchTarget { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
         },
     )
 }

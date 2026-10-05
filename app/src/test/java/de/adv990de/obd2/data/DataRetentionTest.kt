@@ -19,6 +19,7 @@ class DataRetentionTest {
         coEvery { sessions.deleteOldSessions(any()) } just Runs
         coEvery { logs.pruneOlderThan(any()) } just Runs
         coEvery { logs.trimToNewest(any()) } just Runs
+        coEvery { sessions.purgeStaleExports() } returns 0
     }
 
     @Test
@@ -30,6 +31,19 @@ class DataRetentionTest {
         coVerify(exactly = 1) { sessions.deleteOldSessions(any()) }
         coVerify(exactly = 1) { logs.pruneOlderThan(any()) }
         coVerify(exactly = 1) { logs.trimToNewest(any()) }
+        coVerify(exactly = 1) { sessions.purgeStaleExports() }
+    }
+
+    @Test
+    fun `a failing CSV export purge does not stop the other steps and is logged`() = runTest {
+        stubAllOk()
+        coEvery { sessions.purgeStaleExports() } throws java.io.IOException("read-only")
+
+        DataRetention(sessions, logs).run()
+
+        coVerify(exactly = 1) { sessions.deleteOldSessions(any()) }
+        coVerify(exactly = 1) { logs.trimToNewest(any()) }
+        coVerify { logs.log(LogLevel.WARN, match { it.contains("old CSV exports") && it.contains("read-only") }) }
     }
 
     @Test

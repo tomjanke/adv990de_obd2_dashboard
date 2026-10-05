@@ -80,6 +80,27 @@ class RpmBarTest {
     /** The undetermined-gear placeholder digit box shows — an EN DASH (U+2013), not a hyphen. */
     private val undeterminedGearGlyph = "–"
 
+    // --- QS C (UID-13/SCR-18): the segment bar was a bare Canvas — invisible to TalkBack ---
+
+    @Test
+    fun rpmBar_isDescribedWithTheRpmRoundedTo100() {
+        composeRule.setContent { RpmBar(rpm = 2840f, threshold = 7000, gear = 3) }
+        composeRule.waitForIdle()
+
+        // 2840 -> 2800: TalkBack must not chatter at every 20-Hz sweep step.
+        val expected = composeRule.activity.getString(R.string.dashboard_rpm_bar_desc, 2800)
+        composeRule.onNodeWithContentDescription(expected).assertIsDisplayed()
+    }
+
+    @Test
+    fun rpmBar_saysNoValue_whenNotLive_insteadOfADemoSweepRpm() {
+        composeRule.setContent { RpmBar(rpm = 4500f, threshold = 7000, gear = null, isLive = false) }
+        composeRule.waitForIdle()
+
+        val expected = composeRule.activity.getString(R.string.dashboard_rpm_bar_unavailable_desc)
+        composeRule.onNodeWithContentDescription(expected).assertIsDisplayed()
+    }
+
     @Test
     fun determinedGear_showsDigit_andMatchingContentDescription() {
         composeRule.setContent {

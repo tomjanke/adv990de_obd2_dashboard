@@ -18,6 +18,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
             val theme by displayVm.theme.collectAsState()
             val systemDark = isSystemInDarkTheme()
             val darkTheme = resolveDarkTheme(theme, systemDark)
-            MaterialTheme(
+            AppTheme(
                 colorScheme = resolveColorScheme(theme, darkTheme),
                 typography = AppTypography
             ) {

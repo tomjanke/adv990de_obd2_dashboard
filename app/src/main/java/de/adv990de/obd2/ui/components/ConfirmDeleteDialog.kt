@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
 
@@ -38,14 +39,20 @@ fun ConfirmDeleteDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
+        // Ein Dialog ist ein eigenes Fenster: die 56-dp-Regel aus AppTheme gilt nur, wenn sie in den Slots erneut gesetzt
+        // wird (s. ProvideMinTouchTarget). Die Mindesthoehe unten bleibt: sie sorgt fuer die sichtbare Groesse.
         confirmButton = {
-            TextButton(onClick = onConfirm, modifier = Modifier.heightIn(min = DialogButtonMinHeight)) {
-                Text(confirmLabel, color = MaterialTheme.colorScheme.error)
+            ProvideMinTouchTarget {
+                TextButton(onClick = onConfirm, modifier = Modifier.heightIn(min = DialogButtonMinHeight)) {
+                    Text(confirmLabel, color = MaterialTheme.colorScheme.error)
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = DialogButtonMinHeight)) {
-                Text(dismissLabel)
+            ProvideMinTouchTarget {
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = DialogButtonMinHeight)) {
+                    Text(dismissLabel)
+                }
             }
         },
     )

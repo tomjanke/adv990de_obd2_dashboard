@@ -262,6 +262,22 @@ class AppPreferencesTest {
         assertEquals(true, prefs.hideNavOnDrive.first())
     }
 
+    // ── crashReportsEnabled (QS B33) ──────────────────────────────────────────
+
+    @Test
+    fun `crashReportsEnabled defaults to true - a build with a DSN reports, as before the switch existed`() = runTest {
+        assertEquals(true, makePreferences().crashReportsEnabled.first())
+    }
+
+    @Test
+    fun `setCrashReportsEnabled persists both values`() = runTest {
+        val prefs = makePreferences()
+        prefs.setCrashReportsEnabled(false)
+        assertEquals(false, prefs.crashReportsEnabled.first())
+        prefs.setCrashReportsEnabled(true)
+        assertEquals(true, prefs.crashReportsEnabled.first())
+    }
+
     // ── useGpsSpeed ───────────────────────────────────────────────────────────
 
     @Test

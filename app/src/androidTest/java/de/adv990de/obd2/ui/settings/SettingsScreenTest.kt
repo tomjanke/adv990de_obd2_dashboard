@@ -9,6 +9,9 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.runtime.remember
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -419,5 +422,54 @@ class SettingsScreenTest {
             Screen.GearSettings.route, Screen.LoggingConfig.route, Screen.VehicleInfo.route,
             Screen.AppLogs.route, Screen.AppInfo.route,
         )
+    }
+
+    // ── QS B33: "Absturzberichte senden" erscheint nur in einer Version mit eingebautem Sentry-DSN ─────────────────
+
+    private fun launchSettingsScreenWithCrashController(available: Boolean) {
+        composeRule.setContent {
+            val navController = rememberNavController()
+            // Auf dem Main-Thread im Composable gebaut (der ViewModel-Konstruktor startet stateIn auf dem Main-Dispatcher).
+            val crashVm = remember {
+                CrashReportingSettingsViewModel(appPreferences, mockk { every { isAvailable } returns available })
+            }
+            SettingsScreen(navController = navController, crashVm = crashVm)
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun crashReportsSwitch_isHidden_inABuildWithoutDsn() {
+        launchSettingsScreenWithCrashController(available = false)
+
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasText(composeRule.activity.getString(R.string.settings_app_info)))
+        composeRule.onAllNodesWithTag(CRASH_REPORTS_SWITCH_TEST_TAG).assertCountEquals(0)
+    }
+
+    /**
+     * Die Zeile steht am Ende der Liste: `scrollToClearView` (Rueckwaerts-Scroll um 300 px) schoebe sie dort wieder aus dem
+     * Sichtbereich, und eine nicht komponierte LazyColumn-Zeile gibt es im Baum nicht. Am Listenende genuegt das
+     * Scrollen zum Knoten — die Zeile liegt dann ohnehin nicht hinter der Leiste.
+     */
+    private fun waitUntilBottomSwitchIs(testTag: String, expected: Boolean) {
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(testTag))
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                if (expected) composeRule.onNodeWithTag(testTag).assertIsOn() else composeRule.onNodeWithTag(testTag).assertIsOff()
+            }.isSuccess
+        }
+    }
+
+    @Test
+    fun crashReportsSwitch_isShownAndWritesThePreference_inABuildWithDsn() {
+        runBlocking { appPreferences.setCrashReportsEnabled(true) }
+        launchSettingsScreenWithCrashController(available = true)
+
+        waitUntilBottomSwitchIs(CRASH_REPORTS_SWITCH_TEST_TAG, expected = true)
+        composeRule.onNodeWithTag(CRASH_REPORTS_SWITCH_TEST_TAG).performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { !runBlocking { appPreferences.crashReportsEnabled.first() } }
+        waitUntilBottomSwitchIs(CRASH_REPORTS_SWITCH_TEST_TAG, expected = false)
+        runBlocking { appPreferences.setCrashReportsEnabled(true) }   // Standard wiederherstellen
     }
 }

@@ -326,4 +326,22 @@ class DashboardComponentsTest {
         assertEquals(Color.Red, gearBoxColor(GearBoxContent.Engaged(3), engagedColor = Color.Red, unknownColor = Color.Blue))
         assertEquals(Color.Blue, gearBoxColor(GearBoxContent.Unknown, engagedColor = Color.Red, unknownColor = Color.Blue))
     }
+
+    // ── rpmForSpeech (QS C UID-13) ────────────────────────────────────────
+
+    @Test
+    fun `rpmForSpeech rounds to the nearest 100`() {
+        assertEquals(2800, rpmForSpeech(2840f))
+        assertEquals(2900, rpmForSpeech(2850f))
+        assertEquals(0, rpmForSpeech(49f))
+        assertEquals(10_000, rpmForSpeech(10_000f))
+    }
+
+    @Test
+    fun `rpmForSpeech is 0 for values that are no rpm`() {
+        assertEquals(0, rpmForSpeech(Float.NaN))
+        assertEquals(0, rpmForSpeech(Float.POSITIVE_INFINITY))
+        assertEquals(0, rpmForSpeech(-120f))
+    }
 }
+
