@@ -144,10 +144,10 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
 | JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1269 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 242 (Dashboard, Preview Banner, RpmBar, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 49 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
-| Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 5 (ObdForegroundService, Benachrichtigungskanal) |
+| Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 7 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
 
 ---
@@ -299,7 +299,7 @@ Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
 - **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“, „Nur ECU-bestätigte PIDs aufzeichnen“, Auswahl der aufgezeichneten PIDs
 - **Fahrzeug:** Fahrzeuginfo (FIN)
-- **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte)
+- **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte; von dort die Open-Source-Lizenzen)
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
 
 Zu den beiden Zeitwerten der Verbindung:
@@ -359,7 +359,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 |---|---|
 | `app/src/main/` | Produktiv-Code |
 | `app/src/test/` | JVM-Unit-Tests (1269) |
-| `app/src/androidTest/` | Instrumented Tests (301, Hilt + Compose + Room) |
+| `app/src/androidTest/` | Instrumented Tests (307, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
