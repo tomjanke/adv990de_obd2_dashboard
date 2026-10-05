@@ -36,8 +36,8 @@ import org.junit.runner.RunWith
  *
  * Only the "permissions already granted" path: [GrantPermissionRule] pre-grants exactly the set
  * `requestedPermissions()` resolves to on this test device's real `Build.VERSION.SDK_INT` (API 31+:
- * `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`; API 33+ additionally the OPTIONAL `POST_NOTIFICATIONS` —
- * this device is API 37, so all three apply; granting the optional one keeps the system dialog from
+ * `BLUETOOTH_CONNECT`; API 33+ additionally the OPTIONAL `POST_NOTIFICATIONS` —
+ * this device is API 37, so both apply; granting the optional one keeps the system dialog from
  * being launched). With that pre-granted, `PermissionGate`'s initial `allGranted`
  * computation (`allRequiredGranted`) is `true` *before*
  * composition starts, so:
@@ -61,7 +61,7 @@ import org.junit.runner.RunWith
  * `ActivityResultLauncher.launch(...)`, which starts the real system permission-request activity
  * (`PermissionController`/`GrantPermissionsActivity`). Investigated concretely:
  * - Without a `GrantPermissionRule`, this test class has no control over the *current* grant
- *   state of BLUETOOTH_SCAN/BLUETOOTH_CONNECT/POST_NOTIFICATIONS on this specific installed debug
+ *   state of BLUETOOTH_CONNECT/POST_NOTIFICATIONS on this specific installed debug
  *   build — they may already be granted from prior manual use, or not — and there is no
  *   permission-in-scope way to force "not granted" without either revoking real permissions via a
  *   shell command (which would leave the developer's own physical device in a mutated permission
@@ -105,7 +105,6 @@ class PermissionGateTest {
 
     @get:Rule(order = 1)
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
-        Manifest.permission.BLUETOOTH_SCAN,
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.POST_NOTIFICATIONS,
     )

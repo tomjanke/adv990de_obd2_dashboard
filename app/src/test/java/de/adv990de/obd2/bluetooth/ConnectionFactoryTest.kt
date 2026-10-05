@@ -1,16 +1,14 @@
 package de.adv990de.obd2.bluetooth
 
 import android.bluetooth.BluetoothDevice
-import android.content.Context
 import io.mockk.mockk
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-// ClassicBtConnection/BleConnection don't expose the BluetoothDevice/Context they were built
-// with, so reflection reaches into their private fields to confirm the factory actually wires
-// the real device (and, for BLE, the real context) through — mirrors the `elmField` helper in
-// BleConnectionTest.kt.
+// ClassicBtConnection exposes nicht das BluetoothDevice, mit dem sie gebaut wurde — Reflection erreicht das private
+// Feld, um zu bestaetigen, dass die Factory das echte Geraet durchreicht.
 private fun privateField(target: Any, name: String): Any? {
     val field = target.javaClass.getDeclaredField(name)
     field.isAccessible = true
@@ -19,8 +17,7 @@ private fun privateField(target: Any, name: String): Any? {
 
 class ConnectionFactoryTest {
 
-    private val context: Context = mockk(relaxed = true)
-    private val factory = ConnectionFactory(context)
+    private val factory = ConnectionFactory()
 
     @Test
     fun `create returns SimulatorObdConnection for SIMULATOR type`() {
@@ -38,14 +35,6 @@ class ConnectionFactoryTest {
     }
 
     @Test
-    fun `create throws for BLE device with null BluetoothDevice`() {
-        val device = ScannedDevice(device = null, type = BtType.BLE, name = "Bad")
-        val ex = runCatching { factory.create(device) }.exceptionOrNull()
-        assertTrue("Expected IllegalArgumentException", ex is IllegalArgumentException)
-        assertTrue(ex!!.message?.contains("BLE") == true)
-    }
-
-    @Test
     fun `create returns ClassicBtConnection wired to the given device for CLASSIC type`() {
         val btDevice: BluetoothDevice = mockk(relaxed = true)
         val device = ScannedDevice(device = btDevice, type = BtType.CLASSIC, name = "Real Classic")
@@ -57,14 +46,9 @@ class ConnectionFactoryTest {
     }
 
     @Test
-    fun `create returns BleConnection wired to the given context and device for BLE type`() {
-        val btDevice: BluetoothDevice = mockk(relaxed = true)
-        val device = ScannedDevice(device = btDevice, type = BtType.BLE, name = "Real BLE")
-
-        val connection = factory.create(device)
-
-        assertTrue("Expected BleConnection", connection is BleConnection)
-        assertSame(btDevice, privateField(connection, "device"))
-        assertSame(context, privateField(connection, "context"))
+    fun `there are exactly two connection types - BLE is gone`() {
+        // Die Geraeteliste hat nie BLE-Adapter angeboten; der tote Pfad wurde in 1.24.9 entfernt. Ein neuer Typ
+        // muss hier bewusst eingetragen werden.
+        assertEquals(listOf("CLASSIC", "SIMULATOR"), BtType.values().map { it.name })
     }
 }

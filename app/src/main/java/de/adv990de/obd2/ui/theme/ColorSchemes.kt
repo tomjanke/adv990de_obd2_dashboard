@@ -15,6 +15,12 @@ import androidx.compose.ui.graphics.Color
  * Snackbar, Container-Leiter = `surfaceVariant` zu 6 %/12 % Richtung `onSurface`);
  * `ColorSchemesTest` haelt WCAG-Kontraste (Text >= 7:1, Aktion >= 4,5:1) und den Farbton fest.
  *
+ * Seit 1.24.9 ausserdem: `primaryContainer`/`tertiaryContainer` (Surface zu 28 % Richtung `primary`/`tertiary`),
+ * `errorContainer` (Surface zu 28 % Richtung [StatusColors.Critical] — dunkles Rot im Ton der Palette statt des violett-
+ * grauen M3-Standards; der Swipe-Hintergrund zum Loeschen nutzt ihn), jeweils mit `onSurface` als Schrift, und
+ * `outlineVariant` (Surface zu 50 % Richtung `outline`: die ruhige 1-dp-Linie zwischen den Dashboard-Kacheln). `error`
+ * selbst bleibt bewusst M3-Standard (s. CLAUDE.md, Statusfarben).
+ *
  * Extrahiert (Backlog-Cleanup, Sweep 2026-09-28/29): die drei Cockpit-Schemata unten waren drei
  * `darkColorScheme(...)`-Aufrufe mit identischen 12 benannten Parametern, nur die Farbliterale
  * unterschieden sich. Reine mechanische Extraktion, keine Werte geaendert -- jeder Aufruf unten
@@ -34,6 +40,13 @@ private fun cockpitColorScheme(
     tertiary: Color,
     onTertiary: Color,
     outline: Color,
+    primaryContainer: Color,
+    onPrimaryContainer: Color,
+    tertiaryContainer: Color,
+    onTertiaryContainer: Color,
+    errorContainer: Color,
+    onErrorContainer: Color,
+    outlineVariant: Color,
     secondaryContainer: Color,
     onSecondaryContainer: Color,
     inverseSurface: Color,
@@ -58,6 +71,13 @@ private fun cockpitColorScheme(
     tertiary         = tertiary,
     onTertiary       = onTertiary,
     outline          = outline,
+    primaryContainer        = primaryContainer,
+    onPrimaryContainer      = onPrimaryContainer,
+    tertiaryContainer       = tertiaryContainer,
+    onTertiaryContainer     = onTertiaryContainer,
+    errorContainer          = errorContainer,
+    onErrorContainer        = onErrorContainer,
+    outlineVariant          = outlineVariant,
     secondaryContainer      = secondaryContainer,
     onSecondaryContainer    = onSecondaryContainer,
     inverseSurface          = inverseSurface,
@@ -84,6 +104,13 @@ val blueColorScheme = cockpitColorScheme(
     tertiary         = Color(0xFF7DD3FC),
     onTertiary       = Color(0xFF000D1A),
     outline          = Color(0xFF3D6070),
+    primaryContainer        = Color(0xFF174562),
+    onPrimaryContainer      = Color(0xFFE2F3FB),
+    tertiaryContainer       = Color(0xFF2A4B63),
+    onTertiaryContainer     = Color(0xFFE2F3FB),
+    errorContainer          = Color(0xFF4A2330),
+    onErrorContainer        = Color(0xFFE2F3FB),
+    outlineVariant          = Color(0xFF243B4C),
     secondaryContainer      = Color(0xFF174562),
     onSecondaryContainer    = Color(0xFFE2F3FB),
     inverseSurface          = Color(0xFFE2F3FB),
@@ -110,6 +137,13 @@ val amberColorScheme = cockpitColorScheme(
     tertiary         = Color(0xFFFCD34D),
     onTertiary       = Color(0xFF1A0500),
     outline          = Color(0xFF6B4020),
+    primaryContainer        = Color(0xFF5C3414),
+    onPrimaryContainer      = Color(0xFFFBEBD5),
+    tertiaryContainer       = Color(0xFF5C4719),
+    onTertiaryContainer     = Color(0xFFFBEBD5),
+    errorContainer          = Color(0xFF591F17),
+    onErrorContainer        = Color(0xFFFBEBD5),
+    outlineVariant          = Color(0xFF442812),
     secondaryContainer      = Color(0xFF5C3414),
     onSecondaryContainer    = Color(0xFFFBEBD5),
     inverseSurface          = Color(0xFFFBEBD5),
@@ -136,6 +170,13 @@ val greenColorScheme = cockpitColorScheme(
     tertiary         = Color(0xFF86EFAC),
     onTertiary       = Color(0xFF001A08),
     outline          = Color(0xFF1A5C30),
+    primaryContainer        = Color(0xFF1A512F),
+    onPrimaryContainer      = Color(0xFFDCF5E6),
+    tertiaryContainer       = Color(0xFF2B563C),
+    onTertiaryContainer     = Color(0xFFDCF5E6),
+    errorContainer          = Color(0xFF49261F),
+    onErrorContainer        = Color(0xFFDCF5E6),
+    outlineVariant          = Color(0xFF113B20),
     secondaryContainer      = Color(0xFF1A512F),
     onSecondaryContainer    = Color(0xFFDCF5E6),
     inverseSurface          = Color(0xFFDCF5E6),

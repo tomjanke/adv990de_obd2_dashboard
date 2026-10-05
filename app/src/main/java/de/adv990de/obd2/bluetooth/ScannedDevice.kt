@@ -2,7 +2,8 @@ package de.adv990de.obd2.bluetooth
 
 import android.bluetooth.BluetoothDevice
 
-enum class BtType { CLASSIC, BLE, SIMULATOR }
+/** Art der Verbindung. Ein gespeichertes Geraet mit dem frueheren Typ "BLE" wird als unbekannt gelesen (s. `AppPreferences.lastDevice`). */
+enum class BtType { CLASSIC, SIMULATOR }
 
 data class ScannedDevice(
     val device: BluetoothDevice?,

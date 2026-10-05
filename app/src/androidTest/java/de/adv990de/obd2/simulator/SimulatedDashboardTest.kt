@@ -57,7 +57,7 @@ class SimulatedDashboardTest {
     @BindValue
     @JvmField
     val obdRepository: ObdRepository = ObdRepository(
-        ConnectionFactory(ApplicationProvider.getApplicationContext<Context>()),
+        ConnectionFactory(),
         PidParser(),
         DtcParser(),
     )

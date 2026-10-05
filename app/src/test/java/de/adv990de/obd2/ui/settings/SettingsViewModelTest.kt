@@ -457,7 +457,7 @@ class SettingsViewModelTest {
     fun `loadDevices assigns scanner's bondedDevices result to state on success`() = runTest {
         val devices = listOf(
             ScannedDevice(device = null, type = BtType.CLASSIC, name = "ELM327 v1.5"),
-            ScannedDevice(device = null, type = BtType.BLE, name = "OBDLink CX")
+            ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")
         )
         val scanner = mockk<BluetoothDeviceScanner> {
             every { bondedDevices(any()) } returns devices

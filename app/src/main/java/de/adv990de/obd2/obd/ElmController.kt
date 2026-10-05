@@ -21,7 +21,7 @@ class ElmController(
     private val inputStream: InputStream,
     private val outputStream: OutputStream,
     // Parameter statt privater Konstante (B38): So laesst sich die Zeitueberschreitung mit 100 ms testen statt gar
-    // nicht. Die Produktion (BleConnection, ClassicBtConnection, Simulator) nutzt den Standard.
+    // nicht. Die Produktion (ClassicBtConnection, Simulator) nutzt den Standard.
     private val readTimeoutMs: Long = DEFAULT_READ_TIMEOUT_MS,
 ) {
     // Serialises all command/response exchanges; prevents concurrent callers from

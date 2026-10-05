@@ -34,14 +34,6 @@ class BluetoothPermissionsTest {
         verify { context wasNot Called }
     }
 
-    // --- Test 2 ---
-
-    @Test
-    fun `hasScan is true below API 31 without querying the context`() {
-        assertTrue(BluetoothPermissions.hasScan(context))
-        verify { context wasNot Called }
-    }
-
     // --- API 31+: hasConnect delegiert an ContextCompat.checkSelfPermission, die intern (fuer
     // BLUETOOTH_CONNECT, keine POST_NOTIFICATIONS-Sonderbehandlung) auf
     // context.checkPermission(...) durchgreift. Der explizite sdkInt-Parameter zwingt den
@@ -68,29 +60,5 @@ class BluetoothPermissionsTest {
         assertFalse(BluetoothPermissions.hasConnect(context, sdkInt = Build.VERSION_CODES.S))
 
         verify { context.checkPermission(Manifest.permission.BLUETOOTH_CONNECT, any(), any()) }
-    }
-
-    // --- API 31+: hasScan, gleiches Muster wie hasConnect oben. ---
-
-    @Test
-    fun `hasScan at API 31 queries the context and returns true when granted`() {
-        every {
-            context.checkPermission(Manifest.permission.BLUETOOTH_SCAN, any(), any())
-        } returns PackageManager.PERMISSION_GRANTED
-
-        assertTrue(BluetoothPermissions.hasScan(context, sdkInt = Build.VERSION_CODES.S))
-
-        verify { context.checkPermission(Manifest.permission.BLUETOOTH_SCAN, any(), any()) }
-    }
-
-    @Test
-    fun `hasScan at API 31 queries the context and returns false when denied`() {
-        every {
-            context.checkPermission(Manifest.permission.BLUETOOTH_SCAN, any(), any())
-        } returns PackageManager.PERMISSION_DENIED
-
-        assertFalse(BluetoothPermissions.hasScan(context, sdkInt = Build.VERSION_CODES.S))
-
-        verify { context.checkPermission(Manifest.permission.BLUETOOTH_SCAN, any(), any()) }
     }
 }

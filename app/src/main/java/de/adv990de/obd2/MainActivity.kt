@@ -11,13 +11,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
-import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
@@ -30,11 +29,16 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var serviceController: ObdServiceController
 
+    @Inject lateinit var appPreferences: AppPreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Das gewaehlte Farbschema VOR der ersten Komposition lesen (~3 ms, am Pixel gemessen): Die Einstellung wird sonst
+        // erst waehrend der ersten Komposition abonniert, das erste Bild zeigte kurz das Standard-Theme, dann sprang es auf
+        // Blau/Amber/Gruen (UID-12). Der gelesene Wert ist nur der Startwert; `collectAsState` folgt danach jeder Aenderung.
+        val initialTheme = seedBlocking(AppPreferences.THEME_SYSTEM, source = appPreferences.theme)
         setContent {
-            val displayVm: DisplaySettingsViewModel = hiltViewModel()
-            val theme by displayVm.theme.collectAsState()
+            val theme by appPreferences.theme.collectAsState(initial = initialTheme)
             val systemDark = isSystemInDarkTheme()
             val darkTheme = resolveDarkTheme(theme, systemDark)
             AppTheme(

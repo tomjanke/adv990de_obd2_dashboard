@@ -146,6 +146,20 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `a device saved with the former BLE type is read as unknown - no auto-connect, the user picks a device again`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        // BLE gibt es seit 1.24.9 nicht mehr (die Geraeteliste hat nie BLE-Adapter angeboten). Ein aus aelterer Zeit
+        // gespeichertes Geraet dieses Typs darf weder abstuerzen noch eine Verbindung versuchen, fuer die es keinen Code gibt.
+        dataStore.edit { p ->
+            p[stringPreferencesKey("device_address")] = "AA:BB:CC:DD:EE:FF"
+            p[stringPreferencesKey("device_name")]    = "OBDLink CX"
+            p[stringPreferencesKey("device_type")]    = "BLE"
+        }
+
+        assertNull(prefs.lastDevice.first())
+    }
+
+    @Test
     fun `lastDevice is null when stored MAC address is invalid`() = runTest {
         val btAdapter = mockk<BluetoothAdapter> {
             every { getRemoteDevice("INVALID_MAC") } throws

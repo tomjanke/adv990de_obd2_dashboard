@@ -18,6 +18,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Text
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -27,6 +30,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -175,6 +179,37 @@ class AppInfoScreenTest {
     fun crashReports_saysItIsOff_whenTheUserTurnedItOff() {
         launchWithCrashStatus(available = true, enabled = false)
         assertCrashStatusText(R.string.app_info_crash_reports_off)
+    }
+
+    // ── QS SEC-10: der Einstieg in die Lizenzseite ───────────────────────────────────────────────────────────
+
+    @Test
+    fun licencesRow_isAClickableRow_withGloveFriendlyHeight() {
+        launchAppInfoScreen()
+
+        composeRule.onNodeWithTag(LICENSES_ROW_TEST_TAG)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertTextEquals(composeRule.activity.getString(R.string.app_info_licenses))
+            .assertHasClickAction()
+            .assertHeightIsAtLeast(64.dp)
+    }
+
+    @Test
+    fun licencesRow_opensTheLicencesPage_insideTheApp() {
+        composeRule.setContent {
+            val nav = rememberNavController()
+            NavHost(nav, startDestination = Screen.AppInfo.route) {
+                composable(Screen.AppInfo.route) { AppInfoScreen(navController = nav) }
+                composable(Screen.Licenses.route) { Text("licences-destination") }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(LICENSES_ROW_TEST_TAG).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("licences-destination").assertIsDisplayed()
     }
 }
 

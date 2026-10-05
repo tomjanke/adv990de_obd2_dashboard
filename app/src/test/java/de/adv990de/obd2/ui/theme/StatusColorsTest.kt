@@ -51,4 +51,24 @@ class StatusColorsTest {
         assertEquals(StatusColors.Warning, StatusColors.warningOn(dark.surface))
         assertTrue(contrast(StatusColors.Warning, dark.surface) >= 4.5f)
     }
+
+    // ── container (QS C: WARN-Chip in den App-Logs) ───────────────────────
+
+    @Test
+    fun `a status container is the surface mixed 28 percent towards the status colour`() {
+        val surface = Color(0xFF0A1628)
+        val c = StatusColors.container(StatusColors.Warning, surface)
+
+        // 0x0A + 0.28 * (0xEA - 0x0A) = 10 + 64.4 ~ 74 = 0x4A
+        assertTrue(kotlin.math.abs(c.red * 255f - 74f) <= 1.5f)
+        assertTrue(kotlin.math.abs(c.green * 255f - (22f + 0.28f * (179f - 22f))) <= 1.5f)
+        assertTrue(kotlin.math.abs(c.blue * 255f - (40f + 0.28f * (8f - 40f))) <= 1.5f)
+    }
+
+    @Test
+    fun `a container on a light surface is a pale tint`() {
+        val c = StatusColors.container(StatusColors.Critical, Color.White)
+        assertTrue("pale, not dark: ${luminance(c)}", luminance(c) > 0.5f)
+    }
 }
+

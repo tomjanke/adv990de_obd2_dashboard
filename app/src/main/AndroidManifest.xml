@@ -2,16 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Classic Bluetooth (API <= 30) -->
+    <!-- Classic Bluetooth (API <= 30): Verbinden mit einem gekoppelten Geraet braucht nur BLUETOOTH; BLUETOOTH_ADMIN
+         waere fuer die Suche/Einstellungen noetig, die die App nicht macht. -->
     <uses-permission android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
 
-    <!-- Bluetooth (API 31+) -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
+    <!-- Bluetooth (API 31+): nur BLUETOOTH_CONNECT. Die App verbindet sich mit bereits gekoppelten Classic-Adaptern; sie
+         sucht nicht (kein BLE-Scan seit 1.24.9), also kein BLUETOOTH_SCAN. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- Foreground service -->
@@ -23,9 +20,9 @@
     <!-- Notifications (required on API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Standort: vor API 31 Voraussetzung fuer den BLE-Scan, ab 1.9.2 ausserdem Quelle der
-         Geschwindigkeit, wenn das Fahrzeug PID 010D nicht liefert (opt-in in den Einstellungen).
-         Deshalb ohne maxSdkVersion; die Berechtigung wird erst beim Einschalten angefragt. -->
+    <!-- Standort: Quelle der Geschwindigkeit, wenn das Fahrzeug PID 010D nicht liefert (opt-in in den Einstellungen),
+         und der Aussentemperatur (Wetter). Die Berechtigung wird erst beim Einschalten der jeweiligen Einstellung
+         angefragt. Fuer Bluetooth wird kein Standort gebraucht (kein BLE-Scan seit 1.24.9). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Haelt die GPS-Geschwindigkeit auch im Hintergrund am Leben, wenn ObdForegroundService

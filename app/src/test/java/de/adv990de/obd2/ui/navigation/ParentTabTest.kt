@@ -32,6 +32,7 @@ class ParentTabTest {
             Screen.AppInfo.route,
             Screen.AppLogs.route,
             Screen.GearSettings.route,
+            Screen.Licenses.route,
         )) {
             assertEquals("route $route", Screen.Settings, parentTab(route))
         }
@@ -51,7 +52,7 @@ class ParentTabTest {
         Screen.Dtc, Screen.FreezeFrame -> Screen.Dtc
         Screen.History -> Screen.History
         Screen.Settings, Screen.VehicleInfo, Screen.LoggingConfig, Screen.AppInfo, Screen.AppLogs,
-        Screen.GearSettings -> Screen.Settings
+        Screen.GearSettings, Screen.Licenses -> Screen.Settings
     }
 
     @Test
@@ -59,6 +60,7 @@ class ParentTabTest {
         val all = listOf(
             Screen.Dashboard, Screen.Dtc, Screen.FreezeFrame, Screen.VehicleInfo, Screen.History,
             Screen.Settings, Screen.LoggingConfig, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
+            Screen.Licenses,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))
     }

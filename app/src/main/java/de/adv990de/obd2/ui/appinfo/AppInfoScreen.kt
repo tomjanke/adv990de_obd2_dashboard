@@ -44,6 +44,9 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.adv990de.obd2.crash.CrashReportingStatus
 import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.graphics.vector.ImageVector
+import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -68,6 +71,9 @@ internal const val WEATHER_ATTRIBUTION_TEST_TAG = "app_info_weather_attribution"
 
 /** Test-only selector for the CC BY 4.0 license row, same reasoning as [WEATHER_ATTRIBUTION_TEST_TAG]. */
 internal const val WEATHER_LICENSE_TEST_TAG = "app_info_weather_license"
+
+/** Test-only selector for the row that opens the open-source licences page. */
+internal const val LICENSES_ROW_TEST_TAG = "app_info_licenses"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +134,15 @@ fun AppInfoScreen(
             WeatherAttributionRow(onClick = { openInBrowser(context, OPEN_METEO_URL) })
             HorizontalDivider()
             WeatherLicenseRow(onClick = { openInBrowser(context, CC_BY_4_0_URL) })
+            HorizontalDivider()
+            // Die Lizenzen der mitgelieferten Bibliotheken und Schriften — eine Seite IN der App (kein Browser).
+            LinkRow(
+                text = stringResource(R.string.app_info_licenses),
+                onClickLabel = stringResource(R.string.app_info_licenses_action),
+                testTag = LICENSES_ROW_TEST_TAG,
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                onClick = { navController.navigate(Screen.Licenses.route) },
+            )
         }
     }
 }
@@ -147,7 +162,13 @@ private fun InfoRow(label: String, value: String) {
  * comfortably over the 56dp glove-friendly touch minimum too.
  */
 @Composable
-private fun LinkRow(text: String, onClickLabel: String, testTag: String, onClick: () -> Unit) {
+private fun LinkRow(
+    text: String,
+    onClickLabel: String,
+    testTag: String,
+    onClick: () -> Unit,
+    icon: ImageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -168,7 +189,7 @@ private fun LinkRow(text: String, onClickLabel: String, testTag: String, onClick
             modifier = Modifier.weight(1f),
         )
         Icon(
-            Icons.AutoMirrored.Outlined.OpenInNew,
+            icon,
             // Dekorativ: Zeilentext und onClickLabel tragen die Bedeutung fuer TalkBack.
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,

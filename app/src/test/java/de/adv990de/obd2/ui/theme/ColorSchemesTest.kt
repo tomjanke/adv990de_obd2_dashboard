@@ -109,4 +109,63 @@ class ColorSchemesTest {
         }
         assertTrue("$name: highest container must be clearly lighter than the lowest", lum.last() > lum.first() * 2)
     }
+
+    // ── Rollen, die die Cockpit-Schemata bis 1.24.8 nicht definierten (QS C) ─────────────────────────────────
+
+    /** Plain sRGB mix per channel — the same rule the existing container colours were derived with. */
+    private fun mix(a: Color, b: Color, t: Float) = Color(
+        red = a.red + (b.red - a.red) * t, green = a.green + (b.green - a.green) * t, blue = a.blue + (b.blue - a.blue) * t,
+    )
+
+    private fun assertSameColor(what: String, expected: Color, actual: Color) {
+        val tolerance = 1.5f / 255f   // the schemes hold rounded 8-bit literals
+        for ((channel, e, a) in listOf(Triple("red", expected.red, actual.red), Triple("green", expected.green, actual.green), Triple("blue", expected.blue, actual.blue))) {
+            assertTrue("$what: $channel should be ~$e but is $a", kotlin.math.abs(e - a) <= tolerance)
+        }
+    }
+
+    @Test
+    fun `primary and tertiary containers are the 28 percent mix of the surface towards their main colour`() = forEachScheme { name, s ->
+        assertSameColor("$name primaryContainer", mix(s.surface, s.primary, 0.28f), s.primaryContainer)
+        assertSameColor("$name tertiaryContainer", mix(s.surface, s.tertiary, 0.28f), s.tertiaryContainer)
+    }
+
+    @Test
+    fun `the error container is a dark red from the same rule, not M3's own`() = forEachScheme { name, s ->
+        assertSameColor("$name errorContainer", mix(s.surface, StatusColors.Critical, 0.28f), s.errorContainer)
+        assertNotEquals("$name: M3 default errorContainer must not be used", darkColorScheme().errorContainer, s.errorContainer)
+        assertTrue("$name: errorContainer hue is red (<= 30 degrees from Critical)", hueDistance(s.errorContainer, StatusColors.Critical) <= 30f)
+    }
+
+    @Test
+    fun `text on the new containers is legible`() = forEachScheme { name, s ->
+        for ((role, pair) in listOf(
+            "primaryContainer" to (s.onPrimaryContainer to s.primaryContainer),
+            "tertiaryContainer" to (s.onTertiaryContainer to s.tertiaryContainer),
+            "errorContainer" to (s.onErrorContainer to s.errorContainer),
+        )) {
+            val ratio = contrast(pair.first, pair.second)
+            assertTrue("$name: on$role on $role is $ratio:1, needs >= 7", ratio >= 7f)
+        }
+    }
+
+    @Test
+    fun `the primary and tertiary containers keep the hue of their scheme`() = forEachScheme { name, s ->
+        for ((role, color) in listOf("primaryContainer" to s.primaryContainer, "tertiaryContainer" to s.tertiaryContainer)) {
+            val distance = hueDistance(color, s.primary)
+            assertTrue("$name: $role differs by $distance degrees of hue from primary, needs <= 30", distance <= 30f)
+        }
+    }
+
+    @Test
+    fun `outlineVariant is the quiet line - between the surface and the outline, still visible, in the scheme's hue`() = forEachScheme { name, s ->
+        assertSameColor("$name outlineVariant", mix(s.surface, s.outline, 0.5f), s.outlineVariant)
+        assertTrue("$name: outlineVariant must be lighter than the surface", luminance(s.outlineVariant) > luminance(s.surface))
+        assertTrue("$name: outlineVariant must be quieter than the outline", luminance(s.outlineVariant) < luminance(s.outline))
+        val visible = contrast(s.outlineVariant, s.surface)
+        assertTrue("$name: the 1 dp line between tiles is only $visible:1 against the tile, needs >= 1.3", visible >= 1.3f)
+        assertTrue("$name: outlineVariant hue", hueDistance(s.outlineVariant, s.primary) <= 30f)
+        assertNotEquals("$name: M3 default outlineVariant must not be used", darkColorScheme().outlineVariant, s.outlineVariant)
+    }
 }
+

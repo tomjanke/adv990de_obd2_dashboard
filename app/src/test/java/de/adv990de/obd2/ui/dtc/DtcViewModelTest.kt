@@ -292,6 +292,78 @@ class DtcViewModelTest {
     }
 
     @Test
+    fun `after a drop and a reconnect nothing is active until the next read - the old list says nothing about the new connection`() = runTest {
+        // Sichtbar, wenn die DTC-Seite nicht offen war, waehrend die Verbindung wegbrach und zurueckkam: die Liste aus dem
+        // alten Auslesen galt sonst wieder als "Aktiv", obwohl nach dem Wiederverbinden niemand das Fahrzeug gefragt hat.
+        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", "x", false)))
+        val job = collect(f.vm); runCurrent()
+        f.vm.refresh(); runCurrent()
+        assertTrue("aktiv nach dem Auslesen", f.vm.history.value.single().isActive)
+
+        f.connected.value = false; runCurrent()
+        f.connected.value = true; runCurrent()
+
+        assertFalse("wieder verbunden, aber nicht neu gelesen: nicht aktiv", f.vm.history.value.single().isActive)
+
+        f.vm.refresh(); runCurrent()
+        assertTrue("nach dem neuen Auslesen wieder aktiv", f.vm.history.value.single().isActive)
+        job.cancel()
+    }
+
+    @Test
+    fun `a slow older read cannot overwrite the result of a newer one`() = runTest {
+        val f = fixture(stored = listOf(entry("A"), entry("B")))
+        val gate = CompletableDeferred<Unit>()
+        val older = listOf(DtcEntry("A", "old", false))
+        val newer = listOf(DtcEntry("B", "new", false))
+        coEvery { f.obd.readDtcs() } coAnswers { gate.await(); older } andThen newer
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.refresh(); runCurrent()          // the first read hangs on the gate
+        f.vm.refresh(); runCurrent()          // the second one answers at once
+        assertEquals(newer, f.vm.uiState.value.dtcs)
+
+        gate.complete(Unit); runCurrent()     // now the OLD read finishes
+
+        assertEquals("das spaete alte Ergebnis darf das neue nicht ueberschreiben", newer, f.vm.uiState.value.dtcs)
+        assertEquals(
+            "nur der Code des neuen Auslesens ist aktiv",
+            mapOf("A" to false, "B" to true),
+            f.vm.history.value.associate { it.entry.code to it.isActive },
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `a slow older read that fails cannot replace a newer successful result with an error`() = runTest {
+        val f = fixture(stored = listOf(entry("B")))
+        val gate = CompletableDeferred<Unit>()
+        val newer = listOf(DtcEntry("B", "new", false))
+        coEvery { f.obd.readDtcs() } coAnswers { gate.await(); throw IllegalStateException("late failure") } andThen newer
+
+        f.vm.refresh(); runCurrent()
+        f.vm.refresh(); runCurrent()
+        gate.complete(Unit); runCurrent()
+
+        assertNull("ein spaeter Fehler des alten Auslesens ueberschreibt das neue Ergebnis nicht", f.vm.uiState.value.error)
+        assertEquals(newer, f.vm.uiState.value.dtcs)
+    }
+
+    @Test
+    fun `a superseded read is still recorded - it was a real sighting`() = runTest {
+        val f = fixture(stored = listOf(entry("A")))
+        val gate = CompletableDeferred<Unit>()
+        val older = listOf(DtcEntry("A", "old", false))
+        coEvery { f.obd.readDtcs() } coAnswers { gate.await(); older } andThen emptyList()
+
+        f.vm.refresh(); runCurrent()
+        f.vm.refresh(); runCurrent()
+        gate.complete(Unit); runCurrent()
+
+        coVerify { f.historyRepo.record(older, any()) }
+    }
+
+    @Test
     fun `a failed read leaves every entry inactive`() = runTest {
         val f = fixture(stored = listOf(entry("P0301")))
         coEvery { f.obd.readDtcs() } throws Exception("timeout")

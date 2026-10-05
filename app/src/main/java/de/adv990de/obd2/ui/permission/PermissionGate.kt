@@ -51,14 +51,13 @@ import de.adv990de.obd2.R
  */
 @SuppressLint("InlinedApi")
 internal fun requiredPermissions(sdkInt: Int = Build.VERSION.SDK_INT): Array<String> = buildList {
+    // Die App verbindet sich nur mit gekoppelten Classic-Adaptern (kein BLE-Scan mehr, 1.24.9): das braucht
+    // BLUETOOTH_CONNECT (ab API 31) bzw. BLUETOOTH (bis API 30). BLUETOOTH_SCAN, BLUETOOTH_ADMIN und der Standort bis
+    // API 30 gehoerten nur zum entfernten BLE-Scan.
     if (sdkInt >= Build.VERSION_CODES.S) {
-        // BLUETOOTH_SCAN is declared with neverForLocation in the manifest, so no location needed
-        add(Manifest.permission.BLUETOOTH_SCAN)
         add(Manifest.permission.BLUETOOTH_CONNECT)
     } else {
         add(Manifest.permission.BLUETOOTH)
-        add(Manifest.permission.BLUETOOTH_ADMIN)
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 }.toTypedArray()
 

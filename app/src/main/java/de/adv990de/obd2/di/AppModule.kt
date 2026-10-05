@@ -39,7 +39,7 @@ object AppModule {
         (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
 
     @Provides @Singleton
-    fun provideConnectionFactory(@ApplicationContext ctx: Context) = ConnectionFactory(ctx)
+    fun provideConnectionFactory() = ConnectionFactory()
 
     @Provides @Singleton
     fun provideBluetoothDeviceScanner(

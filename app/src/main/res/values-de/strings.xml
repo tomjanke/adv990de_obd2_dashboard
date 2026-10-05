@@ -53,6 +53,20 @@
     <string name="app_info_name_label">App</string>
     <string name="app_info_version_label">Version</string>
     <string name="app_info_build_label">Build</string>
+    <string name="app_info_licenses">Open-Source-Lizenzen</string>
+    <!-- TalkBack action label for the row ("Double-tap to show licenses") -->
+    <string name="app_info_licenses_action">Lizenzen anzeigen</string>
+    <string name="licenses_title">Open-Source-Lizenzen</string>
+    <string name="licenses_intro">Diese App nutzt die folgenden Open-Source-Komponenten. Darunter stehen die vollständigen Lizenztexte.</string>
+    <string name="licenses_texts_header">Lizenztexte</string>
+    <string name="licenses_text_unavailable">Der Lizenztext konnte nicht geladen werden.</string>
+    <string name="licenses_detail_androidx">Compose, Material 3, Navigation, Lifecycle, Room, DataStore, Paging, Hilt-Navigation</string>
+    <string name="licenses_detail_kotlin">Standardbibliothek, Coroutinen, Serialisierung</string>
+    <string name="licenses_detail_dagger">Dependency Injection</string>
+    <string name="licenses_detail_okio">I/O-Bibliothek, von DataStore genutzt</string>
+    <string name="licenses_detail_sentry">Absturzberichte — nur in Versionen mit eingebautem DSN aktiv</string>
+    <string name="licenses_detail_plex">Schrift für Messwerte</string>
+    <string name="licenses_detail_grotesk">Schrift für die Oberfläche</string>
     <string name="app_info_crash_reports_label">Absturzberichte</string>
     <string name="app_info_crash_reports_on">An — Übertragung an Sentry (in den Einstellungen abschaltbar)</string>
     <string name="app_info_crash_reports_off">Aus (in den Einstellungen abgeschaltet)</string>

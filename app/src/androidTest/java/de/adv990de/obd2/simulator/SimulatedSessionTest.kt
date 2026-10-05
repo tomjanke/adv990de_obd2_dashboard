@@ -34,7 +34,7 @@ import org.junit.runner.RunWith
  * den Hauptpfad der App.
  *
  * Bewusst *ohne* Hilt und ohne Mock: [ObdRepository] laesst sich mit
- * `ConnectionFactory(context)` direkt bauen, und der Simulator-Zweig der Factory braucht weder
+ * `ConnectionFactory()` direkt bauen, und der Simulator-Zweig der Factory braucht weder
  * Bluetooth-Hardware noch eine Berechtigung. Der Kommentar in `DashboardScreenTest`, die
  * Konstruktor-Abhaengigkeiten seien im Instrumentationstest nicht verfuegbar, gilt nur fuer die
  * beiden echten Bluetooth-Zweige.
@@ -49,7 +49,7 @@ class SimulatedSessionTest {
     @Before
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        repository = ObdRepository(ConnectionFactory(context), PidParser(), DtcParser())
+        repository = ObdRepository(ConnectionFactory(), PidParser(), DtcParser())
     }
 
     @After

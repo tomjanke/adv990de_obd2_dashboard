@@ -122,16 +122,7 @@ internal fun parseLogLevelOrDefault(raw: String): LogLevel =
 @Composable
 private fun LogEntryRow(entry: AppLogEntity) {
     val level = parseLogLevelOrDefault(entry.level)
-    val chipColor = when (level) {
-        LogLevel.INFO  -> MaterialTheme.colorScheme.primaryContainer
-        LogLevel.WARN  -> MaterialTheme.colorScheme.tertiaryContainer
-        LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
-    }
-    val chipOnColor = when (level) {
-        LogLevel.INFO  -> MaterialTheme.colorScheme.onPrimaryContainer
-        LogLevel.WARN  -> MaterialTheme.colorScheme.onTertiaryContainer
-        LogLevel.ERROR -> MaterialTheme.colorScheme.onErrorContainer
-    }
+    val chip = logLevelChipColors(level, MaterialTheme.colorScheme)
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -152,8 +143,8 @@ private fun LogEntryRow(entry: AppLogEntity) {
             onClick = {},
             label = { Text(level.name, style = MaterialTheme.typography.labelSmall) },
             colors = SuggestionChipDefaults.suggestionChipColors(
-                containerColor = chipColor,
-                labelColor = chipOnColor
+                containerColor = chip.container,
+                labelColor = chip.content
             )
         )
     }

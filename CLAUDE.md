@@ -40,7 +40,7 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 | Outline (Hairlines) | `outline` | `#3D6070` |
 
 **Statusfarben (cross-theme, immer gleich):** definiert in `ui/theme/StatusColors.kt` — nicht hardcoded inline!
-- `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach). **Als TEXT oder Akzent auf einer Fläche immer über `StatusColors.warningOn(surface)`** (seit v1.24.6, B28): auf hellen Flächen (Leuchtdichte > 0,5, das helle Default-Schema) liefert das `WarningOnLight` (`#A16207`, Tailwind Yellow 700, ≈ 4,9:1) statt des kräftigen Gelbs, das dort nur 1,87:1 hat; auf den dunklen Cockpit-Schemata bleibt es `Warning`. Punkte und Balken in den dokumentierten Ampel-Ausnahmen behalten das kräftige Gelb.
+- `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, Bluetooth schwach). **Als TEXT oder Akzent auf einer Fläche immer über `StatusColors.warningOn(surface)`** (seit v1.24.6, B28): auf hellen Flächen (Leuchtdichte > 0,5, das helle Default-Schema) liefert das `WarningOnLight` (`#A16207`, Tailwind Yellow 700, ≈ 4,9:1) statt des kräftigen Gelbs, das dort nur 1,87:1 hat; auf den dunklen Cockpit-Schemata bleibt es `Warning`. Punkte und Balken in den dokumentierten Ampel-Ausnahmen behalten das kräftige Gelb.
 - `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
 - `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der unten dokumentierten Ausnahmen (Bluetooth-Dot und Öl-Temperatur-Balken als Rot/Gelb/Grün-Ampel, Neutral-Anzeige „N“ der Ganganzeige), **kein** allgemeines OK-Grün
@@ -133,11 +133,12 @@ Slider-Spur = `Highest`). Ableitung aus der eigenen Palette: Container = `surfac
 ≥ 1,5:1 gegen `surface`, alle neuen Rollen im Farbton ihres Schemas (≤ 30°) und eine aufsteigende Leiter. **Neue
 Material-Komponenten zuerst im Orange-Schema ansehen** — fehlt eine Rolle, erscheint wieder M3-Violett; dann die
 Rolle im Schema ergänzen und im Test abdecken. Das „Default“-Farbschema (M3-Standardfarben) bleibt unberührt.
-**Bekannte Restlücke (Stand 2026-10-04, im Orange-Schema per Screenshot bestätigt):** `primaryContainer`/
-`tertiaryContainer`/`errorContainer` samt `on…`-Rollen — die Log-Level-Chips in `AppLogsScreen` (INFO violett,
-WARN mauve) — und `outlineVariant` (die 1-dp-Linien zwischen den Dashboard-Kacheln, `DashboardScreen.kt`) sind in
-den Cockpit-Schemata noch M3-Standard. `error` bleibt bewusst M3-Standard (s. „Statusfarben“ oben). Offen als
-Folgearbeit: Rollen aus der Palette ableiten oder die Chips auf `StatusColors` abbilden.
+**Restlücke geschlossen (v1.24.9):** `primaryContainer`/`tertiaryContainer` (Surface zu 28 % Richtung `primary`/`tertiary`),
+`errorContainer` (Surface zu 28 % Richtung `StatusColors.Critical` — dunkles Rot im Ton der Palette; der Swipe-Hintergrund zum Löschen nutzt ihn)
+samt `on…`-Rollen (= `onSurface`, ≥ 7:1) und `outlineVariant` (Surface zu 50 % Richtung `outline`: die ruhige 1-dp-Linie zwischen den Dashboard-Kacheln, ≥ 1,3:1 gegen die Kachel)
+sind in den drei Cockpit-Schemata jetzt aus der Palette abgeleitet (`ColorSchemesTest`: Regel, Kontrast, Farbton). `error` bleibt bewusst M3-Standard. **Die Level-Chips der App-Logs**
+(`logLevelChipColors`): INFO = `primaryContainer`, ERROR = `errorContainer`, **WARN = `StatusColors.container(Warning, surface)` (gelb), nicht `tertiaryContainer`** — im blauen und grünen
+Schema liegt `tertiaryContainer` nur 1–2° im Farbton neben `primaryContainer`, INFO und WARN wären nicht zu unterscheiden.
 
 ### Typografie
 
@@ -600,7 +601,7 @@ Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilen
 - **UI:** „Absturzberichte senden“ (Info & Wartung, `SettingsSwitchRow`, nur wenn `CrashReportingSettingsViewModel.available` = DSN eingebaut) und eine Statuszeile in der App-Info (`CrashReportingStatus`: NotIncluded / Off / On).
 - **Abhängigkeit:** `sentry-android-core` statt `sentry-android` — das Sammelpaket zog den Native-Handler (`libsentry.so`, `libsentry-android.so`, ~0,5–0,7 MB je ABI) und Replay nach, die die App nicht braucht; das Release-APK wurde dadurch von 5,73 auf 2,92 MB kleiner.
   `CrashReportingConfigTest` hält `auto-init=false`, die Abhängigkeit und die README-Aussage fest. Wer später eine Sentry-Integration (NDK, Replay) braucht, ergänzt sie bewusst — nicht über das Sammelpaket.
-- Schriftlizenzen: `docs/licenses/` hält je Schrift den OFL-Text (`LicenseFilesTest`); das APK trägt keine eigene Lizenzseite (bekannte Grenze, README).
+- Schriftlizenzen: `docs/licenses/` hält je Schrift den OFL-Text (`LicenseFilesTest`); die App zeigt sie auf der Lizenzseite (s. „Open-Source-Lizenzen in der App“, seit v1.24.9).
 
 ### Release-Signatur und Geheimnisse (seit v1.24.7, B31)
 
@@ -611,6 +612,50 @@ Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilen
   dem Zertifikat aus `scripts/release-cert.sha256` signiert ist (öffentlicher SHA-256-Fingerabdruck; ein falscher Schlüssel nach einem Umzug ergäbe ein Update, das sich nicht einspielen lässt).
   `apksigner` fehlt → kein Release (vorher stillschweigend „nicht geprüft“). Die Prüfungen stehen in `scripts/release-lib.sh` und werden von `ReleaseScriptLibTest` mit echtem `bash` ausgeführt.
 - **Nicht geändert:** die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert) — Berechtigungen sind Entscheidung des Nutzers.
+
+### Bluetooth: nur klassisch, nur gekoppelt (seit v1.24.9)
+
+- **BLE gibt es nicht.** Die Geräteliste (`BluetoothDeviceScanner.bondedDevices`) bot nie BLE-Adapter an: `scanBle()` hatte keinen Aufrufer, `BleConnection` (286 Zeilen), der BLE-Zweig der `ConnectionFactory` und `BtType.BLE` waren toter Code
+  (~370 Zeilen) und wurden entfernt; die README warb trotzdem mit BLE-Adaptern. `BtType` = `CLASSIC | SIMULATOR`. Ein früher gespeichertes Gerät mit dem Typ „BLE“ wird von `AppPreferences.lastDevice` als unbekannt gelesen (kein Auto-Connect).
+- **Berechtigungen sind das, was Verbinden braucht:** ab API 31 nur `BLUETOOTH_CONNECT`, bis API 30 nur `BLUETOOTH` (`PermissionGate.requiredPermissions`). `BLUETOOTH_SCAN`, `BLUETOOTH_ADMIN` und der Pflicht-Standort bis API 30
+  gehörten nur zum BLE-Scan — wer auf Android ≤ 11 Standort ablehnte, war grundlos ausgesperrt. `BluetoothScopeSourceTest` hält BLE-Code, diese Berechtigungen im Manifest und das README-Versprechen draußen.
+  **Auf API ≤ 30 nicht am Gerät geprüft** (das Testgerät ist API 37).
+
+### Start ohne Blitz (seit v1.24.9)
+
+Theme und Kachel-Belegung kommen asynchron aus dem DataStore, und die Einstellung wird erst während der ersten Komposition abonniert: das erste Bild zeigte kurz das Standard-Theme bzw. leere Kacheln. **`seedBlocking(default, timeoutMs, source)`**
+(`data/StartupSeed.kt`) liest den ersten Wert einmal synchron (am Pixel gemessen: ~3 ms für den ersten Zugriff beim Kaltstart; Obergrenze 250 ms, bei leerer/werfender/hängender Flow gilt der Standard) — als **Startwert**, nicht als Quelle der Wahrheit.
+Genutzt in `MainActivity.onCreate` (Theme → `collectAsState(initial = …)`) und im `DashboardViewModel` (Slot-Belegung → Startwert von `slotPids` und `placeholderReadings`; vorher `emptyList()` bzw. Standard). **Nicht geändert:** das Fenster vor dem ersten Frame (System-Splash auf
+Android 12+, Hintergrund aus dem Systemmodus) — dort bleibt ein heller/dunkler Moment möglich. Eine neue Einstellung, die das erste Bild bestimmt, wird genauso geseedet.
+
+### Standort-Cache mit Altersprüfung (seit v1.24.9)
+
+`AndroidCurrentLocationProvider.lastKnownLocation()` nimmt den **jüngsten** gecachten Fix (GPS oder Netzwerk), sofern er höchstens `CACHED_FIX_MAX_AGE_MS` = 10 min alt ist (`freshestFix`, reine Funktion in `location/LocationFreshness.kt`; Alter über `elapsedRealtimeNanos`,
+die monotone Uhr; negatives Alter = ungültig). Sonst ein aktiver Fix (GPS, dann Netzwerk, je 15 s); **scheitert auch der, gibt es keinen Standort** — lieber keine Außentemperatur als eine für die falsche Gegend (vorher zählte jeder gecachte Fix, der GPS-Cache schlug einen
+frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standort anfordert). Das Halten des letzten guten Werts (30 min, `holdOutsideTemp`) bleibt davon unberührt.
+
+### Fehlerhistorie: Randfälle (seit v1.24.9)
+
+- **Eine Live-Liste gehört zu EINER Verbindung:** `DtcViewModel` setzt `liveCodes` zurück, sobald `isConnected` falsch wird (vorher galt nach Trennen + Wiederverbinden ohne offene Seite die alte Liste wieder als „Aktiv“).
+- **Überlappende Auslesevorgänge:** ein Generationszähler (wie `FreezeFrameViewModel`) — nur das jüngste Lesen schreibt Liste, Zustand und Fehler; ein spätes altes Ergebnis überschreibt nichts. Ein überholtes Lesen wird **trotzdem aufgezeichnet** (es war eine echte Beobachtung).
+- **Bewusst so gelassen:** (1) Geht die Geräteuhr zurück, bewegt sich `lastSeen` nicht mehr (Schutz `lastSeen < now`, der auch das Flag vor unsortierten Schreibzugriffen schützt; Alternativen würden diesen Schutz aufgeben). (2) Obergrenze 200 Codes: ein Adapter mit Phantomcodes verdrängt die ältesten.
+  (3) Ein Code, der im Undo-Fenster erneut gelesen wird, wird beim Commit mitgelöscht (s. „Lokale Fehlerhistorie“).
+
+### Open-Source-Lizenzen in der App (seit v1.24.9)
+
+`ui/licenses/`: Seite „Open-Source-Lizenzen“ (Route `Screen.Licenses`, Eltern-Tab Einstellungen, Einstieg über eine Zeile der App-Info). `LICENSED_COMPONENTS` ist von Hand gepflegt nach dem, was im Release-APK landet (R8-Mapping geprüft: AndroidX, Kotlin/Coroutines,
+Okio, Dagger/Hilt, Sentry; dazu die zwei Schriften). **`LicenseCatalogTest` zwingt jede neue direkte Abhängigkeit zu einem Eintrag** (Gruppen aus `app/build.gradle.kts` + `libs.versions.toml`). Die Lizenztexte liegen in `docs/licenses/` (Apache 2.0 von apache.org,
+MIT von Sentry **mit beiden Copyright-Zeilen des Originals** — Sentry und ANRWatchDog —, beide OFL) und sind per `sourceSets["main"].assets.srcDir(rootProject.file("docs/licenses"))` zugleich die Assets der App — eine Quelle für Repo und APK; `LicensesScreenTest` liest sie aus dem echten APK.
+Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
+
+### Build-Integrität: Prüfsummen (seit v1.24.9)
+
+- **Gradle-Distribution:** `distributionSha256Sum` in `gradle/wrapper/gradle-wrapper.properties` (Gradle 9.5.0-bin: `553c78f5…6b746`, von services.gradle.org und gradle.org/release-checksums bestätigt und selbst gehasht). Wird die Version angehoben, Summe und
+  `BuildIntegrityTest` gemeinsam ändern.
+- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 711 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
+  `./gradlew --refresh-dependencies --write-verification-metadata sha256 --continue :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest :app:lintAnalyzeDebugAndroidTest help`.
+  Ohne `--refresh-dependencies` fehlen Einträge, die nur beim frischen Auflösen gebraucht werden (gemessen: `guava-parent 33.4.0-jre`); das zeigt erst ein späterer frischer Build. Geprüft mit einem Build + `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). `BuildIntegrityTest` hält
+  Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Bekannte Grenze:** das JDK holt der foojay-Resolver (`gradle/gradle-daemon-jvm.properties`); Gradle kennt für Toolchain-Downloads keine Prüfsumme.
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -755,8 +800,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1248 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 301 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1269 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 307 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

@@ -10,19 +10,15 @@ class PermissionGateTest {
 
     // Build.VERSION_CODES.S = 31, TIRAMISU = 33 (hartcodiert, damit der Test ohne
     // Robolectric/android.jar-Stub auskommt).
-    private val legacySet = arrayOf(
-        Manifest.permission.BLUETOOTH,
-        Manifest.permission.BLUETOOTH_ADMIN,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-    )
+    // Seit 1.24.9 ohne BLE: Die App verbindet sich nur mit gekoppelten Classic-Adaptern. Dafuer genuegt BLUETOOTH
+    // (bis API 30) bzw. BLUETOOTH_CONNECT (ab API 31) — BLUETOOTH_SCAN, BLUETOOTH_ADMIN und (bis API 30) der Standort
+    // gehoerten nur zum BLE-Scan, den es nicht mehr gibt.
+    private val legacySet = arrayOf(Manifest.permission.BLUETOOTH)
 
-    private val modernSet = arrayOf(
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_CONNECT,
-    )
+    private val modernSet = arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
 
     @Test
-    fun `below API 31 returns the legacy bluetooth and location set`() {
+    fun `below API 31 returns only the legacy bluetooth permission`() {
         assertArrayEquals(legacySet, requiredPermissions(sdkInt = 30))
     }
 
@@ -32,13 +28,29 @@ class PermissionGateTest {
     }
 
     @Test
-    fun `at API 31 returns BLUETOOTH_SCAN and BLUETOOTH_CONNECT instead of legacy set`() {
+    fun `at API 31 returns BLUETOOTH_CONNECT instead of the legacy set`() {
         assertArrayEquals(modernSet, requiredPermissions(sdkInt = 31))
     }
 
     @Test
-    fun `above API 31 returns BLUETOOTH_SCAN and BLUETOOTH_CONNECT`() {
+    fun `above API 31 returns BLUETOOTH_CONNECT`() {
         assertArrayEquals(modernSet, requiredPermissions(sdkInt = 32))
+    }
+
+    @Test
+    fun `nothing the removed BLE scan needed is required any more, at any API level`() {
+        // BLUETOOTH_SCAN und der Pflicht-Standort bis API 30 gehoerten nur zum BLE-Scan. Ein Nutzer, der Standort
+        // ablehnt, war auf Android <= 11 grundlos ausgesperrt.
+        val bleOnly = listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        )
+        for (sdk in listOf(26, 28, 30, 31, 32, 33, 34, 36)) {
+            val required = requiredPermissions(sdkInt = sdk).toList()
+            for (permission in bleOnly) assertFalse("API $sdk fordert $permission", permission in required)
+        }
     }
 
     @Test

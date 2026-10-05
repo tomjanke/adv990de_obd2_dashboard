@@ -6,6 +6,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
+import android.os.SystemClock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,9 +36,11 @@ class AndroidCurrentLocationProvider @Inject constructor(
         LocationPermissions.hasFineLocation(context) || LocationPermissions.hasCoarseLocation(context)
 
     /**
-     * Zuerst der gecachte GPS-Fix, dann der gecachte Netzwerk-Fix (schnell, kein Warten) — erst
-     * wenn beide leer sind, wird je Provider (GPS dann Netzwerk) EIN frischer Fix aktiv angefragt
-     * (`requestSingleUpdate`, Timeout [ACTIVE_FIX_TIMEOUT_MS]).
+     * Zuerst der JUENGSTE gecachte Fix (GPS oder Netzwerk), sofern er hoechstens [CACHED_FIX_MAX_AGE_MS] alt ist
+     * (schnell, kein Warten) — erst wenn kein frischer da ist, wird je Provider (GPS dann Netzwerk) EIN frischer Fix aktiv
+     * angefragt (`requestSingleUpdate`, Timeout [ACTIVE_FIX_TIMEOUT_MS]). Scheitert auch das, ist das Ergebnis `null`:
+     * lieber keine Temperatur als eine fuer die falsche Gegend (SEC-5; vorher zaehlte jeder gecachte Fix, egal wie alt, und
+     * der GPS-Cache schlug einen frischen Netzwerk-Fix).
      *
      * Ohne den aktiven Zweig lieferte diese Funktion auf einem Geraet ohne kuerzlich von
      * IRGENDEINER App anfragten Standort (z. B. "Geschwindigkeit per GPS" aus, die einzige andere
@@ -52,11 +55,18 @@ class AndroidCurrentLocationProvider @Inject constructor(
     override suspend fun lastKnownLocation(): Pair<Double, Double>? {
         if (!hasPermission()) return null
         val manager = context.getSystemService(LocationManager::class.java) ?: return null
-        val location = cachedFrom(manager, LocationManager.GPS_PROVIDER)
-            ?: cachedFrom(manager, LocationManager.NETWORK_PROVIDER)
-            ?: activeFixFrom(manager, LocationManager.GPS_PROVIDER)
+        val nowNanos = SystemClock.elapsedRealtimeNanos()
+        val cached = freshestFix(
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).map { provider ->
+                cachedFrom(manager, provider)?.let {
+                    LocationFix(it.latitude, it.longitude, fixAgeMs(nowNanos, it.elapsedRealtimeNanos))
+                }
+            }
+        )
+        if (cached != null) return cached.latitude to cached.longitude
+        val active = activeFixFrom(manager, LocationManager.GPS_PROVIDER)
             ?: activeFixFrom(manager, LocationManager.NETWORK_PROVIDER)
-        return location?.let { it.latitude to it.longitude }
+        return active?.let { it.latitude to it.longitude }
     }
 
     private fun cachedFrom(manager: LocationManager, provider: String): Location? =

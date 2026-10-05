@@ -10,15 +10,14 @@ import androidx.core.content.ContextCompat
 /**
  * Laufzeit-Prüfung der Bluetooth-Berechtigungen.
  *
- * Ab Android 12 (API 31) sind BLUETOOTH_SCAN und BLUETOOTH_CONNECT gefährliche Berechtigungen,
- * die der Nutzer jederzeit entziehen kann — auch während einer laufenden Verbindung. Darunter
- * genügen BLUETOOTH und BLUETOOTH_ADMIN, die als Install-Time-Berechtigungen nicht entzogen
- * werden können; dort liefern die Prüfungen deshalb immer true, ohne den Context zu befragen.
+ * Ab Android 12 (API 31) ist BLUETOOTH_CONNECT eine gefährliche Berechtigung, die der Nutzer
+ * jederzeit entziehen kann — auch während einer laufenden Verbindung. Darunter genügt BLUETOOTH,
+ * eine Install-Time-Berechtigung, die nicht entzogen werden kann; dort liefern die Prüfungen deshalb immer true, ohne den Context zu befragen.
  *
  * Das ersetzt nicht den PermissionGate in der UI — es ist die zweite Verteidigungslinie für
  * den Fall, dass die Berechtigung nach dem Gate wegfällt.
  */
-// InlinedApi: BLUETOOTH_CONNECT und BLUETOOTH_SCAN sind reine String-Konstanten, die der
+// InlinedApi: BLUETOOTH_CONNECT ist eine reine String-Konstante, die der
 // Compiler einbettet. Das ist hier gewollt — der SDK_INT-Guard in hasRuntimePermission
 // verhindert, dass unterhalb von API 31 ueberhaupt danach gefragt wird. Lint's InlinedApi-Guard
 // erkennt nur einen direkten `Build.VERSION.SDK_INT >= ...`-Vergleich — es sieht den Guard nicht
@@ -30,9 +29,6 @@ object BluetoothPermissions {
 
     fun hasConnect(context: Context, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
         hasRuntimePermission(context, Manifest.permission.BLUETOOTH_CONNECT, sdkInt)
-
-    fun hasScan(context: Context, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
-        hasRuntimePermission(context, Manifest.permission.BLUETOOTH_SCAN, sdkInt)
 
     private fun hasRuntimePermission(
         context: Context,

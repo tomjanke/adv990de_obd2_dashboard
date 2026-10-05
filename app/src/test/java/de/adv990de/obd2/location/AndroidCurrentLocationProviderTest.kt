@@ -6,17 +6,22 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.SystemClock
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -37,6 +42,20 @@ class AndroidCurrentLocationProviderTest {
 
     private val context = mockk<Context>()
 
+    // Die monotone Uhr, an der das Alter eines gecachten Fixes gemessen wird (SEC-5). Im JVM-Test liefert die Stub-Uhr 0.
+    private val nowNanos = 1_000_000_000_000L
+
+    @Before
+    fun fixClock() {
+        mockkStatic(SystemClock::class)
+        every { SystemClock.elapsedRealtimeNanos() } returns nowNanos
+    }
+
+    @After
+    fun releaseClock() {
+        unmockkStatic(SystemClock::class)
+    }
+
     private fun grant(fine: Boolean, coarse: Boolean) {
         every {
             context.checkPermission(android.Manifest.permission.ACCESS_FINE_LOCATION, any(), any())
@@ -46,10 +65,14 @@ class AndroidCurrentLocationProviderTest {
         } returns if (coarse) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
     }
 
-    private fun location(lat: Double, lon: Double) = mockk<Location> {
+    /** [ageMs]: wie alt der Fix ist. Ein frisch angeforderter ("aktiver") Fix hat das Alter 0, ein gecachter oft mehr. */
+    private fun location(lat: Double, lon: Double, ageMs: Long = 0L) = mockk<Location> {
         every { latitude } returns lat
         every { longitude } returns lon
+        every { elapsedRealtimeNanos } returns nowNanos - ageMs * 1_000_000L
     }
+
+    private val minute = 60_000L
 
     private fun installManager(manager: LocationManager) {
         every { context.getSystemService(LocationManager::class.java) } returns manager
@@ -106,12 +129,13 @@ class AndroidCurrentLocationProviderTest {
         grant(fine = true, coarse = true)
         val manager = mockk<LocationManager> {
             every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(52.52, 13.405)
+            // Beide Caches werden gelesen (der juengere gewinnt, s. unten); hier hat nur GPS einen Fix.
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
         }
         installManager(manager)
 
         assertEquals(52.52 to 13.405, AndroidCurrentLocationProvider(context).lastKnownLocation())
-        // Cache hat geliefert: weder Netzwerk-Cache noch eine aktive Anfrage werden noch versucht.
-        verify(exactly = 0) { manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }
+        // Der frische Cache hat geliefert: eine aktive Anfrage wird nicht gestartet.
         verify(exactly = 0) { manager.requestSingleUpdate(any<String>(), any(), any()) }
     }
 
@@ -143,6 +167,77 @@ class AndroidCurrentLocationProviderTest {
         installManager(manager)
 
         assertEquals(48.14 to 11.58, AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
+
+    // --- lastKnownLocation(): Alter des Caches (SEC-5) ---
+
+    @Test
+    fun `lastKnownLocation prefers the younger of two fresh cached fixes - the network one here`() = runTest {
+        grant(fine = true, coarse = true)
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(1.0, 1.0, ageMs = 8 * minute)
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns location(2.0, 2.0, ageMs = 2 * minute)
+        }
+        installManager(manager)
+
+        assertEquals(2.0 to 2.0, AndroidCurrentLocationProvider(context).lastKnownLocation())
+        verify(exactly = 0) { manager.requestSingleUpdate(any<String>(), any(), any()) }
+    }
+
+    @Test
+    fun `a stale cached GPS fix does not beat a fresh cached network fix`() = runTest {
+        grant(fine = true, coarse = true)
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(1.0, 1.0, ageMs = 3 * 60 * minute)
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns location(2.0, 2.0, ageMs = 30_000L)
+        }
+        installManager(manager)
+
+        assertEquals(2.0 to 2.0, AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
+
+    @Test
+    fun `a stale cache is not used - a fresh fix is requested instead`() = runTest {
+        grant(fine = true, coarse = true)
+        val listener = slot<LocationListener>()
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(1.0, 1.0, ageMs = 3 * 60 * minute)
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns location(2.0, 2.0, ageMs = 5 * 60 * minute)
+            every { requestSingleUpdate(LocationManager.GPS_PROVIDER, capture(listener), any()) } answers {
+                listener.captured.onLocationChanged(location(52.52, 13.405))
+            }
+        }
+        installManager(manager)
+
+        assertEquals(52.52 to 13.405, AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
+
+    @Test
+    fun `when the cache is stale and no fresh fix arrives there is no location - never the stale one`() = runTest {
+        grant(fine = true, coarse = true)
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(1.0, 1.0, ageMs = 3 * 60 * minute)
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            every { requestSingleUpdate(any<String>(), any(), any()) } just Runs
+            every { removeUpdates(any<LocationListener>()) } just Runs
+        }
+        installManager(manager)
+
+        assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
+    }
+
+    @Test
+    fun `a cached fix from the future - a monotonic clock that restarted - counts as stale`() = runTest {
+        grant(fine = true, coarse = true)
+        val manager = mockk<LocationManager> {
+            every { getLastKnownLocation(LocationManager.GPS_PROVIDER) } returns location(1.0, 1.0, ageMs = -10 * minute)
+            every { getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } returns null
+            every { requestSingleUpdate(any<String>(), any(), any()) } just Runs
+            every { removeUpdates(any<LocationListener>()) } just Runs
+        }
+        installManager(manager)
+
+        assertNull(AndroidCurrentLocationProvider(context).lastKnownLocation())
     }
 
     // --- lastKnownLocation(): beide Caches leer -> aktive Anfrage ---

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -89,14 +90,17 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
 
+    // Die gespeicherte Kachel-Belegung, einmal beim Erzeugen synchron gelesen (~3 ms). Sie ist der STARTWERT der beiden Flows
+    // unten: Das erste Bild zeigte sonst leere Kacheln (Platzhalter) bzw. die Standard-Belegung und sprang erst danach auf die
+    // gespeicherte um (UID-12). Die Flows abonnieren die Einstellung danach wie bisher und bekommen jede Aenderung.
+    private val initialSlotPids: List<String> =
+        seedBlocking(AppPreferences.DEFAULT_SLOT_PIDS, source = appPreferences.slotPids)
+
     // Placeholder readings shown when not connected: slot PIDs with value 0.
     // Keeps the dashboard tiles visible at all times so the user always sees the layout.
     val placeholderReadings: StateFlow<List<SensorValue>> = appPreferences.slotPids
-        .map { ids ->
-            val pids = ids.mapNotNull { PidRegistry.all[it] }.ifEmpty { PidRegistry.defaults }
-            pids.map { pid -> SensorValue(pid, 0f) }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .map(::placeholdersFor)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, placeholdersFor(initialSlotPids))
 
     /** RPM blink threshold in rpm. 0 = blinking disabled. */
     val rpmBlinkThreshold: StateFlow<Int> = appPreferences.rpmBlinkThreshold
@@ -131,7 +135,7 @@ class DashboardViewModel @Inject constructor(
 
     /** The 4 slot → PID-ID assignments, in slot order. */
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.DEFAULT_SLOT_PIDS)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, initialSlotPids)
 
     /** Vom Steuergeraet gemeldete PID-Menge; null solange keine Discovery gelaufen ist.
      *  Die UI unterscheidet damit "Slot nicht belegt" von "Fahrzeug liefert den Wert nicht". */
@@ -457,4 +461,10 @@ class DashboardViewModel @Inject constructor(
         )
         connectionCoordinator.requestReconnect()
     }
+}
+
+/** Die Platzhalter-Kacheln einer Belegung: je PID ein Wert 0; unbekannte IDs fallen auf die Standard-PIDs zurueck. */
+private fun placeholdersFor(ids: List<String>): List<SensorValue> {
+    val pids = ids.mapNotNull { PidRegistry.all[it] }.ifEmpty { PidRegistry.defaults }
+    return pids.map { pid -> SensorValue(pid, 0f) }
 }

@@ -18,6 +18,7 @@ import de.adv990de.obd2.ui.settings.AppLogsScreen
 import de.adv990de.obd2.ui.settings.GearSettingsScreen
 import de.adv990de.obd2.ui.settings.SettingsScreen
 import de.adv990de.obd2.ui.appinfo.AppInfoScreen
+import de.adv990de.obd2.ui.licenses.LicensesScreen
 import de.adv990de.obd2.ui.vehicleinfo.VehicleInfoScreen
 
 @Composable
@@ -46,6 +47,7 @@ fun AppNavHost(navController: NavHostController) {
             composable(Screen.AppLogs.route) { AppLogsScreen(navController) }
             composable(Screen.GearSettings.route) { GearSettingsScreen(navController) }
             composable(Screen.AppInfo.route) { AppInfoScreen(navController) }
+            composable(Screen.Licenses.route) { LicensesScreen(navController) }
         }
     }
 }

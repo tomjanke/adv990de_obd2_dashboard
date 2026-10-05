@@ -56,4 +56,22 @@ class UiRulesSourceTest {
         assertTrue("ConfirmDeleteDialog gefunden: $files", "ConfirmDeleteDialog.kt" in files)
         assertTrue("DashboardComponents (ModalBottomSheet) gefunden: $files", "DashboardComponents.kt" in files)
     }
+
+    @Test
+    fun `MainActivity seeds the theme before the first composition - no flash of the default theme (UID-12)`() {
+        val source = File(projectRoot, "app/src/main/java/de/adv990de/obd2/MainActivity.kt").readText()
+
+        assertTrue("seedBlocking vor setContent", source.indexOf("seedBlocking(") in 0 until source.indexOf("setContent {"))
+        assertTrue("der Startwert geht in collectAsState", source.contains("collectAsState(initial = initialTheme)"))
+    }
+
+    @Test
+    fun `the dashboard seeds its slot assignment instead of starting from empty or default tiles`() {
+        val source = File(projectRoot, "app/src/main/java/de/adv990de/obd2/ui/dashboard/DashboardViewModel.kt").readText()
+
+        assertTrue(source.contains("seedBlocking(AppPreferences.DEFAULT_SLOT_PIDS"))
+        assertTrue(source.contains("placeholdersFor(initialSlotPids)"))
+        assertTrue(source.contains("SharingStarted.Eagerly, initialSlotPids"))
+    }
 }
+

@@ -3,14 +3,9 @@ package de.adv990de.obd2.bluetooth
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
 import android.content.Context
 import androidx.annotation.RequiresPermission
 import de.adv990de.obd2.BuildConfig
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 
 class BluetoothDeviceScanner(
     private val context: Context,
@@ -36,37 +31,6 @@ class BluetoothDeviceScanner(
             listOf(ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")) + real
         } else {
             real
-        }
-    }
-
-    /** Scans for BLE OBD2 adapters */
-    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-    fun scanBle(): Flow<ScannedDevice> = callbackFlow {
-        if (!BluetoothPermissions.hasScan(context)) {
-            close(BluetoothException.PermissionDenied("BLUETOOTH_SCAN"))
-            return@callbackFlow
-        }
-        val scanner = bluetoothAdapter.bluetoothLeScanner ?: run {
-            close(BluetoothException.ConnectionFailed("Bluetooth is off or BLE not supported"))
-            return@callbackFlow
-        }
-        val seen = mutableSetOf<String>()
-        val callback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val device = result.device
-                if (device.isObdLike() && seen.add(device.address)) {
-                    trySend(ScannedDevice(device, BtType.BLE, device.safeName() ?: "BLE OBD2"))
-                }
-            }
-        }
-        try {
-            scanner.startScan(callback)
-        } catch (_: SecurityException) {
-            close(BluetoothException.PermissionDenied("BLUETOOTH_SCAN"))
-            return@callbackFlow
-        }
-        awaitClose {
-            try { scanner.stopScan(callback) } catch (_: SecurityException) { /* Berechtigung entzogen */ }
         }
     }
 

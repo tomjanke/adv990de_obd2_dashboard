@@ -62,6 +62,19 @@ class DtcViewModel @Inject constructor(
     /** Codes of the last successful live read; null until one happened, after a failed read, or without a connection. */
     private val liveCodes = MutableStateFlow<Set<String>?>(null)
 
+    /**
+     * Counts the reads. Several can overlap (the page reads on every connection change, pull-to-refresh adds one): only the
+     * latest may write the live list, the state and the error — a slow OLD read finishing late must not overwrite a newer
+     * answer. The same pattern as `FreezeFrameViewModel`/`VehicleInfoViewModel`.
+     */
+    private var generation = 0
+
+    init {
+        // A live list belongs to ONE connection. Without this, a drop and a reconnect while the page was not open left the
+        // old list in place, and its codes showed "Aktiv" again with nobody having asked the vehicle on the new connection.
+        viewModelScope.launch { isConnected.collect { connected -> if (!connected) liveCodes.value = null } }
+    }
+
     /** The recorded codes the user still sees, newest first; "active" = in the last live read while connected. */
     val history: StateFlow<List<DtcHistoryItem>> =
         combine(dtcHistoryRepository.history, deletion.pending, liveCodes, isConnected) { entries, pending, live, connected ->
@@ -86,6 +99,7 @@ class DtcViewModel @Inject constructor(
      * looks like "no faults" — exactly what must not be claimed while the vehicle is not even asked.
      */
     fun refresh() {
+        val mine = ++generation
         viewModelScope.launch {
             if (!obdRepository.isConnectedFlow.value) {
                 _uiState.value = DtcUiState()
@@ -95,16 +109,21 @@ class DtcViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val dtcs = obdRepository.readDtcs()
-                _uiState.value = DtcUiState(dtcs = dtcs)
-                liveCodes.value = dtcs.mapTo(HashSet()) { it.code }
+                if (mine == generation) {
+                    _uiState.value = DtcUiState(dtcs = dtcs)
+                    liveCodes.value = dtcs.mapTo(HashSet()) { it.code }
+                }
+                // Also a superseded read is recorded: it was a real sighting, only its display is out of date.
                 dtcHistoryRepository.record(dtcs)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 // NO DATA heisst hier: Das Steuergeraet hat auf die Fehlerspeicher-Abfrage nicht geantwortet. Das ist
                 // KEINE Entwarnung (A9) — die Seite sagt es in diesem Zusammenhang, statt des allgemeinen Adaptertexts.
                 val reason = if (e is ObdException.NoData) UiText.StringResource(R.string.dtc_no_answer) else ObdErrorMapper.toUiText(e)
-                _uiState.value = DtcUiState(error = reason)
-                liveCodes.value = null
+                if (mine == generation) {
+                    _uiState.value = DtcUiState(error = reason)
+                    liveCodes.value = null
+                }
             }
         }
     }

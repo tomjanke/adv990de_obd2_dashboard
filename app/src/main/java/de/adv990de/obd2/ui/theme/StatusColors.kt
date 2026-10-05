@@ -45,6 +45,21 @@ object StatusColors {
      */
     fun warningOn(surface: Color): Color = if (surface.luminance() > 0.5f) WarningOnLight else Warning
 
+    /**
+     * Die gedaempfte Flaeche zu einer Statusfarbe — [surface] zu 28 % Richtung [status] gemischt, dieselbe Regel, nach
+     * der die Container-Rollen der Cockpit-Schemata aus ihrer Palette abgeleitet sind. Fuer Chips und Hinweisflaechen, deren
+     * Bedeutung die Statusfarbe tragen muss (WARN gelb, ERROR rot), egal in welchem Farbschema; der Text darauf ist
+     * `onSurface`. Auf dunklen Flaechen ein dunkler Farbton, auf heller Flaeche ein blasser.
+     */
+    fun container(status: Color, surface: Color): Color {
+        val t = 0.28f
+        return Color(
+            red = surface.red + (status.red - surface.red) * t,
+            green = surface.green + (status.green - surface.green) * t,
+            blue = surface.blue + (status.blue - surface.blue) * t,
+        )
+    }
+
     /** Actionable redline / fault / hard limit hit. */
     val Critical = Color(0xFFEF4444)
 

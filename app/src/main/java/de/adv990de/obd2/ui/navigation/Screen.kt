@@ -11,4 +11,5 @@ sealed class Screen(val route: String) {
     object AppInfo : Screen("app_info")
     object AppLogs : Screen("app_logs")
     object GearSettings : Screen("gear_settings")
+    object Licenses : Screen("licenses")
 }

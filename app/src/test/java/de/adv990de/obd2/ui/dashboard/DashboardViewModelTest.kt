@@ -1047,6 +1047,25 @@ class DashboardViewModelTest {
         obdRepo, sessionRepo, prefs, crashReporter, btAdapter, logRepo, makeGpsSpeedSource(), appContext
     )
 
+    // ── Start: saved slots are there from the first state (UID-12) ───────────
+
+    @Test
+    fun `the first state already carries the saved slot PIDs - no flash of empty or default tiles`() {
+        // Bewusst OHNE runTest/advance: gemeint ist der Zustand im Moment der Erzeugung, den die erste Komposition liest.
+        val saved = listOf("0105", "010C", "010D", "0104")
+        val vm = makeVm(prefs = makePrefs(slotIds = saved))
+
+        assertEquals(saved, vm.slotPids.value)
+        assertEquals(saved, vm.placeholderReadings.value.map { it.pid.id })
+    }
+
+    @Test
+    fun `unknown saved PIDs fall back to the defaults, as before`() {
+        val vm = makeVm(prefs = makePrefs(slotIds = listOf("ZZZZ")))
+
+        assertEquals(PidRegistry.defaults.map { it.id }, vm.placeholderReadings.value.map { it.pid.id })
+    }
+
     // ── Foreground service lifecycle ──────────────────────────────────────────
 
     @Test

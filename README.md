@@ -1,6 +1,6 @@
 # OBD2 Monitor
 
-Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
+Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
 > Aktuelle Version: **1.24.8** (versionCode 90) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
 
@@ -20,8 +20,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 - **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export; einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug)
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
-  - **BLE** (ELM327-BLE-Adapter, z.B. Vgate, OBDLink CX)
-  - **Klassisches Bluetooth (RFCOMM)** für ältere ELM327-Clones
+  - **Klassisches Bluetooth (RFCOMM)** — gekoppelter ELM327-Adapter (Seriell-Profil SPP). Einen BLE-Zweig gibt es seit 1.24.9 nicht mehr: Die Geräteliste hat nie BLE-Adapter angeboten (der Scan wurde nirgends aufgerufen), der Code war tot.
   - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
 - **Aufbewahrung** — einmal je App-Start löscht die App lokal Fahrten, die älter als **90 Tage** sind (die laufende Fahrt nie), App-Log-Zeilen älter als **30 Tage** und alles über den neuesten **1000** Log-Zeilen. Es gibt dafür keine Rückfrage und kein „Rückgängig“; wer Fahrten länger braucht, exportiert sie vorher als CSV. Gelöscht wird nur lokal, nie im Fahrzeug. Exportierte CSV-Dateien (Cache) räumt die App nach **24 Stunden** auf.
 - **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit (greift beim App-Start), einsehbar im Settings-Bereich; Löschen mit Rückfrage und 10 s „Rückgängig“ (lokaler Lösch-Vertrag, nie ein Schreibzugriff aufs Fahrzeug)
@@ -32,8 +31,8 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder 
 
 ## Hardware-Voraussetzungen
 
-- Android-Gerät mit **Bluetooth Classic + BLE**, ab Android 8.0
-- **ELM327-kompatibler OBD2-Adapter** — getestet u.a. mit Vgate iCar Pro BLE und OBDLink CX
+- Android-Gerät mit **Bluetooth Classic**, ab Android 8.0
+- **ELM327-kompatibler OBD2-Adapter mit klassischem Bluetooth (SPP)** — im Betrieb mit einem MWT_OBD2 am Motorrad; **BLE-only-Adapter** (z. B. Vgate iCar Pro BLE, OBDLink CX im BLE-Modus) funktionieren nicht
 - Fahrzeug mit OBD2-Buchse (ab Bj. ~2001 in EU, ~1996 in US verpflichtend)
 
 ---
@@ -56,6 +55,12 @@ Das APK liegt danach unter `app/build/outputs/apk/debug/app-debug.apk`.
 ./gradlew installDebug
 ```
 Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
+
+### Prüfsummen (Lieferkette)
+Die Gradle-Distribution ist per `distributionSha256Sum` (`gradle/wrapper/gradle-wrapper.properties`) festgelegt, Abhängigkeiten und Plugins per
+`gradle/verification-metadata.xml` (SHA-256, 711 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
+Abhängigkeit → Metadaten neu schreiben** — Befehl und Fallstrick (`--refresh-dependencies`) stehen in der [`CLAUDE.md`](CLAUDE.md). Nicht geprüft ist das JDK:
+den Download übernimmt der foojay-Resolver, und Gradle kennt dafür keine Prüfsumme.
 
 ### Debug- und Release-Build parallel
 
@@ -129,7 +134,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1248 Tests, < 30 Sekunden)
+# JVM Unit Tests (1269 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -138,7 +143,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1248 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1269 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -157,10 +162,11 @@ app/src/main/java/de/adv990de/obd2/
 ├── Obd2Application.kt           # @HiltAndroidApp
 ├── ObdForegroundService.kt      # Hält den Prozess am Leben (Background), beendet die Sitzung beim Wegwischen
 ├── ObdServiceController.kt      # Dienst starten/stoppen, Sitzung beenden — eine Stelle
-├── bluetooth/                   # BleConnection, ClassicBtConnection, SimulatorObdConnection,
+├── bluetooth/                   # ClassicBtConnection, SimulatorObdConnection,
 │                                # ConnectionFactory, BluetoothDeviceScanner, SimulatedEcuDispatcher
 ├── obd/                         # ElmController, PidRegistry, PidParser, DtcParser, UnitConverter
 ├── data/                        # ObdRepository (@Singleton), SessionRepository, AppPreferences (DataStore),
+│                                # StartupSeed (Startwerte fürs erste Bild: Theme, Kachel-Belegung),
 │   └── db/                      # Room: AppDatabase, *Dao
 ├── ui/                          # Compose-Screens + ViewModels
 │   ├── components/              # Wiederverwendbare Composables (LiveValueText/-Tile, Sparkline,
@@ -174,13 +180,14 @@ app/src/main/java/de/adv990de/obd2/
 │   │                            # App-Logs, Getriebe-/Gangverhältnisse, Drehzahl-Blinkgrenze
 │   ├── vehicleinfo/             # Mode 09 (VIN etc.)
 │   ├── appinfo/                 # Über-Bildschirm
+│   ├── licenses/                # Open-Source-Lizenzen (Katalog + Volltexte aus den Assets)
 │   ├── permission/              # Runtime-Permissions Gate
 │   ├── navigation/              # Compose-Navigation
 │   ├── theme/                   # Material 3 Theme
 │   └── weather/                 # WeatherViewModel (Polling nur bei sichtbarer Zeile) +
 │                                # 30-Minuten-Halte-Logik (OutsideTemperatureHold)
 ├── location/                    # GpsSpeedSource (Geschwindigkeit aus dem GPS-Fix),
-│                                # CurrentLocationProvider (letzter Standort fürs Wetter)
+│                                # CurrentLocationProvider (Standort fürs Wetter: jüngster Cache-Fix ≤ 10 min, sonst aktiver Fix)
 ├── weather/                     # WeatherApi/OpenMeteoApi (HTTP ohne Zusatz-Library),
 │                                # WeatherRepository
 ├── di/                          # Hilt-Module (AppModule, CrashReporterModule, LocationModule,
@@ -194,9 +201,6 @@ app/src/main/java/de/adv990de/obd2/
 
 ### `ObdRepository` als Singleton
 Die zentrale Repository-Schicht ist als Hilt-`@Singleton` markiert. Foreground-Service und alle ViewModels teilen sich die gleiche Instanz, kein Service-Binding nötig.
-
-### BLE-Writes serialisiert
-`BleConnection.kt` nutzt einen `Semaphore(0)` als Mutex für BLE-Writes: jeder Write blockiert, bis `onCharacteristicWrite` feuert (5 s Timeout). Verhindert verlorene Pakete bei schnellen Sequenzen.
 
 ### Foreground Service hält Verbindung
 `ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification (Antippen öffnet die App, „Trennen“ beendet die Sitzung). Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; der Dienst hält nur den Prozess am Leben. Deshalb gilt: **die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht.** Wird die App aus der Übersicht weggewischt oder die Activity wirklich beendet (nicht nur für eine Drehung neu erzeugt), trennt die App und beendet den Dienst — wie „Beenden“; „Zurück“ am Root ab Android 12 schickt die App nur in den Hintergrund, die Aufzeichnung läuft weiter. Start, Stopp und Beenden der Sitzung liegen in einer Klasse (`ObdServiceController`); lehnt Android den Dienststart ab (ab API 31 im Hintergrund), bleibt die Verbindung bestehen und das App-Log nennt den Grund (QS-Bericht B1/B4).
@@ -214,7 +218,7 @@ Vor dem ersten Live-Polling fragt `ObdRepository.discoverSupportedPids()` per Mo
 `MainActivity.onResume()`/`onPause()` setzen `Window.attributes.screenBrightness` auf `1f` bzw. `BRIGHTNESS_OVERRIDE_NONE` (System-Standard) zurück — ein reines Fenster-Attribut statt einer System-Einstellung, braucht daher keine `WRITE_SETTINGS`-Berechtigung. Gilt app-weit (jeder Screen, nicht nur das Dashboard) und ausschließlich solange die App im Vordergrund ist — für Sonnenlicht-Lesbarkeit auf dem Motorrad.
 
 ### Live-Wert-Typografie
-Sich ändernde Werte (RPM, Speed, Temperatur, Spannung, VIN) werden in **IBM Plex Mono** mit OpenType-`tnum`-Feature gerendert — Ziffern haben konstante Glyph-Breite, springen also beim Update nicht horizontal. Kanonisches Composable: `LiveValueText` (`ui/components/`); für ad-hoc-Verwendung gibt es `TextStyle.asLiveValue()` als Extension. Restliche UI bleibt in Space Grotesk. Beide Schriften stehen unter der SIL Open Font License 1.1; die Lizenztexte liegen in `docs/licenses/` (`IBMPlexMono-OFL.txt`, `SpaceGrotesk-OFL.txt`). Bekannte Grenze: Das APK selbst trägt die Texte nicht als eigene Seite — Urheberrecht und Lizenzhinweis stehen in der Namenstabelle der Schriftdateien; eine Lizenzseite in der App ist nicht gebaut. Volle Design-Doku in [`CLAUDE.md`](CLAUDE.md).
+Sich ändernde Werte (RPM, Speed, Temperatur, Spannung, VIN) werden in **IBM Plex Mono** mit OpenType-`tnum`-Feature gerendert — Ziffern haben konstante Glyph-Breite, springen also beim Update nicht horizontal. Kanonisches Composable: `LiveValueText` (`ui/components/`); für ad-hoc-Verwendung gibt es `TextStyle.asLiveValue()` als Extension. Restliche UI bleibt in Space Grotesk. Beide Schriften stehen unter der SIL Open Font License 1.1; die Lizenztexte liegen in `docs/licenses/` (`IBMPlexMono-OFL.txt`, `SpaceGrotesk-OFL.txt`). Die App zeigt alle ausgelieferten Open-Source-Komponenten samt Lizenztext unter App-Info → „Open-Source-Lizenzen“ (Katalog von Hand gepflegt, `LicenseCatalogTest` zwingt jede neue direkte Abhängigkeit zu einem Eintrag; die Texte in `docs/licenses/` sind zugleich die Assets der App). Volle Design-Doku in [`CLAUDE.md`](CLAUDE.md).
 
 ### Dashboard-Tiles & Status-Signale
 Sensor-Kacheln nutzen `LiveValueTile` (`ui/components/LiveValueTile.kt`) — domain-agnostische Kachel mit Label oben links, Plex-Mono-Wert + Einheit unten rechts, optionaler Trend-Sparkline und 4 dp Status-Side-Bar. Der `TileStatus`-Enum (`Ok | Warning | Critical`) treibt die Akzentfarbe: `MaterialTheme.colorScheme.primary` (theme-getönt) für OK, `StatusColors.Warning` (`#EAB308`) und `StatusColors.Critical` (`#EF4444`) cross-theme. `SensorCard` ist der Adapter für die PID-Domäne (Einheit-Konvertierung, NaN-Handling). Status-Tokens leben in `ui/theme/StatusColors.kt`.
@@ -246,10 +250,9 @@ Die übrigen sind „normale“ Berechtigungen ohne Dialog.
 
 | Permission | API-Range | Zweck |
 |---|---|---|
-| `BLUETOOTH_SCAN` | 31+ | BLE/Classic-Scan |
-| `BLUETOOTH_CONNECT` | 31+ | Verbindung herstellen |
-| `BLUETOOTH` / `BLUETOOTH_ADMIN` | ≤30 | Legacy-Bluetooth |
-| `ACCESS_FINE_LOCATION` | alle | BLE-Scan vor Android 12; ab 1.10.0 zusätzlich Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt); Standort für die Außentemperatur |
+| `BLUETOOTH_CONNECT` | 31+ | Verbindung zu einem gekoppelten Adapter herstellen (kein `BLUETOOTH_SCAN` seit 1.24.9: die App sucht nicht) |
+| `BLUETOOTH` | ≤30 | Legacy-Bluetooth (`BLUETOOTH_ADMIN` entfiel mit dem BLE-Scan) |
+| `ACCESS_FINE_LOCATION` | alle | Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt) und Standort für die Außentemperatur; für Bluetooth wird kein Standort gebraucht |
 | `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen); genügt allein für die Außentemperatur |
 | `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde: hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
 | `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification (optional: ohne sie läuft der Dienst, nur die Benachrichtigung fehlt) |
@@ -267,6 +270,8 @@ Hintergrund-Standort-Eskalation) — kein wiederholtes Nachfragen bei jedem weit
 Anders als beim GPS-Schalter folgt die Einstellung immer dem Schalter: ohne Berechtigung fehlt in der
 Statuszeile nur die Temperatur, Datum und Uhrzeit bleiben. Eine schon vorher erteilte
 Standortberechtigung (z. B. über den GPS-Schalter) wird mitgenutzt.
+Ein vom System zwischengespeicherter Standort zählt nur, wenn er höchstens 10 Minuten alt ist (der jüngste von GPS und Netzwerk); sonst fordert die App einen
+frischen Fix an, und gelingt auch der nicht, fehlt die Temperatur — lieber keine Anzeige als eine für die falsche Gegend.
 
 **Datenschutz:** Für die Außentemperatur schickt die App die Koordinaten an einen Dritten —
 Open-Meteo (`api.open-meteo.com`) —, auf zwei Nachkommastellen gerundet (rund 1,1 km; Open-Meteo
@@ -353,7 +358,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1248) |
+| `app/src/test/` | JVM-Unit-Tests (1269) |
 | `app/src/androidTest/` | Instrumented Tests (301, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
@@ -366,4 +371,4 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 - **Kein iOS-Port** geplant.
 - **CAN-Bus direkt** wird nicht unterstützt — nur OBD2-PIDs (Mode 01, 02, 03, 07, 09) — die App liest nur und schreibt nie ins Fahrzeug (kein Mode 04).
 - **Multi-Frame-Antworten** (Mode 09 VIN, langwierige DTC-Listen) werden gelesen, aber die ELM327-Adapter müssen den `AT CAF1`-Modus unterstützen.
-- **Klassisches Bluetooth** ist ab Android 12 deprecated für neue Adapter — funktioniert noch, aber für neue Hardware-Käufe BLE-Adapter bevorzugen.
+- **Nur klassisches Bluetooth (SPP):** Ein Adapter, der ausschließlich BLE spricht, lässt sich nicht verwenden. Ein früher gespeichertes BLE-Gerät wird beim Start als unbekannt behandelt (kein Auto-Connect, das Gerät einmal neu wählen).
