@@ -13,14 +13,11 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
-import de.adv990de.obd2.data.ObdRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -45,7 +42,7 @@ internal enum class ForegroundStartMode { TYPED, LEGACY }
 @AndroidEntryPoint
 class ObdForegroundService : Service() {
 
-    @Inject lateinit var obdRepository: ObdRepository
+    @Inject lateinit var serviceController: ObdServiceController
 
     // internal, not private: lets ObdForegroundServiceTest (JVM) launch a probe coroutine on it
     // and assert onDestroy()'s scope.cancel() actually propagates, without a real Service lifecycle.
@@ -60,31 +57,54 @@ class ObdForegroundService : Service() {
                     this, 0, stopIntent(this),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
+                // Antippen oeffnet die laufende App (B1): vorher tat die Benachrichtigung dabei nichts.
+                val openAppPendingIntent = PendingIntent.getActivity(
+                    this, 0, openAppIntent(this),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
                 val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                     .setContentTitle(getString(R.string.notif_obd_title))
                     .setContentText(getString(R.string.notif_obd_text))
                     .setSmallIcon(R.drawable.ic_bluetooth)
                     .setOngoing(true)
+                    .setContentIntent(openAppPendingIntent)
                     .addAction(0, getString(R.string.notif_obd_disconnect), stopPendingIntent)
                     .build()
 
-                when (resolveForegroundStartMode()) {
-                    ForegroundStartMode.TYPED -> {
-                        val includeLocationType = intent.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false)
-                        startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
+                // startForeground() kann ablehnen (SecurityException: dem Typ fehlt eine Berechtigung; ab API 31
+                // IllegalStateException, wenn die App im Hintergrund nicht mehr starten darf). Unbehandelt beendete das
+                // den Prozess aus onStartCommand heraus (B4). Jetzt: ins App-Log, Dienst beenden — die Verbindung bleibt.
+                val refused = catchingForegroundStart {
+                    when (resolveForegroundStartMode()) {
+                        ForegroundStartMode.TYPED -> {
+                            val includeLocationType = intent.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false)
+                            startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
+                        }
+                        ForegroundStartMode.LEGACY -> startForeground(NOTIF_ID, notification)
                     }
-                    ForegroundStartMode.LEGACY -> startForeground(NOTIF_ID, notification)
+                }
+                if (refused != null) {
+                    serviceController.onServiceStartFailed(refused)
+                    stopSelf()
                 }
             }
-            ACTION_STOP -> scope.launch {
-                withContext(NonCancellable) { obdRepository.disconnectByUser() }
-                stopSelf()
-            }
+            ACTION_STOP -> scope.launch { serviceController.endSession() }
             else -> {
                 stopSelf()
             }
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * Der Nutzer hat die App aus der Uebersicht gewischt (B1). Die Aufzeichnung lebt im ViewModel der Activity und
+     * endet damit ohnehin — Verbindung und die Benachrichtigung "Fahrzeugdaten werden aufgezeichnet" blieben
+     * aber stehen, obwohl nichts mehr aufzeichnet. Wegwischen heisst "fertig": trennen und den Dienst beenden, wie
+     * "Beenden" (kein Monitoring im Hintergrund).
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        scope.launch { serviceController.endSession() }
     }
 
     override fun onDestroy() {
@@ -119,6 +139,16 @@ class ObdForegroundService : Service() {
 
         fun stopIntent(context: Context): Intent =
             Intent(context, ObdForegroundService::class.java).apply { action = ACTION_STOP }
+
+        /**
+         * Was ein Antippen der Benachrichtigung startet: die App. `NEW_TASK` ist fuer eine PendingIntent aus einem
+         * Dienst Pflicht; `CLEAR_TOP` + `SINGLE_TOP` bringen eine laufende [MainActivity] nach vorn (sie bekommt
+         * `onNewIntent`), statt eine zweite Instanz mit leerem ViewModel zu starten.
+         */
+        internal fun openAppIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
 
         /**
          * The typed 3-arg `startForeground(id, notification, type)` overload only exists from

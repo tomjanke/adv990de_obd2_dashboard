@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
+import de.adv990de.obd2.ObdServiceController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
@@ -75,8 +76,8 @@ class ConnectionCoordinatorTest {
     }
 
     // `useGpsSpeed` has no per-test variant here on purpose: shouldIncludeLocationServiceType()
-    // (Tests 8-11) is tested directly as a pure function, so none of these coordinator-level tests
-    // need to vary it — but ConnectionCoordinator.startObdForegroundService() still reads it on
+    // (ObdServiceControllerTest) is tested directly as a pure function, so none of these coordinator-level tests
+    // need to vary it — but ObdServiceController.start() still reads it on
     // every successful connect, so the stub must exist or the non-relaxed mock throws.
     // `reconnectBaseDelaySeconds` likewise has no per-test variant: runReconnectLoop() reads it
     // once per collect (Backlog-Cleanup, Sweep 2026-09-28/29) — reconnectDelays() itself is tested
@@ -98,7 +99,10 @@ class ConnectionCoordinatorTest {
         adapter: BluetoothAdapter = makeAdapter(),
         context: Context = mockk(relaxed = true),
         logRepo: AppLogRepository = mockk(relaxed = true),
-    ) = ConnectionCoordinator(repo, prefs, logRepo, adapter, context)
+    ) = ConnectionCoordinator(
+        repo, prefs, logRepo, adapter,
+        ObdServiceController(repo, prefs, context, logRepo, coordinatorScope),
+    )
 
     // --- Test 1 ---
 
@@ -354,32 +358,49 @@ class ConnectionCoordinatorTest {
         assertTrue("Es darf kein Versuch gemeldet werden: $events", events.isEmpty())
     }
 
-    // --- Test 8 ---
+    // --- B4: an Android refusal to start the foreground service must not undo a connection that stands ---
+
+    private fun refusingContext(error: Exception = IllegalStateException("startForegroundService() not allowed")): Context =
+        mockk(relaxed = true) { every { startForegroundService(any()) } throws error }
 
     @Test
-    fun `shouldIncludeLocationServiceType is true when GPS speed is on and background location is granted`() {
-        assertTrue(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = true))
+    fun `auto-connect still reports Connected when Android refuses the foreground service`() = runTest {
+        val repo = makeRepo()
+        coEvery { repo.connectIfDisconnected(device) } just Runs
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+
+        makeCoordinator(repo, makePrefs(lastDevice = device), context = refusingContext(), logRepo = logRepo)
+            .start(coordinatorScope, events::add)
+        advanceUntilIdle()
+
+        assertEquals(
+            "die Verbindung steht, das ist das Ergebnis — nicht der Dienst",
+            listOf(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Connected),
+            events
+        )
+        coVerify(exactly = 0) { logRepo.log(LogLevel.ERROR, match { it.startsWith("Connection error") }) }
+        coVerify { logRepo.log(LogLevel.WARN, match { it.contains("Foreground service could not be started") }) }
     }
 
-    // --- Test 9 ---
-
     @Test
-    fun `shouldIncludeLocationServiceType is false when GPS speed is off`() {
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = true))
-    }
+    fun `a reconnect that succeeds is not logged as a failed attempt when the service start is refused`() = runTest {
+        val repo = makeRepo(lastConnected = device)
+        coEvery { repo.reconnect() } just Runs
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(
+            repo, makePrefs(lastDevice = null), context = refusingContext(SecurityException("no BLUETOOTH_CONNECT")), logRepo = logRepo,
+        )
+        coordinator.start(coordinatorScope, events::add)
 
-    // --- Test 10 ---
+        coordinator.requestReconnect()
+        advanceUntilIdle()
 
-    @Test
-    fun `shouldIncludeLocationServiceType is false when background location is not granted`() {
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = false))
-    }
-
-    // --- Test 11 ---
-
-    @Test
-    fun `shouldIncludeLocationServiceType is false when neither condition holds`() {
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = false))
+        assertEquals(ConnectionEvent.Connected, events.last())
+        coVerify(exactly = 1) { repo.reconnect() }      // kein zweiter Versuch ueber eine stehende Verbindung
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("failed:") }) }
+        coVerify { logRepo.log(LogLevel.WARN, match { it.contains("SecurityException") }) }
     }
 
     // --- reconnectDelays() (Backlog-Cleanup, Sweep 2026-09-28/29) ---

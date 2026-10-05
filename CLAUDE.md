@@ -542,6 +542,39 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 - **Kachelwert:** `LiveValueText(minFontSize)` schrumpft den Text per `TextAutoSize.StepBased`, bis er passt (Kachel: bis `MIN_VALUE_FONT_SIZE` = 20 sp); die Einheit wird zuerst gemessen
   (`weight(1f, fill = false)` am Wert) und behält ihren Platz. Nie wieder ein still abgeschnittener Wert.
 
+### Sitzung und Vordergrunddienst (seit v1.24.7)
+
+- **Eine Stelle für den Dienst: `ObdServiceController`** (`de.adv990de.obd2`, `@Inject`, ohne Scope). `start()` fordert den Vordergrunddienst an (inkl. Dienst-Typ-Entscheidung
+  `shouldIncludeLocationServiceType`), `stop()` beendet ihn, `endSession()` trennt als **Nutzer-Trennung** und stoppt den Dienst (die Trennung läuft in `NonCancellable`
+  zu Ende, der Dienst wird auch bei Fehlschlag gestoppt), `endSessionInBackground()` ist dasselbe für Aufrufer ohne eigene Coroutine (im `@ApplicationScope`, wirft nie → App-Log).
+  **Niemand sonst** ruft `startForegroundService`/`stopService` oder paart `disconnectByUser()` mit einem Dienst-Stopp — vorher standen Start zweimal (Koordinator,
+  `SettingsViewModel`) und Stopp dreimal nebeneinander. Neue Stellen nehmen den Controller.
+- **Ein abgelehnter Dienst-Start ist kein Verbindungsfehler (B4).** `catchingForegroundStart { … }` fängt genau `IllegalStateException` (ab API 31 die Oberklasse von
+  `ForegroundServiceStartNotAllowedException`, ohne die API-31-Klasse zu referenzieren) und `SecurityException` (dem Typ fehlt eine Berechtigung) — alles andere läuft durch, das
+  wäre ein Programmfehler. Vorher lag der Aufruf im `try` des Verbindungsaufbaus: eine STEHENDE Verbindung wurde als „Reconnect-Versuch fehlgeschlagen“ geloggt, `Connected` blieb aus.
+  Jetzt steht die Verbindung, das App-Log sagt „Foreground service could not be started: …“, die App läuft weiter (nur ohne Schutz vor dem Beenden im Hintergrund). Dasselbe
+  Fangnetz sitzt um `startForeground()` **im** Dienst (`onStartCommand`): eine `SecurityException` dort beendete vorher den Prozess; jetzt → `onServiceStartFailed`, `stopSelf()`.
+  **Auf dem Gerät nicht ausgelöst** (die Ablehnung lässt sich nicht erzwingen, ohne die Berechtigung zu entziehen, was den Testprozess beendet): abgesichert nur über JVM-Tests der Entscheidung.
+- **Vertrag: die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht (B1).** Polling und Aufzeichnung leben im
+  `viewModelScope` des Dashboards; der Dienst hält nur den Prozess am Leben und besitzt keine Arbeit. Endet die Activity wirklich — `MainActivity.onDestroy` mit
+  `shouldEndSessionOnDestroy(isChangingConfigurations)` (= `!isChangingConfigurations`, exakt die Bedingung, unter der `ComponentActivity` den `ViewModelStore` leert: Wegwischen,
+  „Aktivitäten nicht behalten“, Zurück am Root auf API ≤ 30) — oder wird die Aufgabe weggewischt (`ObdForegroundService.onTaskRemoved`), beendet das die Sitzung, statt
+  eine Verbindung und die Benachrichtigung „Fahrzeugdaten werden aufgezeichnet“ stehen zu lassen, obwohl nichts mehr aufzeichnet. Beides ist idempotent (doppeltes Trennen/Stoppen
+  schadet nicht). **Zurück am Root ab API 31 beendet NICHT:** die Aufgabe geht in den Hintergrund, die Activity lebt, der Dienst trägt den Prozess — Aufzeichnung läuft weiter (gewollt).
+  Das Antippen der Benachrichtigung öffnet die App (`openAppIntent`: `NEW_TASK | CLEAR_TOP | SINGLE_TOP` → die laufende `MainActivity` kommt nach vorn, keine zweite Instanz mit leerem ViewModel).
+  **Bewusst nicht gebaut:** Polling/Aufzeichnung in den Dienst zu verlegen, damit sie das Wegwischen überleben — das wäre ein großer Umbau und eine Produktentscheidung („Wegwischen heißt fertig“ ist die jetzige).
+- **Test-Falle:** Arbeit im `backgroundScope` eines `runTest` läuft mit `runCurrent()`, **nicht** mit `advanceUntilIdle()` — das hört auf, sobald nur noch Hintergrundaufgaben übrig sind, und führt sie nicht aus.
+
+### Release-Signatur und Geheimnisse (seit v1.24.7, B31)
+
+- **Der Keystore liegt außerhalb des Projektbaums** (`~/.android-keys/<name>.jks`, Ordner 700, Datei 600); `KEYSTORE_FILE` (Property oder Umgebung, `~/` wird aufgelöst) sagt dem Build, wo.
+  Ohne Angabe gilt wie bisher `keystore.jks` im Projekt. **Ein konfigurierter, aber fehlender Pfad bricht den Release-Build ab** (`signingConfig` wird gesetzt, AGPs
+  `validateSigningRelease` meldet „Keystore file … not found“) statt still ein unsigniertes APK zu bauen; Debug-Builds sind davon unberührt.
+- **`scripts/release.sh` verweigert** den Release, wenn Keystore oder `~/.gradle/gradle.properties` für Gruppe/Andere zugänglich sind (`is_private_file`, vorher Modus 644), und prüft, dass das APK mit
+  dem Zertifikat aus `scripts/release-cert.sha256` signiert ist (öffentlicher SHA-256-Fingerabdruck; ein falscher Schlüssel nach einem Umzug ergäbe ein Update, das sich nicht einspielen lässt).
+  `apksigner` fehlt → kein Release (vorher stillschweigend „nicht geprüft“). Die Prüfungen stehen in `scripts/release-lib.sh` und werden von `ReleaseScriptLibTest` mit echtem `bash` ausgeführt.
+- **Nicht geändert:** die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert) — Berechtigungen sind Entscheidung des Nutzers.
+
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
 - **Datenbank:** Version, Migrationen und Builder stehen einmal — `APP_DATABASE_VERSION`, `ALL_MIGRATIONS`, `appDatabaseBuilder(context, name)` (`data/db/AppDatabase.kt`).
@@ -676,7 +709,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 ## Release
 
-Der Ablauf steht in `scripts/release.sh` (Beschreibung in der README, Abschnitt „Release-Ablauf“). Die eine Regel dahinter: **erst die Version bumpen und
+Der Ablauf steht in `scripts/release.sh` (Beschreibung in der README, Abschnitt „Release-Ablauf“; Signatur-Prüfungen s. „Release-Signatur und Geheimnisse“ oben). Die eine Regel dahinter: **erst die Version bumpen und
 committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der des Tags entspricht (B32). README („Aktuelle Version“), oberster
 `RELEASE_NOTES.md`-Eintrag und `app/build.gradle.kts` müssen dieselbe Version nennen (`ReleaseDocsConsistencyTest`). Die JVM-Tests laufen unter `de_DE`
 (`app/build.gradle.kts`); wer eine Anzeigeformatierung testet, pinnt die Locale mit `withDefaultLocale` und prüft beide Schreibweisen.
@@ -684,8 +717,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1167 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 280 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1197 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 282 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

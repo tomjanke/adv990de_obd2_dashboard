@@ -159,4 +159,35 @@ class ObdForegroundServiceTest {
         assertTrue("Foreground-Notification (mit location-Typ) nicht gefunden", found)
         ctx.startService(ObdForegroundService.stopIntent(ctx))
     }
+
+    // --- B1: Antippen der Benachrichtigung oeffnet die App ---
+
+    @Test
+    fun actionStart_notificationCanBeTappedToOpenTheApp() {
+        ctx.startService(ObdForegroundService.startIntent(ctx))
+
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        val deadline = System.currentTimeMillis() + 5_000
+        var notification: android.app.Notification? = null
+        while (notification == null && System.currentTimeMillis() < deadline) {
+            notification = nm.activeNotifications
+                .firstOrNull { it.notification.channelId == ObdForegroundService.CHANNEL_ID }?.notification
+            if (notification == null) Thread.sleep(100)
+        }
+
+        assertNotNull("Foreground-Notification nicht gefunden", notification)
+        assertNotNull("ohne contentIntent tat ein Antippen nichts (B1)", notification!!.contentIntent)
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+    }
+
+    @Test
+    fun openAppIntent_bringsTheRunningActivityToTheFront_insteadOfStartingASecondOne() {
+        val intent = ObdForegroundService.openAppIntent(ctx)
+
+        assertEquals(MainActivity::class.java.name, intent.component?.className)
+        // NEW_TASK ist fuer eine PendingIntent aus einem Dienst Pflicht; CLEAR_TOP + SINGLE_TOP verhindern eine zweite
+        // MainActivity mit leerem ViewModel (sie bekommt onNewIntent).
+        val required = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        assertEquals(required, intent.flags and required)
+    }
 }

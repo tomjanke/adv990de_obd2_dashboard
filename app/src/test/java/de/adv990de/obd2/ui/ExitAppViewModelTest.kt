@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui
 
 import android.content.Context
+import de.adv990de.obd2.ObdServiceController
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -8,6 +9,9 @@ import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -21,7 +25,12 @@ class ExitAppViewModelTest {
     private fun makeVm(
         obdRepo: ObdRepository = mockk { coEvery { disconnectByUser() } just Runs },
         appContext: Context = mockk(relaxed = true),
-    ) = ExitAppViewModel(obdRepo, appContext)
+    ) = ExitAppViewModel(
+        ObdServiceController(
+            obdRepo, mockk(relaxed = true), appContext, mockk(relaxed = true),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        )
+    )
 
     @Test
     fun `exitApp disconnects as a USER disconnect, so no reconnect fights the shutdown`() = runTest {

@@ -132,4 +132,16 @@ class MainActivityTest {
         assertEquals(expected.surface, actual.surface)
         assertEquals(expected.onSurface, actual.onSurface)
     }
+
+    // --- shouldEndSessionOnDestroy (B1) ---
+
+    @Test
+    fun `a real destroy ends the session - the ViewModel and with it the recording are gone`() {
+        assertTrue(shouldEndSessionOnDestroy(isChangingConfigurations = false))
+    }
+
+    @Test
+    fun `a recreation for a configuration change keeps the session`() {
+        assertFalse(shouldEndSessionOnDestroy(isChangingConfigurations = true))
+    }
 }

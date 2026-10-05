@@ -2859,7 +2859,13 @@ class DashboardViewModelTest {
     ): DashboardViewModel = DashboardViewModel(
         obdRepo,
         prefs,
-        ConnectionCoordinator(obdRepo, prefs, logRepo, btAdapter, appContext),
+        ConnectionCoordinator(
+            obdRepo, prefs, logRepo, btAdapter,
+            de.adv990de.obd2.ObdServiceController(
+                obdRepo, prefs, appContext, logRepo,
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
+            ),
+        ),
         ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource, mockk(relaxed = true)),
         savedStateHandle,
     ).also { it.nowMillis = nowMillis }

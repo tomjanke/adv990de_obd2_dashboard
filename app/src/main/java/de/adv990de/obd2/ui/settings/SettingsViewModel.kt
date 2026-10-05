@@ -1,12 +1,10 @@
 package de.adv990de.obd2.ui.settings
 
-import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import de.adv990de.obd2.ObdForegroundService
+import de.adv990de.obd2.ObdServiceController
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.bluetooth.ScannedDevice
@@ -14,15 +12,12 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
-import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.ui.UiText
-import de.adv990de.obd2.ui.dashboard.shouldIncludeLocationServiceType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -48,7 +43,7 @@ class SettingsViewModel @Inject constructor(
     private val obdRepository: ObdRepository,
     private val appPreferences: AppPreferences,
     private val appLogRepository: AppLogRepository,
-    @ApplicationContext private val appContext: Context
+    private val serviceController: ObdServiceController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -137,10 +132,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun disconnect() {
-        viewModelScope.launch {
-            obdRepository.disconnectByUser()
-            appContext.stopService(ObdForegroundService.stopIntent(appContext))
-        }
+        viewModelScope.launch { serviceController.endSession() }
     }
 
     fun connect(device: ScannedDevice) {
@@ -159,15 +151,9 @@ class SettingsViewModel @Inject constructor(
                     connectedDeviceAddress = device.address,
                     error = null
                 )
-                // Mirrors ConnectionCoordinator.startObdForegroundService(): this is a separate
-                // manual-connect call site, so it needs the same includeLocationType decision —
-                // otherwise the service silently starts with connectedDevice-only type and GPS
-                // speed stops delivering location callbacks the moment the app is backgrounded.
-                val includeLocation = shouldIncludeLocationServiceType(
-                    useGpsSpeed = appPreferences.useGpsSpeed.first(),
-                    hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
-                )
-                appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
+                // Dieselbe Entscheidung (Dienst-Typ, abgelehnter Start) wie im ConnectionCoordinator — eine Stelle:
+                // ObdServiceController.start() wirft nicht, auch wenn Android den Dienst ablehnt (B4).
+                serviceController.start()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: e.javaClass.simpleName}")

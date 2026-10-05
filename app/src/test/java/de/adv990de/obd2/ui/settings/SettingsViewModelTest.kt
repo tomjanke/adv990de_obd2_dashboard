@@ -65,7 +65,13 @@ class SettingsViewModelTest {
             every { bondedDevices(any()) } returns emptyList()
         },
         appContext: Context = mockk(relaxed = true)
-    ) = SettingsViewModel(scanner, obdRepo, prefs, appLogRepository, appContext)
+    ) = SettingsViewModel(
+        scanner, obdRepo, prefs, appLogRepository,
+        de.adv990de.obd2.ObdServiceController(
+            obdRepo, prefs, appContext, appLogRepository,
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
+        ),
+    )
 
     @Test
     fun `connect persists device on success`() = runTest {
@@ -377,6 +383,26 @@ class SettingsViewModelTest {
         vm.connect(device)
         advanceUntilIdle()
         verify(exactly = 0) { ctx.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `a manual connect stays connected and shows no error when Android refuses the foreground service (B4)`() = runTest {
+        val ctx = mockk<Context>(relaxed = true) {
+            every { startForegroundService(any()) } throws IllegalStateException("startForegroundService() not allowed")
+        }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } just Runs
+        }
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
+        val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        assertEquals("ELM327", vm.uiState.value.connectedDevice)
+        assertNull("die Verbindung steht — der abgelehnte Dienst ist kein Verbindungsfehler", vm.uiState.value.error)
+        assertFalse(vm.uiState.value.isConnecting)
     }
 
     @Test

@@ -174,7 +174,12 @@ class BottomNavTest {
     /** Real [ExitAppViewModel], mocked [ObdRepository]/[Context] — same pattern as [makeVm]:
      *  its constructor does nothing dangerous, so there is no reason to mock the class itself. */
     private fun makeExitAppVm(obdRepo: ObdRepository = mockk(relaxed = true)): ExitAppViewModel =
-        ExitAppViewModel(obdRepo, mockk(relaxed = true))
+        ExitAppViewModel(
+            de.adv990de.obd2.ObdServiceController(
+                obdRepo, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
+            )
+        )
 
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel

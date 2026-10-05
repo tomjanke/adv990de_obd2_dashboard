@@ -22,9 +22,13 @@ import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.theme.greenColorScheme
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var serviceController: ObdServiceController
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -56,7 +60,25 @@ class MainActivity : ComponentActivity() {
         window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = false) }
         super.onPause()
     }
+
+    // Polling und Aufzeichnung leben im ViewModel dieser Activity (B1). Wird sie wirklich beendet — Wegwischen, "Aktivitaeten
+    // nicht behalten", Zurueck am Root auf API <= 30 — stirbt das ViewModel und mit ihm die Aufzeichnung; Verbindung und die
+    // Benachrichtigung "Fahrzeugdaten werden aufgezeichnet" blieben ohne diesen Aufruf stehen. Eine Neuerzeugung
+    // (Drehung, Themenwechsel) behaelt das ViewModel und darf nichts beenden.
+    override fun onDestroy() {
+        if (::serviceController.isInitialized && shouldEndSessionOnDestroy(isChangingConfigurations)) {
+            serviceController.endSessionInBackground()
+        }
+        super.onDestroy()
+    }
 }
+
+/**
+ * Whether destroying [MainActivity] ends the OBD session: exactly when its ViewModelStore is cleared, i.e. when the
+ * activity is not merely being recreated for a configuration change (ComponentActivity clears it under the same
+ * condition). Pure so the rule is JVM-testable; the framework call itself is verified on the device.
+ */
+internal fun shouldEndSessionOnDestroy(isChangingConfigurations: Boolean): Boolean = !isChangingConfigurations
 
 /**
  * Maps a persisted [AppPreferences] theme string to whether the app should render in dark mode.

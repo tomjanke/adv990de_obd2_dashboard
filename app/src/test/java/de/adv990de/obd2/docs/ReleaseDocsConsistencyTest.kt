@@ -75,4 +75,37 @@ class ReleaseDocsConsistencyTest {
 
         assertEquals("bash -n: $output", 0, process.waitFor())
     }
+
+    // ── B31: Signatur und Geheimnisse ─────────────────────────────────────
+
+    @Test
+    fun `the pinned release certificate is a sha-256 fingerprint`() {
+        val pin = read("scripts/release-cert.sha256").trim()
+        assertTrue("64 Hex-Zeichen erwartet, war: '$pin'", Regex("[0-9a-f]{64}").matches(pin))
+    }
+
+    @Test
+    fun `the release script uses the checks of the lib - permissions of the secrets and the certificate pin`() {
+        val script = read("scripts/release.sh")
+        assertTrue("laedt die Pruefungen", script.contains("release-lib.sh"))
+        assertTrue("prueft die Dateirechte", script.contains("is_private_file"))
+        assertTrue("prueft das Zertifikat gegen den Pin", script.contains("signer_matches_pin") && script.contains("release-cert.sha256"))
+    }
+
+    @Test
+    fun `the build reads the keystore location from KEYSTORE_FILE and signs whenever it is configured`() {
+        val gradle = read("app/build.gradle.kts")
+        assertTrue("KEYSTORE_FILE wird gelesen", gradle.contains("""prop("KEYSTORE_FILE")"""))
+        assertTrue(
+            "ein konfigurierter Pfad aktiviert die Signierung (AGP bricht ab, wenn er fehlt) statt still unsigniert zu bauen",
+            gradle.contains("configuredKeystore != null || keystoreFile.exists()"),
+        )
+    }
+
+    @Test
+    fun `the README documents KEYSTORE_FILE and the certificate pin`() {
+        val readme = read("README.md")
+        assertTrue(readme.contains("KEYSTORE_FILE"))
+        assertTrue(readme.contains("release-cert.sha256"))
+    }
 }

@@ -17,11 +17,17 @@
 #   RELEASE_ARCHIVE_DIR   Ablage fuer mapping.txt und APK-Pruefsumme (Standard: $HOME/obd2-release-archive). Ausserhalb des
 #                         Repos: die mapping.txt ist ~45 MB je Release.
 #   Die Signierung kommt aus den Gradle-Properties/Umgebungsvariablen aus README ("assembleRelease signiert via env-vars").
+#   KEYSTORE_FILE         Ort des Keystores (Standard: keystore.jks im Projekt). Empfohlen: ausserhalb des Projektbaums (B31).
+#
+# Zusaetzlich (B31): Keystore und ~/.gradle/gradle.properties duerfen nur der Eigentuemer lesen, und das APK muss mit dem
+# in scripts/release-cert.sha256 festgehaltenen Zertifikat signiert sein (oeffentlicher Fingerabdruck, kein Geheimnis).
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+# shellcheck source=scripts/release-lib.sh
+source "$ROOT/scripts/release-lib.sh"
 MODE_CHECK=0
 MODE_INSTALL=0
 for arg in "$@"; do
@@ -61,6 +67,19 @@ if git rev-parse -q --verify "refs/tags/v$VERSION_NAME" >/dev/null; then
     fail "Der Tag v$VERSION_NAME existiert schon — Version nicht gebumpt?"
 fi
 
+# 4. Die Geheimnisse sind nur fuer den Eigentuemer lesbar (B31: beide hatten Modus 644). Nur vorhandene Dateien: ohne
+#    Keystore entsteht ohnehin kein signiertes APK (der Build-Schritt unten bricht dann ab).
+KEYSTORE_PATH="$(expand_home "$(gradle_property KEYSTORE_FILE)")"
+KEYSTORE_PATH="${KEYSTORE_PATH:-$ROOT/keystore.jks}"
+for secret in "$KEYSTORE_PATH" "$HOME/.gradle/gradle.properties"; do
+    if [ -f "$secret" ] && ! is_private_file "$secret"; then
+        fail "$secret ist fuer andere Benutzer lesbar (Modus $(file_mode "$secret")). Abhilfe: chmod 600 \"$secret\" (B31)"
+    fi
+done
+case "$KEYSTORE_PATH" in
+    "$ROOT"/*) echo "Hinweis: Der Keystore liegt im Projektbaum ($KEYSTORE_PATH). Besser ausserhalb ablegen und KEYSTORE_FILE setzen (B31)." ;;
+esac
+
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "HEAD: $HEAD_SHA ($(git log -1 --format=%s))"
 echo "Vorpruefung bestanden."
@@ -87,13 +106,15 @@ EMBEDDED="$(unzip -p "$APK" META-INF/version-control-info.textproto | sed -n 's/
 [ "$EMBEDDED" = "$HEAD_SHA" ] || fail "Eingebettete Revision $EMBEDDED ist nicht HEAD $HEAD_SHA — aus einem anderen Stand gebaut"
 echo "Eingebettete Revision == HEAD ($HEAD_SHA)"
 
-# Signatur, wenn apksigner auffindbar ist.
+# Signatur und Zertifikat (B31): Ein APK, das mit einem anderen Schluessel signiert ist (falscher Keystore, nach einem Umzug),
+# liesse sich nicht ueber die installierte App einspielen. Ohne apksigner laesst sich das nicht pruefen — dann kein Release.
 APKSIGNER="$(ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)"
-if [ -n "$APKSIGNER" ]; then
-    "$APKSIGNER" verify --print-certs "$APK" | head -3
-else
-    echo "(apksigner nicht gefunden — Signatur nicht geprueft)"
-fi
+[ -n "$APKSIGNER" ] || fail "apksigner nicht gefunden (Android SDK build-tools) — Signatur und Zertifikat lassen sich nicht pruefen"
+CERTS="$("$APKSIGNER" verify --print-certs "$APK")" || fail "apksigner verify ist fehlgeschlagen"
+printf '%s\n' "$CERTS" | head -3
+printf '%s\n' "$CERTS" | signer_matches_pin "$ROOT/scripts/release-cert.sha256" \
+    || fail "Das APK ist nicht mit dem erwarteten Zertifikat signiert (scripts/release-cert.sha256) — falscher Keystore?"
+echo "Zertifikat entspricht dem festgehaltenen Fingerabdruck"
 
 # ---------------------------------------------------------------------------------------------------------------
 step "mapping.txt archivieren"

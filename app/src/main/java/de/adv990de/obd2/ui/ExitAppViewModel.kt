@@ -1,11 +1,8 @@
 package de.adv990de.obd2.ui
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import de.adv990de.obd2.ObdForegroundService
-import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ObdServiceController
 import javax.inject.Inject
 
 /**
@@ -16,12 +13,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class ExitAppViewModel @Inject constructor(
-    private val obdRepository: ObdRepository,
-    @ApplicationContext private val appContext: Context,
+    private val serviceController: ObdServiceController,
 ) : ViewModel() {
 
-    suspend fun exitApp() {
-        obdRepository.disconnectByUser()
-        appContext.stopService(ObdForegroundService.stopIntent(appContext))
-    }
+    suspend fun exitApp() = serviceController.endSession()
 }

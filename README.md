@@ -92,7 +92,14 @@ KEY_PASSWORD=<key-passwort>
 SENTRY_DSN=<optional-sentry-dsn>
 ```
 
-Die Datei `keystore.jks` muss im Projekt-Root liegen (per `.gitignore` ausgeschlossen).
+Der Keystore liegt standardmäßig als `keystore.jks` im Projekt-Root (per `.gitignore` ausgeschlossen). **Besser außerhalb des Projektbaums**
+(z. B. `~/.android-keys/<name>.jks`, Ordner Modus 700, Datei Modus 600): dann `KEYSTORE_FILE=~/.android-keys/<name>.jks` in
+`~/.gradle/gradle.properties` oder als Umgebungsvariable setzen (`~/` wird aufgelöst). Zeigt `KEYSTORE_FILE` ins Leere, **bricht der
+Release-Build ab** (statt still ein unsigniertes APK zu bauen); ohne jede Angabe und ohne `keystore.jks` entsteht wie bisher ein unsigniertes APK.
+`scripts/release.sh` verweigert den Release, wenn Keystore oder `~/.gradle/gradle.properties` für andere Benutzer lesbar sind (`chmod 600`), und
+prüft, dass das APK mit dem Zertifikat aus `scripts/release-cert.sha256` signiert ist (öffentlicher SHA-256-Fingerabdruck, kein Geheimnis) — ein
+falscher Schlüssel ergäbe ein Update, das sich nicht über die installierte App einspielen lässt. Wechselt der Schlüssel absichtlich (nie ohne Not:
+Nutzer müssten neu installieren), den Fingerabdruck dort mit-ändern.
 
 Release bauen:
 ```bash
@@ -122,7 +129,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1167 Tests, < 30 Sekunden)
+# JVM Unit Tests (1197 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -131,7 +138,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1167 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1197 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -148,7 +155,8 @@ Single-Module-App (`app/`):
 app/src/main/java/de/adv990de/obd2/
 ├── MainActivity.kt              # Compose-Host
 ├── Obd2Application.kt           # @HiltAndroidApp
-├── ObdForegroundService.kt      # Hält ObdRepository am Leben (Background)
+├── ObdForegroundService.kt      # Hält den Prozess am Leben (Background), beendet die Sitzung beim Wegwischen
+├── ObdServiceController.kt      # Dienst starten/stoppen, Sitzung beenden — eine Stelle
 ├── bluetooth/                   # BleConnection, ClassicBtConnection, SimulatorObdConnection,
 │                                # ConnectionFactory, BluetoothDeviceScanner, SimulatedEcuDispatcher
 ├── obd/                         # ElmController, PidRegistry, PidParser, DtcParser, UnitConverter
@@ -191,7 +199,7 @@ Die zentrale Repository-Schicht ist als Hilt-`@Singleton` markiert. Foreground-S
 `BleConnection.kt` nutzt einen `Semaphore(0)` als Mutex für BLE-Writes: jeder Write blockiert, bis `onCharacteristicWrite` feuert (5 s Timeout). Verhindert verlorene Pakete bei schnellen Sequenzen.
 
 ### Foreground Service hält Verbindung
-`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification. Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. **Bekannte Einschränkung:** Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; wird die Aktivität beendet (z. B. aus der Übersicht weggewischt), endet die Aufzeichnung, während Verbindung und Benachrichtigung stehen bleiben (QS-Bericht B1).
+`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification (Antippen öffnet die App, „Trennen“ beendet die Sitzung). Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; der Dienst hält nur den Prozess am Leben. Deshalb gilt: **die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht.** Wird die App aus der Übersicht weggewischt oder die Activity wirklich beendet (nicht nur für eine Drehung neu erzeugt), trennt die App und beendet den Dienst — wie „Beenden“; „Zurück“ am Root ab Android 12 schickt die App nur in den Hintergrund, die Aufzeichnung läuft weiter. Start, Stopp und Beenden der Sitzung liegen in einer Klasse (`ObdServiceController`); lehnt Android den Dienststart ab (ab API 31 im Hintergrund), bleibt die Verbindung bestehen und das App-Log nennt den Grund (QS-Bericht B1/B4).
 
 ### Room mit Foreign Keys
 SQLite aktiviert Foreign-Key-Constraints standardmäßig **nicht**. Die App setzt `PRAGMA foreign_keys = ON` via `RoomDatabase.Callback` in `AppModule.kt` — sonst hätte `ON DELETE CASCADE` keine Wirkung.
@@ -218,9 +226,9 @@ Sensor-Kacheln nutzen `LiveValueTile` (`ui/components/LiveValueTile.kt`) — dom
 `scripts/release.sh` hält den Ablauf fest (und warum er so ist): **erst Version bumpen und committen, dann bauen** — das 1.23.0-APK wurde aus
 einem noch nicht committeten Bump gebaut, seine eingebettete Revision war nicht die des Tags (QS-Bericht B32). Das Skript
 
-1. prüft vorab: sauberer Arbeitsbaum, README („Aktuelle Version“) und oberster Release-Notes-Eintrag nennen die Version aus `app/build.gradle.kts`, der Tag existiert noch nicht;
+1. prüft vorab: sauberer Arbeitsbaum, README („Aktuelle Version“) und oberster Release-Notes-Eintrag nennen die Version aus `app/build.gradle.kts`, der Tag existiert noch nicht, Keystore und `~/.gradle/gradle.properties` sind nur für den Eigentümer lesbar;
 2. führt die JVM-Tests aus und baut `assembleRelease`;
-3. prüft, dass die im APK eingebettete Revision **HEAD** ist (und die Signatur, wenn `apksigner` gefunden wird);
+3. prüft, dass die im APK eingebettete Revision **HEAD** ist, die Signatur (`apksigner`) und dass das Zertifikat dem festgehaltenen Fingerabdruck entspricht;
 4. archiviert `mapping.txt`, die APK-Prüfsumme und die Revision außerhalb des Repos (`$RELEASE_ARCHIVE_DIR`, Standard `~/obd2-release-archive/<version>/`; die `mapping.txt` hat ~45 MB);
 5. mit `--install` installiert es auf das angeschlossene Gerät und prüft den `versionCode`.
 
@@ -340,8 +348,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1167) |
-| `app/src/androidTest/` | Instrumented Tests (280, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1197) |
+| `app/src/androidTest/` | Instrumented Tests (282, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
