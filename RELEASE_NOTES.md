@@ -1,5 +1,60 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.9 (versionCode 91)
+
+Aufräumen, Start, Standort, Lieferkette, Lizenzen, Farben (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: sieben C-Punkte — PRO-8/SCR-05/LIF-06, UID-12/LIF-21, SEC-5, SEC-7, DAT-12/14/16/18, SEC-10/SCR-24, Farbrollen).
+
+### Toter BLE-Code entfernt (PRO-8/SCR-05/LIF-06)
+
+- **Die Geräteliste hat nie BLE-Adapter angeboten:** `BluetoothDeviceScanner.scanBle()` hatte keinen Aufrufer, `bondedDevices` liefert nur Classic-Geräte. Entfernt wurden `BleConnection` (286 Zeilen) samt Test, der BLE-Zweig der `ConnectionFactory`, `BtType.BLE`, `scanBle()` und `hasScan()` — zusammen rund 370 Zeilen. `BtType` = `CLASSIC | SIMULATOR`. Die README warb trotzdem mit BLE-Adaptern; korrigiert.
+- **Weniger Berechtigungen, weniger Aussperrung:** `BLUETOOTH_SCAN` und `BLUETOOTH_ADMIN` entfallen, und auf Android 8–11 (API ≤ 30) verlangte das Berechtigungs-Tor **Standort** — nur für den BLE-Scan, den es nie gab. Wer dort Standort ablehnte, kam nicht in die App. Jetzt: ab API 31 nur `BLUETOOTH_CONNECT`, bis API 30 nur `BLUETOOTH`. Gelesen am Code: `ClassicBtConnection` ruft kein `cancelDiscovery()`, braucht also kein SCAN.
+- **`BluetoothScopeSourceTest`** hält BLE-Code, die entfallenen Berechtigungen im Manifest und das README-Versprechen draußen.
+
+### Start ohne Blitz (UID-12/LIF-21)
+
+Theme und Kachel-Belegung kamen asynchron aus dem DataStore; die Einstellung wurde erst während der ersten Komposition abonniert, das erste Bild zeigte kurz das Standard-Theme bzw. leere Kacheln.
+- **`seedBlocking`** (`data/StartupSeed.kt`) liest den ersten Wert einmal synchron — als **Startwert**, nicht als Quelle der Wahrheit (Obergrenze 250 ms, bei Fehler/Hänger gilt der Standard). Am Pixel gemessen: ~3 ms für den ersten Zugriff beim Kaltstart. Genutzt in `MainActivity` (Theme) und `DashboardViewModel` (Slot-Belegung).
+- **Am Gerät geprüft:** Farbschema Orange gewählt, App beendet, kalt gestartet — ein temporäres Log in der ersten Komposition zeigte bereits `theme=amber` (mit dem Standard-Theme als Startwert hätte dort `system` gestanden); der erste Frame danach war ohne Zwischenschritt im Cockpit-Orange. Das Prüf-Log ist wieder entfernt.
+
+### Standort mit Altersprüfung (SEC-5)
+
+`AndroidCurrentLocationProvider` nahm jeden gecachten Fix — und der GPS-Cache schlug einen frischeren Netzwerk-Fix; der Cache friert ein, solange keine App einen Standort anfordert. Die Außentemperatur konnte so für die falsche Gegend gelten. Jetzt: der **jüngste** Cache-Fix, wenn er höchstens 10 Minuten alt ist (`freshestFix`, monotone Uhr `elapsedRealtimeNanos`; negatives Alter = ungültig), sonst ein aktiver Fix (GPS, dann Netzwerk, je 15 s), sonst **kein Standort** — lieber keine Außentemperatur als eine falsche. Der zuletzt gute Wert bleibt wie bisher 30 Minuten stehen.
+
+### Gradle-Prüfsummen (SEC-7)
+
+- `distributionSha256Sum` für Gradle 9.5.0 (von services.gradle.org und der Prüfsummen-Seite von gradle.org bestätigt und selbst gehasht).
+- `gradle/verification-metadata.xml` mit SHA-256 für **711 Komponenten** (Abhängigkeiten und Plugins): Gradle bricht ab, wenn ein Artefakt nicht passt oder fehlt. Geprüft mit einem Build mit `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). Der erste Schreiblauf ohne `--refresh-dependencies` hatte einen Eintrag vergessen (`guava-parent`) — der Weg zum Neuschreiben steht deshalb mit diesem Schalter in der CLAUDE.md.
+- **`BuildIntegrityTest`** hält Summe, Verifikation und die Abdeckung jeder direkten Abhängigkeit fest.
+
+### Fehlerhistorie: Randfälle (DAT-12/14/16/18, soweit belegbar)
+
+- **„Aktiv“ gilt je Verbindung:** `DtcViewModel` setzt die Live-Liste zurück, sobald die Verbindung fällt. Vorher galt nach Trennen und Wiederverbinden ohne offene Seite die alte Liste wieder als „Aktiv“.
+- **Überlappende Auslesevorgänge:** Generationszähler (wie im Freeze-Frame-ViewModel) — ein spätes altes Ergebnis überschreibt weder Liste noch Zustand noch Fehler; es wird trotzdem aufgezeichnet (es war eine echte Beobachtung).
+- Die Einzelbefunde DAT-12/14/16/18 stehen im Bericht nur als Stichwort; was sich am Code belegen ließ, ist gemacht, „ungenutzte DAO-Methoden“ gibt es nicht mehr.
+
+### Lizenzseite in der App (SEC-10/SCR-24)
+
+App-Info → „Open-Source-Lizenzen“: jede ausgelieferte Komponente mit Namen, Zweck und Lizenz, dazu der Volltext. Der Katalog ist von Hand gepflegt, **abgeleitet aus dem, was im Release-APK landet** (R8-Mapping gelesen: AndroidX, Kotlin/Coroutines, Okio, Dagger/Hilt, Sentry; dazu zwei Schriften). Die Texte (Apache 2.0 von apache.org, MIT von Sentry mit **beiden** Copyright-Zeilen des Originals, 2× OFL) liegen in `docs/licenses/` und sind zugleich die Assets der App — eine Quelle für Repo und APK. `LicenseCatalogTest` zwingt jede neue direkte Abhängigkeit zu einem Eintrag.
+
+### Cockpit-Farbrollen (letzte Lücke)
+
+Die drei Cockpit-Schemata definierten `primaryContainer`, `tertiaryContainer`, `errorContainer`, ihre `on…`-Rollen und `outlineVariant` nicht — M3-Violett schimmerte durch (Log-Chips, Löschen-Hintergrund, Kachel-Trennlinien). Jetzt aus der eigenen Palette abgeleitet (Surface zu 28 % Richtung `primary`/`tertiary`/Critical, `outlineVariant` zu 50 % Richtung `outline`); `ColorSchemesTest` prüft Regel, Kontrast (Text ≥ 7:1) und Farbton. **Der WARN-Chip der App-Logs ist gelb** (`StatusColors.container(Warning, surface)`), nicht `tertiaryContainer`: im blauen und grünen Schema liegt es 1–2° im Farbton neben `primaryContainer`, INFO und WARN wären nicht zu unterscheiden gewesen.
+
+### Tests
+
+- **1269 JVM-Unit-Tests** (vorher 1248, +21) und **307 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 301, +6), alle grün; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Mutationsprüfung:** 29 gezielte Eingriffe (27 mit JVM-Tests: Standort-Alter, Verbindungswechsel, Generationszähler, Startwerte, Farbrollen, Berechtigungen, Manifest, Lizenzkatalog, Eltern-Tab, Prüfsumme; 2 mit Gerätetests: Lizenztexte aus den Assets laden, Navigation zur Lizenzseite) — **alle erkannt**. Einer lief zuerst ins Leere (ein Timeout-Eingriff hing den Test statt ihn rot zu färben); der Test hat jetzt selbst ein Zeitlimit.
+- **Neue Tests u. a.:** `StartupSeedTest`, `LocationFreshnessTest`, `BuildIntegrityTest`, `BluetoothScopeSourceTest`, `LicenseCatalogTest`, `LogLevelColorsTest` (JVM); `LicensesScreenTest` (Gerät, liest die Texte aus dem echten APK); erweitert u. a. `ColorSchemesTest`, `StatusColorsTest`, `DtcViewModelTest`, `DashboardViewModelTest`, `AppPreferencesTest`, `AndroidCurrentLocationProviderTest`, `ParentTabTest`, `UiRulesSourceTest`, `PermissionGateTest`, `ConnectionFactoryTest`, `AppInfoScreenTest`. Entfallen: `BleConnectionTest` (mit dem Code).
+
+### Bekannte Grenzen
+
+- **Android 8–11 (API ≤ 30) nicht am Gerät geprüft:** das Testgerät läuft auf API 37. Die Berechtigungs-Entscheidung ist per JVM-Test abgesichert, der Ablauf dort nicht.
+- **Ein früher gespeichertes BLE-Gerät** wird als unbekannt gelesen: kein Auto-Connect, das Gerät einmal neu wählen. Da die Liste nie BLE-Adapter anbot, dürfte das niemanden treffen.
+- **Das Fenster vor dem ersten Frame** (System-Splash auf Android 12+, Hintergrund aus dem Systemmodus) bleibt unverändert; dort ist ein heller oder dunkler Moment weiter möglich. Die Startwerte betreffen nur, was die App selbst zeichnet.
+- **Das JDK holt der foojay-Resolver** — Gradle kennt für Toolchain-Downloads keine Prüfsumme. Abhängigkeiten und Distribution sind geprüft, das JDK nicht.
+- **Der Lizenzkatalog ist von Hand gepflegt:** der Test erzwingt Einträge für direkte Abhängigkeiten; was eine direkte Abhängigkeit transitiv mitbringt, steht nur, wenn jemand es einträgt (Stand: aus dem R8-Mapping dieses Release abgeleitet).
+- **Neue oder aktualisierte Abhängigkeiten** brechen den Build, bis `verification-metadata.xml` neu geschrieben ist (Befehl in der CLAUDE.md).
+
 ## Version 1.24.8 (versionCode 90)
 
 Touch-Ziele, Barrierefreiheit, CSV-Export und Sentry (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: B33 und die kleineren C-Punkte UID-11/13/14/17, SCR-17/18, DAT-06/07/09, SEC-10).
