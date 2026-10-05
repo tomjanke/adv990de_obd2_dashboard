@@ -9,8 +9,8 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 36
 
-    val appVersionCode = 86
-    val appVersionName = "1.24.4"
+    val appVersionCode = 87
+    val appVersionName = "1.24.5"
 
     val keystoreFile = rootProject.file("keystore.jks")
     fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()
@@ -63,7 +63,17 @@ android {
     buildFeatures { compose = true; buildConfig = true }
 
     testOptions {
-        unitTests { isReturnDefaultValues = true }
+        unitTests {
+            isReturnDefaultValues = true
+            // Die JVM-Tests laufen unter de_DE, der Hauptsprache der App: Eine versteckte Abhaengigkeit von der
+            // Maschinen-Locale (Dezimalpunkt statt -komma) faellt so sofort auf, statt nur auf einem deutschen
+            // Rechner (B35). Tests, die eine Anzeigeformatierung pruefen, pinnen ihre Locale selbst
+            // (`withDefaultLocale`) und pruefen beide.
+            all {
+                it.systemProperty("user.language", "de")
+                it.systemProperty("user.country", "DE")
+            }
+        }
     }
 
     packaging {
