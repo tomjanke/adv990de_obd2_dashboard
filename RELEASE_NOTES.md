@@ -1,5 +1,58 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.8 (versionCode 90)
+
+Touch-Ziele, Barrierefreiheit, CSV-Export und Sentry (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: B33 und die kleineren C-Punkte UID-11/13/14/17, SCR-17/18, DAT-06/07/09, SEC-10).
+
+### Touch-Ziele mindestens 56 dp — für alle Material-Komponenten (UID-11/SCR-17)
+
+Gemessen lagen Button, TextButton und IconButton bei **48 dp Touch-Fläche** (sichtbar 40 dp): Exit-Dialog, Bluetooth-Knopf und Verbinden/Trennen. Die Handschuh-Regel (Design-Prinzip 4) verlangt 56 dp.
+- **`AppTheme`** (neu, `MainActivity` nutzt es statt eines nackten `MaterialTheme`) setzt zwei Werte: die **Trefferfläche** (`ViewConfiguration.minimumTouchTargetSize`) und den **Platz im Layout** (`LocalMinimumInteractiveComponentSize`) auf 56 dp. Nur den zweiten anzuheben, ändert die Trefferfläche nicht (gemessen) — daher beide. Die Regel gilt damit auch für künftige Komponenten.
+- **Dialoge und Sheets erben sie nicht** (eigenes Fenster, eigene `ViewConfiguration`; der Exit-Dialog maß dort weiter 48 dp). `ProvideMinTouchTarget { … }` setzt sie in den Slots erneut; `UiRulesSourceTest` erzwingt das für jede Datei, die `AlertDialog`/`ModalBottomSheet`/Menü/`Popup` benutzt.
+- Optisch ändert sich fast nichts (Screenshots am Pixel, Hoch- und Querformat geprüft): die Flächen wachsen unsichtbar, Buttons behalten ihre Gestalt.
+
+### Barrierefreiheit (UID-13/SCR-18)
+
+- **Long-Press auf eine Kachel hat eine Bezeichnung** („Messwert ändern“ / „Change sensor“) — gefüllte Kachel und leerer Slot. Es ist die einzige Geste, die einen Slot belegt; TalkBack sagte nur „Doppeltippen und halten“.
+- **Aufzeichnungs-Auswahl:** Die Zeile ist ein Kontrollkästchen (`toggleable`, `Role.Checkbox`) mit Zustand. Vorher meldete TalkBack ihn nicht.
+- **Slider der Drehzahl-Blinkgrenze:** trägt Beschreibung und Zustandstext („6000 rpm“ bzw. „Deaktiviert“). Vorher: „Schieberegler, 60 Prozent“.
+- **Drehzahlbalken:** war ein nacktes Canvas, für TalkBack unsichtbar. Jetzt „Drehzahl 2800 rpm“ — auf 100 gerundet, damit die 20-Hz-Demobewegung nicht zum Dauersprechen führt; ohne Verbindung „Drehzahl nicht verfügbar“.
+
+### CSV-Export (DAT-06/07/09, PID-Spalte)
+
+- **Jeder Export eine eigene Datei** (`session_<Fahrt>_<UTC-Zeit auf die Millisekunde>.csv`, atomar angelegt). Vorher löschte ein zweiter Export derselben Fahrt die Datei unter einer noch laufenden Weitergabe.
+- **Aufräumen:** Exporte älter als 24 h löscht jeder Export vorab und die Aufbewahrung einmal je App-Start. Vorher wurden sie nie gelöscht. Ein fehlgeschlagener Export hinterlässt keine halbe Datei.
+- **Konstanter Speicher:** `ORDER BY id` statt `ORDER BY timestamp` — der Index auf `sessionId` liefert die Einfügereihenfolge ohne Sortierlauf (am Gerät per `EXPLAIN QUERY PLAN` belegt: kein „TEMP B-TREE“). Vorher musste SQLite alle Zeilen einer Fahrt lesen und sortieren, bevor die erste geschrieben wurde, entgegen der Doku. Die Reihenfolge ist die der Aufzeichnung.
+- **Neue Spalte `name`** (stabiler englischer PID-Name) **hinten**: `timestamp,pid,value,name`. Excel macht aus `0105` beim Doppelklick-Öffnen die Zahl 105; Anführungszeichen verhindern das nicht — die Spalte identifiziert den Wert trotzdem. Die ersten drei Spalten sind unverändert, Auswertungen nach Position laufen weiter. Felder gehen durch RFC-4180-Quoting.
+
+### B33 — Sentry zur Laufzeit abschaltbar, APK halb so groß
+
+- **Ohne DSN im Build ist Sentry nicht aktiv und es gibt keinen Schalter** — so sind Ihre Releases gebaut. **Mit DSN** startet Sentry nicht mehr von selbst (`io.sentry.auto-init=false`), sondern erst, nachdem die Einstellung gelesen ist; **„Absturzberichte senden“** (Info & Wartung, Standard an) startet und stoppt es sofort. Die App-Info zeigt den Stand (an / aus / in dieser Version nicht enthalten).
+- **Warum kein Auto-Init:** Mit ihm könnte ein Absturz in den ersten Millisekunden gegen die Einstellung des Nutzers gemeldet werden. **Der Preis, ehrlich:** Ein Absturz in den ersten Millisekunden nach dem Prozessstart, bevor die Einstellung gelesen ist, wird nicht gemeldet.
+- **`sentry-android-core` statt `sentry-android`:** das Sammelpaket zog den Native-Handler (`libsentry.so`, `libsentry-android.so`, in drei Architekturen) und Replay nach; die App hat keinen eigenen Native-Code. **Das Release-APK wird dadurch von 5,73 auf 2,92 MB kleiner** (R8 läuft, kein Fehler).
+- README korrigiert: „optional, deaktivierbar“ war ungenau.
+- **Nebenbei (SEC-10):** Der Lizenztext der Schrift **Space Grotesk** fehlte (nur der von IBM Plex Mono lag in `docs/licenses/`); Urheberrechtsvermerk aus den Schriftdateien selbst gelesen. Sentry ist jetzt in der App-Info offengelegt.
+
+### Kleinigkeiten
+
+- **„-0“ (UID-14):** `"%.0f".format(-0.4f)` zeigte „-0“. Eine Funktion (`formatSensorNumber`) für Kachel, Slot-Auswahl und Aufzeichnungs-Liste; ein negativer Wert, der auf 0 rundet, zeigt kein Vorzeichen.
+- **Doppeltes Gelb (UID-17):** `Color(0xFFEAB308)` im Verbindungs-Punkt ist jetzt `StatusColors.Warning`.
+
+### Tests
+
+- **1248 JVM-Unit-Tests** (vorher 1197, +51) und **301 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 282, +19), alle grün; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Mutationsprüfung:** 33 gezielte Eingriffe (23 mit JVM-Tests, 10 mit Gerätetests: Touch-Fläche, Dialog-Regel, Long-Press-Bezeichnungen, Kontrollkästchen-Rolle, Slider-Zustand, Balken-Beschreibung, Schalter, Statuszeile) — **alle von mindestens einem Test erkannt**.
+- **Die Touch-Tests messen die Touch-Fläche** (`touchBoundsInRoot`), nicht die sichtbare: `assertHeightIsAtLeast` meldete für einen IconButton 40 dp, obwohl sein Touch-Ziel 48 dp war — der Test war zunächst rot mit den echten Ausgangswerten (48 dp), dann grün mit `AppTheme`; der erste Versuch, nur den Material-Wert anzuheben, blieb rot (das ist die Messung hinter der Zwei-Werte-Regel).
+- **Neue Tests u. a.:** `CsvExportTest`, `SensorNumberFormatTest`, `CrashReportingControllerTest`, `CrashReportingSettingsViewModelTest`, `CrashReportingConfigTest`, `LicenseFilesTest`, `UiRulesSourceTest` (JVM); `TouchTargetTest`, `SlotA11yTest` (Gerät); erweitert u. a. `SessionRepositoryTest`, `SessionRepositoryDeviceTest` (Abfrageplan, Aufzeichnungsreihenfolge), `AppPreferencesTest`, `DataRetentionTest`, `SettingsScreenTest`, `AppInfoScreenTest`, `RpmBarTest`, `RpmThresholdSectionTest`, `LoggingConfigScreenTest`, `LiveValueTileTest`.
+- **Optik am Pixel geprüft** (Querformat; Dashboard, Einstellungen, Exit-Dialog): keine sichtbare Änderung, die Flächen wachsen unsichtbar.
+
+### Bekannte Grenzen
+
+- Das APK trägt die Lizenztexte der Schriften nicht als eigene Seite (Hinweis und Lizenz stehen in der Namenstabelle der Schriftdateien, der lesbare Text in `docs/licenses/`); eine Lizenzseite in der App ist nicht gebaut.
+- Excel zeigt `0105` in der Spalte `pid` weiter als Zahl (die Spalte `name` identifiziert den Wert trotzdem).
+- Mit gesetztem DSN und eingeschaltetem Schalter ist die Sentry-Übertragung selbst auf dem Gerät nicht geprüft (Ihre Builds haben keinen DSN); geprüft sind Controller-Logik, Schalter, Statuszeile und dass die App ohne DSN nichts startet.
+- Die Touch-Flächen sind gemessen (Test), nicht mit Handschuh erprobt.
+
 ## Version 1.24.7 (versionCode 89)
 
 Sitzung und Vordergrunddienst, Release-Signatur (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B1, B4, B31).
