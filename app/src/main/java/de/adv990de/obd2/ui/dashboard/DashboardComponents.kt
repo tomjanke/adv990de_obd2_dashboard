@@ -436,12 +436,19 @@ internal fun SensorCardSlot(
  * Die Vorschau bleibt — sie zeigt die Slot-Belegung und macht das Layout begreifbar — aber sie
  * sagt jetzt, was sie ist.
  *
+ * [labelRes] ist normalerweise "Vorschau · nicht verbunden"; bei veralteten Werten ([DashboardUiState.isStale])
+ * nutzt dasselbe Band "Keine aktuellen Werte" — die Verbindung steht, das Steuergeraet schweigt.
+ *
  * [reason] (siehe [previewBannerReason]) schreibt aus, WARUM nicht verbunden ist; ohne Grund bleibt es
  * das schlichte Band. Der Grund steht in der Fehlerfarbe des Themes (theme-sicherer Kontrast, wie die
  * uebrigen Leerzustands-Fehlertexte) in lesbarer Schriftgroesse, nicht in der ALL-CAPS-Beschriftung.
  */
 @Composable
-internal fun PreviewBanner(modifier: Modifier = Modifier, reason: UiText? = null) {
+internal fun PreviewBanner(
+    modifier: Modifier = Modifier,
+    reason: UiText? = null,
+    @StringRes labelRes: Int = R.string.dashboard_preview_banner,
+) {
     Surface(
         modifier = modifier,
         shape = RectangleShape,
@@ -454,7 +461,7 @@ internal fun PreviewBanner(modifier: Modifier = Modifier, reason: UiText? = null
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SectionLabel(
-                text = stringResource(R.string.dashboard_preview_banner),
+                text = stringResource(labelRes),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

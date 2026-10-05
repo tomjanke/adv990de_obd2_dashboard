@@ -7,6 +7,7 @@
     <string name="dashboard_slot_unsupported">Vom Fahrzeug nicht unterstützt</string>
     <string name="dashboard_slot_waiting_gps">Warte auf GPS-Signal</string>
     <string name="dashboard_preview_banner">Vorschau · nicht verbunden</string>
+    <string name="dashboard_stale_banner">Keine aktuellen Werte</string>
 
     <!-- Dashboard screen — error / status messages -->
     <string name="err_no_device">Kein bekanntes Gerät für die Wiederverbindung.</string>

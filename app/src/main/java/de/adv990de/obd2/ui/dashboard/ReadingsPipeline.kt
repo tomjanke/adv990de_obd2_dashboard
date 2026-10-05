@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -32,8 +34,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -52,12 +57,28 @@ sealed interface SessionEvent {
     /** Keine Verbindung — es fliessen keine Werte. */
     data object Idle : SessionEvent
 
+    /**
+     * Die Verbindung steht, aber seit [OBD_STALE_AFTER_MS] kam kein Zyklus mit einem Messwert mehr (das
+     * Steuergeraet schweigt, z. B. bei ausgeschalteter Zuendung — der Watchdog toleriert reines NO DATA
+     * bewusst). Die zuletzt gezeigten Werte sind veraltet und duerfen nicht weiter als live erscheinen.
+     * Der naechste [Values] hebt das wieder auf.
+     */
+    data object Stale : SessionEvent
+
     /** Die Verbindung ist waehrend der Fahrt abgerissen; der Koordinator soll uebernehmen. */
     data object ConnectionLost : SessionEvent
 
     /** Die Sitzung ist an einem anderen Fehler gescheitert. */
     data class Failed(val error: UiText) : SessionEvent
 }
+
+/**
+ * So lange darf kein OBD-Zyklus mit mindestens einem Messwert eintreffen, bevor die Werte als veraltet
+ * gelten ([SessionEvent.Stale]). Ein Zyklus dauert normalerweise ~1 s; ein einzelner Timeout blockiert 5 s.
+ * 10 s ueberbruecken ein paar verpasste Zyklen, liegen aber deutlich vor dem Watchdog (Standard 20 s), der
+ * einen stummen Adapter ohnehin neu verbindet.
+ */
+internal const val OBD_STALE_AFTER_MS = 10_000L
 
 /**
  * Der Messwert-Pfad: Auswahl der abzufragenden PIDs, Aufzeichnung der Sitzung, Zusammenfuehrung
@@ -85,6 +106,25 @@ class ReadingsPipeline @Inject constructor(
      * und wuerde als "Fahrzeug liefert Geschwindigkeit" missverstanden.
      */
     private val lastObdReadings = MutableStateFlow<List<SensorValue>?>(null)
+
+    /** Zaehlt die OBD-Zyklen mit Messwerten dieser Sitzung (0 = noch keiner). Treibt die Frist fuer
+     *  [SessionEvent.Stale]; ein Zaehler statt eines Vergleichs von [lastObdReadings], weil ein
+     *  StateFlow gleiche Werte zusammenfasst und die Frist dann nicht neu anliefe. */
+    private val obdCycles = MutableStateFlow(0)
+
+    /** Wahr, sobald die Werte als veraltet gemeldet wurden: [gpsRefresh] fuehrt sie dann nicht mehr neu
+     *  mit einem frischen GPS-Wert zusammen. Bewusst NICHT [lastObdReadings] auf null zu setzen — die
+     *  Frist haengt (ueber [obdCycles]) nicht daran, ein Rueckschreiben aus dem eigenen Strom brachte die
+     *  Reentrancy-Falle, die [connectionLostSignal] beschreibt. */
+    private val obdStale = MutableStateFlow(false)
+
+    /** Hysterese-Zustand der Fahrterkennung ([isMoving]); zu Beginn jeder Sitzung "steht". */
+    private var moving = false
+
+    /** Laeuft die Messwert-Quelle der Sitzung noch? Nur dann kann sie "schweigen": Eine beendete Quelle
+     *  (Verbindungsverlust, Fehler) meldet das auf ihrem eigenen Weg, dort waere [SessionEvent.Stale]
+     *  falsch. */
+    private var sessionRunning = false
 
     /**
      * Getrennter Signalweg fuer [SessionEvent.ConnectionLost] — analog zu
@@ -176,7 +216,16 @@ class ReadingsPipeline @Inject constructor(
                     // allein am OBD-Takt haengen; [gpsRefresh] frischt zusaetzlich zwischen zwei
                     // OBD-Zyklen nur die Anzeige auf. Die Sitzungslogik soll von einem GPS-Fix
                     // weder beschleunigt noch verzoegert werden.
-                    merge(runSession(slotIds, gpsSpeed), gpsRefresh(gpsSpeed))
+                    //
+                    // Nichts von der vorigen Verbindung ueberlebt in die neue Sitzung: Ohne das
+                    // fuehrte der erste GPS-Zwischenwert nach einem Reconnect die ALTEN Messwerte neu
+                    // zusammen und zeigte sie als live, bis der erste echte Zyklus eintrifft.
+                    merge(
+                        runSession(slotIds, gpsSpeed).onCompletion { sessionRunning = false },
+                        gpsRefresh(gpsSpeed),
+                        staleness(),
+                    )
+                        .onStart { resetSession() }
                 }
             }
         // connectionLostSignal als Geschwister, nicht als Teil der flatMapLatest-Kette — s. Doku
@@ -194,8 +243,38 @@ class ReadingsPipeline @Inject constructor(
      * dieser Ersatz-Wert in einer engen Race mit dem allerersten OBD-Zyklus um den ersten Platz im
      * Ereignisstrom konkurrieren.
      */
+    private fun resetSession() {
+        lastObdReadings.value = null
+        obdCycles.value = 0
+        obdStale.value = false
+        moving = false
+        sessionRunning = true
+    }
+
+    /**
+     * Meldet [SessionEvent.Stale], wenn [OBD_STALE_AFTER_MS] lang kein Zyklus mit Messwerten kam. Die Frist
+     * startet mit jedem Zyklus neu ([obdCycles]); vor dem ersten Zyklus laeuft keine (es gibt noch nichts,
+     * was veralten koennte). Setzt die Fahrterkennung auf "steht" — eine Geschwindigkeit, die niemand mehr
+     * liefert, darf die Navigationsleiste nicht dauerhaft ausgeblendet halten.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun staleness(): Flow<SessionEvent> = obdCycles
+        .flatMapLatest { cycles ->
+            if (cycles == 0) emptyFlow()
+            else flow {
+                delay(OBD_STALE_AFTER_MS)
+                if (sessionRunning) emit(SessionEvent.Stale)
+            }
+        }
+        .onEach {
+            obdStale.value = true
+            moving = false
+            obdRepository.setMoving(false)
+        }
+
     private fun gpsRefresh(gpsSpeed: StateFlow<Float?>): Flow<SessionEvent.Values> =
         gpsSpeed.drop(1).mapNotNull { gpsKmh ->
+            if (obdStale.value) return@mapNotNull null
             val readings = lastObdReadings.value ?: return@mapNotNull null
             mergeGpsSpeed(readings, gpsKmh) to gpsKmh
         }.onEach { (merged, _) -> applyMerged(merged) }
@@ -284,7 +363,11 @@ class ReadingsPipeline @Inject constructor(
             emitAll(
                 obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
-                    .onEach { readings -> lastObdReadings.value = readings }
+                    .onEach { readings ->
+                        lastObdReadings.value = readings
+                        obdStale.value = false
+                        obdCycles.update { it + 1 }
+                    }
                     // GPS ergaenzt die Geschwindigkeit, bevor aufgezeichnet und angezeigt wird —
                     // der Fahrzeugwert hat Vorrang. Der rohe GPS-Wert wird trotzdem mitgefuehrt
                     // (s. SessionEvent.Values-KDoc) — die Ganganzeige braucht ihn unabhaengig davon,
@@ -374,10 +457,12 @@ class ReadingsPipeline @Inject constructor(
      */
     private fun applyMerged(values: List<SensorValue>) {
         obdRepository.updateLatestReadings(values)
-        // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug oder vom GPS kommt.
+        // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug oder vom GPS kommt, mit
+        // Hysterese (s. isMoving): GPS-Rauschen im Stand schaltet das Hauptmenue nicht mehr um.
         // Fehlt sie ganz, gilt "steht", damit die Navigation nie dauerhaft ausgeblendet bleibt.
         val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
-        obdRepository.setMoving(speed != null && speed.value > 0f)
+        moving = isMoving(speed?.value, moving)
+        obdRepository.setMoving(moving)
     }
 
     private suspend fun record(

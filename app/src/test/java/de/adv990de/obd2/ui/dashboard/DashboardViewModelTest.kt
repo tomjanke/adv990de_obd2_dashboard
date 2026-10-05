@@ -1733,6 +1733,114 @@ class DashboardViewModelTest {
         assertNull(vm.uiState.value.speedKmh)
     }
 
+    // ── B29: values nobody refreshes are shown as stale, not as live ──────────
+
+    private fun staleRepo(isConnected: MutableStateFlow<Boolean>, session: kotlinx.coroutines.flow.Flow<List<SensorValue>>) =
+        mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnected
+            every { userDisconnectCount } returns MutableStateFlow(0)
+            every { supportedPidIds } returns MutableStateFlow(null)
+            coEvery { readVin() } returns null
+            coEvery { readDtcs() } returns emptyList()
+            every { livePids(any()) } returns session
+            every { setMoving(any()) } just Runs
+            every { updateLatestReadings(any()) } just Runs
+        }
+
+    private val liveCycle = listOf(
+        SensorValue(pid = PidRegistry.RPM, value = 3000f, timestamp = 1000L),
+        SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
+    )
+
+    @Test
+    fun `a silent ECU turns the display stale - no readings, no rpm, no speed, no gear - but the link stays connected`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        isConnected.value = true
+        advanceTimeBy(1_000)
+        assertFalse(vm.uiState.value.isStale)
+        assertTrue(vm.uiState.value.readings.isNotEmpty())
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
+
+        val state = vm.uiState.value
+        assertTrue("veraltet", state.isStale)
+        assertTrue("der Adapter-Link steht weiter", state.isConnected)
+        assertTrue("keine alten Werte mehr: ${state.readings}", state.readings.isEmpty())
+        assertEquals(0f, state.rpmValue, 0f)
+        assertNull(state.speedKmh)
+        assertNull(state.gear)
+        assertFalse(state.isNeutral)
+    }
+
+    @Test
+    fun `fresh values after a stale phase clear the stale flag`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val repo = staleRepo(
+            isConnected,
+            kotlinx.coroutines.flow.flow { emit(liveCycle); delay(15_000); emit(liveCycle); kotlinx.coroutines.awaitCancellation() },
+        )
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        isConnected.value = true
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
+        assertTrue(vm.uiState.value.isStale)
+
+        advanceTimeBy(5_000)        // t = 16 s: the second cycle has arrived
+
+        assertFalse(vm.uiState.value.isStale)
+        assertTrue(vm.uiState.value.readings.isNotEmpty())
+    }
+
+    @Test
+    fun `a link lost while stale ends the stale state too - the reconnect spinner takes over`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow {
+            emit(liveCycle)
+            delay(12_000)
+            isConnected.value = false
+            throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
+        })
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val prefs = makePrefs()
+        // Ein relaxter Koordinator: der echte wuerde den Reconnect tatsaechlich durchspielen.
+        val vm = DashboardViewModel(
+            repo,
+            prefs,
+            mockk<ConnectionCoordinator>(relaxed = true),
+            ReadingsPipeline(repo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
+            SavedStateHandle(),
+        )
+        isConnected.value = true
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
+        assertTrue(vm.uiState.value.isStale)
+
+        advanceTimeBy(2_000)        // t = 13 s: the link drops
+
+        assertFalse("kein Veraltet-Zustand neben dem Reconnect", vm.uiState.value.isStale)
+        assertTrue(vm.uiState.value.isReconnecting)
+        assertFalse(vm.uiState.value.isConnected)
+    }
+
+    @Test
+    fun `losing the connection ends the stale state - the not-connected banner takes over`() = runTest {
+        val isConnected = MutableStateFlow(false)
+        val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        isConnected.value = true
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
+        assertTrue(vm.uiState.value.isStale)
+
+        isConnected.value = false
+        advanceTimeBy(1_000)
+
+        assertFalse(vm.uiState.value.isStale)
+        assertFalse(vm.uiState.value.isConnected)
+    }
+
     // ── B3: the user's disconnect ends a running reconnect round without an error ──
 
     @Test
@@ -2235,28 +2343,34 @@ class DashboardViewModelTest {
     fun `GPS-triggered replays of the last OBD cycle do not advance the green timer`() = runTest {
         // Der konkrete Mechanismus aus dem Review: Zuendung aus, das Steuergeraet antwortet nur
         // noch NO DATA (livePids() emittiert nichts mehr, der Watchdog toleriert das beliebig
-        // lange), aber jede GPS-Aenderung stellt per ReadingsPipeline.gpsRefresh() die letzten
+        // lange), aber jede GPS-Aenderung stellte per ReadingsPipeline.gpsRefresh() die letzten
         // OBD-Werte erneut zu — inklusive des alten Kuehlmittelwerts mit seinem alten Zeitstempel.
-        val obdRepo = makeConnectedObdRepo(flow {
-            emit(listOf(coolantReading(85f, timestamp = 1_000L)))
-            awaitCancellation()
-        })
-        val gps: GpsSpeedSource = mockk {
-            // Wechselnde Werte: ein StateFlow unterdrueckt gleiche Folgewerte, gpsRefresh() liefe
-            // sonst gar nicht erst an.
-            every { speedKmh } returns flow {
-                repeat(11 * 60) { i ->
-                    emit(if (i % 2 == 0) 10f else 11f)
+        //
+        // Seit B29 beendet die Pipeline diese Wiederholungen nach OBD_STALE_AFTER_MS selbst (s.
+        // ReadingsPipelineTest). Die Sperre im ViewModel (lastOilBarSampleTimestamp) bleibt als zweite
+        // Verteidigung — deshalb speist dieser Test die Wiederholungen DIREKT ein, ueber eine
+        // Pipeline, die sie unbegrenzt liefert, statt sich auf deren Begrenzung zu verlassen.
+        val replayed = coolantReading(85f, timestamp = 1_000L)
+        val pipeline = mockk<ReadingsPipeline> {
+            every { events(any()) } returns flow {
+                repeat(11 * 60) {
+                    emit(SessionEvent.Values(listOf(replayed), gpsSpeedKmh = 10f))
                     delay(1_000L)
                 }
             }
         }
-        val vm = makeOilBarVm(obdRepo, prefs = makePrefs(useGpsSpeed = true), gps = gps, nowMillis = { testScheduler.currentTime })
+        val obdRepo = mockk<ObdRepository> { every { supportedPidIds } returns MutableStateFlow(null) }
+        val vm = DashboardViewModel(
+            obdRepo, makePrefs(), mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(),
+        ).also { it.nowMillis = { testScheduler.currentTime } }
         advanceUntilIdle()
 
-        // Beleg, dass die Replays tatsaechlich bis applyReadings() durchkamen (sonst waere der Test
-        // wertlos): die Anzeige-Geschwindigkeit stammt aus dem letzten GPS-Replay (Index 659 -> 11).
-        assertEquals(11f, vm.uiState.value.speedKmh!!, 0.001f)
+        // Beleg, dass die Wiederholungen tatsaechlich bis applyReadings() durchkamen (sonst waere der
+        // Test wertlos): der Kuehlmittelwert steht in der Anzeige, und der Balken hat eine Farbe.
+        assertTrue(
+            "die Wiederholungen kamen an: ${vm.uiState.value.readings}",
+            vm.uiState.value.readings.any { it.pid.id == PidRegistry.COOLANT_TEMP.id }
+        )
         assertEquals(OilBarColor.Yellow, vm.uiState.value.oilBarColor)
     }
 

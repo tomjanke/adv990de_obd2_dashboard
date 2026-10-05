@@ -22,6 +22,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -491,6 +493,160 @@ class ReadingsPipelineTest {
 
             assertEquals(SessionEvent.ConnectionLost, event)
         }
+
+    // --- B11: Fahrterkennung mit Hysterese ---
+
+    private fun speed(kmh: Float, timestamp: Long = 1000L) = SensorValue(PidRegistry.SPEED, kmh, timestamp)
+
+    @Test
+    fun `standstill noise never reports moving, a real start does, a crawl keeps it, a stop ends it`() = runTest {
+        val speeds = listOf(1.5f, 4f, 6f, 4f, 2.5f, 0f)
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flowOf(*speeds.map { listOf(speed(it)) }.toTypedArray())
+        val calls = mutableListOf<Boolean>()
+        every { repo.setMoving(any()) } answers { calls.add(firstArg()) }
+
+        makePipeline(repo).events(backgroundScope).take(speeds.size).toList()
+
+        assertEquals(listOf(false, false, true, true, false, false), calls)
+    }
+
+    // --- B29: values nobody refreshes are stale ---
+
+    private fun TestScope.collect(pipeline: ReadingsPipeline): MutableList<SessionEvent> {
+        val events = mutableListOf<SessionEvent>()
+        backgroundScope.launch { pipeline.events(backgroundScope).toList(events) }
+        return events
+    }
+
+    @Test
+    fun `values that nobody refreshes become stale after the limit and the moving flag drops`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { emit(listOf(speed(50f))); awaitCancellation() }
+        val calls = mutableListOf<Boolean>()
+        every { repo.setMoving(any()) } answers { calls.add(firstArg()) }
+        val events = collect(makePipeline(repo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS - 1); runCurrent()
+        assertTrue("noch frisch: $events", events.none { it == SessionEvent.Stale })
+        assertEquals("die Fahrt laeuft noch", true, calls.last())
+
+        advanceTimeBy(2); runCurrent()
+        assertTrue("nach dem Limit: $events", events.contains(SessionEvent.Stale))
+        assertEquals("veraltet heisst: steht", false, calls.last())
+    }
+
+    @Test
+    fun `fresh cycles keep the values from going stale`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow {
+            repeat(5) { emit(listOf(rpm)); delay(5_000) }   // cycles at 0, 5, 10, 15, 20 s
+            awaitCancellation()
+        }
+        val events = collect(makePipeline(repo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 20_000 - 100); runCurrent()   // just before 20 s + limit
+        assertTrue("jeder Zyklus startet die Frist neu: $events", events.none { it == SessionEvent.Stale })
+
+        advanceTimeBy(200); runCurrent()
+        assertTrue(events.contains(SessionEvent.Stale))
+    }
+
+    @Test
+    fun `a cycle after a stale phase brings the values back and restarts the limit`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm)); delay(15_000); emit(listOf(rpm.copy(timestamp = 2000L))); awaitCancellation()
+        }
+        val events = collect(makePipeline(repo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null), SessionEvent.Stale), events)
+        advanceTimeBy(5_000); runCurrent()          // t = 15 s: the next cycle arrives
+        assertTrue("wieder Werte: $events", events.last() is SessionEvent.Values)
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        assertEquals("die Frist lief neu an", 2, events.count { it == SessionEvent.Stale })
+    }
+
+    @Test
+    fun `a stale session does not re-merge its old readings when the GPS moves on`() = runTest {
+        val gps = MutableStateFlow<Float?>(null)
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        runCurrent()
+        gps.value = 10f; runCurrent()
+        assertEquals("solange sie frisch sind, ergaenzt GPS sie: $events", 2, events.count { it is SessionEvent.Values })
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        val before = events.size
+        gps.value = 20f; runCurrent()
+
+        assertEquals("veraltete Werte duerfen nicht mit neuem GPS 'live' erscheinen: $events", before, events.size)
+    }
+
+    @Test
+    fun `a new session starts from standing - the drive hysteresis does not carry over a reconnect`() = runTest {
+        val isConnected = MutableStateFlow(true)
+        val repo = makeRepo(connected = true)
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.livePids(any()) } returnsMany listOf(
+            flow { emit(listOf(speed(60f))); awaitCancellation() },
+            flow { emit(listOf(speed(4f))); awaitCancellation() },   // inside the hysteresis band
+        )
+        val calls = mutableListOf<Boolean>()
+        every { repo.setMoving(any()) } answers { calls.add(firstArg()) }
+        collect(makePipeline(repo))
+        runCurrent()
+
+        isConnected.value = false; runCurrent()
+        isConnected.value = true; runCurrent()
+
+        assertEquals("60 km/h fuehrt zu 'faehrt', die neue Sitzung bei 4 km/h beginnt bei 'steht'", listOf(true, false), calls)
+    }
+
+    @Test
+    fun `after a stale phase a fresh cycle lets the GPS refresh merge again`() = runTest {
+        val gps = MutableStateFlow<Float?>(null)
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm)); delay(15_000); emit(listOf(rpm.copy(timestamp = 2000L))); awaitCancellation()
+        }
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        advanceTimeBy(15_001); runCurrent()                 // stale at 10 s, fresh again at 15 s
+        events.clear()
+
+        gps.value = 12f; runCurrent()
+
+        assertTrue("frische Werte werden wieder mit GPS ergaenzt: $events", events.any { it is SessionEvent.Values })
+    }
+
+    // --- B12: nothing of the previous connection survives into a new session ---
+
+    @Test
+    fun `after a reconnect a GPS update does not resurrect the readings of the previous connection`() = runTest {
+        val isConnected = MutableStateFlow(true)
+        val gps = MutableStateFlow<Float?>(null)
+        val repo = makeRepo(connected = true)
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.livePids(any()) } returnsMany listOf(
+            flow { emit(listOf(rpm)); awaitCancellation() },   // the first connection
+            flow { awaitCancellation() },                       // after the reconnect: silent so far
+        )
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        runCurrent()
+        assertTrue("erste Verbindung liefert: $events", events.any { it is SessionEvent.Values })
+
+        isConnected.value = false; runCurrent()
+        isConnected.value = true; runCurrent()              // new session, no cycle yet
+        events.clear()
+        gps.value = 25f; runCurrent()
+
+        assertTrue("alte Werte erscheinen nicht als live: $events", events.none { it is SessionEvent.Values })
+    }
 
     // --- Test 15a: recording is best effort — a database failure must not end the live display ---
 

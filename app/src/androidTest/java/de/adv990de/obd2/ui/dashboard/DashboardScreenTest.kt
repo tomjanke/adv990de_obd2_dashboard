@@ -6,6 +6,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -35,6 +36,7 @@ import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -532,5 +534,46 @@ class DashboardScreenTest {
                     "was RPM top=$rpmTop COOLANT top=$coolantTop",
             rpmTop == coolantTop,
         )
+    }
+
+    /**
+     * B29, Ende zu Ende: Die Verbindung steht, aber das Steuergeraet liefert nach dem ersten Zyklus nichts mehr
+     * (Zuendung aus). Nach [OBD_STALE_AFTER_MS] (10 s, echte Zeit) zeigen die Kacheln "--" statt der alten Zahl,
+     * das Band sagt "Keine aktuellen Werte", und der Vollbild-Spinner erscheint NICHT (er ist fuer "noch kein
+     * Wert" da, nicht fuer "Werte veraltet"). Die Quelle muss offen bleiben (awaitCancellation): eine beendete
+     * Quelle meldet sich auf ihrem eigenen Weg und gilt nicht als schweigend.
+     */
+    @Test
+    fun dashboard_turnsStale_whenTheEcuGoesSilent() {
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flow {
+            emit(
+                listOf(
+                    SensorValue(PidRegistry.RPM, 2500f),
+                    SensorValue(PidRegistry.SPEED, 87f),
+                    SensorValue(PidRegistry.COOLANT_TEMP, 90f),
+                )
+            )
+            awaitCancellation()
+        }
+
+        launchDashboardScreen()
+
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm").fetchSemanticsNodes().isNotEmpty()
+        }
+        val staleBanner = composeRule.activity.getString(R.string.dashboard_stale_banner).uppercase()
+        composeRule.onAllNodesWithText(staleBanner).assertCountEquals(0)
+
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText(staleBanner).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithText(staleBanner).assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm").assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("$rpmLabel: -- rpm").assertIsDisplayed()
     }
 }

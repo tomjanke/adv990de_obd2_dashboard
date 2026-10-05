@@ -1,5 +1,53 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.3 (versionCode 85)
+
+Verlässlichere Anzeige im Fahrbetrieb (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B11, B12, B29).
+
+### Das Hauptmenü flackert im Stand nicht mehr (B11)
+
+Die Fahrterkennung lautete „Geschwindigkeit > 0“. Das Rauschen eines GPS-Empfängers im Stand reicht dafür: Hauptmenü und
+Statuszeile schalteten an der Ampel hin und her, und der Wetter-Abruf lief an. Jetzt gilt eine Hysterese
+(`isMoving`): Eine **Fahrt beginnt ab 5 km/h** und **endet erst unter 3 km/h**; dazwischen entscheidet der bisherige Zustand. Im
+Stau (6 → 4 km/h) bleibt es Fahrt, ein einzelner Zacken im Stand startet keine. Eine fehlende oder unplausible Geschwindigkeit
+gilt weiter als „steht“ — die Leiste bleibt nie dauerhaft ausgeblendet. **Verhaltensänderung:** Bei 1–4 km/h (Rangieren) bleibt das
+Hauptmenü jetzt sichtbar. Die Schwellen sind Konstanten (`MOVING_ENTER_KMH`, `MOVING_LEAVE_KMH`).
+
+### Nach einem Reconnect erscheinen keine alten Werte mehr (B12)
+
+Der Zwischenspeicher der letzten OBD-Werte wurde nie geleert. Kam nach einem Wiederverbinden ein GPS-Update, bevor der erste
+echte Zyklus eintraf, führte die App die **alten** Werte der vorigen Verbindung neu zusammen und zeigte sie als live. Jede neue
+Sitzung beginnt jetzt leer (auch die Fahrterkennung beginnt bei „steht“).
+
+### Schweigt das Steuergerät, gelten die Werte als veraltet (B29)
+
+Antwortet das Steuergerät bei bestehender Adapterverbindung nicht mehr (typisch: Zündung aus — der Watchdog toleriert reines NO
+DATA bewusst), blieben die zuletzt gelesenen Werte als „live“ stehen, und die Fahrterkennung konnte dauerhaft auf „fährt“
+hängen bleiben. Kam in der Zwischenzeit ein GPS-Update, wurden die alten Werte sogar mit der frischen GPS-Geschwindigkeit
+vermischt. Jetzt meldet die Pipeline nach **10 s ohne Zyklus mit Messwert** `SessionEvent.Stale`:
+
+- Kacheln zeigen „--“, der Drehzahlbalken ist leer, die Ganganzeige „–“; das Band über den Kacheln sagt **„Keine aktuellen Werte“**
+  (der Verbindungs-Punkt bleibt — der Adapter ist ja da). Ein Vollbild-Spinner erscheint dabei nicht.
+- Die Fahrterkennung geht auf „steht“, und GPS-Updates führen die alten Werte nicht mehr neu zusammen.
+- Der nächste echte Zyklus hebt den Zustand sofort auf und startet die Frist neu.
+
+Die Meldung gilt nur, solange die Messwert-Quelle läuft: Eine beendete Quelle (Verbindungsverlust, Fehler) meldet das auf ihrem
+eigenen Weg, und `isStale` endet mit der Verbindung.
+
+### Tests
+
++19 JVM-Tests und +2 Instrumentation-Tests (ein Ende-zu-Ende-Test mit echter 10-s-Wartezeit: Kacheln werden „--“, Band erscheint,
+kein Spinner). Neunzehn bewusst eingebaute Fehler (Wächter entfernt) wurden erkannt; drei überlebten zunächst (Zurücksetzen der
+Hysterese beim Sitzungsstart, Aufheben des „veraltet“-Zustands durch einen frischen Zyklus, Rücksetzen von `isStale` im
+Reconnect-Zweig) und bekamen je einen Test. Ein bestehender Test („GPS-Wiederholungen schalten den Grün-Timer nicht weiter“) prüfte
+den Mechanismus über genau die unbegrenzten Wiederholungen, die B29 jetzt beendet; er speist sie nun direkt ein und behält so die
+zweite Verteidigung im ViewModel unter Test.
+
+### Bekannte Grenzen
+
+- Die Schwellen 5/3 km/h und die 10 s sind begründete Annahmen, nicht an einem Fahrzeug gemessen.
+- Fährt das Fahrzeug bei „steht“-Meldung der Pipeline weiter (z. B. Zündung aus im Rollen), zeigt das Hauptmenü wieder — gewollt.
+
 ## Version 1.24.2 (versionCode 84)
 
 Stabilität der Verbindung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B2, B3, B5).

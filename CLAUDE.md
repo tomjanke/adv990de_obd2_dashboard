@@ -303,7 +303,7 @@ Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/Oi
 
 ### Ambient-Statuszeile (statt Hauptmenü während der Fahrt, seit 2026-09-27)
 
-Ist `hideNavOnDrive` an und das Fahrzeug in Bewegung (`DriveStateViewModel.isNavHidden`), tauscht
+Ist `hideNavOnDrive` an und das Fahrzeug in Bewegung (`DriveStateViewModel.isNavHidden`; „in Bewegung“ = Hysterese 5/3 km/h, s. „Fahrbetrieb: fährt, frisch und veraltet“), tauscht
 `BottomNav` die `NavigationBar` per `AnimatedContent` gegen `AmbientStatusRow`
 (`ui/components/AmbientStatusRow.kt`) — auf **jedem** Screen, weil `BottomNav` in der einen
 app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
@@ -472,6 +472,28 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   `CancellationException` und `ObdException.ConnectionLost` weiterreichen: das erste macht aus einem abgebrochenen Aufrufer einen
   „verbundenen“, das zweite aus einem toten Link.
 
+### Fahrbetrieb: „fährt“, „frisch“ und „veraltet“ (seit v1.24.3)
+
+- **Fahrterkennung = Hysterese** (`ui/dashboard/DriveDetection.kt`, `isMoving`, rein): „fährt“ ab `MOVING_ENTER_KMH` = 5 km/h, „steht“
+  erst unter `MOVING_LEAVE_KMH` = 3 km/h; null/NaN/unendlich/negativ = „steht“. Der Zustand lebt als `moving` in `ReadingsPipeline`
+  (zu Sitzungsbeginn „steht“); `ObdRepository.setMoving` bekommt nur das Ergebnis. Nie wieder `speed > 0` — GPS-Rauschen im Stand
+  schaltete Hauptmenü, Statuszeile und Wetter-Abruf um.
+- **Eine Sitzung beginnt leer.** `ReadingsPipeline.events()` ruft beim Start jeder verbundenen Sitzung `resetSession()` (per `onStart`
+  auf dem gemergten Fluss): `lastObdReadings`, Zykluszähler, „veraltet“-Marke, Fahrterkennung. Sonst führte der erste GPS-Zwischenwert
+  nach einem Reconnect die Werte der vorigen Verbindung neu zusammen.
+- **„Veraltet“ (`SessionEvent.Stale`, `DashboardUiState.isStale`).** Kommt `OBD_STALE_AFTER_MS` = 10 s lang kein Zyklus mit Messwert
+  (Zähler `obdCycles`, nicht der Vergleich der Listen: ein StateFlow fasst gleiche Werte zusammen), meldet die Pipeline Stale — nur
+  solange die Quelle läuft (`sessionRunning`; eine beendete meldet sich auf ihrem eigenen Weg). Wirkung: Fahrterkennung „steht“,
+  `gpsRefresh` führt nichts mehr neu zusammen (`obdStale`), das ViewModel leert Readings/Drehzahl/Geschwindigkeit/Gang und setzt
+  `isStale`. **Wichtig:** die Marke ist ein eigener Zustand, nicht `lastObdReadings = null` — ein Rückschreiben in den StateFlow, auf dem
+  `flatMapLatest` sitzt, bräche die eigene Coroutine ab (dieselbe Reentrancy-Falle wie bei `connectionLostSignal`).
+- **Dashboard bei „veraltet“:** `isLive = isConnected && !isStale` steuert Kacheln und `RpmBar` („--“, leer, kein Alarmrot/Blinken);
+  der Verbindungs-Punkt bleibt am Verbindungsstatus. Das Band `PreviewBanner(labelRes = dashboard_stale_banner)` sagt „Keine
+  aktuellen Werte“ statt „Vorschau · nicht verbunden“. Der Vollbild-Spinner gilt nur für „noch kein Wert“
+  (`isConnected && readings.isEmpty() && !isStale`).
+- **Test-Falle:** Tests, die einen Fluss mit `flowOf(...)` als `livePids` nutzen und `advanceUntilIdle()` rufen, sind unproblematisch (eine
+  beendete Quelle meldet kein Stale); für „Quelle schweigt“ muss der Fluss offen bleiben (`awaitCancellation()`).
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
@@ -589,8 +611,8 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1034 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 263 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1053 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 265 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

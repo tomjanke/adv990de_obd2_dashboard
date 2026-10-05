@@ -49,7 +49,13 @@ data class DashboardUiState(
     val gear: Int? = null,
     /** Steht und Motor laeuft (s. [isNeutral]) — schliesst [gear] aus: gesetzt ist hoechstens eines. */
     val isNeutral: Boolean = false,
-    val oilBarColor: OilBarColor? = null
+    val oilBarColor: OilBarColor? = null,
+    /**
+     * Die Verbindung steht, aber das Steuergeraet liefert seit [OBD_STALE_AFTER_MS] keine Messwerte
+     * mehr (z. B. Zuendung aus): Kacheln und Drehzahlbalken zeigen dann "--" statt alter Zahlen
+     * ([SessionEvent.Stale]). Mit der Verbindung ist [isConnected] false und dieses Feld auch.
+     */
+    val isStale: Boolean = false,
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)
@@ -233,6 +239,7 @@ class DashboardViewModel @Inject constructor(
         when (event) {
             is SessionEvent.Values -> applyReadings(event.values, event.gpsSpeedKmh)
             SessionEvent.Idle -> applyIdle()
+            SessionEvent.Stale -> applyStale()
             SessionEvent.ConnectionLost -> startReconnecting()
             is SessionEvent.Failed -> _uiState.value = DashboardUiState.disconnected(event.error)
         }
@@ -310,8 +317,27 @@ class DashboardViewModel @Inject constructor(
             oilBarColor = newOilBarColor,
             isConnected = true,
             isReconnecting = false,
+            isStale = false,
             error = null,
             sparklines = sparklineBuffer.mapValues { (_, deque) -> deque.toList() }
+        )
+    }
+
+    /**
+     * Das Steuergeraet schweigt bei stehender Verbindung (B29): Die Werte sind veraltet und werden
+     * nicht weiter als live gezeigt — Kacheln "--", Drehzahlbalken leer, Gang "–". Verbindungsstatus
+     * und Verbindungs-Punkt bleiben (der Adapter ist ja da). Die Oel-Balken-Farbe bleibt gehalten (sie
+     * hat ihr eigenes 60-s-Luecken-Limit); sie wird ohne "live" ohnehin grau gezeichnet.
+     */
+    private fun applyStale() {
+        _uiState.value = _uiState.value.copy(
+            isStale = true,
+            readings = emptyList(),
+            rpmValue = 0f,
+            engineTempC = null,
+            speedKmh = null,
+            gear = null,
+            isNeutral = false,
         )
     }
 
@@ -328,6 +354,7 @@ class DashboardViewModel @Inject constructor(
             // die Hysterese "erinnert" sich an einen Zustand von vor dem Verbindungsabbruch.
             _uiState.value.copy(
                 isConnected = false,
+                isStale = false,
                 readings = emptyList(),
                 speedKmh = null,
                 gear = null,

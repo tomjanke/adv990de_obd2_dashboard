@@ -68,6 +68,10 @@ fun DashboardScreen(
     var pickerSlot: Int? by remember { mutableStateOf(null) }
     // Show real readings when connected; fall back to placeholder (value=0) tiles when not.
     val displayReadings = if (state.readings.isNotEmpty()) state.readings else placeholderReadings
+    // "Live" heisst: Verbindung steht UND das Steuergeraet liefert (B29). Bei veralteten Werten zeigen
+    // Kacheln und Drehzahlbalken "--" bzw. leer statt alter Zahlen; der Verbindungs-Punkt bleibt am
+    // Verbindungsstatus (der Adapter ist ja da).
+    val isLive = state.isConnected && !state.isStale
 
     // Keep screen on for as long as the Dashboard screen is visible, connected or not (User-Wunsch
     // 2026-09-29 — vorher nur bei state.isConnected, s. MEMORY.md). DisposableEffect(Unit) statt
@@ -118,7 +122,7 @@ fun DashboardScreen(
         }
 
         // While connected but waiting for first readings: brief full-screen spinner.
-        if (state.isConnected && state.readings.isEmpty()) {
+        if (state.isConnected && state.readings.isEmpty() && !state.isStale) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -142,7 +146,7 @@ fun DashboardScreen(
                     isNeutral = state.isNeutral,
                     oilBarColor = state.oilBarColor,
                     modifier = Modifier.fillMaxWidth(),
-                    isLive = state.isConnected,
+                    isLive = isLive,
                     trailingContent = {
                         val dotState = dashboardStatusDotState(
                             isConnected = state.isConnected,
@@ -208,6 +212,13 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                         reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
                     )
+                } else if (state.isStale) {
+                    // Verbunden, aber das Steuergeraet schweigt (z. B. Zuendung aus): kein "Vorschau"-Text,
+                    // der von fehlender Verbindung spraeche.
+                    PreviewBanner(
+                        modifier = Modifier.fillMaxWidth(),
+                        labelRes = R.string.dashboard_stale_banner,
+                    )
                 }
 
                 // ── Sensor grid ───────────────────────────────────────────
@@ -239,7 +250,7 @@ fun DashboardScreen(
                                     placeholderRes = slotPlaceholderRes(
                                         slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                     ),
-                                    isLive = state.isConnected,
+                                    isLive = isLive,
                                     onLongPress = { pickerSlot = i }
                                 )
                             }
@@ -264,7 +275,7 @@ fun DashboardScreen(
                                             placeholderRes = slotPlaceholderRes(
                                                 slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed
                                             ),
-                                            isLive = state.isConnected,
+                                            isLive = isLive,
                                             onLongPress = { pickerSlot = i }
                                         )
                                     }
