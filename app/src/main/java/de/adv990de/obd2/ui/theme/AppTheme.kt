@@ -31,6 +31,9 @@ val MIN_TOUCH_TARGET: Dp = 56.dp
  * Die Regel gilt damit fuer jede Material-Komponente — auch kuenftige — statt an jeder Stelle einzeln nachgezogen zu
  * werden (QS C: Exit-Dialog, Bluetooth-Knopf, Verbinden/Trennen lagen darunter). Wer ein Touch-Ziel ohne
  * Material-Komponente baut (`clickable`), setzt `heightIn(min = MIN_TOUCH_TARGET)` selbst.
+ *
+ * Ausserdem setzt das Theme (ab Android 15) die Symbolfarbe der Statusleiste passend zum Hintergrund des Schemas
+ * ([StatusBarIconsEffect]).
  */
 @Composable
 fun AppTheme(
@@ -38,6 +41,8 @@ fun AppTheme(
     typography: Typography = AppTypography,
     content: @Composable () -> Unit,
 ) {
+    // Die Symbole der Statusleiste passen zum Hintergrund dieses Schemas, nicht zum Systemmodus (s. SystemBars.kt).
+    StatusBarIconsEffect(colorScheme)
     MaterialTheme(colorScheme = colorScheme, typography = typography) {
         ProvideMinTouchTarget(content)
     }

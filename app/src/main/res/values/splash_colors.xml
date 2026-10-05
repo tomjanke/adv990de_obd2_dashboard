@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hintergrundflaeche des System-Splash (Android 12+) und des Fensters vor dem ersten Frame — je die Hintergrundfarbe des
+         gleichnamigen Farbschemas der App (ui/theme, ColorSchemes.kt; SplashThemeTest haelt beides zusammen). -->
+    <color name="splash_background_light">#FEF7FF</color>
+    <color name="splash_background_dark">#141218</color>
+    <color name="splash_background_blue">#050D1A</color>
+    <color name="splash_background_amber">#110A02</color>
+    <color name="splash_background_green">#030F08</color>
+    <!-- "Wie das System": hell am Tag, dunkel mit dem -night-Qualifier (values-night/splash_colors.xml). -->
+    <color name="splash_background_system">@color/splash_background_light</color>
+</resources>

@@ -9,6 +9,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.navigation.compose.rememberNavController
@@ -22,6 +23,7 @@ import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.theme.greenColorScheme
+import de.adv990de.obd2.ui.theme.rememberSplashThemeFor
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -39,6 +41,9 @@ class MainActivity : ComponentActivity() {
         val initialTheme = seedBlocking(AppPreferences.THEME_SYSTEM, source = appPreferences.theme)
         setContent {
             val theme by appPreferences.theme.collectAsState(initial = initialTheme)
+            // Der System-Splash entsteht vor jedem App-Code und kennt nur Ressourcen: das Splash-Theme zum gewaehlten
+            // Farbschema merkt sich das System fuer den NAECHSTEN Start (ui/theme/SplashTheme.kt).
+            LaunchedEffect(theme) { rememberSplashThemeFor(theme) }
             val systemDark = isSystemInDarkTheme()
             val darkTheme = resolveDarkTheme(theme, systemDark)
             AppTheme(

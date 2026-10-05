@@ -625,8 +625,22 @@ Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilen
 
 Theme und Kachel-Belegung kommen asynchron aus dem DataStore, und die Einstellung wird erst während der ersten Komposition abonniert: das erste Bild zeigte kurz das Standard-Theme bzw. leere Kacheln. **`seedBlocking(default, timeoutMs, source)`**
 (`data/StartupSeed.kt`) liest den ersten Wert einmal synchron (am Pixel gemessen: ~3 ms für den ersten Zugriff beim Kaltstart; Obergrenze 250 ms, bei leerer/werfender/hängender Flow gilt der Standard) — als **Startwert**, nicht als Quelle der Wahrheit.
-Genutzt in `MainActivity.onCreate` (Theme → `collectAsState(initial = …)`) und im `DashboardViewModel` (Slot-Belegung → Startwert von `slotPids` und `placeholderReadings`; vorher `emptyList()` bzw. Standard). **Nicht geändert:** das Fenster vor dem ersten Frame (System-Splash auf
-Android 12+, Hintergrund aus dem Systemmodus) — dort bleibt ein heller/dunkler Moment möglich. Eine neue Einstellung, die das erste Bild bestimmt, wird genauso geseedet.
+Genutzt in `MainActivity.onCreate` (Theme → `collectAsState(initial = …)`) und im `DashboardViewModel` (Slot-Belegung → Startwert von `slotPids` und `placeholderReadings`; vorher `emptyList()` bzw. Standard). Eine neue Einstellung, die das erste Bild bestimmt, wird genauso geseedet. Das Fenster VOR dem ersten Frame (System-Splash) regelt seit v1.24.10 der nächste Abschnitt.
+
+### Statusleiste und System-Splash (seit v1.24.10)
+
+- **Die Symbole der Statusleiste folgen dem Farbschema der App, nicht dem Systemmodus.** `AppTheme` ruft `StatusBarIconsEffect(colorScheme)` (`ui/theme/SystemBars.kt`): `useDarkStatusBarIcons` = Leuchtdichte des Schema-Hintergrunds > 0,5, gesetzt über
+  `WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars` (`true` heißt dunkle Symbole). Vorher kam die Farbe vom `DayNight`-Theme: helles System + Cockpit-Schema (fast schwarz) ergab dunkle Symbole auf Schwarz, dunkles System + helles
+  Standard-Schema weiße auf Hell (am Pixel mit „Standard + Hell“ bei dunklem System nachgestellt und behoben). **Nur ab API 35** (`controlsStatusBarIcons`, `EDGE_TO_EDGE_ENFORCED_SDK`): erst dort ist die Leiste durchsichtig und die App zeichnet dahinter (targetSdk 36 erzwingt es);
+  davor hat sie eine eigene, undurchsichtige Theme-Farbe, und erzwungene Symbole könnten dort dunkel auf Schwarz werden — **auf API ≤ 34 nicht geprüft** (kein Emulator unter API 37 installiert). Die Navigationsleiste fasst die App nicht an (ihr Griff passt sich ab Android 10 selbst an).
+- **Der System-Splash (Android 12+) zeigt die Hintergrundfarbe der App statt des Theme-Graus.** Er entsteht vor jedem App-Code und liest nur Ressourcen; gemessen war er `#303030` (das neutrale `DayNight`-Grau). Zwei Ebenen: (1) **statisch** — `res/values/splash_colors.xml` (+ `values-night/`),
+  `Theme.OBD2Monitor` setzt `android:windowBackground` auf `@color/splash_background_system` (hell am Tag `#FEF7FF`, dunkel `#141218` = Hintergrund des Default-Schemas; der Splash nimmt `windowBackground`, wenn es eine einzelne Farbe ist; vor Android 12 ist es das, was vor dem ersten Frame steht);
+  (2) **je Farbschema** — `Theme.OBD2Monitor.Splash.{Light,Dark,Blue,Amber,Green}` malen die Hintergrundfarbe des jeweiligen Schemas, `MainActivity` setzt das passende per `Activity.splashScreen.setSplashScreenTheme(splashThemeRes(theme))` (`ui/theme/SplashTheme.kt`, ab API 31) bei jedem Start und jeder Änderung des Farbschemas
+  — **für den NÄCHSTEN Start** (das System persistiert es app-weit); „wie das System“ und Unbekanntes setzen es zurück (`Resources.ID_NULL`), dann gilt das Manifest-Theme mit den `-night`-Ressourcen. **Die Namen der Splash-Themes persistiert das System — nie umbenennen** (Javadoc: sonst werden sie nach einem Update nicht gefunden); `SplashThemeTest` hält die Namen fest
+  und dass jede Splash-Farbe die `background`-Farbe des echten Schemas ist (Kotlin-Schema und XML können nicht auseinanderlaufen).
+- **Messen des Splash am Gerät:** Der Splash steht nur wenige Millisekunden (Release: 153–170 ms bis zur Anzeige, gemessen). Ein Bild direkt nach `am start` zeigt meist die Startanimation über dem Homescreen oder — **liegt der Task noch in den zuletzt benutzten Apps — dessen letzten Schnappschuss** statt des Splash (Android nimmt dann
+  das Schnappschuss-Fenster). Brauchbar: Task aus der Übersicht wischen, dann `am start -D …` (hält den Start vor dem ersten Frame an, der Splash bleibt stehen; der Systemdialog „Waiting For Debugger“ dunkelt ihn gleichmäßig ab, der Faktor ≈ 0,35 ist aus dem Standard-Schema kalibriert) und die Hintergrundfarbe samplen.
+  Dasselbe Schnappschuss-Fenster zeigt Nutzern mit einer noch in der Übersicht liegenden App deren letztes Bild — dann spielt die Splash-Farbe keine Rolle.
 
 ### Standort-Cache mit Altersprüfung (seit v1.24.9)
 
@@ -800,8 +814,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1269 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 307 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1284 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 312 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
