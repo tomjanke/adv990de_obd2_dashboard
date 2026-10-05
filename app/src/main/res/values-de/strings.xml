@@ -72,6 +72,7 @@
     <string name="dtc_tab_current">Aktuell</string>
     <string name="dtc_tab_history">Historie</string>
     <string name="not_connected">Nicht verbunden</string>
+    <string name="dtc_no_answer">Keine Antwort vom Steuergerät — ob Fehlercodes gespeichert sind, lässt sich so nicht sagen.</string>
     <string name="dtc_badge_active">Aktiv</string>
     <string name="dtc_history_empty">Noch keine Fehler aufgezeichnet</string>
     <string name="dtc_history_dates">Erstmals %1$s · Zuletzt %2$s</string>
@@ -100,6 +101,8 @@
     <string name="obd_err_bus_init">Fahrzeugbus nicht erreichbar.</string>
     <string name="obd_err_timeout">Adapter antwortet nicht.</string>
     <string name="obd_err_init_failed">Adapter-Initialisierung fehlgeschlagen.</string>
+    <string name="obd_err_no_data">Das Steuergerät hat nicht geantwortet.</string>
+    <string name="obd_err_unknown_response">Unverständliche Antwort vom Adapter.</string>
     <string name="obd_err_connection_failed">Verbindung zum Adapter fehlgeschlagen.</string>
     <string name="obd_err_device_not_found">Adapter nicht gefunden. Ist er gekoppelt und eingeschaltet?</string>
     <string name="obd_err_bluetooth">Bluetooth-Fehler.</string>
@@ -194,6 +197,9 @@
     <string name="gear_settings_secondary_ratio">Sekundärübersetzung (Endantrieb)</string>
     <string name="gear_settings_gear_n">Übersetzung %1$d. Gang</string>
     <string name="gear_settings_invalid_value">Bitte eine positive Zahl eingeben</string>
+    <string name="gear_settings_out_of_range">Erlaubt: %1$s bis %2$s</string>
+    <string name="gear_settings_out_of_range_or_off">Erlaubt: %1$s bis %2$s, oder 0 = Gang nicht verwenden</string>
+    <string name="gear_settings_gear_off_hint">Weniger Gänge? Trage 0 für jeden Gang ein, den das Getriebe nicht hat.</string>
     <string name="gear_settings_ratio_conflict">Gang %1$d und Gang %2$d liegen so nah beieinander, dass die Ganganzeige nicht mehr zuverlässig zwischen ihnen unterscheiden kann.</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App-Logs</string>

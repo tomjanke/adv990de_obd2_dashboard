@@ -34,7 +34,7 @@ class ElmControllerTest {
 
     @Test
     fun `initialize sends AT commands in sequence`() = runTest {
-        val responses = listOf("OK", "OK", "OK", "OK", "OK") // ATZ, ATE0, ATL0, ATS0, ATSP0
+        val responses = listOf("OK", "OK", "OK", "OK", "OK") // ATZ, ATE0, ATL0, ATS1, ATSP0
         val (input, output) = makeStreams(responses)
         val controller = ElmController(input, output)
         controller.initialize()
@@ -42,7 +42,10 @@ class ElmControllerTest {
         assertTrue(sent.contains("ATZ"))
         assertTrue(sent.contains("ATE0"))
         assertTrue(sent.contains("ATL0"))
-        assertTrue(sent.contains("ATS0"))   // spaces off — required for consistent token-based parsing
+        // B9: Leerzeichen AN. Alle Parser (PIDs, Discovery, DTCs, Freeze-Frame) splitten an Leerzeichen; mit ATS0 lieferte
+        // ein Adapter, der den Befehl befolgt, "410C1AF8" — und kein Parser haette es gelesen.
+        assertTrue(sent.contains("ATS1"))
+        assertFalse("ATS0 darf nicht mehr gesendet werden: $sent", sent.contains("ATS0"))
         assertTrue(sent.contains("ATSP0"))
     }
 

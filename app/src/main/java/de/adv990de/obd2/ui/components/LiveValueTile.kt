@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.ValueTileStyle
@@ -36,12 +37,19 @@ import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
 
 /**
+ * Kleinste Schriftgroesse des Kachelwerts (`ValueTileStyle` ~53 sp): Passt "11500" bei grosser Systemschrift nicht mehr
+ * in die Kachel, schrumpft der Wert bis hierher (B27). 20 sp bleiben im Fahren lesbar; darunter waere "abgeschnitten"
+ * ehrlicher als "winzig" — soweit kommt es bei einem 5-stelligen Wert auf einer 170-dp-Kachel nicht.
+ */
+internal val MIN_VALUE_FONT_SIZE = 20.sp
+
+/**
  * Semantic state of a live tile. Drives the accent color used for the left side
  * bar and the value text. Sparkline color is always the theme primary (trend
  * vs. state distinction).
  *
  *  - [Ok]       → MaterialTheme.colorScheme.primary (theme-tinted; default)
- *  - [Warning]  → StatusColors.Warning (cross-theme amber)
+ *  - [Warning]  → StatusColors.warningOn(surface) (bold yellow on dark surfaces, darker yellow on light ones)
  *  - [Critical] → StatusColors.Critical (cross-theme red)
  */
 enum class TileStatus { Ok, Warning, Critical }
@@ -60,11 +68,13 @@ internal fun liveValueTileAccentColor(
     isPreview: Boolean,
     onSurfaceVariant: Color,
     primary: Color,
+    // Fuer das Warn-Gelb: auf hellen Flaechen ein dunkleres, lesbares Gelb (B28, s. StatusColors.warningOn).
+    surface: Color,
 ): Color = if (isPreview) {
     onSurfaceVariant.copy(alpha = 0.35f)
 } else when (status) {
     TileStatus.Ok       -> primary
-    TileStatus.Warning  -> StatusColors.Warning
+    TileStatus.Warning  -> StatusColors.warningOn(surface)
     TileStatus.Critical -> StatusColors.Critical
 }
 
@@ -118,6 +128,7 @@ fun LiveValueTile(
         isPreview = isPreview,
         onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant,
         primary = MaterialTheme.colorScheme.primary,
+        surface = MaterialTheme.colorScheme.surface,
     )
     val interactive = onClick != null || onLongPress != null
     // Ripple in der Akzentfarbe der Kachel statt des M3-Default-Grau (CLAUDE.md-TODO "falls als
@@ -183,7 +194,15 @@ fun LiveValueTile(
                         )
                     }
                     Row(verticalAlignment = Alignment.Bottom) {
-                        LiveValueText(value = value, style = ValueTileStyle, color = accentColor)
+                        // weight(fill = false): Die Einheit wird zuerst gemessen und behaelt ihren Platz, der Wert bekommt den
+                        // Rest und schrumpft (bis MIN_VALUE_FONT_SIZE), statt abgeschnitten zu werden (B27).
+                        LiveValueText(
+                            value = value,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = ValueTileStyle,
+                            color = accentColor,
+                            minFontSize = MIN_VALUE_FONT_SIZE,
+                        )
                         if (unit != null) {
                             Text(
                                 text = " $unit",

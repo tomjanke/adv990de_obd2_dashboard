@@ -1982,6 +1982,144 @@ class DashboardViewModelTest {
         assertFalse(vm.uiState.value.isConnected)
     }
 
+    // ── B30/B26: tests with a pipeline whose events the test controls ──────────
+
+    private class Driven(val vm: DashboardViewModel, val events: kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>)
+
+    private fun driven(prefs: AppPreferences = makePrefs()): Driven {
+        val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
+        val pipeline = mockk<ReadingsPipeline> { every { events(any()) } returns events }
+        val obdRepo = mockk<ObdRepository> {
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { isConnectedFlow } returns MutableStateFlow(false)
+        }
+        val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle())
+        return Driven(vm, events)
+    }
+
+    private fun rpmAt(ts: Long, value: Float = 3000f) = SensorValue(pid = PidRegistry.RPM, value = value, timestamp = ts)
+
+    private suspend fun Driven.cycle(vararg values: SensorValue) {
+        events.emit(SessionEvent.Values(values.toList(), gpsSpeedKmh = null))
+    }
+
+    @Test
+    fun `a replay of the same OBD cycle adds no sparkline point - the GPS refresh must not stair-step the graph (B30)`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L))
+        d.cycle(rpmAt(1_000L))          // GPS-Zwischenupdate: dieselben Werte, derselbe Zeitstempel
+        d.cycle(rpmAt(1_000L))
+        advanceUntilIdle()
+
+        assertEquals(1, d.vm.uiState.value.sparklines[PidRegistry.RPM.id]!!.size)
+    }
+
+    @Test
+    fun `a genuinely new cycle adds a sparkline point`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L, 3000f))
+        d.cycle(rpmAt(1_000L, 3000f))   // Replay
+        d.cycle(rpmAt(2_000L, 3500f))
+        advanceUntilIdle()
+
+        assertEquals(listOf(3000f, 3500f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `samples closer together than the minimum interval are skipped - one point per second, not per fix`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+
+        for (i in 0 until 4) d.cycle(rpmAt(1_000L + i * 200L, 3000f + i))      // 5 Hz, hoechstens 600 ms Abstand zum ersten
+        d.cycle(rpmAt(2_000L, 4000f))
+        advanceUntilIdle()
+
+        assertEquals(listOf(3000f, 4000f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `each PID keeps its own sampling clock`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L), SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 90f, timestamp = 1_000L))
+        d.cycle(rpmAt(1_000L), SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 90f, timestamp = 1_000L))
+        d.cycle(rpmAt(2_000L), SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 90f, timestamp = 2_000L))
+        advanceUntilIdle()
+
+        assertEquals(2, d.vm.uiState.value.sparklines[PidRegistry.RPM.id]!!.size)
+        assertEquals(2, d.vm.uiState.value.sparklines[PidRegistry.COOLANT_TEMP.id]!!.size)
+    }
+
+    private fun coolant(value: Float, ts: Long) = SensorValue(pid = PidRegistry.COOLANT_TEMP, value = value, timestamp = ts)
+
+    @Test
+    fun `a cycle without a temperature keeps the last one - the dynamic threshold must not halve for a cycle (B26)`() = runTest {
+        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L), coolant(90f, 1_000L))
+        advanceUntilIdle()
+        assertEquals(90f, d.vm.uiState.value.engineTempC!!, 0.001f)
+
+        d.cycle(rpmAt(2_000L))                          // diesmal ohne Kuehlmittel-Probe
+        advanceUntilIdle()
+        sub.cancel()
+
+        assertEquals("die letzte Temperatur bleibt, null liesse die Schwelle auf den kalten Wert fallen",
+            90f, d.vm.uiState.value.engineTempC!!, 0.001f)
+    }
+
+    @Test
+    fun `a newer temperature replaces the held one`() = runTest {
+        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L), coolant(60f, 1_000L))
+        d.cycle(rpmAt(2_000L))
+        d.cycle(rpmAt(3_000L), coolant(75f, 3_000L))
+        advanceUntilIdle()
+        sub.cancel()
+
+        assertEquals(75f, d.vm.uiState.value.engineTempC!!, 0.001f)
+    }
+
+    @Test
+    fun `without the dynamic threshold no temperature is kept`() = runTest {
+        val d = driven(makePrefs(rpmDynamicThreshold = false))
+        val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+
+        d.cycle(rpmAt(1_000L), coolant(90f, 1_000L))
+        d.cycle(rpmAt(2_000L))
+        advanceUntilIdle()
+        sub.cancel()
+
+        assertNull(d.vm.uiState.value.engineTempC)
+    }
+
+    @Test
+    fun `a stale display forgets the held temperature`() = runTest {
+        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
+        advanceUntilIdle()
+        d.cycle(rpmAt(1_000L), coolant(90f, 1_000L))
+        advanceUntilIdle()
+        assertEquals(90f, d.vm.uiState.value.engineTempC!!, 0.001f)
+
+        d.events.emit(SessionEvent.Stale)
+        advanceUntilIdle()
+        sub.cancel()
+
+        assertNull(d.vm.uiState.value.engineTempC)
+    }
+
     // ── B3: the user's disconnect ends a running reconnect round without an error ──
 
     @Test

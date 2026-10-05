@@ -136,6 +136,19 @@ class DtcViewModelTest {
     }
 
     @Test
+    fun `refresh says the ECU did not answer - it never shows an all-clear for NO DATA (A9)`() = runTest {
+        val f = fixture()
+        coEvery { f.obd.readDtcs() } throws ObdException.NoData("03")
+
+        f.vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(UiText.StringResource(R.string.dtc_no_answer), f.vm.uiState.value.error)
+        assertTrue(f.vm.uiState.value.dtcs.isEmpty())
+        coVerify(exactly = 0) { f.historyRepo.record(any(), any()) }     // eine Nicht-Antwort wird nicht als "keine Codes" gespeichert
+    }
+
+    @Test
     fun `refresh maps a known adapter failure to its localized text`() = runTest {
         val f = fixture()
         coEvery { f.obd.readDtcs() } throws ObdException.Timeout("03")

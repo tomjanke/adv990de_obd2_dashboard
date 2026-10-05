@@ -319,6 +319,10 @@ class ReadingsPipeline @Inject constructor(
                 }
                 return@flow
             }
+            // Keine positive Antwort (NO DATA, Busfehler, Unverstaendliches — A9): kein Verbindungsverlust, die Sitzung laeuft
+            // weiter, aber die Oberflaeche behauptet keine "Entwarnung" (nichts wird in der Historie vermerkt) und das App-Log
+            // haelt fest, WAS der Adapter geantwortet hat — genau das Roh-Material, das fuer A9 Teil 2 gebraucht wird.
+            logBestEffort(LogLevel.WARN, "Fault-code read failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
         if (dtcList?.isNotEmpty() == true) {

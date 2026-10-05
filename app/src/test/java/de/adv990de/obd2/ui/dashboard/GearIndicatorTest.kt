@@ -317,4 +317,61 @@ class GearIndicatorTest {
         assertFalse(isNeutral(engineRpm = 2000f, speedKmh = 5f, wasNeutral = true))
         assertNull(determineGear(engineRpm = 2000f, speedKmh = 5f, lastGear = null, ratios = ratios))
     }
+
+    // ── B22: a gear with ratio 0 is switched off ───────────────────────────────────────────────────────
+
+    @Test
+    fun `a switched-off gear is never reported`() {
+        val fiveGears = ratios.copy(gearRatios = listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 0f))
+        // Drehzahl exakt fuer den (deaktivierten) 6. Gang waere 1,04; ohne Deaktivierung ergaebe das Gang 6.
+        val rpmFor6th = ratios.primaryRatio * ratios.secondaryRatio * 1.04f * wheelRpm(90f)
+
+        val gear = determineGear(rpmFor6th, 90f, lastGear = null, ratios = fiveGears)
+
+        assertTrue("Gang 6 ist aus: $gear", gear != 6)
+    }
+
+    @Test
+    fun `the remaining gears are still found when one is switched off`() {
+        val fiveGears = ratios.copy(gearRatios = listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 0f))
+
+        assertEquals(3, determineGear(engineRpmForGear(3, 60f), 60f, null, fiveGears))
+        assertEquals(5, determineGear(engineRpmForGear(5, 100f), 100f, null, fiveGears))
+    }
+
+    @Test
+    fun `with every gear switched off no gear is found and nothing divides by zero`() {
+        val none = ratios.copy(gearRatios = listOf(0f, 0f, 0f, 0f, 0f, 0f))
+
+        assertNull(determineGear(4000f, 60f, lastGear = null, ratios = none))
+        assertNull(determineGear(4000f, 60f, lastGear = 3, ratios = none))
+    }
+
+    @Test
+    fun `a held gear that was switched off afterwards is dropped`() {
+        val fiveGears = ratios.copy(gearRatios = listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 0f))
+
+        assertNull(determineGear(engineRpmForGear(5, 100f) * 0.5f, 100f, lastGear = 6, ratios = fiveGears))
+    }
+
+    @Test
+    fun `switched-off gears are not part of any close pair`() {
+        assertTrue(closeGearPairs(1.9143f, 2.625f, listOf(2.9167f, 2.1333f, 1.6667f, 0f, 0f, 0f)).isEmpty())
+    }
+
+    // Ein Wert aus einer aelteren Version (vor den Eingabegrenzen) kann negativ im DataStore stehen. Er darf nicht
+    // wie eine Uebersetzung rechnen: die Abweichung |a - t| / t wird bei negativem t NEGATIV und waere "die kleinste".
+
+    @Test
+    fun `a legacy negative gear ratio is treated as switched off, not as the best match`() {
+        val withNegative = ratios.copy(gearRatios = listOf(-2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 1.04f))
+
+        assertEquals(3, determineGear(engineRpmForGear(3, 60f), 60f, null, withNegative))
+        assertNull(determineGear(1000f, 60f, lastGear = null, ratios = ratios.copy(gearRatios = listOf(-2.9167f))))
+    }
+
+    @Test
+    fun `legacy negative gear ratios do not form a close pair`() {
+        assertTrue(closeGearPairs(1f, 1f, listOf(-10f, -10f)).isEmpty())
+    }
 }

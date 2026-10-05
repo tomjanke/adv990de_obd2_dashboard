@@ -40,7 +40,7 @@ Drei vorhandene Themes (`blueColorScheme`, `amberColorScheme`, `greenColorScheme
 | Outline (Hairlines) | `outline` | `#3D6070` |
 
 **Statusfarben (cross-theme, immer gleich):** definiert in `ui/theme/StatusColors.kt` — nicht hardcoded inline!
-- `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach)
+- `StatusColors.Warning` (`#EAB308`, Tailwind Yellow 500 — **Korrektur 2026-09-28**, User-Wunsch nach kräftigerem Gelb, vorher `#F59E0B`/Amber 500) — non-blocking Caution (Coolant zu heiß, Voltage niedrig, BLE schwach). **Als TEXT oder Akzent auf einer Fläche immer über `StatusColors.warningOn(surface)`** (seit v1.24.6, B28): auf hellen Flächen (Leuchtdichte > 0,5, das helle Default-Schema) liefert das `WarningOnLight` (`#A16207`, Tailwind Yellow 700, ≈ 4,9:1) statt des kräftigen Gelbs, das dort nur 1,87:1 hat; auf den dunklen Cockpit-Schemata bleibt es `Warning`. Punkte und Balken in den dokumentierten Ampel-Ausnahmen behalten das kräftige Gelb.
 - `StatusColors.Critical` (`#EF4444`, Tailwind Red 500) — Redline, Fault, harter Limit-Treffer
 - OK / Verbunden: `MaterialTheme.colorScheme.tertiary` (per-Theme getönt — bewusst nicht fixe Farbe, da OK kein Alarm-Signal ist)
 - `StatusColors.TrafficLightGreen` (`#22C55E`, Tailwind Green 500) — **nur** das feste Grün der unten dokumentierten Ausnahmen (Bluetooth-Dot und Öl-Temperatur-Balken als Rot/Gelb/Grün-Ampel, Neutral-Anzeige „N“ der Ganganzeige), **kein** allgemeines OK-Grün
@@ -515,6 +515,33 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 - **Listen mit Pull-to-Refresh:** Fehler- und Leerzustand gehören in einen scrollbaren Container (`PullableBox` in `DtcScreen`), sonst greift der Zug
   nicht; der Fehlerzustand hat immer einen „Erneut versuchen“-Knopf.
 
+### Verbindungsaufbau: begrenzt und abbrechbar (seit v1.24.6)
+
+- **`ObdRepository.connectLocked` läuft unter einer Obergrenze** (`connectTimeoutMs`, 60 s, `internal var` als Test-Naht): `withConnectDeadline` führt Verbinden, `initialize()`
+  und die Discovery aus und lässt einen Wächter die Verbindung **schließen** — bei Fristablauf (Fehler wird `ObdException.Timeout("connect")`), bei Abbruch des Aufrufers
+  (sonst bliebe ein blockierendes `connect()` hängen) und über `disconnectByUser()` (`connecting?.close()` VOR dem Warten auf den Lock). `close()` ist der einzige Weg, einen
+  blockierenden Socket-Aufruf zu beenden; **`ObdConnection.close()` muss deshalb auch während `connect()` wirken und darf nie werfen.** `ClassicBtConnection` merkt den
+  Socket VOR `connect()`, schließt ihn bei Fehlschlag/Abbruch und schluckt `IOException` beim Schließen.
+- **Nicht angefasst:** der Lese-Hänger im laufenden Betrieb auf Classic. Ein Schließen nach dem 5-s-Lesezeitlimit würde eine langsame K-Line-Protokollsuche abbrechen, die heute nur
+  funktioniert, weil das Lesen dort nicht unterbrechbar ist — erst nach einem Test mit Adapter.
+- **Test-Falle:** `runTest` + echte Threads (`FakeObdConnection`, `Dispatchers.IO`) + Frist: Die virtuelle Zeit springt weiter, sobald der Test nur wartet — die 60-s-Frist liefe sofort ab.
+  Tests, die NICHT die Frist meinen, setzen `repo.connectTimeoutMs = Long.MAX_VALUE`; Tests mit hängenden Verbindungen nehmen `runTest(timeout = 10.seconds)` und geben ihren Latch
+  im Test-Body frei (sonst blockiert ein roter Test sich selbst).
+- **Fehlercodes: nur eine positive Antwort ist eine Aussage** (`DtcParser`, A9 Teil 1): `43 00` = „keine Codes“; NO DATA → `ObdException.NoData` (DtcViewModel: „Keine Antwort vom Steuergerät“),
+  Busfehler → `BusInit`, alles andere → `UnknownResponse`; Banner („SEARCHING...“, „BUS INIT: OK“) werden ignoriert. Modus 07 ist optional: NO DATA dort wird in `ObdRepository.readDtcs`
+  toleriert, ein Busfehler nicht. Der ECU-Simulator antwortet wie ein gesundes Steuergerät (`03` → `43 00`, `07` → `47 00`). Offen bleibt Teil 2 (CAN-Anzahl-Byte, Mehrframe) — braucht ein Roh-Log.
+- **Adapter-Init:** `ATS1` (Leerzeichen AN), nicht `ATS0` — alle Parser splitten an Leerzeichen.
+
+### Anzeige-Details (seit v1.24.6)
+
+- **Sparkline:** Ein Punkt je PID nur für einen NEUEN Messwert (`shouldAppendSparklineSample`: neuerer Zeitstempel, mind. `SPARKLINE_MIN_INTERVAL_MS` = 800 ms; ein Zeitstempel vor dem letzten gilt als neu).
+  Die GPS-Zwischenupdates wiederholen die letzten OBD-Werte — ohne diese Regel entstanden Duplikate (Treppenkurve, Fenster ~12 s).
+- **Dynamische Drehzahl-Schwelle:** `engineTempC` hält die letzte Temperatur, wenn ein Zyklus keine liefert (`rpmThresholdTempScale(null)` fiele auf den Kaltwert); `applyStale()` setzt sie auf null.
+- **Getriebe-Eingaben:** Grenzen in `GearLimits` (Radumfang 1000–4000 mm, Primär 0,5–10, Sekundär 0,5–15, Gang 0,2–8); `parseGearValue` lehnt „2.096“ bei einem Radumfang ab statt zu raten.
+  **Gang-Übersetzung `0` = Gang aus** (`determineGear` und `closeGearPairs` überspringen jeden Wert ≤ 0 — auch einen negativen Altwert aus einer Version ohne Eingabegrenzen, dessen Abweichung `|a − t| / t` sonst negativ und damit „die kleinste“ wäre). Das `GearSettingsViewModel` verwirft unplausible Werte zusätzlich (App-Log WARN).
+- **Kachelwert:** `LiveValueText(minFontSize)` schrumpft den Text per `TextAutoSize.StepBased`, bis er passt (Kachel: bis `MIN_VALUE_FONT_SIZE` = 20 sp); die Einheit wird zuerst gemessen
+  (`weight(1f, fill = false)` am Wert) und behält ihren Platz. Nie wieder ein still abgeschnittener Wert.
+
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
 - **Datenbank:** Version, Migrationen und Builder stehen einmal — `APP_DATABASE_VERSION`, `ALL_MIGRATIONS`, `appDatabaseBuilder(context, name)` (`data/db/AppDatabase.kt`).
@@ -657,8 +684,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1099 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 277 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1167 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 280 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

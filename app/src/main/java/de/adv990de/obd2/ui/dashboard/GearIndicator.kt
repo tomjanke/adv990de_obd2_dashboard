@@ -61,7 +61,9 @@ fun determineGear(
     if (wheelRpm <= 0f) return null
 
     val actualRatio = engineRpm / wheelRpm
-    val deviations = ratios.gearRatios.mapIndexed { index, gearRatio ->
+    // Ein Gang mit Uebersetzung 0 ist abgeschaltet (B22: ein 5-Gang-Getriebe hat keinen sechsten) — er nimmt nicht teil.
+    val deviations = ratios.gearRatios.mapIndexedNotNull { index, gearRatio ->
+        if (gearRatio <= 0f) return@mapIndexedNotNull null
         val totalRatio = ratios.primaryRatio * ratios.secondaryRatio * gearRatio
         (index + 1) to abs(actualRatio - totalRatio) / totalRatio
     }
@@ -121,7 +123,10 @@ fun isNeutral(engineRpm: Float, speedKmh: Float?, wasNeutral: Boolean): Boolean 
  * ausreichend Abstand haben.
  */
 fun closeGearPairs(primaryRatio: Float, secondaryRatio: Float, gearRatios: List<Float>): List<Pair<Int, Int>> {
-    val totals = gearRatios.mapIndexed { index, gearRatio -> (index + 1) to primaryRatio * secondaryRatio * gearRatio }
+    // Abgeschaltete Gaenge (Uebersetzung 0, B22) liegen in keinem Paar — sonst teilte die Abweichung durch null.
+    val totals = gearRatios.mapIndexedNotNull { index, gearRatio ->
+        if (gearRatio <= 0f) null else (index + 1) to primaryRatio * secondaryRatio * gearRatio
+    }
     val conflicts = mutableListOf<Pair<Int, Int>>()
     for (i in totals.indices) {
         for (j in i + 1 until totals.size) {

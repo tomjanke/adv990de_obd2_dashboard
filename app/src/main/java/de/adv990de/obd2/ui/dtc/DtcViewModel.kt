@@ -7,7 +7,9 @@ import de.adv990de.obd2.data.DtcHistoryEntry
 import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.ObdErrorMapper
+import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.UndoableDeletion
@@ -98,7 +100,10 @@ class DtcViewModel @Inject constructor(
                 dtcHistoryRepository.record(dtcs)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _uiState.value = DtcUiState(error = ObdErrorMapper.toUiText(e))
+                // NO DATA heisst hier: Das Steuergeraet hat auf die Fehlerspeicher-Abfrage nicht geantwortet. Das ist
+                // KEINE Entwarnung (A9) — die Seite sagt es in diesem Zusammenhang, statt des allgemeinen Adaptertexts.
+                val reason = if (e is ObdException.NoData) UiText.StringResource(R.string.dtc_no_answer) else ObdErrorMapper.toUiText(e)
+                _uiState.value = DtcUiState(error = reason)
                 liveCodes.value = null
             }
         }

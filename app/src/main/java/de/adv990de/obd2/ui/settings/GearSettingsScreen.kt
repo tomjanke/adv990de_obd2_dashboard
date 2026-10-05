@@ -76,7 +76,8 @@ fun GearSettingsScreen(
                             Text(
                                 text = stringResource(R.string.gear_settings_ratio_conflict, gearA, gearB),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = StatusColors.Warning,
+                                // Warn-Gelb als TEXT: auf der hellen Fläche des Default-Schemas das dunklere Gelb (B28).
+                                color = StatusColors.warningOn(MaterialTheme.colorScheme.background),
                             )
                         }
                     }
@@ -87,6 +88,7 @@ fun GearSettingsScreen(
                     label = stringResource(R.string.gear_settings_wheel_circumference),
                     value = wheelCircumferenceMm,
                     onValueChange = vm::setWheelCircumferenceMm,
+                    range = GearLimits.WHEEL_CIRCUMFERENCE_MM,
                 )
             }
             item {
@@ -94,6 +96,7 @@ fun GearSettingsScreen(
                     label = stringResource(R.string.gear_settings_primary_ratio),
                     value = primaryRatio,
                     onValueChange = vm::setPrimaryRatio,
+                    range = GearLimits.PRIMARY_RATIO,
                 )
             }
             item {
@@ -101,6 +104,16 @@ fun GearSettingsScreen(
                     label = stringResource(R.string.gear_settings_secondary_ratio),
                     value = secondaryRatio,
                     onValueChange = vm::setSecondaryRatio,
+                    range = GearLimits.SECONDARY_RATIO,
+                )
+            }
+            item {
+                // Hat das Getriebe weniger Gaenge, laesst sich der ueberzaehlige abschalten (B22).
+                Text(
+                    text = stringResource(R.string.gear_settings_gear_off_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
             items(count = gearRatios.size, key = { it }) { index ->
@@ -108,6 +121,8 @@ fun GearSettingsScreen(
                     label = stringResource(R.string.gear_settings_gear_n, index + 1),
                     value = gearRatios[index],
                     onValueChange = { vm.setGearRatio(index, it) },
+                    range = GearLimits.GEAR_RATIO,
+                    allowZero = true,
                 )
             }
         }
@@ -132,6 +147,40 @@ internal fun parsePositiveFloat(text: String): Float? =
     text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() && it > 0f }
 
 /**
+ * Plausible Grenzen der Getriebe-Eingaben (B22). Ohne sie wurde jede positive Zahl gespeichert: "2.096" (gemeint: 2096 mm,
+ * mit deutschem Tausenderpunkt) landete als 2,096 mm in den Einstellungen, und die Ganganzeige blieb fuer immer "–", ohne
+ * jeden Hinweis. Weit genug gefasst fuer Motorraeder, Autos und Transporter; eng genug, dass ein Tippfehler auffaellt.
+ */
+internal object GearLimits {
+    val WHEEL_CIRCUMFERENCE_MM = 1_000f..4_000f
+    val PRIMARY_RATIO = 0.5f..10f
+    val SECONDARY_RATIO = 0.5f..15f
+
+    /** Uebersetzung eines einzelnen Gangs — oder `0` (s. `parseGearValue(allowZero = true)`): dieser Gang ist aus. */
+    val GEAR_RATIO = 0.2f..8f
+}
+
+/**
+ * Parst eine Getriebe-Eingabe und prueft sie gegen [range]; `null` bei ungueltiger Eingabe (nicht parsebar, ausserhalb des
+ * Bereichs). [allowZero] erlaubt zusaetzlich `0`: ein Gang, den das Getriebe nicht hat (5-Gang-Motorrad mit sechs
+ * Eingabefeldern), laesst sich so abschalten — `determineGear` ueberspringt ihn. Komma und Punkt gelten wie bei
+ * [parsePositiveFloat]; ein Wert wie "2.096" ist bei einem Radumfang bewusst UNGUELTIG statt erraten.
+ */
+internal fun parseGearValue(
+    text: String,
+    range: ClosedFloatingPointRange<Float>,
+    allowZero: Boolean = false,
+): Float? {
+    val value = text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() } ?: return null
+    if (allowZero && value == 0f) return 0f
+    return value.takeIf { it in range }
+}
+
+/** Eine Bereichsgrenze fuer die Fehlermeldung: "1000" statt "1000.0", "0.5" bleibt "0.5". */
+internal fun formatLimit(value: Float): String =
+    if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
+
+/**
  * Ein Zahlen-Eingabefeld fuer einen Getriebe-Wert. Haelt einen lokalen Text-Puffer, der nur bei
  * gueltiger, positiver Zahl an [onValueChange] weitergereicht wird — eine ungueltige Eingabe
  * (leer, Buchstaben, negativ) bleibt lokal sichtbar, ohne den zuletzt gespeicherten Wert zu
@@ -153,6 +202,10 @@ internal fun GearRatioField(
     label: String,
     value: Float,
     onValueChange: (Float) -> Unit,
+    // Standard: jede endliche positive Zahl — das Verhalten vor B22 (Previews und aeltere Tests). Die Einstellungsseite
+    // uebergibt immer die echten Grenzen aus [GearLimits].
+    range: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
+    allowZero: Boolean = false,
 ) {
     var text by remember { mutableStateOf(value.toString()) }
     var hasBeenEdited by remember { mutableStateOf(false) }
@@ -163,21 +216,30 @@ internal fun GearRatioField(
         }
     }
 
-    val isValid = parsePositiveFloat(text) != null
+    val isValid = parseGearValue(text, range, allowZero) != null
+    // Eine Zahl ausserhalb des Bereichs bekommt die Grenzen genannt ("2.096" bei einem Radumfang: erlaubt 1000 bis 4000);
+    // alles andere ("abc", leer) die allgemeine Meldung.
+    val isNumber = text.trim().replace(',', '.').toFloatOrNull()?.isFinite() == true
+    val errorText = when {
+        isValid -> null
+        isNumber && allowZero -> stringResource(
+            R.string.gear_settings_out_of_range_or_off, formatLimit(range.start), formatLimit(range.endInclusive)
+        )
+        isNumber -> stringResource(R.string.gear_settings_out_of_range, formatLimit(range.start), formatLimit(range.endInclusive))
+        else -> stringResource(R.string.gear_settings_invalid_value)
+    }
 
     OutlinedTextField(
         value = text,
         onValueChange = { newText ->
             hasBeenEdited = true
             text = newText
-            parsePositiveFloat(newText)?.let(onValueChange)
+            parseGearValue(newText, range, allowZero)?.let(onValueChange)
         },
         label = { Text(label) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         isError = !isValid,
-        supportingText = if (!isValid) {
-            { Text(stringResource(R.string.gear_settings_invalid_value), color = MaterialTheme.colorScheme.error) }
-        } else null,
+        supportingText = errorText?.let { message -> { Text(message, color = MaterialTheme.colorScheme.error) } },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),

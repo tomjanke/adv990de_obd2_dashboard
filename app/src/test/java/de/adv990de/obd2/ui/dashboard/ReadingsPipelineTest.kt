@@ -661,6 +661,33 @@ class ReadingsPipelineTest {
         assertTrue("alte Werte erscheinen nicht als live: $events", events.none { it is SessionEvent.Values })
     }
 
+    // --- A9: a fault-code read without an answer is logged with the adapter's own words ---
+
+    @Test
+    fun `a fault-code read that gets no answer is written to the app log with the reason`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } throws ObdException.UnknownResponse("WHAT IS THIS")
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+
+        makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+
+        coVerify {
+            logRepo.log(LogLevel.WARN, match { it.contains("Fault-code read failed") && it.contains("WHAT IS THIS") })
+        }
+    }
+
+    @Test
+    fun `a fault-code read with NO DATA does not start a history entry and keeps the session running`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
+        val dtcHistory: DtcHistoryRepository = mockk(relaxed = true)
+
+        val events = makePipeline(repo, dtcHistory = dtcHistory).events(backgroundScope).take(1).toList()
+
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+        coVerify(exactly = 0) { dtcHistory.record(any(), any()) }
+    }
+
     // --- Test 15a: recording is best effort — a database failure must not end the live display ---
 
     @Test

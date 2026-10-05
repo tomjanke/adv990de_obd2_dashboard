@@ -17,6 +17,8 @@ object ObdErrorMapper {
         is ObdException.BusInit              -> UiText.StringResource(R.string.obd_err_bus_init)
         is ObdException.Timeout              -> UiText.StringResource(R.string.obd_err_timeout)
         is ObdException.InitializationFailed -> UiText.StringResource(R.string.obd_err_init_failed)
+        is ObdException.NoData               -> UiText.StringResource(R.string.obd_err_no_data)
+        is ObdException.UnknownResponse      -> UiText.StringResource(R.string.obd_err_unknown_response)
         is BluetoothException.ConnectionLost -> UiText.StringResource(R.string.obd_err_connection_lost)
         is BluetoothException.ConnectionFailed -> UiText.StringResource(R.string.obd_err_connection_failed)
         is BluetoothException.DeviceNotFound -> UiText.StringResource(R.string.obd_err_device_not_found)

@@ -21,6 +21,8 @@ class LiveValueTileTest {
 
     private val onSurfaceVariant = Color(0xFF9DC5D6)
     private val primary = Color(0xFF38BDF8)
+    private val darkSurface = Color(0xFF0A1628)
+    private val lightSurface = Color(0xFFFFFBFE)
 
     @Test
     fun `Ok maps to the given theme primary color`() {
@@ -31,6 +33,7 @@ class LiveValueTileTest {
                 isPreview = false,
                 onSurfaceVariant = onSurfaceVariant,
                 primary = primary,
+                surface = darkSurface,
             )
         )
     }
@@ -44,6 +47,7 @@ class LiveValueTileTest {
                 isPreview = false,
                 onSurfaceVariant = onSurfaceVariant,
                 primary = primary,
+                surface = darkSurface,
             )
         )
     }
@@ -57,6 +61,7 @@ class LiveValueTileTest {
                 isPreview = false,
                 onSurfaceVariant = onSurfaceVariant,
                 primary = primary,
+                surface = darkSurface,
             )
         )
     }
@@ -72,7 +77,30 @@ class LiveValueTileTest {
                 isPreview = true,
                 onSurfaceVariant = onSurfaceVariant,
                 primary = primary,
+                surface = darkSurface,
             )
         )
+    }
+
+    @Test
+    fun `Warning on a light surface uses the darker readable yellow (B28)`() {
+        assertEquals(
+            StatusColors.WarningOnLight,
+            liveValueTileAccentColor(
+                status = TileStatus.Warning,
+                isPreview = false,
+                onSurfaceVariant = onSurfaceVariant,
+                primary = primary,
+                surface = lightSurface,
+            )
+        )
+    }
+
+    @Test
+    fun `Critical and Ok do not depend on the surface`() {
+        for (surface in listOf(darkSurface, lightSurface)) {
+            assertEquals(StatusColors.Critical, liveValueTileAccentColor(TileStatus.Critical, false, onSurfaceVariant, primary, surface))
+            assertEquals(primary, liveValueTileAccentColor(TileStatus.Ok, false, onSurfaceVariant, primary, surface))
+        }
     }
 }

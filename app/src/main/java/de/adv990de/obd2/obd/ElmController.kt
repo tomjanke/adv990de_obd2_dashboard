@@ -46,8 +46,13 @@ class ElmController(
      */
     suspend fun initialize() {
         // ATZ = reset, ATE0 = echo off, ATL0 = linefeed off,
-        // ATS0 = spaces off, ATSP0 = auto-detect protocol
-        val initSequence = listOf("ATZ", "ATE0", "ATL0", "ATS0", "ATSP0")
+        // ATS1 = spaces ON, ATSP0 = auto-detect protocol
+        //
+        // ATS1, nicht ATS0 (B9): Alle Parser (PIDs, Discovery, DTCs, Freeze-Frame) splitten an Leerzeichen. Mit ATS0
+        // liefert ein Adapter, der den Befehl befolgt, "410C1AF8" — kein Parser haette es gelesen (Kommentare an anderer
+        // Stelle behaupteten das Gegenteil). ATZ stellt ohnehin die Voreinstellung "Leerzeichen an" her; das explizite
+        // ATS1 haelt die Absicht fest und schuetzt vor Klonen, die Einstellungen ueber ATZ hinweg behalten.
+        val initSequence = listOf("ATZ", "ATE0", "ATL0", "ATS1", "ATSP0")
         for (cmd in initSequence) {
             val response = sendCommand(cmd)
             // "STOPPED" is returned by some clone adapters after ATZ when the hardware reset

@@ -33,6 +33,10 @@ class SimulatedEcuDispatcher {
     }
 
     private fun respondPid(cmd: String): String = when (cmd) {
+        // Ein gesundes Steuergeraet antwortet auf die Fehlerspeicher-Abfragen positiv ohne Codes (nicht mit NO DATA,
+        // das seit A9 als "keine Antwort" gilt und keinen Haken "Keine Fehlercodes" mehr ergibt).
+        "03"   -> "43 00"
+        "07"   -> "47 00"
         "0100" -> "41 00 $BITMAP_0100"
         "0120" -> "41 20 $BITMAP_0120"
         "0140" -> "41 40 $BITMAP_0140"

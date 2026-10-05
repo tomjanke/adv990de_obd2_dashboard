@@ -1,10 +1,23 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -14,6 +27,7 @@ import de.adv990de.obd2.data.ObdRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -117,5 +131,71 @@ class LiveValueTileTest {
 
         assertTrue("expected onClick to fire on a plain click", clicked)
         assertTrue("onLongPress must not also fire for a plain click", !longPressed)
+    }
+
+    // ── B27: a value that does not fit shrinks instead of being clipped ────────────────────────────────
+
+    /** Das Layout des Wert-Texts (ungemergter Baum: der Text steckt sonst im Semantik-Knoten der klickbaren Kachel). */
+    private fun layoutOf(text: String): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithText(text, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        return results.single()
+    }
+
+    @Test
+    fun aFiveDigitValueShrinksToFitInsteadOfBeingClipped() {
+        composeRule.setContent {
+            Box(Modifier.size(180.dp, 140.dp)) {
+                LiveValueTile(label = "RPM", value = "11500", unit = "rpm", modifier = Modifier.fillMaxSize())
+            }
+        }
+        composeRule.waitForIdle()
+
+        assertFalse(
+            "\"11500\" darf nicht abgeschnitten werden (frueher: \"1150\")",
+            layoutOf("11500").didOverflowWidth,
+        )
+        composeRule.onNodeWithText(" rpm", useUnmergedTree = true).assertIsDisplayed()   // die Einheit bleibt sichtbar
+    }
+
+    @Test
+    fun aLargeSystemFontKeepsEveryDigit() {
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 1.5f)) {
+                Box(Modifier.size(200.dp, 160.dp)) {
+                    LiveValueTile(label = "RPM", value = "8500", unit = "rpm", modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        assertFalse("bei Schriftgroesse 1,5 muss \"8500\" noch passen", layoutOf("8500").didOverflowWidth)
+        composeRule.onNodeWithText(" rpm", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aValueThatFitsKeepsTheFullSize_onlyTheTooLongOneShrinks() {
+        composeRule.setContent {
+            Row {
+                Box(Modifier.size(180.dp, 140.dp)) {
+                    LiveValueTile(label = "COOLANT", value = "87", unit = "°C", modifier = Modifier.fillMaxSize())
+                }
+                Box(Modifier.size(180.dp, 140.dp)) {
+                    LiveValueTile(label = "RPM", value = "11500", unit = "rpm", modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        val short = layoutOf("87")
+        val long = layoutOf("11500")
+
+        assertFalse(short.didOverflowWidth)
+        assertTrue(
+            "der kurze Wert behaelt die volle Schriftgroesse (${short.size.height} px), nur der zu lange schrumpft (${long.size.height} px)",
+            short.size.height > long.size.height,
+        )
     }
 }

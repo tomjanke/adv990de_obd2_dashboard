@@ -14,6 +14,10 @@ import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -26,9 +30,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.TimeSource
+
+/**
+ * Obergrenze fuer den ganzen Verbindungsaufbau (Verbinden, ELM-Initialisierung, PID-Discovery). Grosszuegig, weil die
+ * Protokollsuche des ELM327 bei einem K-Line-Motorrad lange dauern kann; sie soll nur ein ENDLOSES Haengen beenden.
+ */
+private const val CONNECT_TIMEOUT_MS = 60_000L
 
 /** Nur relevant fuer direkte/Test-Aufrufer ohne eigenen Wert — die Produktion (ReadingsPipeline)
  *  uebergibt immer explizit den aus AppPreferences gelesenen, user-konfigurierten Wert. Bewusst aus
@@ -47,6 +58,18 @@ class ObdRepository @Inject constructor(
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
     private val connectMutex = Mutex()
+
+    /**
+     * Die Verbindung, die gerade aufgebaut wird (haelt dabei [connectMutex]). Existiert nur, damit [disconnectByUser] sie
+     * schliessen kann, OHNE auf den Lock zu warten: Ein blockierendes `connect()` haelt ihn, bis es endet.
+     */
+    @Volatile private var connecting: ObdConnection? = null
+
+    /**
+     * Obergrenze fuer Verbinden + Initialisieren + Discovery (siehe [withConnectDeadline]). Als Property statt
+     * Konstruktor-Parameter, weil Hilt Kotlin-Defaultwerte nicht kennt; Tests setzen sie direkt.
+     */
+    internal var connectTimeoutMs: Long = CONNECT_TIMEOUT_MS
 
     private val _isConnected = MutableStateFlow(false)
     val isConnectedFlow: StateFlow<Boolean> = _isConnected.asStateFlow()
@@ -99,6 +122,10 @@ class ObdRepository @Inject constructor(
      */
     suspend fun disconnectByUser() {
         _userDisconnectCount.update { it + 1 }
+        // Laeuft gerade ein Verbindungsaufbau, haelt er den Lock bis er endet — ein blockierendes connect() kann das
+        // dauern. Ihn jetzt zu schliessen bricht ihn ab (er endet mit einem Fehler und gibt den Lock frei), statt dass
+        // "Trennen"/"Beenden" hinter ihm warten (B6).
+        connecting?.close()
         disconnect()
     }
 
@@ -153,20 +180,25 @@ class ObdRepository @Inject constructor(
         elm = null
 
         val conn = connectionFactory.create(device)
+        connecting = conn
         try {
-            val controller = conn.connect()
-            controller.initialize()
-            // Best-effort: a discovery that merely fails or finds nothing must not abort the connection.
-            // Two things are NOT "merely failing" and must not be swallowed: a cancelled caller (it would
-            // otherwise come back from connect() "connected" although it was cancelled) and a dead link
-            // (the connection would be declared up on a socket that is already gone). Both fall into the
-            // catch below, which closes the connection.
-            _supportedPidIds.value = try {
-                discoverSupportedPids(controller)
-            } catch (e: Exception) {
-                if (e is CancellationException || e is ObdException.ConnectionLost) throw e
-                null
+            val (controller, supported) = withConnectDeadline(conn) {
+                val controller = conn.connect()
+                controller.initialize()
+                // Best-effort: a discovery that merely fails or finds nothing must not abort the connection.
+                // Two things are NOT "merely failing" and must not be swallowed: a cancelled caller (it would
+                // otherwise come back from connect() "connected" although it was cancelled) and a dead link
+                // (the connection would be declared up on a socket that is already gone). Both fall into the
+                // catch below, which closes the connection.
+                val supported = try {
+                    discoverSupportedPids(controller)
+                } catch (e: Exception) {
+                    if (e is CancellationException || e is ObdException.ConnectionLost) throw e
+                    null
+                }
+                controller to supported
             }
+            _supportedPidIds.value = supported
             connection = conn
             elm = controller
             _isConnected.value = true
@@ -174,6 +206,50 @@ class ObdRepository @Inject constructor(
         } catch (e: Exception) {
             conn.close()   // prevent leak if connect() or initialize() throws
             throw e
+        } finally {
+            connecting = null
+        }
+    }
+
+    /**
+     * Fuehrt [block] (Verbinden, Initialisieren, Discovery) unter einer Obergrenze von [connectTimeoutMs] aus.
+     *
+     * Ein klassischer Bluetooth-Socket blockiert beim Verbinden den Thread und ist durch eine Coroutine nicht
+     * abbrechbar; ohne Grenze haelt ein haengender Aufbau [connectMutex] auf unbestimmte Zeit, und "Beenden"/"Trennen"
+     * warten dahinter (B6). Ein Waechter schliesst die Verbindung deshalb [conn] — das gibt den blockierenden Aufruf mit
+     * einem Fehler frei — in drei Faellen:
+     *  - die Frist laeuft ab: der Fehler wird zu [ObdException.Timeout] ("Adapter antwortet nicht");
+     *  - der Aufrufer wird abgebrochen (ein blockierender Aufruf sieht das sonst nie);
+     *  - (ueber [disconnectByUser], nicht hier) der Nutzer trennt.
+     * Eine Antwort, die nur langsam kommt (Protokollsuche des ELM327: einige Sekunden, bei K-Line deutlich mehr), ist
+     * kein Hanger — die Frist ist deshalb grosszuegig ([CONNECT_TIMEOUT_MS]); sie verhindert "fuer immer", nicht "langsam".
+     */
+    private suspend fun <T> withConnectDeadline(conn: ObdConnection, block: suspend () -> T): T = coroutineScope {
+        val timedOut = AtomicBoolean(false)
+        val finished = AtomicBoolean(false)
+        val watchdog = launch {
+            try {
+                delay(connectTimeoutMs)
+                timedOut.set(true)
+                conn.close()
+            } catch (e: CancellationException) {
+                // Der Waechter wird abgebrochen, wenn der Block fertig ist (dann nichts schliessen) ODER wenn der Aufrufer
+                // abgebrochen wurde (dann die Verbindung schliessen, damit ein blockierender Aufruf endet).
+                if (!finished.get()) conn.close()
+                throw e
+            }
+        }
+        try {
+            block()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (timedOut.get()) throw ObdException.Timeout("connect")
+            // War der Aufrufer inzwischen abgebrochen, ist der IO-Fehler eine Folge davon: als Abbruch weitermelden.
+            currentCoroutineContext().ensureActive()
+            throw e
+        } finally {
+            finished.set(true)
+            watchdog.cancel()
         }
     }
 
@@ -209,8 +285,8 @@ class ObdRepository @Inject constructor(
      * → PID base+32 (the continuation flag for the next range — not a real sensor
      * PID and therefore not present in PidRegistry.all).
      *
-     * Note: ATS0 (spaces off) is sent during initialize(). Most adapters still
-     * include spaces in mode-01 responses; the whitespace split handles both forms.
+     * Note: initialize() sends ATS1 (spaces ON): every parser splits at whitespace. (Until 1.24.5 it sent ATS0 and
+     * the comment here claimed that the split "handles both forms" — it does not; B9.)
      */
     private suspend fun discoverSupportedPids(controller: ElmController): Set<String>? {
         val ranges = listOf("0100" to 0x00, "0120" to 0x20, "0140" to 0x40)
@@ -339,14 +415,21 @@ class ObdRepository @Inject constructor(
     suspend fun readDtcs(): List<DtcEntry> {
         val controller = elm ?: return emptyList()
         return try {
-            val confirmed = controller.sendCommand("03")
-            val pending   = controller.sendCommand("07")
+            // Modus 03 (bestaetigt) ist die massgebliche Frage: bleibt sie ohne positive Antwort, wirft der Parser
+            // (NO DATA, Busfehler, Unverstaendliches — A9) und die Seite sagt es, statt "keine Fehlercodes" zu behaupten.
+            val confirmed = dtcParser.parse(controller.sendCommand("03"), isPending = false)
+            // Modus 07 (ausstehend) ist optional: Viele Steuergeraete schweigen darauf, wenn nichts ansteht. Diese Stille
+            // ist keine Aussage "nichts ausstehend", aber auch kein Grund, die bestaetigten Codes zu verwerfen. Ein
+            // Busfehler oder Muell im selben Zug bleibt ein Fehler.
+            val pending = try {
+                dtcParser.parse(controller.sendCommand("07"), isPending = true)
+            } catch (_: ObdException.NoData) {
+                emptyList()
+            }
             // Ein Code kann in beiden Antworten stehen (bestaetigt UND noch ausstehend) oder von zwei
             // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
             // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
-            (dtcParser.parse(confirmed, isPending = false) +
-                    dtcParser.parse(pending, isPending = true))
-                .distinctBy { it.code }
+            (confirmed + pending).distinctBy { it.code }
         } catch (e: ObdException.Timeout) {
             // A timeout leaves the serial stream in an unknown state: the stale response may
             // arrive during the next sendCommand and corrupt it. Disconnect now so the stream

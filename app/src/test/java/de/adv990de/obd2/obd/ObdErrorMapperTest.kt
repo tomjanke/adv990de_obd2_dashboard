@@ -84,4 +84,25 @@ class ObdErrorMapperTest {
         val result = ObdErrorMapper.toUiText(IllegalStateException("   "))
         assertEquals(UiText.DynamicString("IllegalStateException"), result)
     }
+
+    @Test
+    fun `NoData maps to its own localized text`() {
+        assertEquals(UiText.StringResource(R.string.obd_err_no_data), ObdErrorMapper.toUiText(ObdException.NoData("03")))
+    }
+
+    @Test
+    fun `UnknownResponse maps to a localized text instead of the raw adapter output`() {
+        assertEquals(
+            UiText.StringResource(R.string.obd_err_unknown_response),
+            ObdErrorMapper.toUiText(ObdException.UnknownResponse("WHAT IS THIS")),
+        )
+    }
+
+    @Test
+    fun `BusInit with an adapter detail still maps to the bus text`() {
+        assertEquals(
+            UiText.StringResource(R.string.obd_err_bus_init),
+            ObdErrorMapper.toUiText(ObdException.BusInit("CAN ERROR")),
+        )
+    }
 }

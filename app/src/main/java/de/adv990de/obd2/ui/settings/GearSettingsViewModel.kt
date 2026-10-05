@@ -44,13 +44,42 @@ class GearSettingsViewModel @Inject constructor(
     ) { primary, secondary, gears -> closeGearPairs(primary, secondary, gears) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun setWheelCircumferenceMm(value: Float) = persist { appPreferences.setWheelCircumferenceMm(value) }
+    // Die Eingabefelder pruefen schon vor dem Aufruf; das ViewModel ist die letzte Verteidigung gegen unplausible Werte
+    // (B22), gleich welcher Aufrufer sie schickt. Ein verworfener Wert steht im App-Log.
+    fun setWheelCircumferenceMm(value: Float) =
+        persistIfPlausible("Radumfang", value, GearLimits.WHEEL_CIRCUMFERENCE_MM) { appPreferences.setWheelCircumferenceMm(value) }
 
-    fun setPrimaryRatio(value: Float) = persist { appPreferences.setPrimaryRatio(value) }
+    fun setPrimaryRatio(value: Float) =
+        persistIfPlausible("Primaeruebersetzung", value, GearLimits.PRIMARY_RATIO) { appPreferences.setPrimaryRatio(value) }
 
-    fun setSecondaryRatio(value: Float) = persist { appPreferences.setSecondaryRatio(value) }
+    fun setSecondaryRatio(value: Float) =
+        persistIfPlausible("Sekundaeruebersetzung", value, GearLimits.SECONDARY_RATIO) { appPreferences.setSecondaryRatio(value) }
 
-    fun setGearRatio(index: Int, value: Float) = persist { appPreferences.setGearRatio(index, value) }
+    /** `0` schaltet den Gang ab (das Getriebe hat ihn nicht), sonst gilt [GearLimits.GEAR_RATIO]. */
+    fun setGearRatio(index: Int, value: Float) =
+        persistIfPlausible("Gang ${index + 1}", value, GearLimits.GEAR_RATIO, allowZero = true) {
+            appPreferences.setGearRatio(index, value)
+        }
+
+    private fun persistIfPlausible(
+        name: String,
+        value: Float,
+        range: ClosedFloatingPointRange<Float>,
+        allowZero: Boolean = false,
+        write: suspend () -> Unit,
+    ) {
+        val plausible = value.isFinite() && ((allowZero && value == 0f) || value in range)
+        if (plausible) {
+            persist(write)
+        } else {
+            viewModelScope.launch {
+                appLogRepository.log(
+                    LogLevel.WARN,
+                    "Getriebe-Eingabe verworfen: $name = $value (erlaubt ${range.start}..${range.endInclusive}${if (allowZero) " oder 0" else ""})"
+                )
+            }
+        }
+    }
 
     /**
      * Faengt einen fehlgeschlagenen DataStore-Write ab, statt ihn unbehandelt aus der

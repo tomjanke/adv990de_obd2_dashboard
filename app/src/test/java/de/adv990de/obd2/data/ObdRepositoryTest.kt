@@ -1,8 +1,10 @@
 package de.adv990de.obd2.data
 
+import de.adv990de.obd2.bluetooth.BluetoothException
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.withDefaultLocale
 import java.util.Locale
+import kotlin.time.Duration.Companion.seconds
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.bluetooth.FakeObdConnection
 import de.adv990de.obd2.bluetooth.ObdConnection
@@ -27,14 +29,17 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -251,6 +256,137 @@ class ObdRepositoryTest {
         assertNull(repo.supportedPidIds.value)
     }
 
+    // ── B6: a connect that hangs is bounded and abortable ─────────────────────
+
+    /**
+     * Eine Verbindung, deren connect() blockierend haengt, wie BluetoothSocket.connect(): Es blockiert den Thread und
+     * laesst sich nicht abbrechen — nur close() von anderer Stelle gibt es frei (und es endet dann mit einem Fehler).
+     */
+    private class HangingConnection : ObdConnection {
+        private val released = java.util.concurrent.CountDownLatch(1)
+        @Volatile var closeCalls = 0
+        /** true = ein close() von aussen hat den blockierenden connect() freigegeben; false = nur die Test-Grenze. */
+        @Volatile var releasedByClose: Boolean? = null
+        private val outcomeKnown = java.util.concurrent.CountDownLatch(1)
+        private val entered = java.util.concurrent.CountDownLatch(1)
+        override val isConnected: Boolean = false
+        override suspend fun connect(): ElmController = withContext(Dispatchers.IO) {
+            entered.countDown()
+            // Begrenzt: ein Fehler (oder eine Mutation), die das close() weglaesst, soll den Test scheitern lassen,
+            // statt den Test-JVM fuer immer zu blockieren — `runTest(timeout)` kann einen blockierten Thread nicht abbrechen.
+            releasedByClose = released.await(5, java.util.concurrent.TimeUnit.SECONDS)
+            outcomeKnown.countDown()
+            throw BluetoothException.ConnectionFailed("socket closed")
+        }
+        /**
+         * Ergebnis der Wartezeit in [connect]. `withContext` kehrt bei einem Abbruch SOFORT zurueck, der IO-Thread
+         * schreibt sein Ergebnis erst danach — ein Test, der nach `join()` liest, wuerde sonst um dieses Rennen streiten.
+         */
+        /** Wartet, bis der IO-Thread wirklich in [connect] blockiert — erst dann ist ein Abbruch ein Abbruch DES Blockierens. */
+        fun awaitEntered(): Boolean = entered.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        fun awaitReleasedByClose(): Boolean? { outcomeKnown.await(5, java.util.concurrent.TimeUnit.SECONDS); return releasedByClose }
+        override fun close() { closeCalls++; released.countDown() }
+    }
+
+    private fun repoWith(conn: ObdConnection, deadlineMs: Long): Pair<ObdRepository, ScannedDevice> {
+        val device = mockk<ScannedDevice>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        // Long.MAX_VALUE = die Frist laeuft nie ab. runTest ueberspringt virtuelle Zeit, sobald nichts mehr zu tun ist —
+        // auch waehrend ein ECHTER Thread blockiert; ein Test, der die Frist NICHT meint, schaltet sie deshalb ab.
+        return makeRepo(factory).also { it.connectTimeoutMs = deadlineMs } to device
+    }
+
+    @Test
+    fun `a connect that hangs is aborted at the deadline - Timeout, connection closed, lock free`() = runTest(timeout = 10.seconds) {
+        val conn = HangingConnection()
+        val (repo, device) = repoWith(conn, deadlineMs = 60_000)
+
+        val failure = runCatching { repo.connect(device) }.exceptionOrNull()
+
+        assertTrue("Timeout erwartet, war: $failure", failure is ObdException.Timeout)
+        assertTrue("die haengende Verbindung wurde geschlossen", conn.closeCalls >= 1)
+        assertEquals("der Waechter schliesst die Verbindung — nicht erst das Ende des blockierenden Aufrufs", true, conn.awaitReleasedByClose())
+        assertFalse(repo.isConnectedFlow.value)
+        repo.disconnect()    // kehrt zurueck: der Lock ist frei, "Trennen" haengt nicht dahinter
+    }
+
+    @Test
+    fun `an initialize that blocks is covered by the same deadline`() = runTest(timeout = 10.seconds) {
+        val released = java.util.concurrent.CountDownLatch(1)
+        val releasedByClose = java.util.concurrent.atomic.AtomicBoolean(false)
+        val elm = mockk<ElmController>()
+        coEvery { elm.initialize() } coAnswers {
+            // begrenzt, s. HangingConnection: ein fehlendes close() soll scheitern, nicht haengen
+            withContext(Dispatchers.IO) { releasedByClose.set(released.await(5, java.util.concurrent.TimeUnit.SECONDS)) }
+            throw ObdException.ConnectionLost()
+        }
+        val conn = mockk<ObdConnection> {
+            coEvery { connect() } returns elm
+            every { close() } answers { released.countDown() }
+        }
+        val (repo, device) = repoWith(conn, deadlineMs = 60_000)
+
+        val failure = runCatching { repo.connect(device) }.exceptionOrNull()
+
+        assertTrue("Timeout erwartet, war: $failure", failure is ObdException.Timeout)
+        assertTrue("der Waechter schliesst die Verbindung, solange initialize() blockiert", releasedByClose.get())
+        verify(atLeast = 1) { conn.close() }
+        assertFalse(repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `a connect that finishes in time is not touched by the deadline`() = runTest {
+        val elm = mockk<ElmController>()
+        coEvery { elm.initialize() } just Runs
+        coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
+        val conn = mockk<ObdConnection> {
+            coEvery { connect() } returns elm
+            every { close() } just Runs
+        }
+        val (repo, device) = repoWith(conn, deadlineMs = 60_000)
+
+        repo.connect(device)
+        advanceTimeBy(120_000); runCurrent()      // die Frist ist laengst "abgelaufen", wenn sie noch liefe
+
+        assertTrue(repo.isConnectedFlow.value)
+        verify(exactly = 0) { conn.close() }
+    }
+
+    @Test
+    fun `cancelling the caller closes the connection that is stuck in connect`() = runTest(timeout = 10.seconds) {
+        val conn = HangingConnection()
+        val (repo, device) = repoWith(conn, deadlineMs = Long.MAX_VALUE)
+        val connecting = launch { repo.connect(device) }
+        runCurrent()                                 // connect() wird gestartet ...
+        assertTrue("connect() blockiert im IO-Thread", conn.awaitEntered())
+
+        connecting.cancel()
+        connecting.join()
+
+        assertTrue("ein blockierendes connect() sieht den Abbruch nicht — nur close() gibt es frei", conn.closeCalls >= 1)
+        assertEquals("close() kam vom Waechter, waehrend connect() noch blockierte", true, conn.awaitReleasedByClose())
+        assertTrue(connecting.isCancelled)
+        assertFalse(repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `a user disconnect aborts a connect in progress at once instead of waiting for it`() = runTest(timeout = 10.seconds) {
+        val conn = HangingConnection()
+        val (repo, device) = repoWith(conn, deadlineMs = Long.MAX_VALUE)
+        val connecting = launch { runCatching { repo.connect(device) } }
+        runCurrent()
+        assertTrue("connect() blockiert im IO-Thread", conn.awaitEntered())
+
+        val user = launch { repo.disconnectByUser() }
+        runCurrent()
+
+        assertTrue("sofort geschlossen, ohne auf irgendeine Frist zu warten", conn.closeCalls >= 1)
+        connecting.join(); user.join()
+        assertEquals(true, conn.awaitReleasedByClose())
+        assertFalse(repo.isConnectedFlow.value)
+        assertEquals(1, repo.userDisconnectCount.value)
+    }
+
     // ── B2: the "already connected?" decision is made inside the lock ─────────
 
     private fun twoConnections(): Triple<ConnectionFactory, ObdConnection, ObdConnection> {
@@ -420,6 +556,78 @@ class ObdRepositoryTest {
         assertFalse(result[0].isPending)
         assertEquals("P0134", result[1].code)
         assertTrue(result[1].isPending)
+    }
+
+    // ── A9 (Teil 1): keine Antwort ist keine Entwarnung ───────────────────────────────────────────────────
+
+    @Test
+    fun `readDtcs throws NoData when the ECU does not answer mode 03 - it must not look like an all-clear`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "NO DATA"
+        coEvery { elmCtrl.sendCommand("07") } returns "NO DATA"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val failure = runCatching { repo.readDtcs() }.exceptionOrNull()
+
+        assertTrue("NoData erwartet, war: $failure", failure is ObdException.NoData)
+        assertTrue("der Adapter bleibt verbunden - kein Verbindungsverlust", repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `readDtcs throws on a bus error in mode 03`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "UNABLE TO CONNECT"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val failure = runCatching { repo.readDtcs() }.exceptionOrNull()
+
+        assertTrue("BusInit erwartet, war: $failure", failure is ObdException.BusInit)
+    }
+
+    @Test
+    fun `readDtcs does not ask for pending codes when the confirmed read already failed`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "NO DATA"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        runCatching { repo.readDtcs() }
+
+        coVerify(exactly = 0) { elmCtrl.sendCommand("07") }
+    }
+
+    @Test
+    fun `readDtcs tolerates NO DATA for the optional pending codes - confirmed codes are still reported`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "43 01 33"
+        coEvery { elmCtrl.sendCommand("07") } returns "NO DATA"      // many ECUs stay silent when nothing is pending
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val result = repo.readDtcs()
+
+        assertEquals(listOf("P0133"), result.map { it.code })
+        assertFalse(result[0].isPending)
+    }
+
+    @Test
+    fun `readDtcs reports a real all-clear - positive answer without codes and silent pending read`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "43 00"
+        coEvery { elmCtrl.sendCommand("07") } returns "NO DATA"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        assertTrue(repo.readDtcs().isEmpty())
+    }
+
+    @Test
+    fun `readDtcs still throws for a bus error in the pending read - only silence is tolerated there`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "43 00"
+        coEvery { elmCtrl.sendCommand("07") } returns "CAN ERROR"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val failure = runCatching { repo.readDtcs() }.exceptionOrNull()
+
+        assertTrue("BusInit erwartet, war: $failure", failure is ObdException.BusInit)
     }
 
     @Test
@@ -1223,7 +1431,7 @@ class ObdRepositoryTest {
     // No mocking of the serial protocol occurs; commands flow through the same code
     // path as on a real Bluetooth device.
     //
-    // initialize() sends exactly 5 AT commands: ATZ, ATE0, ATL0, ATS0, ATSP0.
+    // initialize() sends exactly 5 AT commands: ATZ, ATE0, ATL0, ATS1, ATSP0.
     // discoverSupportedPids() sends 3 range commands: 0100, 0120, 0140.
     // Total responses needed per connect(): 5 + 3 = 8.
 
@@ -1242,7 +1450,7 @@ class ObdRepositoryTest {
             "ELM327 v1.5",  // ATZ
             "OK",           // ATE0
             "OK",           // ATL0
-            "OK",           // ATS0
+            "OK",           // ATS1
             "OK"            // ATSP0
         )
         // 3 discovery commands
@@ -1262,6 +1470,9 @@ class ObdRepositoryTest {
         fake.queueConnectResponses()
 
         val repo = ObdRepository(factory, PidParser(), mockk<DtcParser>())
+        // Echte Threads (FakeObdConnection) unter runTest: Die virtuelle Zeit springt weiter, sobald der Test nur wartet —
+        // die 60-s-Frist des Verbindungsaufbaus liefe sonst sofort ab. Hier ist nicht die Frist das Thema.
+        repo.connectTimeoutMs = Long.MAX_VALUE
         repo.connect(device)
 
         assertTrue("isConnectedFlow should be true after connect", repo.isConnectedFlow.value)
@@ -1325,6 +1536,7 @@ class ObdRepositoryTest {
         fake.queueConnectResponses()
 
         val repo = ObdRepository(factory, PidParser(), mockk<DtcParser>())
+        repo.connectTimeoutMs = Long.MAX_VALUE   // echte Threads unter runTest, s. oben
         repo.connect(device)
 
         assertTrue("should be connected before disconnect", repo.isConnectedFlow.value)

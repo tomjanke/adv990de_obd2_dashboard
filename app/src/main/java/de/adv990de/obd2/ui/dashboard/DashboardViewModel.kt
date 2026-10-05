@@ -165,6 +165,9 @@ class DashboardViewModel @Inject constructor(
 
     private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
 
+    /** Zeitstempel des letzten Sparkline-Punkts je PID — s. [shouldAppendSparklineSample] (B30). */
+    private val lastSparklineTimestamp = mutableMapOf<String, Long>()
+
     // Interner Timer-Zustand des Oel-Balkens (Gruen-Hysterese) — bewusst NICHT Teil von
     // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest; in den
     // UI-State gehoert nur die daraus abgeleitete OilBarColor. Wird bei einem Verbindungsabbruch
@@ -274,6 +277,9 @@ class DashboardViewModel @Inject constructor(
 
     private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?) {
         values.forEach { sv ->
+            // Nur ein NEUER Messwert bekommt einen Punkt: das GPS-Zwischenupdate wiederholt die letzten OBD-Werte (B30).
+            if (!shouldAppendSparklineSample(lastSparklineTimestamp[sv.pid.id], sv.timestamp)) return@forEach
+            lastSparklineTimestamp[sv.pid.id] = sv.timestamp
             val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(SPARKLINE_WINDOW) }
             if (deque.size >= SPARKLINE_WINDOW) deque.removeFirst()
             deque.addLast(sv.value)
@@ -282,6 +288,10 @@ class DashboardViewModel @Inject constructor(
         val engineTempC = if (rpmDynamicThreshold.value) {
             values.firstOrNull { it.pid.id == PidRegistry.ENGINE_OIL_TEMP.id && it.isPlausible() }?.value
                 ?: values.firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }?.value
+                // Fehlt die Temperatur in diesem Zyklus, gilt die letzte (B26): null liesse die dynamische Schwelle fuer
+                // einen Zyklus auf den Kaltwert fallen (rpmThresholdTempScale(null)) — ein falscher Schaltblitz. Sie
+                // aendert sich ohnehin nur langsam; ein schweigendes Steuergeraet beendet applyStale() (-> null).
+                ?: _uiState.value.engineTempC
         } else null
         val newRpmValue = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }
             ?.value ?: _uiState.value.rpmValue

@@ -72,6 +72,7 @@
     <string name="dtc_tab_current">Current</string>
     <string name="dtc_tab_history">History</string>
     <string name="not_connected">Not connected</string>
+    <string name="dtc_no_answer">No answer from the ECU, so it is unknown whether fault codes are stored.</string>
     <string name="dtc_badge_active">Active</string>
     <string name="dtc_history_empty">No faults recorded yet</string>
     <string name="dtc_history_dates">First seen %1$s · Last seen %2$s</string>
@@ -100,6 +101,8 @@
     <string name="obd_err_bus_init">Vehicle bus not reachable.</string>
     <string name="obd_err_timeout">Adapter not responding.</string>
     <string name="obd_err_init_failed">Adapter initialisation failed.</string>
+    <string name="obd_err_no_data">The ECU did not answer.</string>
+    <string name="obd_err_unknown_response">Unintelligible answer from the adapter.</string>
     <string name="obd_err_connection_failed">Could not connect to the adapter.</string>
     <string name="obd_err_device_not_found">Adapter not found. Is it paired and switched on?</string>
     <string name="obd_err_bluetooth">Bluetooth error.</string>
@@ -194,6 +197,9 @@
     <string name="gear_settings_secondary_ratio">Secondary (final drive) ratio</string>
     <string name="gear_settings_gear_n" tools:ignore="PluralsCandidate">Gear %1$d ratio</string>
     <string name="gear_settings_invalid_value">Enter a positive number</string>
+    <string name="gear_settings_out_of_range">Allowed: %1$s to %2$s</string>
+    <string name="gear_settings_out_of_range_or_off">Allowed: %1$s to %2$s, or 0 = do not use this gear</string>
+    <string name="gear_settings_gear_off_hint">Fewer gears? Enter 0 for each gear the gearbox does not have.</string>
     <string name="gear_settings_ratio_conflict" tools:ignore="PluralsCandidate">Gear %1$d and gear %2$d are so close together that the gear indicator may not tell them apart reliably.</string>
     <!-- App Logs screen -->
     <string name="settings_app_logs">App Logs</string>

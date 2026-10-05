@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,7 +25,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -62,7 +65,16 @@ fun LiveValueText(
     softWrap: Boolean = false,
     overflow: TextOverflow = TextOverflow.Clip,
     animated: Boolean = false,
+    /**
+     * Kleinste Schriftgroesse, auf die der Wert schrumpfen darf, wenn er in die verfuegbare Breite sonst nicht passt
+     * (B27). Unspecified (Standard) = nie schrumpfen, wie bisher. Die Kachel setzt sie, damit "11500" bei grosser
+     * Systemschrift oder schmalem Display nicht still zu "1150" abgeschnitten wird: lieber kleiner als falsch.
+     */
+    minFontSize: TextUnit = TextUnit.Unspecified,
 ) {
+    val autoSize = if (minFontSize.isSpecified && style.fontSize.isSpecified) {
+        TextAutoSize.StepBased(minFontSize = minFontSize, maxFontSize = style.fontSize)
+    } else null
     if (animated) {
         AnimatedContent(
             targetState = value,
@@ -83,6 +95,7 @@ fun LiveValueText(
                 maxLines = maxLines,
                 softWrap = softWrap,
                 overflow = overflow,
+                autoSize = autoSize,
             )
         }
     } else {
@@ -95,6 +108,7 @@ fun LiveValueText(
             maxLines = maxLines,
             softWrap = softWrap,
             overflow = overflow,
+            autoSize = autoSize,
         )
     }
 }

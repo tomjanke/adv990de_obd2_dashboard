@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /**
  * Cross-theme semantic status tokens for live dashboard signals
@@ -29,6 +30,20 @@ object StatusColors {
      *  Bluetooth dot's "Connecting" state ([de.adv990de.obd2.ui.dashboard.connectionDotColor]),
      *  though that stays its own independent hardcoded value, not a reference to this one. */
     val Warning = Color(0xFFEAB308)
+
+    /**
+     * Warn-Gelb fuer TEXT auf HELLEN Flaechen (Tailwind Yellow 700, ~4,9:1 auf Weiss). [Warning] ist auf den dunklen
+     * Cockpit-Schemata gut lesbar, auf der hellen Flaeche des Default-Schemas nur 1,87:1 — der Wert einer Warn-Kachel war
+     * dort kaum zu lesen (B28). Nicht direkt verwenden, sondern ueber [warningOn].
+     */
+    val WarningOnLight = Color(0xFFA16207)
+
+    /**
+     * Das lesbare Warn-Gelb fuer Text oder eine Akzentflaeche auf [surface]: das kraeftige [Warning] auf dunklen Flaechen
+     * (Nutzerwunsch 2026-09-28 bleibt unveraendert), das dunklere [WarningOnLight] auf hellen. "Hell" heisst relative
+     * Leuchtdichte > 0,5 — die drei Cockpit-Schemata liegen weit darunter, das helle Default-Schema weit darueber.
+     */
+    fun warningOn(surface: Color): Color = if (surface.luminance() > 0.5f) WarningOnLight else Warning
 
     /** Actionable redline / fault / hard limit hit. */
     val Critical = Color(0xFFEF4444)
