@@ -9,11 +9,17 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 36
 
-    val appVersionCode = 88
-    val appVersionName = "1.24.6"
+    val appVersionCode = 89
+    val appVersionName = "1.24.7"
 
-    val keystoreFile = rootProject.file("keystore.jks")
     fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()
+
+    // Ort des Keystores (B31): KEYSTORE_FILE (Property oder Umgebung, "~/" ist erlaubt) — empfohlen ausserhalb des
+    // Projektbaums. Ohne die Angabe wie bisher keystore.jks im Projekt-Root.
+    val configuredKeystore = prop("KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+    val keystoreFile: File = configuredKeystore
+        ?.let { File(if (it == "~" || it.startsWith("~/")) System.getProperty("user.home") + it.removePrefix("~") else it) }
+        ?: rootProject.file("keystore.jks")
 
     signingConfigs {
         create("release") {
@@ -47,9 +53,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Only sign if keystore.jks exists — CI/dev builds without the keystore produce
-            // an unsigned APK rather than failing the build.
-            signingConfig = if (keystoreFile.exists()) signingConfigs["release"] else null
+            // CI/dev builds without a keystore produce an unsigned APK rather than failing the build — but only when
+            // NOTHING was configured. A KEYSTORE_FILE that points nowhere must not silently turn into an unsigned
+            // release: with the signing config set, AGP's validateSigningRelease fails the release build loudly.
+            signingConfig = if (configuredKeystore != null || keystoreFile.exists()) signingConfigs["release"] else null
             manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
             manifestPlaceholders["buildEnvironment"] = "production"
         }

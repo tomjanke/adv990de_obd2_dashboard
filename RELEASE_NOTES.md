@@ -1,5 +1,54 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.7 (versionCode 89)
+
+Sitzung und Vordergrunddienst, Release-Signatur (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B1, B4, B31).
+
+### Die Sitzung endet, wenn nichts mehr aufzeichnet (B1)
+
+Polling und Aufzeichnung laufen im ViewModel des Dashboards; der Vordergrunddienst hält nur den Prozess am Leben und besitzt keine Arbeit. Wurde die App aus der
+Übersicht gewischt, endete die Aufzeichnung — **Verbindung und die Benachrichtigung „Fahrzeugdaten werden aufgezeichnet“ blieben aber stehen**, obwohl nichts mehr aufzeichnete.
+Jetzt gilt: Die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht.
+
+- **Wegwischen** (`ObdForegroundService.onTaskRemoved`) und **jedes echte Beenden der Activity** (`MainActivity.onDestroy`, wenn sie nicht nur für eine Drehung/einen Themenwechsel neu erzeugt wird:
+  „Aktivitäten nicht behalten“, Zurück am Root auf API ≤ 30) trennen den Adapter und beenden den Dienst — wie „Beenden“. Beides ist idempotent.
+- **Zurück am Root ab API 31 beendet nichts:** Die App geht in den Hintergrund, der Dienst trägt den Prozess, die Aufzeichnung läuft weiter (so war es gedacht).
+- **Antippen der Benachrichtigung öffnet jetzt die App** (vorher geschah nichts); eine laufende Activity kommt nach vorn, es entsteht keine zweite mit leerem ViewModel.
+- **Eine Stelle für den Dienst:** `ObdServiceController` ersetzt zwei Kopien des Starts (Koordinator, Einstellungen) und drei des Stopps/Trennens (Beenden, Einstellungen, Dienst-Aktion „Trennen“).
+- **Produktentscheidung, die ich getroffen habe:** Wegwischen heißt „fertig“. Die Alternative — Polling und Aufzeichnung in den Dienst zu verlegen, damit sie das Wegwischen überleben — ist ein großer Umbau, den niemand verlangt hat; sie ist nicht gebaut.
+
+### Ein abgelehnter Dienst-Start ist kein Verbindungsfehler (B4)
+
+`startForegroundService()` kann ab API 31 im Hintergrund eine Ausnahme werfen (`ForegroundServiceStartNotAllowedException`); ein fehlendes Recht für den Dienst-Typ wirft `SecurityException`.
+Der Aufruf lag im selben `try` wie der Verbindungsaufbau: Eine **stehende** Verbindung wurde als „Reconnect-Versuch fehlgeschlagen“ geloggt und `Connected` blieb aus; im Dienst selbst beendete
+eine `SecurityException` aus `startForeground()` den ganzen Prozess. Jetzt steht die Verbindung, das App-Log sagt „Foreground service could not be started: …“, die App läuft weiter (nur ohne
+Schutz davor, im Hintergrund beendet zu werden). Gefangen werden genau diese beiden Ausnahmetypen — jeder andere Fehler läuft durch.
+
+### Geheimnisse und Release-Signatur (B31)
+
+- **Keystore und `~/.gradle/gradle.properties` waren für alle Benutzer lesbar** (Modus 644). Jetzt Modus 600; der Keystore liegt außerhalb des Projektbaums (`~/.android-keys/<name>.jks`, Ordner 700) —
+  Prüfsumme vor und nach dem Verschieben identisch, Signaturzertifikat unverändert (derselbe Fingerabdruck wie in jedem bisherigen Release).
+- **`KEYSTORE_FILE`** (Property oder Umgebung, `~/` erlaubt) legt den Ort fest; ohne Angabe gilt wie bisher `keystore.jks` im Projekt. **Zeigt der Pfad ins Leere, bricht der Release-Build ab**
+  (vorher: still ein unsigniertes APK). Debug-Builds sind unberührt.
+- **`scripts/release.sh` verweigert** den Release, wenn Keystore oder Gradle-Properties für andere zugänglich sind, wenn `apksigner` fehlt, oder wenn das APK nicht mit dem Zertifikat aus
+  `scripts/release-cert.sha256` signiert ist (öffentlicher Fingerabdruck) — ein falscher Schlüssel ergäbe ein Update, das sich nicht über die installierte App einspielen lässt.
+- **Bewusst nicht angefasst:** die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`: u. a. `cat`, `curl`, `git push`, `keytool`, `apksigner sign` ohne Rückfrage). Berechtigungen sind Ihre Entscheidung;
+  ein Vorschlag steht in der Zusammenfassung des Releases. Die Datei ist git-ignoriert und nicht Teil des Releases.
+
+### Tests
+
+- **1197 JVM-Unit-Tests** (vorher 1167, +30) und **282 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 280, +2: Benachrichtigung hat ein `contentIntent`, `openAppIntent` zeigt auf `MainActivity` mit den richtigen Flags), alle grün; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Mutationsprüfung:** 19 gezielte Eingriffe in den neuen Code (Fangnetz, Sitzung beenden, Rechte- und Zertifikatsprüfung, Keystore-Konfiguration) — **alle von mindestens einem Test erkannt**. Ein Eingriff ließ sich zunächst nicht kompilieren; zugleich zeigte er, dass „im Hintergrund“ nicht geprüft wurde (der Test hätte auch einen blockierenden Aufruf akzeptiert) — der Test prüft jetzt, dass der Aufruf zurückkehrt, ohne selbst zu trennen.
+- **Echte Ausführung der Release-Prüfungen:** `ReleaseScriptLibTest` führt `scripts/release-lib.sh` mit `bash` und temporären Dateien aus (Modus 644/640/600, Zertifikat gleich/anders/keines, Gradle-Property aus Umgebung/Datei, `~`-Auflösung) — kein Text-Vergleich.
+- **Geräteprüfung B1 (Pixel 8 Pro, Debug-Build mit ECU-Simulator, dieselbe Geste vorher und nachher):** Alter Stand v1.24.6 — nach dem Wegwischen verschwindet der Task, **Dienst, Benachrichtigung und Prozess laufen weiter** (der Befund, bestätigt). Neuer Stand — Dienst beendet, Benachrichtigung weg, Prozess beendet. „Home“ lässt die Sitzung wie gewollt weiterlaufen. Das `contentIntent` der Benachrichtigung ist beim neuen Stand vorhanden, beim alten nicht.
+
+### Bekannte Grenzen
+
+- **Das Fangnetz um `startForeground()` ist auf dem Gerät nicht ausgelöst worden:** Die Ablehnung lässt sich nicht erzwingen, ohne eine Berechtigung zu entziehen (das beendet den Testprozess). Abgesichert ist die Entscheidung
+  (`catchingForegroundStart`: welche Ausnahmen, welche nicht) und die Verdrahtung im Koordinator/in den Einstellungen per JVM-Test; der Aufruf im Dienst selbst ist ein Framework-Aufruf.
+- `onTaskRemoved` und `MainActivity.onDestroy` sind Framework-Methoden: JVM-getestet ist die Entscheidung (`shouldEndSessionOnDestroy`) und das Verhalten des Controllers; die Verdrahtung wurde von Hand am Pixel mit dem ECU-Simulator des Debug-Builds geprüft (s. oben).
+- Wie sich verschiedene Hersteller beim Wegwischen verhalten (manche beenden den Prozess ohnehin sofort), ist nicht geprüft.
+
 ## Version 1.24.6 (versionCode 88)
 
 Verbindungs-Robustheit, ehrliche Fehlercode-Seite und Kosmetik (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B6 (Verbindungsaufbau), B7, B9, A9 (Teil 1), B22, B26, B27, B28, B30).
