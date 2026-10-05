@@ -1,5 +1,71 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.6 (versionCode 88)
+
+Verbindungs-Robustheit, ehrliche Fehlercode-Seite und Kosmetik (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B6 (Verbindungsaufbau), B7, B9, A9 (Teil 1), B22, B26, B27, B28, B30).
+
+### Verbindungsaufbau: begrenzt, abbrechbar, ohne Leck (B6, B7)
+
+- **Ein hängender Verbindungsaufbau hielt „Beenden“ und „Trennen“ fest.** `BluetoothSocket.connect()` blockiert den Thread (auf einer schlechten Strecke
+  rund 12 s) und lässt sich nur durch `close()` von außen abbrechen; `connect()` + Initialisierung + PID-Discovery liefen ohne Zeitgrenze unter dem
+  Verbindungs-Lock. Jetzt gilt eine **Obergrenze von 60 s** für den ganzen Aufbau, und ein Wächter schließt die Verbindung in drei Fällen: Frist abgelaufen
+  (Fehler „Adapter antwortet nicht“), Aufrufer abgebrochen, und **„Trennen“/„Beenden“ durch den Nutzer** — das bricht einen laufenden Aufbau sofort ab, statt dahinter zu
+  warten. Die 60 s sind absichtlich großzügig: Die Protokollsuche des ELM327 dauert bei einem K-Line-Motorrad einige Sekunden; die Grenze beendet nur ein ENDLOSES
+  Hängen.
+- **`ClassicBtConnection` (B7):** Der Socket wurde erst nach einem erfolgreichen `connect()` gemerkt — `close()` fand beim Verbinden nichts, und bei einem Fehlschlag
+  blieb der Socket offen (Deskriptor-Leck bis zur Garbage Collection, bis zu fünf je Ausfall der Wiederverbindungs-Schleife). Jetzt ist er vor `connect()` bekannt,
+  wird bei Fehlschlag und Abbruch geschlossen, und `close()` wirft nie (auch nicht bei einem schon geschlossenen Socket).
+- **Bewusst NICHT geändert:** der Lese-Hänger im laufenden Betrieb auf klassischem Bluetooth (die zweite Hälfte von B6). Ein Schließen nach 5 s würde eine langsame
+  K-Line-Protokollsuche (über 5 s) abbrechen, die heute nur funktioniert, weil das Lesen dort nicht unterbrechbar ist — das braucht einen Test mit dem Adapter.
+
+### Fehlercode-Seite: „Keine Antwort“ ist keine Entwarnung (A9, Teil 1)
+
+Der Parser lieferte für **jede** Antwort, die nicht mit `43`/`47` begann, eine leere Liste — NO DATA, UNABLE TO CONNECT, CAN ERROR, „?“ — und die Seite zeigte den
+grünen Haken „Keine Fehlercodes vorhanden“. Jetzt gilt nur eine **positive** Antwort (`43 00` = „keine Codes“) als Aussage des Steuergeräts:
+
+- **NO DATA** → Meldung „Keine Antwort vom Steuergerät — ob Fehlercodes gespeichert sind, lässt sich so nicht sagen.“ mit „Erneut versuchen“; nichts landet in der Historie.
+- **Busfehler des Adapters** (UNABLE TO CONNECT, CAN ERROR, BUS ERROR, BUS BUSY, FB ERROR, BUS INIT-Fehler) und **Unverständliches** → eine Fehlermeldung.
+- **Modus 07 (ausstehende Codes) ist optional:** NO DATA dort wird toleriert (viele Steuergeräte schweigen, wenn nichts ansteht) — die bestätigten Codes werden trotzdem gezeigt.
+  Ein Busfehler im selben Zug bleibt ein Fehler.
+- Die Meldungen „SEARCHING...“/„BUS INIT: OK“ vor einer Antwort werden ignoriert. Jede gescheiterte Fehlercode-Abfrage steht mit dem Adaptertext im App-Log
+  (`Fault-code read failed: …`) — genau das Material, das für Teil 2 gebraucht wird.
+- **Risiko, ehrlich:** Antwortet Ihr Motorrad auf Modus 03 mit NO DATA, wenn nichts gespeichert ist (nicht normgemäß, aber bei manchen Steuergeräten üblich), sehen Sie
+  jetzt „Keine Antwort“ statt des grünen Hakens. Das ist die ehrliche Aussage; das App-Log zeigt dann den Adaptertext, und Teil 2 (CAN-Count-Byte, Mehrframe) wird mit
+  einem Roh-Log abschließend geklärt. Der ECU-Simulator im Debug-Build antwortet jetzt wie ein gesundes Steuergerät (`43 00`, `47 00`).
+
+### Der Adapter liefert Leerzeichen (B9)
+
+Die Initialisierung sendete `ATS0` („Leerzeichen aus“), aber **alle** Parser splitten an Leerzeichen — ein Adapter, der den Befehl befolgt, antwortet `410C1AF8`, und keine
+PID-Antwort wäre lesbar. Jetzt wird `ATS1` gesendet (die Voreinstellung nach `ATZ`, explizit). Die Kommentare, die das Gegenteil behaupteten, sind korrigiert. Bei Ihrem
+Adapter ändert sich nichts Sichtbares (er lieferte ohnehin Leerzeichen).
+
+### Kosmetik und Randfälle (B22, B26, B27, B28, B30)
+
+- **B22 — Getriebe-Eingaben:** Plausible Grenzen (Radumfang 1000–4000 mm, Primärübersetzung 0,5–10, Sekundär 0,5–15, Gang 0,2–8). „2.096“ (gemeint: 2096 mm) wurde als
+  2,096 mm gespeichert, und die Ganganzeige blieb ohne Hinweis für immer „–“; jetzt zeigt das Feld „Erlaubt: 1000 bis 4000“ und speichert nichts. **`0` schaltet einen Gang ab**
+  (ein 5-Gang-Getriebe hat keinen sechsten); die Gangerkennung überspringt ihn. Das ViewModel verwirft unplausible Werte zusätzlich und protokolliert sie.
+- **B26 — dynamische Drehzahl-Schwelle:** Fehlte in einem Zyklus die Temperatur, fiel die Schwelle für diesen Zyklus auf den Kaltwert (ein falscher Schaltblitz).
+  Jetzt gilt die letzte Temperatur, bis eine neue kommt oder das Steuergerät schweigt.
+- **B27 — abgeschnittene Kachelwerte:** „11500“ wurde bei großer Systemschrift oder schmalem Display still zu „1150“. Der Wert **schrumpft** jetzt (bis 20 sp), bis er passt;
+  die Einheit behält ihren Platz.
+- **B28 — Warn-Gelb auf hellem Hintergrund:** Das kräftige Gelb hatte auf der hellen Fläche des Default-Schemas nur 1,87:1. Dort gilt ein dunkleres Gelb (`#A16207`, ≥ 4,5:1);
+  auf den dunklen Cockpit-Schemata bleibt alles unverändert (`StatusColors.warningOn(surface)`).
+- **B30 — Sparkline:** Jeder GPS-Fix wiederholte die letzten OBD-Werte und füllte den Puffer mit Duplikaten (Treppenkurve, Fenster ~12 s statt ~60 s). Ein Punkt entsteht
+  jetzt nur für einen **neuen** Messwert, frühestens 800 ms nach dem letzten desselben PIDs.
+
+### Tests
+
+- **1167 JVM-Unit-Tests** (vorher 1099, +68) und **280 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 277, +3: Kachelwert schrumpft statt abgeschnitten zu werden), alle grün; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Mutationsprüfung:** 27 gezielte Eingriffe in den neuen Code (Wächter, Abbruchwege, Socket-Verwaltung, Parser-Zweige, Anzeige-Regeln) — **alle von mindestens einem Test erkannt**. Zwei überlebten zunächst (die Überspringen-Regel in der Gangerkennung war für den Wert 0 überflüssig, schützt aber vor negativen Altwerten) — dafür kamen zwei Tests dazu. Ein dritter Befund betraf die Tests selbst: Eine blockierende Test-Verbindung ohne Zeitgrenze hängte bei fehlendem `close()` den ganzen Testlauf auf, statt rot zu werden; sie wartet jetzt höchstens 5 s und prüft, dass `close()` sie freigegeben hat.
+- Neue Test-Dateien: `SparklineSamplingTest`, `StatusColorsTest`; erweitert u. a. `ClassicBtConnectionTest`, `ObdRepositoryTest`, `DtcParserTest`, `ElmControllerTest`, `DashboardViewModelTest`, `GearSettings*Test`, `GearIndicatorTest`.
+
+### Bekannte Grenzen
+
+- Das 60-s-Zeitlimit des Verbindungsaufbaus ist eine begründete Annahme, nicht am Adapter gemessen; ob `BluetoothSocket.close()` auf Ihrem Telefon ein blockiertes
+  `connect()` freigibt, bestätigt erst ein Lauf mit Adapter (die Android-Dokumentation sagt ja).
+- A9 Teil 2 (Anzahl-Byte nach `43` auf CAN, Mehrframe-Antworten) und A8 (Frame-Byte bei Freeze-Frame) brauchen ein Roh-Log Ihres Motorrads.
+- Die drei Schwellen der Sparkline und des Warn-Gelbs sind Annahmen, keine Fahrzeugmessungen.
+
 ## Version 1.24.5 (versionCode 87)
 
 Tests, Release-Ablauf und Doku aufgeräumt (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B32, B34, B35, B36, B37, B38, B39) — und zwei

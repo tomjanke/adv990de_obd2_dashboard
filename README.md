@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.24.5** (versionCode 87) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
+> Aktuelle Version: **1.24.6** (versionCode 88) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
 
 ---
 
@@ -122,7 +122,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1099 Tests, < 30 Sekunden)
+# JVM Unit Tests (1167 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -131,7 +131,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1099 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1167 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -288,6 +288,10 @@ Zu den beiden Zeitwerten der Verbindung:
 - **OBD-Watchdog:** nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr (Timeout) oder nur noch unverwertbar antwortet; reines NO DATA (z. B. Zündung aus) löst ihn nie aus und startet die Frist neu — Auswahl 10 / 20 / 30 / 60 / 120 s, Standard 20 s (früher frei eingegebene Werte werden beim Lesen auf die nächste Auswahl gesetzt, z. B. 45 s → 60 s)
 - **Reconnect-Basisverzögerung:** Wartezeit vor dem ersten Reconnect-Versuch, jeder weitere verdoppelt sie (5 Versuche) — Auswahl 3 / 10 / 30 s, Standard 3 s; die Einstellungen zeigen die resultierenden Wartezeiten (z. B. 3 · 6 · 12 · 24 · 48 s, insgesamt 1:33 min)
 
+Die Getriebe-Eingaben haben plausible Grenzen (z. B. Radumfang 1000–4000 mm; „2.096“ wird abgelehnt statt als 2,096 mm gespeichert); `0` bei einem Gang schaltet ihn ab, falls das Getriebe weniger Gänge hat.
+
+Die Fehlercode-Seite behauptet nur „Keine Fehlercodes“, wenn das Steuergerät positiv geantwortet hat; bleibt die Antwort aus (NO DATA) oder meldet der Adapter einen Busfehler, sagt sie das, mit „Erneut versuchen“.
+
 „In Bewegung“ heißt: ab 5 km/h, bis die Geschwindigkeit unter 3 km/h fällt — GPS-Rauschen im Stand schaltet das Hauptmenü nicht um. Liefert das Steuergerät bei bestehender Verbindung 10 s lang keinen Messwert (z. B. Zündung aus), zeigen die Kacheln „--“ und das Band „Keine aktuellen Werte“ statt alter Zahlen.
 
 Fehlt die Standortberechtigung (entzogen, „Nur dieses Mal“ abgelaufen oder nur „ungefähr“ erteilt), steht unter dem GPS-Schalter und unter „Navigationsleiste beim Fahren ausblenden“ ein Hinweis mit Knopf zu den App-Einstellungen; wird sie dort erteilt, läuft GPS-Speed ohne Neustart an. Nach dem Verbinden zeigt das Dashboard sofort „Verbunden · warte auf Werte“.
@@ -336,8 +340,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1099) |
-| `app/src/androidTest/` | Instrumented Tests (277, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1167) |
+| `app/src/androidTest/` | Instrumented Tests (280, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
