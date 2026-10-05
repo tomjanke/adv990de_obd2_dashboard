@@ -21,7 +21,7 @@ class ExitAppViewModel @Inject constructor(
 ) : ViewModel() {
 
     suspend fun exitApp() {
-        obdRepository.disconnect()
+        obdRepository.disconnectByUser()
         appContext.stopService(ObdForegroundService.stopIntent(appContext))
     }
 }

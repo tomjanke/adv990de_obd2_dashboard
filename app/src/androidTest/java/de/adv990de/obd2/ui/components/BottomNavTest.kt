@@ -129,6 +129,7 @@ class BottomNavTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns MutableStateFlow(false)
+        every { userDisconnectCount } returns MutableStateFlow(0)
         every { isMovingFlow } returns MutableStateFlow(false)
     }
 
@@ -362,6 +363,6 @@ class BottomNavTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
-        coVerify(exactly = 0) { exitAppObdRepo.disconnect() }
+        coVerify(exactly = 0) { exitAppObdRepo.disconnectByUser() }
     }
 }

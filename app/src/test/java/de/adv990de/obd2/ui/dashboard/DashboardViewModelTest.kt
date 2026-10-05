@@ -106,6 +106,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns "TESTVIN123"
             coEvery { readDtcs() } returns emptyList()
@@ -132,6 +133,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -159,6 +161,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -185,6 +188,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } throws Exception("VIN not supported")
             coEvery { readDtcs() } returns emptyList()
@@ -210,6 +214,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -240,6 +245,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -267,6 +273,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -301,6 +308,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -330,6 +338,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -367,6 +376,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
@@ -376,7 +386,7 @@ class DashboardViewModelTest {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            coEvery { connect(persistedDevice) } just Runs
+            coEvery { connectIfDisconnected(persistedDevice) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -405,7 +415,7 @@ class DashboardViewModelTest {
         // Advance past the first 3-second delay; cold-launch fallback should kick in
         advanceTimeBy(3_001)
 
-        coVerify { obdRepo.connect(persistedDevice) }
+        coVerify { obdRepo.connectIfDisconnected(persistedDevice) }
     }
 
     @Test
@@ -414,6 +424,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -446,6 +457,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -483,6 +495,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns listOf(dtc)
@@ -509,6 +522,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -535,6 +549,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -563,6 +578,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()  // no DTCs
@@ -599,6 +615,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns listOf(dtc)  // has DTCs
@@ -630,6 +647,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -665,6 +683,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -713,6 +732,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(supportedSet)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -747,6 +767,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -782,6 +803,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(supportedSet)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -811,6 +833,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
         }
         val prefs = mockk<AppPreferences> {
@@ -849,6 +872,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
         }
 
@@ -870,6 +894,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(emptySet())
         }
 
@@ -888,6 +913,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
@@ -907,6 +933,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
@@ -927,6 +954,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
@@ -948,10 +976,11 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { connect(savedDevice) } throws Exception("BT unavailable")
-            // reconnect() must not be called — auto-connect uses connect(), not reconnect()
+            coEvery { connectIfDisconnected(savedDevice) } throws Exception("BT unavailable")
+            // reconnect() must not be called — auto-connect uses connectIfDisconnected(), not reconnect()
             coEvery { reconnect() } throws Exception("should not be called")
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -986,7 +1015,7 @@ class DashboardViewModelTest {
         advanceTimeBy(1)
 
         assertTrue("isReconnecting should be true after failed auto-connect", vm.uiState.value.isReconnecting)
-        coVerify { obdRepo.connect(savedDevice) }
+        coVerify { obdRepo.connectIfDisconnected(savedDevice) }
     }
 
     // ── makeVm() helper — used by foreground-service tests ────────────────────
@@ -995,6 +1024,7 @@ class DashboardViewModelTest {
     private fun makeVm(
         obdRepo: ObdRepository = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
             coEvery { readVin() } returns null
@@ -1025,9 +1055,10 @@ class DashboardViewModelTest {
         val ctx = mockk<Context>(relaxed = true)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { connect(savedDevice) } just Runs
+            coEvery { connectIfDisconnected(savedDevice) } just Runs
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
@@ -1069,6 +1100,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -1100,6 +1132,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice> { every { name } returns "TestAdapter" })
             coEvery { readVin() } returns null
@@ -1134,6 +1167,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
@@ -1159,6 +1193,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
             coEvery { readVin() } returns null
@@ -1183,6 +1218,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
@@ -1210,6 +1246,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
             coEvery { readVin() } returns null
@@ -1246,6 +1283,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
             every { setMoving(any()) } just Runs
             coEvery { readVin() } returns null
@@ -1280,6 +1318,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
             every { setMoving(any()) } just Runs
             coEvery { readVin() } returns null
@@ -1314,6 +1353,7 @@ class DashboardViewModelTest {
         val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 42f, timestamp = 1000L)
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1343,6 +1383,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1382,6 +1423,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1419,6 +1461,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1473,6 +1516,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1529,6 +1573,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1569,6 +1614,7 @@ class DashboardViewModelTest {
         val secondReadings = listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L))
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1641,6 +1687,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1686,6 +1733,40 @@ class DashboardViewModelTest {
         assertNull(vm.uiState.value.speedKmh)
     }
 
+    // ── B3: the user's disconnect ends a running reconnect round without an error ──
+
+    @Test
+    fun `an aborted reconnect round leaves a clean disconnected state - no spinner, no error`() = runTest {
+        val onEvent = io.mockk.slot<(ConnectionEvent) -> Unit>()
+        val coordinator = mockk<ConnectionCoordinator>(relaxed = true) {
+            every { start(any(), capture(onEvent)) } just Runs
+        }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            every { userDisconnectCount } returns MutableStateFlow(0)
+            every { supportedPidIds } returns MutableStateFlow(null)
+            every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
+        }
+        val prefs = makePrefs()
+        val vm = DashboardViewModel(
+            obdRepo,
+            prefs,
+            coordinator,
+            ReadingsPipeline(obdRepo, mockk(relaxed = true), prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
+            SavedStateHandle(),
+        )
+        advanceUntilIdle()
+        onEvent.captured(ConnectionEvent.Failed(de.adv990de.obd2.ui.UiText.StringResource(de.adv990de.obd2.R.string.err_reconnect_fail)))
+        onEvent.captured(ConnectionEvent.Attempting(attempt = 2, total = RECONNECT_ATTEMPT_COUNT))
+        assertTrue(vm.uiState.value.isReconnecting)
+
+        onEvent.captured(ConnectionEvent.Aborted)
+
+        assertEquals(DashboardUiState(), vm.uiState.value)
+        assertFalse(vm.uiState.value.isReconnecting)
+        assertNull("der Nutzer wollte getrennt sein - kein Fehler", vm.uiState.value.error)
+    }
+
     @Test
     fun `speedKmh and gear become null when a cycle omits the SPEED reading`() = runTest {
         // Finding 2 (final review): applyReadings() used to fall back to the previous speedKmh
@@ -1706,6 +1787,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1846,6 +1928,7 @@ class DashboardViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1897,6 +1980,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1930,6 +2014,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -1966,6 +2051,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -2003,6 +2089,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -2039,6 +2126,7 @@ class DashboardViewModelTest {
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -2077,6 +2165,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -2243,6 +2332,7 @@ class DashboardViewModelTest {
         )
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
+            every { userDisconnectCount } returns MutableStateFlow(0)
             every { supportedPidIds } returns MutableStateFlow(null)
             coEvery { readVin() } returns null
             coEvery { readDtcs() } returns emptyList()
@@ -2323,6 +2413,7 @@ class DashboardViewModelTest {
         isConnectedFlow: MutableStateFlow<Boolean> = MutableStateFlow(true),
     ): ObdRepository = mockk {
         every { this@mockk.isConnectedFlow } returns isConnectedFlow
+        every { userDisconnectCount } returns MutableStateFlow(0)
         every { supportedPidIds } returns MutableStateFlow(null)
         coEvery { readVin() } returns null
         coEvery { readDtcs() } returns emptyList()

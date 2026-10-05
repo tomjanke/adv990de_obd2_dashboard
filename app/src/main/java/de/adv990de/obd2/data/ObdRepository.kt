@@ -13,6 +13,7 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -80,6 +82,26 @@ class ObdRepository @Inject constructor(
         connectLocked(device)
     }
 
+    /**
+     * Zaehlt die Trennungen, die der NUTZER ausgeloest hat ([disconnectByUser]) — im Gegensatz zu einem
+     * verlorenen Link, bei dem das Repository selbst intern [disconnect] ruft. Wer automatisch
+     * wiederverbindet oder einen Verbindungsverlust meldet, vergleicht den Zaehlerstand von vorher mit
+     * dem von jetzt: Hat er sich geaendert, wollte der Nutzer getrennt sein.
+     */
+    private val _userDisconnectCount = MutableStateFlow(0)
+    val userDisconnectCount: StateFlow<Int> = _userDisconnectCount.asStateFlow()
+
+    /**
+     * Trennt auf Wunsch des Nutzers ("Trennen" in der Benachrichtigung oder den Einstellungen, "Beenden").
+     * Der Zaehler steigt VOR dem Warten auf den Lock: Laeuft gerade ein Verbindungsversuch (er haelt den
+     * Lock, solange er dauert), ist der Wunsch trotzdem sofort sichtbar und die Wiederverbindungs-Schleife
+     * kann aufhoeren, statt nach dem Versuch die gerade getrennte Verbindung wieder aufzubauen.
+     */
+    suspend fun disconnectByUser() {
+        _userDisconnectCount.update { it + 1 }
+        disconnect()
+    }
+
     suspend fun disconnect() = connectMutex.withLock {
         _isConnected.value = false
         _isMoving.value = false
@@ -94,15 +116,32 @@ class ObdRepository @Inject constructor(
     }
 
     /**
-     * Reconnects to the last successfully connected device.
-     * Acquires [connectMutex] to protect the lastDevice read-then-connect sequence against
-     * a concurrent [connect] call that could close the newly established connection.
+     * Reconnects to the last successfully connected device — unless a connection is up by the time the
+     * lock is acquired, in which case it does nothing.
+     *
+     * The check HAS to happen inside [connectMutex]: a caller that tests [isConnectedFlow] first has no
+     * protection against a manual [connect] that finishes while this call is queued behind it, and
+     * [connectLocked] starts by closing whatever connection exists — it would tear down the fresh one.
+     * (Link loss and the watchdog both call [disconnect] before they report, so "connected" here always
+     * means a connection somebody established deliberately.)
      * Throws [IllegalStateException] if no device has ever connected in this session.
      */
     suspend fun reconnect() = connectMutex.withLock {
+        if (_isConnected.value) return@withLock
         val dev = _lastConnectedDevice.value
             ?: throw IllegalStateException("No previous device to reconnect to")
         connectLocked(dev)
+    }
+
+    /**
+     * Connects to [device] unless a connection is already up (decided inside the lock, see [reconnect]).
+     * For the AUTOMATIC paths (auto-connect at start, reconnect loop after a cold start): they must never
+     * replace what the user connected in the meantime. A deliberate [connect] from the settings screen
+     * stays unconditional — the user may well be switching adapters.
+     */
+    suspend fun connectIfDisconnected(device: ScannedDevice) = connectMutex.withLock {
+        if (_isConnected.value) return@withLock
+        connectLocked(device)
     }
 
     /** Must only be called while [connectMutex] is held. */
@@ -117,10 +156,17 @@ class ObdRepository @Inject constructor(
         try {
             val controller = conn.connect()
             controller.initialize()
-            // Best-effort: discovery errors must never abort the connection.
+            // Best-effort: a discovery that merely fails or finds nothing must not abort the connection.
+            // Two things are NOT "merely failing" and must not be swallowed: a cancelled caller (it would
+            // otherwise come back from connect() "connected" although it was cancelled) and a dead link
+            // (the connection would be declared up on a socket that is already gone). Both fall into the
+            // catch below, which closes the connection.
             _supportedPidIds.value = try {
                 discoverSupportedPids(controller)
-            } catch (_: Exception) { null }
+            } catch (e: Exception) {
+                if (e is CancellationException || e is ObdException.ConnectionLost) throw e
+                null
+            }
             connection = conn
             elm = controller
             _isConnected.value = true

@@ -314,19 +314,19 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `disconnect delegates to ObdRepository`() = runTest {
+    fun `disconnect is the USER disconnect - it tells the repository so a running reconnect stops`() = runTest {
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false)
             every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
-            coEvery { disconnect() } just Runs
+            coEvery { disconnectByUser() } just Runs
         }
         val vm = makeVm(obdRepo = obdRepo)
 
         vm.disconnect()
         advanceUntilIdle()
 
-        coVerify { obdRepo.disconnect() }
+        coVerify { obdRepo.disconnectByUser() }
     }
 
     @Test
@@ -385,7 +385,7 @@ class SettingsViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false)
             coEvery { connect(any()) } just Runs
-            coEvery { disconnect() } just Runs
+            coEvery { disconnectByUser() } just Runs
         }
         val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
         vm.disconnect()

@@ -77,6 +77,7 @@ class DtcScreenTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns connected
+        every { userDisconnectCount } returns MutableStateFlow(0)
         every { isMovingFlow } returns MutableStateFlow(false)
         coEvery { readDtcs() } returns emptyList()
     }

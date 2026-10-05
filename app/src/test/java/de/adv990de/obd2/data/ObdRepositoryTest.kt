@@ -20,12 +20,16 @@ import io.mockk.mockk
 import io.mockk.Runs
 import io.mockk.verify
 import io.mockk.verifyOrder
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.withTimeoutOrNull
@@ -147,7 +151,7 @@ class ObdRepositoryTest {
     }
 
     @Test
-    fun `reconnect closes first connection before opening second`() = runTest {
+    fun `reconnect after a lost link closes the dead connection before opening a new one`() = runTest {
         val device = mockk<ScannedDevice>()
         // Separate mocks so verifyOrder unambiguously checks conn1.close() before the
         // second factory.create() call — using a single mock would make the ordering
@@ -168,7 +172,8 @@ class ObdRepositoryTest {
 
         val repo = makeRepo(factory)
         repo.connect(device)   // sets lastConnectedDevice, uses conn1
-        repo.reconnect()       // must close conn1, then call factory.create() → conn2
+        repo.disconnect()      // the link is gone (what link loss and the watchdog do before they report)
+        repo.reconnect()       // opens a fresh connection → conn2 (while connected it is a no-op, see below)
 
         coVerify(exactly = 2) { factory.create(device) }
         verifyOrder { conn1.close(); factory.create(device) }
@@ -181,6 +186,208 @@ class ObdRepositoryTest {
         var threw = false
         try { repo.reconnect() } catch (_: IllegalStateException) { threw = true }
         assertTrue(threw)
+    }
+
+    // ── B5: discovery must not swallow a cancelled caller or a dead link ──────
+
+    /** A connection whose three discovery commands behave as given by [onDiscovery]. */
+    private class Rig(onDiscovery: suspend (String) -> String) {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elm = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory>()
+
+        init {
+            coEvery { factory.create(device) } returns conn
+            coEvery { conn.connect() } returns elm
+            coEvery { elm.initialize() } just Runs
+            coEvery { elm.sendCommand(any()) } coAnswers { onDiscovery(firstArg()) }
+        }
+    }
+
+    @Test
+    fun `connect fails and closes the connection when the link is lost during discovery`() = runTest {
+        val rig = Rig { throw ObdException.ConnectionLost() }
+        val repo = makeRepo(rig.factory)
+
+        val failure = runCatching { repo.connect(rig.device) }.exceptionOrNull()
+
+        assertTrue("ConnectionLost muss durchschlagen: $failure", failure is ObdException.ConnectionLost)
+        assertFalse("Ein toter Link darf nicht als verbunden gelten", repo.isConnectedFlow.value)
+        verify { rig.conn.close() }
+        assertNull(repo.lastConnectedDevice.value)
+    }
+
+    @Test
+    fun `a caller cancelled during discovery leaves no connection behind`() = runTest {
+        val rig = Rig { awaitCancellation() }
+        val repo = makeRepo(rig.factory)
+
+        val job = launch { repo.connect(rig.device) }
+        runCurrent()                // connect() is now suspended inside discovery
+        job.cancel()
+        job.join()
+
+        assertTrue(job.isCancelled)
+        assertFalse("Abgebrochen heisst nicht verbunden", repo.isConnectedFlow.value)
+        verify { rig.conn.close() }
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    @Test
+    fun `discovery still tolerates silent ranges and unknown answers`() = runTest {
+        val rig = Rig { throw ObdException.NoData(it) }
+        val repo = makeRepo(rig.factory)
+
+        repo.connect(rig.device)
+
+        assertTrue(repo.isConnectedFlow.value)
+        assertNull(repo.supportedPidIds.value)
+    }
+
+    // ── B2: the "already connected?" decision is made inside the lock ─────────
+
+    private fun twoConnections(): Triple<ConnectionFactory, ObdConnection, ObdConnection> {
+        val conn1 = mockk<ObdConnection> { every { isConnected } returns true; every { close() } just Runs }
+        val conn2 = mockk<ObdConnection> { every { isConnected } returns true; every { close() } just Runs }
+        val factory = mockk<ConnectionFactory>()
+        return Triple(factory, conn1, conn2)
+    }
+
+    private fun stubElm(conn: ObdConnection): ElmController = mockk<ElmController>().also { elm ->
+        coEvery { conn.connect() } returns elm
+        coEvery { elm.initialize() } just Runs
+        coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
+    }
+
+    @Test
+    fun `reconnect is a no-op while a connection is up - it must not tear it down`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, conn2) = twoConnections()
+        coEvery { factory.create(device) } returnsMany listOf(conn1, conn2)
+        stubElm(conn1); stubElm(conn2)
+        val repo = makeRepo(factory)
+        repo.connect(device)
+
+        repo.reconnect()
+
+        coVerify(exactly = 1) { factory.create(device) }
+        verify(exactly = 0) { conn1.close() }
+        assertTrue(repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `a reconnect queued behind a running manual connect does not close the fresh connection`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, _) = twoConnections()
+        coEvery { factory.create(device) } returns conn1
+        val release = CompletableDeferred<Unit>()
+        val elm = mockk<ElmController>()
+        coEvery { conn1.connect() } coAnswers { release.await(); elm }   // the manual connect is "in progress"
+        coEvery { elm.initialize() } just Runs
+        coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
+        val repo = makeRepo(factory)
+
+        val manual = launch { repo.connect(device) }                    // user taps "Verbinden"
+        runCurrent()
+        val auto = launch { repo.reconnect() }                          // the loop's attempt queues on the mutex
+        runCurrent()
+        release.complete(Unit)                                          // manual connect finishes
+        manual.join(); auto.join()
+
+        assertTrue(repo.isConnectedFlow.value)
+        coVerify(exactly = 1) { factory.create(device) }                // the manual connect only, NOT a second one
+        verify(exactly = 0) { conn1.close() }
+    }
+
+    @Test
+    fun `connectIfDisconnected connects when nothing is connected`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, _) = twoConnections()
+        coEvery { factory.create(device) } returns conn1
+        stubElm(conn1)
+        val repo = makeRepo(factory)
+
+        repo.connectIfDisconnected(device)
+
+        assertTrue(repo.isConnectedFlow.value)
+        assertEquals(device, repo.lastConnectedDevice.value)
+    }
+
+    @Test
+    fun `connectIfDisconnected leaves an existing connection alone`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, conn2) = twoConnections()
+        coEvery { factory.create(device) } returnsMany listOf(conn1, conn2)
+        stubElm(conn1); stubElm(conn2)
+        val repo = makeRepo(factory)
+        repo.connect(device)
+
+        repo.connectIfDisconnected(device)
+
+        coVerify(exactly = 1) { factory.create(device) }
+        verify(exactly = 0) { conn1.close() }
+    }
+
+    // ── B3: a user disconnect is told apart from a lost link ──────────────────
+
+    @Test
+    fun `disconnectByUser disconnects and counts`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, _) = twoConnections()
+        coEvery { factory.create(device) } returns conn1
+        stubElm(conn1)
+        val repo = makeRepo(factory)
+        repo.connect(device)
+        assertEquals(0, repo.userDisconnectCount.value)
+
+        repo.disconnectByUser()
+
+        assertFalse(repo.isConnectedFlow.value)
+        assertEquals(1, repo.userDisconnectCount.value)
+        verify { conn1.close() }
+    }
+
+    @Test
+    fun `a plain disconnect - the internal link-loss path - does not count as a user disconnect`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, _) = twoConnections()
+        coEvery { factory.create(device) } returns conn1
+        stubElm(conn1)
+        val repo = makeRepo(factory)
+        repo.connect(device)
+
+        repo.disconnect()
+
+        assertEquals(0, repo.userDisconnectCount.value)
+    }
+
+    @Test
+    fun `the count is raised before the disconnect waits for the lock`() = runTest {
+        // A reconnect attempt holds the lock (connect in progress). The user's disconnect must be VISIBLE at once,
+        // not only after the attempt is over — that is what lets the loop notice it.
+        val device = mockk<ScannedDevice>()
+        val (factory, conn1, _) = twoConnections()
+        coEvery { factory.create(device) } returns conn1
+        val release = CompletableDeferred<Unit>()
+        val elm = mockk<ElmController>()
+        coEvery { conn1.connect() } coAnswers { release.await(); elm }
+        coEvery { elm.initialize() } just Runs
+        coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
+        val repo = makeRepo(factory)
+        val connecting = launch { repo.connect(device) }
+        runCurrent()                                  // holds the mutex, suspended in conn.connect()
+
+        val user = launch { repo.disconnectByUser() }
+        runCurrent()
+
+        assertEquals("sofort sichtbar, obwohl der Lock noch belegt ist", 1, repo.userDisconnectCount.value)
+        release.complete(Unit)
+        connecting.join(); user.join()
+        assertFalse("danach ist die Verbindung wieder getrennt", repo.isConnectedFlow.value)
     }
 
     // ── DTC read ─────────────────────────────────────────────────────────────

@@ -67,6 +67,7 @@ class RpmThresholdSectionTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns MutableStateFlow(false)
+        every { userDisconnectCount } returns MutableStateFlow(0)
     }
 
     /** Matches the Slider's semantics node without relying on a production-only test tag. */

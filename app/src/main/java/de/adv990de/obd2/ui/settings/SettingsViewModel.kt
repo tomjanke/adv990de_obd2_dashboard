@@ -138,7 +138,7 @@ class SettingsViewModel @Inject constructor(
 
     fun disconnect() {
         viewModelScope.launch {
-            obdRepository.disconnect()
+            obdRepository.disconnectByUser()
             appContext.stopService(ObdForegroundService.stopIntent(appContext))
         }
     }

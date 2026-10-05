@@ -51,6 +51,7 @@ class FreezeFrameScreenTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns connected
+        every { userDisconnectCount } returns MutableStateFlow(0)
         coEvery { readFreezeFrame() } returns mapOf(PidRegistry.RPM.id to "1726.0 rpm")
     }
 

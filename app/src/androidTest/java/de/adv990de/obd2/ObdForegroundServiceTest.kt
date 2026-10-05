@@ -60,7 +60,7 @@ class ObdForegroundServiceTest {
     @BindValue
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
-        coJustRun { disconnect() }
+        coJustRun { disconnectByUser() }
     }
 
     private val ctx: Context get() = ApplicationProvider.getApplicationContext()
@@ -91,12 +91,12 @@ class ObdForegroundServiceTest {
     // --- Test 1 ---
 
     @Test
-    fun actionStop_disconnectsTheRepository() {
+    fun actionStop_disconnectsTheRepository_asAUserDisconnect() {
         ctx.startService(ObdForegroundService.stopIntent(ctx))
 
         // Die Trennung laeuft in einer Coroutine auf Dispatchers.Main — coVerify wartet darauf,
         // statt den Test mit einem festen Thread.sleep zu bezahlen.
-        coVerify(timeout = 5_000) { obdRepository.disconnect() }
+        coVerify(timeout = 5_000) { obdRepository.disconnectByUser() }
     }
 
     // --- Test 2 ---
@@ -108,7 +108,7 @@ class ObdForegroundServiceTest {
         // Der else-Zweig ruft nur stopSelf(). Kurz warten, damit ein faelschlicher
         // disconnect()-Aufruf ueberhaupt auflaufen koennte.
         Thread.sleep(500)
-        coVerify(exactly = 0) { obdRepository.disconnect() }
+        coVerify(exactly = 0) { obdRepository.disconnectByUser() }
     }
 
     // --- Test 3 ---

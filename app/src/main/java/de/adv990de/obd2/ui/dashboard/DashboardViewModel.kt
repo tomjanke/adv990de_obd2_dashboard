@@ -360,6 +360,10 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0)
             is ConnectionEvent.Failed ->
                 _uiState.value = DashboardUiState.disconnected(event.error)
+            // Der Nutzer hat getrennt, waehrend wiederverbunden wurde: sauber getrennt, ohne Spinner und
+            // ohne den Fehler eines frueheren Versuchs. (Der Messwert-Strom meldet Idle, sobald die
+            // Verbindung weg ist; applyIdle() haette Spinner und Fehler sonst stehen lassen.)
+            ConnectionEvent.Aborted -> _uiState.value = DashboardUiState()
         }
     }
 

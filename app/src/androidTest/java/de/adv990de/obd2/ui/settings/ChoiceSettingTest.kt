@@ -71,6 +71,7 @@ class ChoiceSettingTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns MutableStateFlow(false)
+        every { userDisconnectCount } returns MutableStateFlow(0)
         every { isMovingFlow } returns MutableStateFlow(false)
     }
 

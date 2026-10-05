@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /** Anzahl der Wiederverbindungs-Versuche — fest, nur die Basis-Verzoegerung ist konfigurierbar
@@ -52,6 +53,13 @@ sealed interface ConnectionEvent {
 
     /** Endgueltig gescheitert — kein Geraet, Bluetooth aus, oder alle Versuche verbraucht. */
     data class Failed(val error: UiText) : ConnectionEvent
+
+    /**
+     * Der Nutzer hat getrennt, waehrend eine Wiederverbindung lief ("Trennen" in der Benachrichtigung,
+     * in den Einstellungen, "Beenden"). Die Schleife hoert auf — ohne Fehler: Der Nutzer wollte
+     * getrennt sein, das ist kein Ausfall.
+     */
+    data object Aborted : ConnectionEvent
 }
 
 /**
@@ -83,7 +91,12 @@ class ConnectionCoordinator @Inject constructor(
     // selben Scope ueberhaupt zu sammeln begonnen hat — dann ginge die Aufforderung zur
     // Wiederverbindung verloren und die App bliebe stumm getrennt. Ein Sammler pro Instanz, also
     // gibt es auch keine verspaetete Doppelzustellung.
-    private val trigger = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
+    //
+    // Der Wert ist der Stand von [ObdRepository.userDisconnectCount] ZUM ZEITPUNKT der Aufforderung:
+    // Trennt der Nutzer danach (auch noch bevor die Schleife die Aufforderung abgeholt hat), unterscheidet
+    // sich der Stand — und die Runde wird verworfen. Eine Trennung VOR der Aufforderung unterdrueckt sie
+    // dagegen nicht: ein spaeterer Verbindungsverlust soll wieder verbinden.
+    private val trigger = MutableSharedFlow<Int>(replay = 1, extraBufferCapacity = 1)
 
     /**
      * Startet Auto-Connect und Wiederverbindungs-Schleife im uebergebenen Scope.
@@ -99,7 +112,16 @@ class ConnectionCoordinator @Inject constructor(
 
     /** Stoesst die Wiederverbindung an. Laeuft die Schleife bereits, verpufft der Aufruf. */
     fun requestReconnect() {
-        trigger.tryEmit(Unit)
+        trigger.tryEmit(obdRepository.userDisconnectCount.value)
+    }
+
+    /** Hat der Nutzer seit [requestedAt] getrennt? */
+    private fun userDisconnectedSince(requestedAt: Int): Boolean =
+        obdRepository.userDisconnectCount.value != requestedAt
+
+    private suspend fun abort(onEvent: (ConnectionEvent) -> Unit) {
+        appLogRepository.log(LogLevel.INFO, "Reconnect cancelled: the user disconnected")
+        onEvent(ConnectionEvent.Aborted)
     }
 
     // GPS-Speed im Hintergrund braucht ACCESS_BACKGROUND_LOCATION *und* dass der Service den Typ
@@ -123,7 +145,10 @@ class ConnectionCoordinator @Inject constructor(
         onEvent(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT))
         appLogRepository.log(LogLevel.INFO, "Connecting to ${savedDevice.name}…")
         try {
-            obdRepository.connect(savedDevice)
+            // Nicht connect(): Der Nutzer koennte in den ersten Sekunden selbst verbunden haben, und der
+            // Auto-Connect darf diese Verbindung nicht ersetzen (die Entscheidung faellt im Repository
+            // unter dem Lock, s. ObdRepository.connectIfDisconnected).
+            obdRepository.connectIfDisconnected(savedDevice)
             appLogRepository.log(LogLevel.INFO, "Connected to ${savedDevice.name}")
             startObdForegroundService()
             onEvent(ConnectionEvent.Connected)
@@ -136,12 +161,19 @@ class ConnectionCoordinator @Inject constructor(
     }
 
     // ── Wiederverbindung ─────────────────────────────────────────────────────
-    // Bekannter Rest-TOCTOU: Zwischen der zweiten Pruefung nach dem delay() und dem Mutex im
-    // Repository liegen Nanosekunden. Eine manuelle Verbindung aus den Einstellungen, die genau
-    // in diesem Augenblick fertig wird, wuerde von der automatischen ueberschrieben. Das zu
-    // schliessen braeuchte einen gemeinsamen Mutex ueber Pruefung und Verbindungsaufbau.
+    // Die Pruefung "schon verbunden?" nach dem delay() ist nur ein billiger Vorab-Test. Massgeblich ist
+    // die im Repository unter dem Lock (ObdRepository.reconnect()/connectIfDisconnected()): Eine manuelle
+    // Verbindung, die waehrend eines laufenden Versuchs fertig wird, wird dort nicht mehr ersetzt.
+    //
+    // Der Nutzer-Wunsch "getrennt" beendet die Schleife (ObdRepository.userDisconnectCount): in der
+    // Wartezeit sofort, vor jedem Versuch, und nach einem Versuch, der waehrenddessen fertig wurde — dann
+    // weder Dienst-Start noch "Connected".
     private suspend fun runReconnectLoop(onEvent: (ConnectionEvent) -> Unit) {
-        trigger.collect {
+        trigger.collect { requestedAt ->
+            if (userDisconnectedSince(requestedAt)) {
+                abort(onEvent)
+                return@collect
+            }
             // Beim Kaltstart ist das Geraet im Speicher null — dann aus dem DataStore. Einmal vor
             // der Schleife gelesen: Die Adresse aendert sich zwischen Versuchen nicht.
             val inMemoryDevice = obdRepository.lastConnectedDevice.value
@@ -159,9 +191,20 @@ class ConnectionCoordinator @Inject constructor(
             for ((attempt, delayMs) in reconnectDelays(baseDelaySeconds).withIndex()) {
                 // Der Nutzer koennte inzwischen manuell verbunden haben.
                 if (obdRepository.isConnectedFlow.value) return@collect
+                if (userDisconnectedSince(requestedAt)) {
+                    abort(onEvent)
+                    return@collect
+                }
                 onEvent(ConnectionEvent.Attempting(attempt + 1, RECONNECT_ATTEMPT_COUNT))
                 appLogRepository.log(LogLevel.INFO, "Reconnect attempt ${attempt + 1}/$RECONNECT_ATTEMPT_COUNT")
-                delay(delayMs)
+                // Die Wartezeit endet vorzeitig, sobald der Nutzer trennt (StateFlow: kein Zustellungsloch).
+                val interrupted = withTimeoutOrNull(delayMs) {
+                    obdRepository.userDisconnectCount.first { it != requestedAt }
+                } != null
+                if (interrupted) {
+                    abort(onEvent)
+                    return@collect
+                }
                 if (!bluetoothAdapter.isEnabled) {
                     appLogRepository.log(LogLevel.WARN, "Bluetooth disabled")
                     fail(onEvent, R.string.obd_err_bluetooth_disabled)
@@ -173,7 +216,13 @@ class ConnectionCoordinator @Inject constructor(
                     if (inMemoryDevice != null) {
                         obdRepository.reconnect()
                     } else {
-                        obdRepository.connect(coldLaunchDevice!!)  // oben auf non-null geprueft
+                        obdRepository.connectIfDisconnected(coldLaunchDevice!!)  // oben auf non-null geprueft
+                    }
+                    if (userDisconnectedSince(requestedAt)) {
+                        // Der Versuch ist waehrend des "Trennen" fertig geworden; dessen Trennung folgt
+                        // gleich (sie wartet auf denselben Lock). Weder Dienst starten noch Connected melden.
+                        abort(onEvent)
+                        return@collect
                     }
                     val name = inMemoryDevice?.name ?: coldLaunchDevice?.name ?: "device"
                     appLogRepository.log(LogLevel.INFO, "Connected to $name")

@@ -19,18 +19,18 @@ import org.junit.Test
 class ExitAppViewModelTest {
 
     private fun makeVm(
-        obdRepo: ObdRepository = mockk { coEvery { disconnect() } just Runs },
+        obdRepo: ObdRepository = mockk { coEvery { disconnectByUser() } just Runs },
         appContext: Context = mockk(relaxed = true),
     ) = ExitAppViewModel(obdRepo, appContext)
 
     @Test
-    fun `exitApp disconnects the ObdRepository`() = runTest {
-        val obdRepo = mockk<ObdRepository> { coEvery { disconnect() } just Runs }
+    fun `exitApp disconnects as a USER disconnect, so no reconnect fights the shutdown`() = runTest {
+        val obdRepo = mockk<ObdRepository> { coEvery { disconnectByUser() } just Runs }
         val vm = makeVm(obdRepo = obdRepo)
 
         vm.exitApp()
 
-        coVerify { obdRepo.disconnect() }
+        coVerify { obdRepo.disconnectByUser() }
     }
 
     @Test

@@ -1,5 +1,54 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.2 (versionCode 84)
+
+Stabilität der Verbindung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B2, B3, B5).
+
+### „Trennen“ bleibt getrennt
+
+Bisher kannte die App keinen Unterschied zwischen „Verbindung verloren“ und „Nutzer hat getrennt“. Wer während einer
+laufenden Wiederverbindung (bis zu 48 s Wartezeit pro Versuch) in der Benachrichtigung auf **Trennen** tippte, bekam die
+Verbindung beim nächsten Versuch zurück — samt neu gestartetem Dienst und Benachrichtigung. Jetzt zählt das Repository
+Nutzer-Trennungen (`userDisconnectCount`; „Trennen“ in der Benachrichtigung, in den Einstellungen und „Beenden“ rufen
+`disconnectByUser()`), und die Wiederverbindung bricht ab:
+
+- **sofort**, wenn sie gerade wartet (die Wartezeit endet vorzeitig),
+- vor jedem Versuch,
+- und nach einem Versuch, der währenddessen fertig wurde — dann wird weder der Dienst gestartet noch „verbunden“ gemeldet.
+
+Das Dashboard geht dabei sauber auf „getrennt“, ohne Spinner und ohne den Fehler eines früheren Versuchs. Auch ein Lesefehler, der
+nur **durch** das Trennen entsteht (der Socket wird geschlossen, ein laufendes Lesen scheitert), löst keinen Reconnect mehr aus —
+weder beim Messen noch beim Auslesen der Fehlercodes. Eine Trennung **vor** einer späteren Aufforderung unterdrückt diese nicht:
+reißt die Verbindung später wirklich ab, wird weiterhin wiederverbunden.
+
+### Ein Reconnect reißt keine frische Verbindung mehr ab
+
+Die Wiederverbindung prüfte „schon verbunden?“ außerhalb der Sperre des Repositories. Wurde in diesem Fenster (so lang wie ein
+laufendes manuelles Verbinden) eine Verbindung hergestellt, schloss der wartende automatische Versuch sie sofort wieder und
+baute neu auf. Die Prüfung läuft jetzt innerhalb der Sperre: `reconnect()` tut nichts, wenn schon verbunden ist, und der
+Auto-Connect beim Start sowie die Schleife nach einem Kaltstart nutzen das neue `connectIfDisconnected()`. Das manuelle
+„Verbinden“ bleibt bewusst unbedingt — der Nutzer darf den Adapter wechseln.
+
+### Ein abgebrochener oder toter Verbindungsaufbau gilt nicht mehr als „verbunden“
+
+Die Suche nach den vom Steuergerät unterstützten Messwerten verschluckte **jede** Ausnahme. Wurde der Aufrufer dabei abgebrochen
+(z. B. Antippen von „Trennen“ oder Verlassen der App während des Verbindens), kam `connect()` trotzdem „verbunden“ zurück. Riss
+der Link währenddessen ab, galt eine bereits tote Verbindung als aufgebaut. Abbruch und `ConnectionLost` werden jetzt
+weitergereicht; die Verbindung wird dabei geschlossen. Alles andere (stille Bereiche, unbekannte Antworten) bleibt tolerant.
+
+### Tests
+
++19 JVM-Tests; die Instrumentation-Tests bleiben bei 263 (`ObdForegroundServiceTest` und die Stubs der übrigen wurden auf die neue Repository-API angepasst). Achtzehn bewusst eingebaute Fehler (Wächter entfernt) wurden jeweils von einem
+Test erkannt; einer überlebte zunächst (die Rundenanfangs-Prüfung, redundant zur Schleifenprüfung außer im „kein Gerät“-Fall) und
+bekam daraufhin einen eigenen Test. Zwei bestehende Tests, die das alte Verhalten festschrieben, wurden angepasst: „reconnect
+schließt die erste Verbindung“ (jetzt: nach einem verlorenen Link) und die Auto-Connect-Tests (jetzt `connectIfDisconnected`).
+
+### Bekannte Grenzen
+
+- Ein Nutzer-Trennen, das **genau zwischen** der Prüfung nach einem erfolgreichen Versuch und dem Dienst-Start eintrifft, kann den Dienst
+  kurz neu starten (Mikrosekunden-Fenster); die darauf folgende Trennung beendet ihn wieder.
+- Ein Verbindungsaufbau hat weiterhin kein Zeitlimit (B6 im Backlog): „Trennen“ wartet, bis ein laufender Versuch endet.
+
 ## Version 1.24.1 (versionCode 83)
 
 Ehrlichere Fehleranzeige und Schutz vor einer Absturzschleife (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B15, B18, B19, B25).

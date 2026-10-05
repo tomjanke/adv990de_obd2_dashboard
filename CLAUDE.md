@@ -454,6 +454,24 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   (`appPreferencesCorruptionHandler()`: leere Einstellungen = Standardwerte), und `AppPreferences` liest über einen Flow, der
   `IOException` abfängt. Alle Lesezugriffe gehen über `AppPreferences.data`, nie direkt über `dataStore.data`.
 
+### Verbindungs-Entscheidungen gehören unter den Lock (seit v1.24.2)
+
+- **„Schon verbunden?“ wird im Repository unter `connectMutex` entschieden, nie vorher.** `ObdRepository.reconnect()` und
+  `connectIfDisconnected(device)` tun nichts, wenn bei Erhalt des Locks eine Verbindung steht; sonst schlösse `connectLocked()` (es
+  schließt als Erstes jede bestehende Verbindung) eine frisch hergestellte manuelle Verbindung wieder. Die Pfade des
+  `ConnectionCoordinator` (Auto-Connect, Reconnect-Schleife) nutzen nur diese beiden; das manuelle `connect()` aus den Einstellungen
+  bleibt unbedingt. Ein Test, der „reconnect baut eine neue Verbindung“ prüft, muss vorher `disconnect()` rufen (so wie es
+  Link-Verlust und Watchdog tun, bevor sie melden).
+- **Nutzer-Trennen ≠ Verbindungsverlust.** `disconnectByUser()` (Benachrichtigung „Trennen“, Einstellungen, „Beenden“) erhöht
+  `userDisconnectCount` VOR dem Warten auf den Lock und trennt dann; das interne `disconnect()` (Link-Verlust, Watchdog, Lesefehler)
+  zählt nicht. Wer wiederverbindet oder einen Verlust meldet, merkt sich den Zählerstand und vergleicht: Der Reconnect-Trigger trägt den
+  Stand zum Zeitpunkt der Aufforderung, `ReadingsPipeline.runSession` den vom Sitzungsbeginn. Ein geänderter Stand heißt „gewollt
+  getrennt“ → kein Reconnect, `ConnectionEvent.Aborted` (Dashboard: sauber getrennt, kein Fehler). Neue Stellen, die den Adapter auf
+  Wunsch des Nutzers trennen, müssen `disconnectByUser()` rufen — sonst kommt die Verbindung von selbst zurück.
+- **Best-effort heißt nicht „alles schlucken“.** `catch (e: Exception)` um Nebensächliches (PID-Discovery beim Verbinden) muss
+  `CancellationException` und `ObdException.ConnectionLost` weiterreichen: das erste macht aus einem abgebrochenen Aufrufer einen
+  „verbundenen“, das zweite aus einem toten Link.
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
@@ -571,7 +589,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1015 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1034 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 263 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

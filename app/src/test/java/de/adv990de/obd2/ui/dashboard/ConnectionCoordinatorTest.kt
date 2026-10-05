@@ -16,6 +16,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,7 +24,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -63,9 +67,11 @@ class ConnectionCoordinatorTest {
     private fun makeRepo(
         connected: Boolean = false,
         lastConnected: ScannedDevice? = null,
+        userDisconnects: MutableStateFlow<Int> = MutableStateFlow(0),
     ): ObdRepository = mockk {
         every { isConnectedFlow } returns MutableStateFlow(connected)
         every { lastConnectedDevice } returns MutableStateFlow(lastConnected)
+        every { userDisconnectCount } returns userDisconnects
     }
 
     // `useGpsSpeed` has no per-test variant here on purpose: shouldIncludeLocationServiceType()
@@ -99,7 +105,7 @@ class ConnectionCoordinatorTest {
     @Test
     fun `auto-connect uses the saved device and starts the service`() = runTest {
         val repo = makeRepo()
-        coEvery { repo.connect(device) } just Runs
+        coEvery { repo.connectIfDisconnected(device) } just Runs
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
@@ -107,7 +113,7 @@ class ConnectionCoordinatorTest {
             .start(coordinatorScope, events::add)
         advanceUntilIdle()
 
-        coVerify { repo.connect(device) }
+        coVerify { repo.connectIfDisconnected(device) }
         verify { context.startForegroundService(any()) }
         assertEquals(
             listOf(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Connected),
@@ -126,7 +132,7 @@ class ConnectionCoordinatorTest {
         advanceUntilIdle()
 
         assertTrue("Ohne Geraet darf kein Ereignis entstehen: $events", events.isEmpty())
-        coVerify(exactly = 0) { repo.connect(any()) }
+        coVerify(exactly = 0) { repo.connectIfDisconnected(any()) }
     }
 
     // --- Test 3 ---
@@ -134,7 +140,7 @@ class ConnectionCoordinatorTest {
     @Test
     fun `a failed auto-connect hands over to the reconnect loop`() = runTest {
         val repo = makeRepo()
-        coEvery { repo.connect(device) } throws IllegalStateException("adapter busy")
+        coEvery { repo.connectIfDisconnected(device) } throws IllegalStateException("adapter busy")
         coEvery { repo.reconnect() } just Runs
         val events = mutableListOf<ConnectionEvent>()
 
@@ -235,6 +241,100 @@ class ConnectionCoordinatorTest {
         coVerify(exactly = RECONNECT_ATTEMPT_COUNT) {
             logRepo.log(LogLevel.WARN, match { it.contains("socket closed") })
         }
+    }
+
+    // --- B3: a user disconnect stops a running reconnect loop ---
+
+    @Test
+    fun `a user disconnect during the wait aborts the loop at once`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(lastConnected = device, userDisconnects = userDisconnects)
+        coEvery { repo.reconnect() } just Runs
+        val context = mockk<Context>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        coordinator.start(coordinatorScope, events::add)
+        coordinator.requestReconnect()
+        runCurrent()                                  // attempt 1 is announced; the loop sits in its 3 s wait
+        assertTrue("Die Schleife wartet nicht: $events", events.any { it is ConnectionEvent.Attempting })
+
+        userDisconnects.value = 1                     // "Trennen" in the notification
+        runCurrent()
+
+        assertEquals(ConnectionEvent.Aborted, events.last())
+        assertTrue("sofort, nicht erst nach der Wartezeit: ${currentTime} ms", currentTime < 3_000)
+        coVerify(exactly = 0) { repo.reconnect() }
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `a user disconnect between the request and the start of the round aborts it`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(lastConnected = device, userDisconnects = userDisconnects)
+        coEvery { repo.reconnect() } just Runs
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null))
+        coordinator.start(coordinatorScope, events::add)
+
+        coordinator.requestReconnect()                // the request carries the count of THIS moment ...
+        userDisconnects.value = 1                     // ... the user disconnects before the loop got to run
+        advanceUntilIdle()
+
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Aborted), events)
+        coVerify(exactly = 0) { repo.reconnect() }
+    }
+
+    @Test
+    fun `a user disconnect wins over the no-device failure - the user asked to be disconnected`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(lastConnected = null, userDisconnects = userDisconnects)
+        val context = mockk<Context>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        coordinator.start(coordinatorScope, events::add)
+
+        coordinator.requestReconnect()
+        userDisconnects.value = 1
+        advanceUntilIdle()
+
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Aborted), events)
+    }
+
+    @Test
+    fun `a user disconnect while an attempt is running prevents Connected and the service start`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(lastConnected = device, userDisconnects = userDisconnects)
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repo.reconnect() } coAnswers { gate.await() }
+        val context = mockk<Context>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        coordinator.start(coordinatorScope, events::add)
+        coordinator.requestReconnect()
+        advanceTimeBy(3_001); runCurrent()            // the attempt is in flight, suspended inside reconnect()
+
+        userDisconnects.value = 1
+        gate.complete(Unit)                           // the connect finishes anyway (the user's disconnect follows)
+        advanceUntilIdle()
+
+        assertEquals(ConnectionEvent.Aborted, events.last())
+        assertTrue("kein Connected nach dem Trennen: $events", events.none { it == ConnectionEvent.Connected })
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `a user disconnect BEFORE the request does not suppress a later reconnect`() = runTest {
+        val repo = makeRepo(lastConnected = device, userDisconnects = MutableStateFlow(1))
+        coEvery { repo.reconnect() } just Runs
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null))
+        coordinator.start(coordinatorScope, events::add)
+
+        coordinator.requestReconnect()                // a later link loss, after the user once disconnected
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repo.reconnect() }
+        assertEquals(ConnectionEvent.Connected, events.last())
     }
 
     // --- Test 7 ---

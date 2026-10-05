@@ -202,6 +202,12 @@ class ReadingsPipeline @Inject constructor(
             .map { (merged, gpsKmh) -> SessionEvent.Values(merged, gpsKmh) }
 
     private fun runSession(slotIds: List<String>, gpsSpeed: StateFlow<Float?>): Flow<SessionEvent> = flow {
+        // Stand der Nutzer-Trennungen beim Start dieser Sitzung. "Trennen" schliesst den Socket; ein gerade
+        // laufendes Lesen scheitert dann u. U. mit ConnectionLost, bevor flatMapLatest die Sitzung abbricht.
+        // Dieser Verbindungsverlust ist gewollt und darf keinen Reconnect ausloesen (s. [lostLinkWantsReconnect]).
+        val userDisconnectsAtStart = obdRepository.userDisconnectCount.value
+        fun lostLinkWantsReconnect() = obdRepository.userDisconnectCount.value == userDisconnectsAtStart
+
         val selectedPids = selectPids(slotIds)
 
         // Aufzeichnungs-Einstellungen einmal pro Sitzung lesen, nicht pro Zyklus.
@@ -227,8 +233,12 @@ class ReadingsPipeline @Inject constructor(
             // tryEmit() (nicht-suspendierend) aus demselben Grund wie im ConnectionLost-Zweig unten:
             // der Wechsel von isConnectedFlow bricht diese Coroutine am naechsten Suspendierungspunkt ab.
             if ((e is ObdException.Timeout || e is ObdException.ConnectionLost) && !obdRepository.isConnectedFlow.value) {
-                connectionLostSignal.tryEmit(Unit)
-                logBestEffort(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting")
+                if (lostLinkWantsReconnect()) {
+                    connectionLostSignal.tryEmit(Unit)
+                    logBestEffort(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting")
+                } else {
+                    logBestEffort(LogLevel.INFO, "Fault-code read ended by the user's disconnect, not reconnecting")
+                }
                 return@flow
             }
             null
@@ -300,8 +310,12 @@ class ReadingsPipeline @Inject constructor(
             // ObdRepository.livePids()) hier ausloesen kann. Signal zuerst, Log danach: Das Log
             // ist best-effort (ein suspendierender DB-Schreibvorgang waere selbst ein moeglicher
             // Abbruchpunkt), der Reconnect-Ausloeser darf davon nicht abhaengen.
-            connectionLostSignal.tryEmit(Unit)
-            appLogRepository.log(LogLevel.WARN, "OBD connection lost, reconnecting (readings stopped or bus stuck)")
+            if (lostLinkWantsReconnect()) {
+                connectionLostSignal.tryEmit(Unit)
+                appLogRepository.log(LogLevel.WARN, "OBD connection lost, reconnecting (readings stopped or bus stuck)")
+            } else {
+                appLogRepository.log(LogLevel.INFO, "OBD readings ended by the user's disconnect, not reconnecting")
+            }
         } catch (e: Exception) {
             crashReporter.recordException(e)
             emit(SessionEvent.Failed(ObdErrorMapper.toUiText(e)))

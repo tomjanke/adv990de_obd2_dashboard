@@ -63,6 +63,7 @@ class VehicleInfoScreenTest {
     @JvmField
     val obdRepository: ObdRepository = mockk(relaxed = true) {
         every { isConnectedFlow } returns connected
+        every { userDisconnectCount } returns MutableStateFlow(0)
         coEvery { readVin() } coAnswers { readVinDeferred.await() }
     }
 

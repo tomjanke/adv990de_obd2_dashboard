@@ -59,6 +59,7 @@ class ReadingsPipelineTest {
         supported: Set<String>? = null,
     ): ObdRepository = mockk {
         every { isConnectedFlow } returns MutableStateFlow(connected)
+        every { userDisconnectCount } returns MutableStateFlow(0)
         every { supportedPidIds } returns MutableStateFlow(supported)
         every { livePids(any()) } returns flowOf(readings)
         every { updateLatestReadings(any()) } just Runs
@@ -425,6 +426,70 @@ class ReadingsPipelineTest {
             val events = makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
 
             assertEquals(listOf(SessionEvent.ConnectionLost), events)
+        }
+
+    // --- Test 15-user: the user's own disconnect is not a lost link (B3) ---
+
+    // "Trennen" schliesst den Socket; ein gerade laufendes Lesen scheitert dann u. U. mit ConnectionLost,
+    // bevor flatMapLatest die Sitzung abbricht. Das darf keinen Reconnect ausloesen — der Nutzer wollte
+    // getrennt sein.
+    @Test
+    fun `a read that fails BECAUSE the user disconnected is not reported as a lost connection`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val userDisconnects = MutableStateFlow(0)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            every { repo.userDisconnectCount } returns userDisconnects
+            every { repo.livePids(any()) } returns flow {
+                userDisconnects.value += 1           // disconnectByUser(): the count first ...
+                isConnected.value = false            // ... then the disconnect itself
+                throw ObdException.ConnectionLost()  // the interrupted read
+            }
+            val events = mutableListOf<SessionEvent>()
+            backgroundScope.launch { makePipeline(repo).events(this).toList(events) }
+
+            testScheduler.advanceUntilIdle()
+
+            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+            assertTrue("die Anzeige geht auf getrennt: $events", events.contains(SessionEvent.Idle))
+        }
+
+    @Test
+    fun `a fault-code read that fails BECAUSE the user disconnected does not ask for a reconnect`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val userDisconnects = MutableStateFlow(0)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            every { repo.userDisconnectCount } returns userDisconnects
+            coEvery { repo.readDtcs() } coAnswers {
+                userDisconnects.value += 1
+                isConnected.value = false
+                throw ObdException.ConnectionLost()
+            }
+            val events = mutableListOf<SessionEvent>()
+            backgroundScope.launch { makePipeline(repo).events(this).toList(events) }
+
+            testScheduler.advanceUntilIdle()
+
+            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+        }
+
+    @Test
+    fun `a lost link without a user disconnect is still reported`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val isConnected = MutableStateFlow(true)
+            val repo = makeRepo(connected = true)
+            every { repo.isConnectedFlow } returns isConnected
+            every { repo.livePids(any()) } returns flow {
+                isConnected.value = false
+                throw ObdException.ConnectionLost()
+            }
+
+            val event = makePipeline(repo).events(backgroundScope).first { it == SessionEvent.ConnectionLost }
+
+            assertEquals(SessionEvent.ConnectionLost, event)
         }
 
     // --- Test 15a: recording is best effort — a database failure must not end the live display ---

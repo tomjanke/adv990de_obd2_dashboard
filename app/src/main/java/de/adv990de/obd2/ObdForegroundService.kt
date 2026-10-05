@@ -59,7 +59,7 @@ class ObdForegroundService : Service() {
                 }
             }
             ACTION_STOP -> scope.launch {
-                withContext(NonCancellable) { obdRepository.disconnect() }
+                withContext(NonCancellable) { obdRepository.disconnectByUser() }
                 stopSelf()
             }
             else -> {
