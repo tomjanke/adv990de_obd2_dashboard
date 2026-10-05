@@ -1,6 +1,7 @@
 package de.adv990de.obd2.obd
 
 import de.adv990de.obd2.obd.model.ObdException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -9,6 +10,8 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
 
 class ElmControllerTest {
 
@@ -106,11 +109,74 @@ class ElmControllerTest {
         ElmController(emptyInput, ByteArrayOutputStream()).sendCommand("010C")
     }
 
-    // NOTE: The Timeout path (ObdException.Timeout) cannot be covered with virtual time because
-    // withTimeout inside withContext(Dispatchers.IO) uses real wall-clock time. advanceTimeBy()
-    // only advances kotlinx-coroutines-test's virtual clock, which does not affect blocking
-    // threads on the IO dispatcher. A real-time test would make the suite fragile (5 s wait),
-    // so this case is intentionally left untested here.
+    // B38: Die Zeitueberschreitung ist pruefbar, seit das Lese-Timeout ein Konstruktor-Parameter ist. Sie laeuft in
+    // ECHTER Zeit (withTimeout in withContext(Dispatchers.IO) kennt die virtuelle Uhr nicht) — mit 100 ms statt der
+    // 5 s der Produktion kostet der Test eine Zehntelsekunde statt die Suite zu verlangsamen.
+
+    @Test
+    fun `sendCommand throws Timeout when the adapter stays silent past the read timeout`() = runTest {
+        // Ein Adapter, der den Befehl annimmt und nie antwortet: der Eingang ist verbunden, aber leer und offen.
+        val silent = PipedInputStream()
+        PipedOutputStream(silent).use {
+            val controller = ElmController(silent, ByteArrayOutputStream(), readTimeoutMs = 100)
+            val started = System.nanoTime()
+
+            val failure = runCatching { controller.sendCommand("010C") }.exceptionOrNull()
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000
+
+            assertTrue("Timeout erwartet, war: $failure", failure is ObdException.Timeout)
+            assertTrue("der injizierte Wert gilt (100 ms), nicht die 5 s der Produktion: $elapsedMs ms", elapsedMs < 2_000)
+            assertTrue("die Meldung nennt den Befehl: ${failure?.message}", failure?.message?.contains("010C") == true)
+        }
+    }
+
+    @Test
+    fun `cancelling a pending command is a cancellation - not a lost connection`() = runTest {
+        val silent = PipedInputStream()
+        PipedOutputStream(silent).use {
+            val controller = ElmController(silent, ByteArrayOutputStream(), readTimeoutMs = 60_000)
+            val pending = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).async {
+                controller.sendCommand("010C")
+            }
+            kotlinx.coroutines.delay(50)   // der Lesevorgang blockiert jetzt in der Pipe
+
+            pending.cancel()
+            val failure = runCatching { pending.await() }.exceptionOrNull()
+
+            assertTrue("Abbruch erwartet, war: $failure", failure is kotlinx.coroutines.CancellationException)
+        }
+    }
+
+    @Test
+    fun `a response that arrives within the read timeout is not a timeout`() = runTest {
+        val (input, output) = makeStreams(listOf("41 0C 1F 40"))
+
+        val response = ElmController(input, output, readTimeoutMs = 2_000).sendCommand("010C")
+
+        assertEquals("41 0C 1F 40", response)
+    }
+
+    // B38: die Meldungen, die ein ELM327 VOR die eigentliche Antwort stellt (Datenblatt: der erste OBD-Befehl nach
+    // ATSP0 loest die Protokollsuche aus und meldet "SEARCHING..."; bei ISO/KWP zusaetzlich "BUS INIT: OK").
+    // Der Controller reicht alle Zeilen unveraendert durch — die Auswertung muss damit umgehen koennen.
+
+    @Test
+    fun `sendCommand keeps the SEARCHING banner as the first part of the joined response`() = runTest {
+        val (input, output) = makeStreams(listOf("SEARCHING...\r41 00 BE 3F A8 13"))
+
+        val response = ElmController(input, output).sendCommand("0100")
+
+        assertEquals("SEARCHING... 41 00 BE 3F A8 13", response)
+    }
+
+    @Test
+    fun `sendCommand keeps a BUS INIT banner as the first part of the joined response`() = runTest {
+        val (input, output) = makeStreams(listOf("SEARCHING...\rBUS INIT: OK\r41 00 BE 3F A8 13"))
+
+        val response = ElmController(input, output).sendCommand("0100")
+
+        assertEquals("SEARCHING... BUS INIT: OK 41 00 BE 3F A8 13", response)
+    }
 
     @Test
     fun `sendCommand assembles response spanning multiple physical read calls`() = runTest {

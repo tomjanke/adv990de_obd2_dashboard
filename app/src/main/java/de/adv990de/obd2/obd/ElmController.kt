@@ -3,20 +3,26 @@ package de.adv990de.obd2.obd
 import de.adv990de.obd2.obd.model.ObdException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.coroutineContext
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
-private const val READ_TIMEOUT_MS = 5_000L
+/** Wie lange ein Befehl auf seine Antwort wartet, bevor er als [ObdException.Timeout] gilt. */
+internal const val DEFAULT_READ_TIMEOUT_MS = 5_000L
 
 class ElmController(
     private val inputStream: InputStream,
-    private val outputStream: OutputStream
+    private val outputStream: OutputStream,
+    // Parameter statt privater Konstante (B38): So laesst sich die Zeitueberschreitung mit 100 ms testen statt gar
+    // nicht. Die Produktion (BleConnection, ClassicBtConnection, Simulator) nutzt den Standard.
+    private val readTimeoutMs: Long = DEFAULT_READ_TIMEOUT_MS,
 ) {
     // Serialises all command/response exchanges; prevents concurrent callers from
     // interleaving writes and reads on the same stream pair.
@@ -63,7 +69,11 @@ class ElmController(
     suspend fun sendCommand(command: String): String = commandMutex.withLock {
         withContext(Dispatchers.IO) {
             try {
-                withTimeout(READ_TIMEOUT_MS) {
+                withTimeout(readTimeoutMs) {
+                    // Der Job des Zeitlimits: Ist er abgebrochen (Zeitlimit oder Abbruch von aussen), stammt ein
+                    // IO-Fehler aus dem blockierenden Lesen von unserem EIGENEN Interrupt, nicht von einer
+                    // verlorenen Verbindung (s. readResponse).
+                    val scopeJob = coroutineContext.job
                     runInterruptible {
                         // Ein Schreibfehler heisst dasselbe wie ein Lesefehler: Die Verbindung ist weg (der
                         // Adapter oder das Funkmodul hat sie waehrend der Pause des Pollers geschlossen,
@@ -75,7 +85,7 @@ class ElmController(
                         } catch (e: IOException) {
                             throw ObdException.ConnectionLost()
                         }
-                        readResponse()
+                        readResponse(cancelled = { scopeJob.isCancelled })
                     }
                 }
             } catch (e: TimeoutCancellationException) {
@@ -84,7 +94,10 @@ class ElmController(
         }
     }
 
-    private fun readResponse(): String {
+    /**
+     * @param cancelled ob die aufrufende Coroutine inzwischen abgebrochen ist (Zeitlimit oder Abbruch von aussen).
+     */
+    private fun readResponse(cancelled: () -> Boolean): String {
         val sb = StringBuilder()
         var gotAny = false
         try {
@@ -105,6 +118,13 @@ class ElmController(
                 sb.append(b)
             }
         } catch (e: IOException) {
+            // runInterruptible unterbricht den Thread, sobald die Coroutine abgebrochen wird. Ein unterbrechbares
+            // Lesen (BLE-Pipe, Simulator) wirft dann eine InterruptedIOException — als ConnectionLost gemeldet, ueberstimmte
+            // sie bis 1.24.5 das Zeitlimit (Kotlin stuft eine echte Ausnahme ueber die Abbruchursache): Ein stiller Adapter
+            // loeste sofort einen Reconnect aus statt des toleranten Timeout-Wegs mit Watchdog. Nach dem Abbruch ist der
+            // IO-Fehler also unser eigener Interrupt: als InterruptedException weiterreichen, die runInterruptible in
+            // eine saubere Abbruch-Ausnahme verwandelt (-> Timeout bzw. CancellationException).
+            if (cancelled()) throw InterruptedException("Lesen durch Abbruch unterbrochen")
             throw ObdException.ConnectionLost()
         }
         if (!gotAny) throw ObdException.ConnectionLost()

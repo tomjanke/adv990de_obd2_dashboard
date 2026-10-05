@@ -2,6 +2,8 @@ package de.adv990de.obd2
 
 import android.annotation.SuppressLint
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -20,6 +22,22 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+
+/**
+ * Legt den Benachrichtigungskanal des Dienstes an (idempotent — Android ignoriert ein erneutes Anlegen mit
+ * gleicher Id). Eine Funktion fuer `Obd2Application` UND die Tests (B36): Der Instrumentation-Test des Dienstes
+ * baute den Kanal vorher von Hand nach, weil `Obd2Application` unter `HiltTestApplication` nie laeuft — wer das
+ * Anlegen aus der Application entfernte, blieb also gruen. Kein SDK_INT-Guard noetig: minSdk 26 entspricht
+ * `VERSION_CODES.O`, Kanaele gibt es auf jedem unterstuetzten Geraet.
+ */
+fun createObdNotificationChannel(context: Context) {
+    val channel = NotificationChannel(
+        ObdForegroundService.CHANNEL_ID,
+        context.getString(R.string.notif_channel_name),
+        NotificationManager.IMPORTANCE_LOW
+    )
+    context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+}
 
 /** Which `startForeground` overload [ObdForegroundService.onStartCommand] must call. */
 internal enum class ForegroundStartMode { TYPED, LEGACY }

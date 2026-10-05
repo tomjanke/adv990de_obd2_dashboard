@@ -2,9 +2,7 @@ package de.adv990de.obd2.data.db
 
 import android.content.Context
 import androidx.room.Room
-import androidx.room.RoomDatabase
 import androidx.sqlite.db.SimpleSQLiteQuery
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.paging.PagingSource
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,11 +30,8 @@ class SessionDaoTest {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java)
             .allowMainThreadQueries()
-            .addCallback(object : RoomDatabase.Callback() {
-                override fun onOpen(db: SupportSQLiteDatabase) {
-                    db.execSQL("PRAGMA foreign_keys = ON")
-                }
-            })
+            // Fremdschluessel: Rooms generierter onOpen schaltet sie ein — kein nachgebauter Callback (B36,
+            // AppDatabaseBootstrapTest weist es fuer den Produktions-Builder nach).
             .build()
         sessionDao = db.sessionDao()
         readingDao = db.sensorReadingDao()

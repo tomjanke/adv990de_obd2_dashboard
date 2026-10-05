@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#
+# Release-Ablauf fuer den OBD2 Monitor.
+#
+# Haelt fest, was bei v1.23.0 schiefging (QS-Bericht B32): Das APK wurde aus einem NOCH NICHT COMMITTETEN Versions-Bump
+# gebaut — die eingebettete Revision (aa51583) war nicht die des Tags (17c37a5), und `mapping.txt` wurde nirgends
+# aufgehoben. Die Reihenfolge ist deshalb fest: erst Version bumpen und COMMITTEN, dann bauen.
+#
+# Aufruf:
+#   scripts/release.sh --check      nur die Vorpruefung (keine Tests, kein Build)
+#   scripts/release.sh              Vorpruefung, Unit-Tests, assembleRelease, Pruefung des APK, mapping.txt archivieren
+#   scripts/release.sh --install    zusaetzlich: auf das angeschlossene Geraet installieren und die Version pruefen
+#
+# Taggen und Pushen bleiben bewusst Handarbeit (`git tag vX.Y.Z && git push origin main vX.Y.Z`), nach dem Smoke-Test.
+#
+# Umgebung:
+#   RELEASE_ARCHIVE_DIR   Ablage fuer mapping.txt und APK-Pruefsumme (Standard: $HOME/obd2-release-archive). Ausserhalb des
+#                         Repos: die mapping.txt ist ~45 MB je Release.
+#   Die Signierung kommt aus den Gradle-Properties/Umgebungsvariablen aus README ("assembleRelease signiert via env-vars").
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
+MODE_CHECK=0
+MODE_INSTALL=0
+for arg in "$@"; do
+    case "$arg" in
+        --check)   MODE_CHECK=1 ;;
+        --install) MODE_INSTALL=1 ;;
+        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        *) echo "Unbekannte Option: $arg (siehe --help)" >&2; exit 2 ;;
+    esac
+done
+
+fail() { echo "FEHLER: $*" >&2; exit 1; }
+step() { echo; echo "==> $*"; }
+
+# ---------------------------------------------------------------------------------------------------------------
+step "Vorpruefung"
+
+VERSION_NAME="$(sed -n 's/.*val appVersionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
+VERSION_CODE="$(sed -n 's/.*val appVersionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
+[ -n "$VERSION_NAME" ] && [ -n "$VERSION_CODE" ] || fail "appVersionName/appVersionCode in app/build.gradle.kts nicht gefunden"
+echo "Version laut build.gradle.kts: $VERSION_NAME (versionCode $VERSION_CODE)"
+
+# 1. Sauberer Baum: sonst traegt das APK eine Revision, die nicht dem Stand entspricht (B32).
+if [ -n "$(git status --porcelain)" ]; then
+    git status --short >&2
+    fail "Der Arbeitsbaum ist nicht sauber. Version bumpen UND committen, dann bauen (B32)."
+fi
+
+# 2. README und Release-Notes nennen dieselbe Version (ReleaseDocsConsistencyTest prueft das ebenfalls).
+grep -q "Aktuelle Version: \*\*$VERSION_NAME\*\* (versionCode $VERSION_CODE)" README.md \
+    || fail "README.md nennt nicht 'Aktuelle Version: **$VERSION_NAME** (versionCode $VERSION_CODE)'"
+head -20 RELEASE_NOTES.md | grep -q "^## Version $VERSION_NAME (versionCode $VERSION_CODE)" \
+    || fail "Der oberste Eintrag von RELEASE_NOTES.md ist nicht '## Version $VERSION_NAME (versionCode $VERSION_CODE)'"
+
+# 3. Der Tag existiert noch nicht (er wird nach dem Smoke-Test gesetzt).
+if git rev-parse -q --verify "refs/tags/v$VERSION_NAME" >/dev/null; then
+    fail "Der Tag v$VERSION_NAME existiert schon — Version nicht gebumpt?"
+fi
+
+HEAD_SHA="$(git rev-parse HEAD)"
+echo "HEAD: $HEAD_SHA ($(git log -1 --format=%s))"
+echo "Vorpruefung bestanden."
+[ "$MODE_CHECK" -eq 1 ] && exit 0
+
+# ---------------------------------------------------------------------------------------------------------------
+step "Unit-Tests"
+./gradlew :app:testDebugUnitTest
+
+step "assembleRelease"
+./gradlew assembleRelease
+
+APK="$ROOT/app/build/outputs/apk/release/app-release.apk"
+MAPPING="$ROOT/app/build/outputs/mapping/release/mapping.txt"
+[ -f "$APK" ] || fail "APK nicht gefunden: $APK (Signierung konfiguriert? Dann entsteht app-release-unsigned.apk)"
+[ -f "$MAPPING" ] || fail "mapping.txt nicht gefunden: $MAPPING"
+
+# ---------------------------------------------------------------------------------------------------------------
+step "Pruefung des APK"
+
+# Die eingebettete Revision ist genau die von HEAD — sonst wurde nicht aus dem committeten Stand gebaut (B32).
+EMBEDDED="$(unzip -p "$APK" META-INF/version-control-info.textproto | sed -n 's/.*revision: "\([0-9a-f]*\)".*/\1/p' | head -1)"
+[ -n "$EMBEDDED" ] || fail "Keine eingebettete Revision im APK gefunden"
+[ "$EMBEDDED" = "$HEAD_SHA" ] || fail "Eingebettete Revision $EMBEDDED ist nicht HEAD $HEAD_SHA — aus einem anderen Stand gebaut"
+echo "Eingebettete Revision == HEAD ($HEAD_SHA)"
+
+# Signatur, wenn apksigner auffindbar ist.
+APKSIGNER="$(ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)"
+if [ -n "$APKSIGNER" ]; then
+    "$APKSIGNER" verify --print-certs "$APK" | head -3
+else
+    echo "(apksigner nicht gefunden — Signatur nicht geprueft)"
+fi
+
+# ---------------------------------------------------------------------------------------------------------------
+step "mapping.txt archivieren"
+ARCHIVE="${RELEASE_ARCHIVE_DIR:-$HOME/obd2-release-archive}/$VERSION_NAME"
+mkdir -p "$ARCHIVE"
+cp "$MAPPING" "$ARCHIVE/mapping.txt"
+( cd "$(dirname "$APK")" && shasum -a 256 "$(basename "$APK")" ) > "$ARCHIVE/app-release.apk.sha256"
+echo "$HEAD_SHA" > "$ARCHIVE/revision.txt"
+echo "Archiviert in $ARCHIVE (mapping.txt, APK-Pruefsumme, Revision)"
+
+# ---------------------------------------------------------------------------------------------------------------
+if [ "$MODE_INSTALL" -eq 1 ]; then
+    step "Installation"
+    adb get-state >/dev/null 2>&1 || fail "Kein Geraet ueber adb verbunden"
+    adb install -r "$APK"
+    INSTALLED="$(adb shell dumpsys package de.adv990de.obd2 | sed -n 's/.*versionCode=\([0-9]*\).*/\1/p' | head -1)"
+    [ "$INSTALLED" = "$VERSION_CODE" ] || fail "Installierter versionCode $INSTALLED, erwartet $VERSION_CODE"
+    echo "Installiert: versionCode $INSTALLED"
+fi
+
+step "Fertig"
+echo "Naechste Schritte (von Hand): Smoke-Test auf dem Geraet, dann"
+echo "  git tag v$VERSION_NAME && git push origin main v$VERSION_NAME"

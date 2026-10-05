@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 via BLE oder klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.24.4** (versionCode 86) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
+> Aktuelle Version: **1.24.5** (versionCode 87) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
 
 ---
 
@@ -122,7 +122,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1080 Tests, < 30 Sekunden)
+# JVM Unit Tests (1099 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -131,11 +131,12 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1080 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1099 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 216 (Dashboard, Preview Banner, RpmBar, Slot Picker, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 44 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, SessionRepository) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 47 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
-| Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 4 (ObdForegroundService) |
+| Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 5 (ObdForegroundService, Benachrichtigungskanal) |
+| Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
 
 ---
 
@@ -212,9 +213,28 @@ Sensor-Kacheln nutzen `LiveValueTile` (`ui/components/LiveValueTile.kt`) — dom
 
 ---
 
+## Release-Ablauf
+
+`scripts/release.sh` hält den Ablauf fest (und warum er so ist): **erst Version bumpen und committen, dann bauen** — das 1.23.0-APK wurde aus
+einem noch nicht committeten Bump gebaut, seine eingebettete Revision war nicht die des Tags (QS-Bericht B32). Das Skript
+
+1. prüft vorab: sauberer Arbeitsbaum, README („Aktuelle Version“) und oberster Release-Notes-Eintrag nennen die Version aus `app/build.gradle.kts`, der Tag existiert noch nicht;
+2. führt die JVM-Tests aus und baut `assembleRelease`;
+3. prüft, dass die im APK eingebettete Revision **HEAD** ist (und die Signatur, wenn `apksigner` gefunden wird);
+4. archiviert `mapping.txt`, die APK-Prüfsumme und die Revision außerhalb des Repos (`$RELEASE_ARCHIVE_DIR`, Standard `~/obd2-release-archive/<version>/`; die `mapping.txt` hat ~45 MB);
+5. mit `--install` installiert es auf das angeschlossene Gerät und prüft den `versionCode`.
+
+`scripts/release.sh --check` macht nur die Vorprüfung. **Taggen und Pushen bleiben Handarbeit** nach dem Smoke-Test:
+`git tag vX.Y.Z && git push origin main vX.Y.Z`. Der Test `ReleaseDocsConsistencyTest` hält Version und versionCode in `build.gradle.kts`, README und
+`RELEASE_NOTES.md` zusammen.
+
+---
+
 ## Berechtigungen
 
-Die App fordert zur Laufzeit (via `PermissionGate`) an:
+Das Manifest deklariert die folgenden Berechtigungen. **Zur Laufzeit** fragt die App nur Bluetooth und Benachrichtigungen beim Start an
+(`PermissionGate`; Bluetooth ist Pflicht, Benachrichtigungen sind optional) sowie Standort erst beim Einschalten der jeweiligen Einstellung.
+Die übrigen sind „normale“ Berechtigungen ohne Dialog.
 
 | Permission | API-Range | Zweck |
 |---|---|---|
@@ -223,8 +243,12 @@ Die App fordert zur Laufzeit (via `PermissionGate`) an:
 | `BLUETOOTH` / `BLUETOOTH_ADMIN` | ≤30 | Legacy-Bluetooth |
 | `ACCESS_FINE_LOCATION` | alle | BLE-Scan vor Android 12; ab 1.10.0 zusätzlich Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt); Standort für die Außentemperatur |
 | `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen); genügt allein für die Außentemperatur |
-| `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification |
-| `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 |
+| `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde: hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
+| `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification (optional: ohne sie läuft der Dienst, nur die Benachrichtigung fehlt) |
+| `FOREGROUND_SERVICE` | alle | Foreground Service (normale Berechtigung, kein Dialog) |
+| `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 (normale Berechtigung) |
+| `FOREGROUND_SERVICE_LOCATION` | 34+ | Service-Typ `location` für die GPS-Geschwindigkeit im Hintergrund (normale Berechtigung; der Typ wird nur angefordert, wenn auch `ACCESS_BACKGROUND_LOCATION` erteilt ist) |
+| `INTERNET` | alle | ausschließlich die Wetterabfrage (Open-Meteo, normale Berechtigung); Sentry bleibt ohne DSN inaktiv |
 
 **Standort für die Außentemperatur:** Genau (FINE) oder ungefähr (COARSE) genügt. Angefragt wird
 beim Einschalten von „Navigationsleiste beim Fahren ausblenden" — unabhängig von „Geschwindigkeit per
@@ -252,21 +276,21 @@ ohnehin schon mit).
 Wenn die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt ist, wird der Crash-Reporter aktiviert. Ohne DSN bleibt Sentry inaktiv (kein Netzwerktraffic). Konfiguriert über Manifest-Placeholder in `app/build.gradle.kts`.
 
 ### Benutzerseitige Einstellungen
-Persistiert via Jetpack DataStore:
-- Auto-Connect zum letzten Gerät
-- Dashboard-Slot-Belegung (welche PIDs in welche Kachel)
-- Geschwindigkeit per GPS, wenn das Fahrzeug keine liefert
-- Navigationsleiste beim Fahren ausblenden — an ihrer Stelle Datum, Uhrzeit und Außentemperatur
+Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
+- **Verbindung:** gekoppeltes Gerät (Auto-Connect zum letzten Gerät), „Alle gekoppelten Geräte“ anzeigen, Reconnect bei eingefrorenen Werten (OBD-Watchdog), Reconnect-Basisverzögerung
+- **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
+- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“, „Nur ECU-bestätigte PIDs aufzeichnen“, Auswahl der aufgezeichneten PIDs
+- **Fahrzeug:** Fahrzeuginfo (FIN)
+- **Info & Wartung:** App-Logs, App-Info
+- Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
+
+Zu den beiden Zeitwerten der Verbindung:
+- **OBD-Watchdog:** nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr (Timeout) oder nur noch unverwertbar antwortet; reines NO DATA (z. B. Zündung aus) löst ihn nie aus und startet die Frist neu — Auswahl 10 / 20 / 30 / 60 / 120 s, Standard 20 s (früher frei eingegebene Werte werden beim Lesen auf die nächste Auswahl gesetzt, z. B. 45 s → 60 s)
+- **Reconnect-Basisverzögerung:** Wartezeit vor dem ersten Reconnect-Versuch, jeder weitere verdoppelt sie (5 Versuche) — Auswahl 3 / 10 / 30 s, Standard 3 s; die Einstellungen zeigen die resultierenden Wartezeiten (z. B. 3 · 6 · 12 · 24 · 48 s, insgesamt 1:33 min)
 
 „In Bewegung“ heißt: ab 5 km/h, bis die Geschwindigkeit unter 3 km/h fällt — GPS-Rauschen im Stand schaltet das Hauptmenü nicht um. Liefert das Steuergerät bei bestehender Verbindung 10 s lang keinen Messwert (z. B. Zündung aus), zeigen die Kacheln „--“ und das Band „Keine aktuellen Werte“ statt alter Zahlen.
 
 Fehlt die Standortberechtigung (entzogen, „Nur dieses Mal“ abgelaufen oder nur „ungefähr“ erteilt), steht unter dem GPS-Schalter und unter „Navigationsleiste beim Fahren ausblenden“ ein Hinweis mit Knopf zu den App-Einstellungen; wird sie dort erteilt, läuft GPS-Speed ohne Neustart an. Nach dem Verbinden zeigt das Dashboard sofort „Verbunden · warte auf Werte“.
-- Anzeige-Einheiten (metrisch/imperial)
-- Aufzeichnungs-Modus (immer / nur bei Fahrt / aus)
-- App-Log-Verbosity
-- Getriebe-Verhältnisse für die virtuelle Ganganzeige (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
-- OBD-Watchdog: nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr (Timeout) oder nur noch unverwertbar antwortet; reines NO DATA (z. B. Zündung aus) löst ihn nie aus und startet die Frist neu — Auswahl 10 / 20 / 30 / 60 / 120 s, Standard 20 s (früher frei eingegebene Werte werden beim Lesen auf die nächste Auswahl gesetzt, z. B. 45 s → 60 s)
-- Reconnect-Basisverzögerung: Wartezeit vor dem ersten Reconnect-Versuch, jeder weitere verdoppelt sie (5 Versuche) — Auswahl 3 / 10 / 30 s, Standard 3 s; die Einstellungen zeigen die resultierenden Wartezeiten (z. B. 3 · 6 · 12 · 24 · 48 s, insgesamt 1:33 min)
 
 Trennt der Nutzer selbst („Trennen“ in der Benachrichtigung oder den Einstellungen, „Beenden“), verbindet die App nicht von selbst wieder — auch nicht, wenn gerade eine Wiederverbindung läuft; sie bricht dann sofort ab. Nur ein verlorener Link löst Wiederverbindungs-Versuche aus.
 
@@ -312,8 +336,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1080) |
-| `app/src/androidTest/` | Instrumented Tests (271, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1099) |
+| `app/src/androidTest/` | Instrumented Tests (277, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

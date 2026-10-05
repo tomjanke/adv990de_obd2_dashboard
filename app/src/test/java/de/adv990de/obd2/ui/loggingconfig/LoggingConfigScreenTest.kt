@@ -1,7 +1,9 @@
 package de.adv990de.obd2.ui.loggingconfig
 
+import de.adv990de.obd2.withDefaultLocale
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Locale
 
 class LoggingConfigScreenTest {
 
@@ -12,9 +14,13 @@ class LoggingConfigScreenTest {
     }
 
     @Test
-    fun `volt value formats with one decimal`() {
-        val result = formatLoggingRowValue(14.2f, "V", useImperial = false)
-        assertEquals("14.2 (V)", result)
+    fun `volt value formats with one decimal point on an English-locale device`() = withDefaultLocale(Locale.US) {
+        assertEquals("14.2 (V)", formatLoggingRowValue(14.2f, "V", useImperial = false))
+    }
+
+    @Test
+    fun `volt value formats with a decimal comma on a German-locale device`() = withDefaultLocale(Locale.GERMANY) {
+        assertEquals("14,2 (V)", formatLoggingRowValue(14.2f, "V", useImperial = false))
     }
 
     @Test

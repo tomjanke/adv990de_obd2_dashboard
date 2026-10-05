@@ -1,6 +1,5 @@
 package de.adv990de.obd2.data.db
 
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -55,11 +54,7 @@ class AppDatabaseMigrationTest {
         helper.runMigrationsAndValidate(TEST_DB, 2, true, MIGRATION_1_2).close()
 
         // Re-open through Room itself (not the raw SupportSQLiteDatabase) so the DAO can be used.
-        val db = Room.databaseBuilder(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            AppDatabase::class.java,
-            TEST_DB
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
 
         helper.closeWhenFinished(db)
 
@@ -121,7 +116,7 @@ class AppDatabaseMigrationTest {
     fun migrate1To3_theWholeChainWorks() {
         helper.createDatabase(TEST_DB, 1).close()
 
-        helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_1_2, MIGRATION_2_3).close()
+        helper.runMigrationsAndValidate(TEST_DB, APP_DATABASE_VERSION, true, *ALL_MIGRATIONS).close()
     }
 
     @Test
@@ -129,11 +124,7 @@ class AppDatabaseMigrationTest {
         helper.createDatabase(TEST_DB, 2).close()
         helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_2_3).close()
 
-        val db = Room.databaseBuilder(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            AppDatabase::class.java,
-            TEST_DB
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
         helper.closeWhenFinished(db)
 
         runBlocking {

@@ -25,9 +25,10 @@ import org.junit.runner.RunWith
  * [SessionRepository] against a real (in-memory) Room database. The JVM tests use mocks, which
  * cannot show what Room's suspend DAOs do in a cancelled coroutine — this class can.
  *
- * Note: the database is built WITHOUT the `foreign_keys` pragma, so the explicit readings delete of
- * [SessionRepository.deleteSessions] is what removes the readings here (in production the cascade
- * would do the same).
+ * Note: Room's generated `onOpen` enables `PRAGMA foreign_keys` on every connection — also for this in-memory
+ * database (proven for the production builder by `AppDatabaseBootstrapTest`). Until 1.24.4 this comment claimed
+ * the opposite (it assumed the callback in `AppModule` was what enabled it); the explicit readings delete of
+ * [SessionRepository.deleteSessions] and the cascade therefore both apply here, as in production.
  */
 @RunWith(AndroidJUnit4::class)
 class SessionRepositoryDeviceTest {

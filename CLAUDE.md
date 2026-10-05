@@ -223,7 +223,9 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 **Grid:**
 - Portrait: 2 Spalten Standard, optional 1 Spalte für Premium-Slots (RPM dominant)
 - Landscape: 3-4 Spalten (DMD2 erlaubt bis zu 9 Slots)
-- `LazyVerticalGrid` mit `GridCells.Fixed`, `verticalArrangement = spacedBy(12.dp)`, `horizontalArrangement = spacedBy(12.dp)`
+- **Ist-Stand (Korrektur 2026-10-05, B39):** Das Dashboard nutzt **kein** `LazyVerticalGrid`. Die vier Slots liegen in festen `Row`/`Column`-Reihen
+  (`DashboardScreen`): Portrait 2×2, Querformat 4 in einer Reihe, mit **1-dp-Trennlinien** (`outlineVariant` als Hintergrund der Reihe, `spacedBy(1.dp)`)
+  statt 12-dp-Abständen — der Cockpit-Look aus „scharfe Kanten, keine Karten“. Die 12-dp-Vorgabe gilt für andere Raster, die es bisher nicht gibt.
 
 **Slot-Picker (Long-Press auf eine Kachel, seit 2026-10-04, Nutzerentscheidung):** `ModalBottomSheet` mit
 `skipPartiallyExpanded = true` — öffnet immer in voller Höhe. Das halbhohe M3-Standardverhalten zeigte im
@@ -513,6 +515,22 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 - **Listen mit Pull-to-Refresh:** Fehler- und Leerzustand gehören in einen scrollbaren Container (`PullableBox` in `DtcScreen`), sonst greift der Zug
   nicht; der Fehlerzustand hat immer einen „Erneut versuchen“-Knopf.
 
+### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
+
+- **Datenbank:** Version, Migrationen und Builder stehen einmal — `APP_DATABASE_VERSION`, `ALL_MIGRATIONS`, `appDatabaseBuilder(context, name)` (`data/db/AppDatabase.kt`).
+  `AppModule` und die Instrumentation-Tests nutzen sie, nie eine handgeschriebene Liste. Eine neue Datenbankversion braucht ihre Migration **in `ALL_MIGRATIONS`**
+  (`AppDatabaseMigrationsTest` prüft die lückenlose Kette auf dem JVM). Foreign Keys schaltet Rooms generierter `onOpen` ein — **kein** eigener PRAGMA-Callback
+  (`AppDatabaseBootstrapTest` weist es am Gerät nach); Tests bauen keinen Callback nach.
+- **Instrumentation-DataStore:** `TestAppModule` gibt jedem Test einen **eigenen** DataStore (Temp-Datei, produktiver Korruptions-Handler). Tests starten bei den
+  Standardwerten und hinterlassen nichts; die Einstellungen der Debug-App auf dem Gerät bleiben unberührt. Nie wieder `ctx.dataStore` in einem Test-Modul.
+- **Benachrichtigungskanal:** `createObdNotificationChannel(context)` (`ObdForegroundService.kt`) — die Application und der Service-Test benutzen dieselbe Funktion.
+- **Locale:** Die JVM-Tests laufen unter `de_DE` (`app/build.gradle.kts`). Eine Anzeigeformatierung wird mit `withDefaultLocale(Locale.US)`/`(Locale.GERMANY)` getestet,
+  beide Schreibweisen, exakt statt `contains`.
+- **`ElmController`:** Das Lese-Zeitlimit ist ein Konstruktor-Parameter (`readTimeoutMs`, Standard 5 s) — Timeout-Tests nehmen 100 ms (echte Zeit; `withTimeout` in
+  `Dispatchers.IO` kennt die virtuelle Uhr nicht). Ein IO-Fehler **nach** dem Abbruch ist der eigene Interrupt und wird zu Timeout bzw. Abbruch, nie zu `ConnectionLost`
+  (Kotlin stuft eine echte Ausnahme über die Abbruchursache — sonst überstimmt `InterruptedIOException` das Zeitlimit). Die Discovery sucht `41 <Bereich>` irgendwo in der
+  Antwort (`ObdRepository.rangeDataBytes`), weil der ELM327 „SEARCHING...“ / „BUS INIT: OK“ davorstellt.
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
@@ -546,7 +564,9 @@ lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
 - **Connection-Status:** Pulsierender Dot via `infiniteRepeatable` `tween(600)` für „connecting"; statisch für „connected"/„disconnected".
-- **Screen-Transitions:** `slideIntoContainer` 220 ms, **nicht** `fadeIn` allein (zu unbestimmt).
+- **Screen-Transitions:** Vorgabe `slideIntoContainer` 220 ms, **nicht** `fadeIn` allein (zu unbestimmt). **Ist-Stand (Korrektur 2026-10-05, B39):**
+  `AppNavHost` setzt keine eigenen Übergänge — es gilt der Standard von `NavHost` (Überblendung, 700 ms). Die Vorgabe ist offen (QS-Bericht C, UID-10);
+  wer Übergänge ergänzt, hält sich an die 220 ms.
 - **Verboten:** parallax scroll, decorative particle effects, anything that draws attention away from data.
 
 ### Iconography
@@ -627,11 +647,18 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 - **Logging:** `AppLogRepository` für persistente App-Logs (Settings-Screen sichtbar). `Log.d/w/e` nur in Tests oder für Debug-Build-Output.
 - **Compose-UI-Tests (`androidTest`):** `createAndroidComposeRule` aus `androidx.compose.ui.test.junit4.v2` importieren — die v1-Variante ist deprecated (die v2-Rule nutzt `StandardTestDispatcher` statt `UnconfinedTestDispatcher`; alle bestehenden Tests laufen damit unverändert).
 
+## Release
+
+Der Ablauf steht in `scripts/release.sh` (Beschreibung in der README, Abschnitt „Release-Ablauf“). Die eine Regel dahinter: **erst die Version bumpen und
+committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der des Tags entspricht (B32). README („Aktuelle Version“), oberster
+`RELEASE_NOTES.md`-Eintrag und `app/build.gradle.kts` müssen dieselbe Version nennen (`ReleaseDocsConsistencyTest`). Die JVM-Tests laufen unter `de_DE`
+(`app/build.gradle.kts`); wer eine Anzeigeformatierung testet, pinnt die Locale mit `withDefaultLocale` und prüft beide Schreibweisen.
+
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1080 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 271 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1099 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 277 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

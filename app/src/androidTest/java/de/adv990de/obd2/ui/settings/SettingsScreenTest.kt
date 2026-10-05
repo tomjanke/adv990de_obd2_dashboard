@@ -97,7 +97,7 @@ class SettingsScreenTest {
     }
 
     /**
-     * The real DataStore-backed instance (see `TestAppModule`) — same direct-injection precedent
+     * The DataStore-backed instance (a per-test store, see `TestAppModule`) — same direct-injection precedent
      * as `SimulatedDashboardTest.appPreferences`. Used to pre-seed `useGpsSpeed` /
      * `backgroundLocationPrompted` to a known state before each test and to read back
      * `backgroundLocationPrompted` afterwards, since the DataStore file persists across test runs

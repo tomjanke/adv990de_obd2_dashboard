@@ -1,6 +1,8 @@
 package de.adv990de.obd2.data
 
 import de.adv990de.obd2.bluetooth.BtType
+import de.adv990de.obd2.withDefaultLocale
+import java.util.Locale
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.bluetooth.FakeObdConnection
 import de.adv990de.obd2.bluetooth.ObdConnection
@@ -26,6 +28,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
@@ -485,24 +488,33 @@ class ObdRepositoryTest {
         verify(exactly = 0) { factory.create(any()) }
     }
 
-    @Test
-    fun `readFreezeFrame sends correct mode-02 command format and parses response`() = runTest {
+    private fun freezeFrameRpmResult(): Pair<Map<String, String>, ElmController> = runBlocking {
         val elmCtrl = mockk<ElmController>()
         // Throw NoData for every PID except RPM (id "010C" → pidByte "0C" → command "020C00")
         coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
         coEvery { elmCtrl.sendCommand("02 0C 00") } returns "42 0C 1A F8"
         // Use a real PidParser so parseFreezeFrame actually processes the response.
         val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
+        repo.readFreezeFrame() to elmCtrl
+    }
 
-        val result = repo.readFreezeFrame()
+    @Test
+    fun `readFreezeFrame sends correct mode-02 command format and parses response`() = withDefaultLocale(Locale.US) {
+        val (result, elmCtrl) = freezeFrameRpmResult()
 
         coVerify { elmCtrl.sendCommand("02 0C 00") }  // space-separated for clone compatibility
         // Keyed by PID id ("010C"), not the English PidDefinition.name — the UI resolves the
         // localized label from the id via PidRegistry, so the repository must not bake in English.
-        assertTrue("010C" in result)
-        // Value should use decimal precision (%.1f), not integer truncation.
-        // RPM formula: (26*256 + 248) / 4 = 1726.0 → "1726.0 rpm"
-        assertTrue("RPM value should contain decimal point: ${result["010C"]}", result["010C"]!!.contains("."))
+        // Value uses one decimal (%.1f), not integer truncation. RPM formula: (26*256 + 248) / 4 = 1726.0.
+        // EXACT, not contains("."): that held only by accident of the machine's locale (B35).
+        assertEquals(mapOf("010C" to "1726.0 rpm"), result.filterKeys { it == "010C" })
+    }
+
+    @Test
+    fun `readFreezeFrame formats the decimal with a comma on a German-locale device`() = withDefaultLocale(Locale.GERMANY) {
+        val (result, _) = freezeFrameRpmResult()
+
+        assertEquals("1726,0 rpm", result["010C"])
     }
 
     @Test
@@ -1019,6 +1031,69 @@ class ObdRepositoryTest {
         repo.connect(device)
 
         assertNull(repo.supportedPidIds.value)
+    }
+
+    // B38/B8: Discovery mit den Meldungen, die ein ELM327 vor die Antwort stellt. Der erste OBD-Befehl nach ATSP0 (das
+    // ist 0100) loest die Protokollsuche aus; "SEARCHING..." steht dann vor "41 00 ...". Bis 1.24.5 verlangte die
+    // Auswertung "41" als allererstes Token — der ganze Bereich 01-20 ging verloren (keine Geschwindigkeit, Last, Drossel).
+
+    private suspend fun discover(vararg answers: Pair<String, String>): Set<String>? {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        for (range in listOf("0100", "0120", "0140")) {
+            coEvery { elmCtrl.sendCommand(range) } throws ObdException.NoData(range)
+        }
+        for ((command, answer) in answers) coEvery { elmCtrl.sendCommand(command) } returns answer
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+        repo.connect(device)
+        return repo.supportedPidIds.value
+    }
+
+    @Test
+    fun `discovery tolerates the SEARCHING banner in front of the first answer`() = runTest {
+        val supported = discover("0100" to "SEARCHING... 41 00 00 18 00 00")
+
+        assertNotNull("der Bereich darf nicht verloren gehen", supported)
+        assertTrue("010C (RPM)", "010C" in supported!!)
+        assertTrue("010D (Speed)", "010D" in supported)
+    }
+
+    @Test
+    fun `discovery tolerates SEARCHING and BUS INIT banners together`() = runTest {
+        val supported = discover("0100" to "SEARCHING... BUS INIT: OK 41 00 00 18 00 00")
+
+        assertTrue("010C" in supported!!)
+    }
+
+    @Test
+    fun `discovery tolerates lower-case hex after a banner`() = runTest {
+        val supported = discover("0100" to "searching... 41 00 00 18 00 00")
+
+        assertTrue("010C" in supported!!)
+    }
+
+    @Test
+    fun `discovery ignores a late answer that belongs to another range`() = runTest {
+        // Die Antwort auf 0120 trifft verspaetet als Antwort auf 0100 ein: ihre Bits gehoeren zu PIDs 21-40.
+        val supported = discover("0100" to "41 20 00 18 00 00")
+
+        assertNull("kein Bereich-Verwechseln: 41 20 ist nicht die Antwort auf 0100", supported)
+    }
+
+    @Test
+    fun `discovery gives up on a truncated answer instead of guessing`() = runTest {
+        // Nur DREI statt vier Bitmasken-Bytes. Als Teilwert gelesen ergaebe 18 00 00 die PIDs 0C und 0D (RPM, Speed) —
+        // eine geratene Antwort waere also nicht harmlos, sondern behauptete Faehigkeiten, die niemand gemeldet hat.
+        val supported = discover("0100" to "SEARCHING... 41 00 18 00 00")
+
+        assertNull(supported)
     }
 
     @Test

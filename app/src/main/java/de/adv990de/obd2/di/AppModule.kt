@@ -5,9 +5,6 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,10 +14,9 @@ import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
 import de.adv990de.obd2.bluetooth.ConnectionFactory
 import de.adv990de.obd2.data.dataStore
 import de.adv990de.obd2.data.db.AppDatabase
+import de.adv990de.obd2.data.db.appDatabaseBuilder
 import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.DtcHistoryDao
-import de.adv990de.obd2.data.db.MIGRATION_1_2
-import de.adv990de.obd2.data.db.MIGRATION_2_3
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
 import kotlinx.coroutines.CoroutineScope
@@ -34,16 +30,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
-        Room.databaseBuilder(ctx, AppDatabase::class.java, "obd2_db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-            .addCallback(object : RoomDatabase.Callback() {
-                // SQLite disables foreign key constraints by default. Enable them on every
-                // connection so that onDelete = CASCADE in SensorReadingEntity is enforced.
-                override fun onOpen(db: SupportSQLiteDatabase) {
-                    db.execSQL("PRAGMA foreign_keys = ON")
-                }
-            })
-            .build()
+        // Name, Migrationen und (nicht vorhandener) Callback stehen in appDatabaseBuilder — dem Builder, den auch die
+        // Tests benutzen. Foreign Keys setzt Rooms generierter onOpen selbst (AppDatabaseBootstrapTest, B36).
+        appDatabaseBuilder(ctx, "obd2_db").build()
 
     @Provides @Singleton
     fun provideBluetoothAdapter(@ApplicationContext ctx: Context): BluetoothAdapter =

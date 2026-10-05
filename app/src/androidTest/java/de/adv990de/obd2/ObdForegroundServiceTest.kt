@@ -1,7 +1,6 @@
 package de.adv990de.obd2
 
 import android.Manifest
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -17,6 +16,9 @@ import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -72,20 +74,31 @@ class ObdForegroundServiceTest {
     @Before
     fun setup() {
         hiltRule.inject()
-        // Den Channel legt sonst Obd2Application an, die unter HiltTestApplication nie laeuft.
-        ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(
-                ObdForegroundService.CHANNEL_ID,
-                "OBD2 test channel",
-                NotificationManager.IMPORTANCE_LOW
-            )
-        )
+        // Den Channel legt sonst Obd2Application an, die unter HiltTestApplication nie laeuft. Dieselbe Funktion wie in
+        // der Produktion (B36) statt eines nachgebauten Kanals mit eigener Wichtigkeit und eigenem Namen.
+        createObdNotificationChannel(ctx)
         scenario = ActivityScenario.launch(HiltTestActivity::class.java)
     }
 
     @After
     fun teardown() {
         scenario.close()
+    }
+
+    // --- B36: der Kanal, den die Produktion anlegt ---
+
+    @Test
+    fun notificationChannel_isCreatedWithTheProductionIdAndLowImportance() {
+        val manager = ctx.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel(ObdForegroundService.CHANNEL_ID)
+        assertNull("Ausgangslage: kein Kanal", manager.getNotificationChannel(ObdForegroundService.CHANNEL_ID))
+
+        createObdNotificationChannel(ctx)
+
+        val channel = manager.getNotificationChannel(ObdForegroundService.CHANNEL_ID)
+        assertNotNull("der Dienst postet auf diesem Kanal — ohne ihn erscheint die Benachrichtigung nie", channel)
+        assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
+        assertEquals(ctx.getString(R.string.notif_channel_name), channel.name.toString())
     }
 
     // --- Test 1 ---

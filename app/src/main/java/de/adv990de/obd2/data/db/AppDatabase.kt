@@ -1,6 +1,8 @@
 package de.adv990de.obd2.data.db
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -28,9 +30,35 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * Die Version der Datenbank — die EINE Stelle (`@Database(version = …)` unten und die Pruefung in
+ * `AppDatabaseMigrationsTest`, dass [ALL_MIGRATIONS] bis hierher reicht, lesen sie).
+ */
+const val APP_DATABASE_VERSION = 3
+
+/**
+ * Alle Migrationen, in der Reihenfolge ihrer Versionen. Produktion ([appDatabaseBuilder]) und Tests benutzen
+ * DIESE Liste statt sie von Hand nachzubauen (B36): Wer eine Migration schreibt, traegt sie hier ein — fehlt sie,
+ * oder fehlt sie fuer eine neue Version, schlaegt `AppDatabaseMigrationsTest` auf dem JVM fehl, statt dass ein
+ * Update-Nutzer beim ersten Start abstuerzt.
+ */
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+
+/**
+ * Der Produktions-Builder der Datenbank: Name und Migrationen. Kein destruktiver Fallback — ein Schema-Fehler
+ * soll laut werden, nicht still Fahrten loeschen. Tests bauen ihre Datenbank hierueber (statt `Room.databaseBuilder`
+ * mit nachgebauter Konfiguration), damit sie das pruefen, was ausgeliefert wird.
+ *
+ * Fremdschluessel: SQLite schaltet sie je Verbindung ab; Rooms generierter `onOpen` setzt
+ * `PRAGMA foreign_keys = ON` selbst (`AppDatabaseBootstrapTest` weist es am Geraet nach). Ein eigener
+ * Callback dafuer war bis 1.24.4 redundant.
+ */
+fun appDatabaseBuilder(context: Context, name: String?): RoomDatabase.Builder<AppDatabase> =
+    Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(*ALL_MIGRATIONS)
+
 @Database(
     entities = [SessionEntity::class, SensorReadingEntity::class, AppLogEntity::class, DtcHistoryEntity::class],
-    version = 3,
+    version = APP_DATABASE_VERSION,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

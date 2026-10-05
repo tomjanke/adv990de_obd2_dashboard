@@ -111,13 +111,10 @@ class DashboardScreenTest {
     @Before
     fun setup() {
         hiltRule.inject()
-        // Der DataStore in diesem Testlauf ist der echte, geraeteweite Debug-DataStore (s.
-        // resetSlotPidsToDefault()-KDoc unten) und persistiert damit ueber Testklassen und -laeufe
-        // hinweg. Alle Tests dieser Klasse setzten die Default-Belegung (RPM/SPEED/COOLANT_TEMP)
-        // bereits stillschweigend voraus (z.B. dashboard_showsSlotCards); dieser Reset macht die
-        // Annahme explizit und deterministisch statt sie vom Zufall der Testausfuehrungsreihenfolge
-        // bzw. einer vorherigen manuellen Geraetenutzung abhaengig zu machen. Noetig wurde das erst
-        // mit dashboard_longPressOnTile_..., das die Belegung selbst absichtlich dauerhaft aendert.
+        // Der DataStore gehoert seit 1.24.4 diesem Test allein (TestAppModule: eigene Temp-Datei je Test, B37) —
+        // nichts persistiert ueber Tests oder Laeufe, und die Entwicklereinstellungen auf dem Geraet bleiben
+        // unberuehrt. Dieser Reset setzt trotzdem die Belegung RPM/SPEED/COOLANT_TEMP/leer: sie weicht von den
+        // Registry-Defaults ab (vierter Slot), und alle Tests dieser Klasse setzen sie stillschweigend voraus.
         resetSlotPidsToDefault()
     }
 
@@ -155,12 +152,9 @@ class DashboardScreenTest {
     }
 
     /**
-     * Setzt die Slot-Belegung auf die Registry-Defaults zurueck (RPM/SPEED/COOLANT_TEMP/leer).
-     * Der DataStore in diesem Testlauf ist der echte, geraeteweite Debug-DataStore (s.
-     * [de.adv990de.obd2.simulator.SimulatedDashboardTest]) und persistiert damit ueber Testklassen und
-     * -laeufe hinweg. Ohne diesen Reset waeren die drei neuen Tests unten von der
-     * Ausfuehrungsreihenfolge abhaengig — einer von ihnen aendert die Belegung selbst absichtlich
-     * dauerhaft.
+     * Setzt die Slot-Belegung auf RPM/SPEED/COOLANT_TEMP/leer. Der DataStore gehoert diesem Test allein
+     * (`TestAppModule`, B37): Die Belegung ist die Ausgangslage, die alle Tests stillschweigend voraussetzen
+     * (der vierte Slot ist hier leer, in den Registry-Defaults nicht).
      */
     private fun resetSlotPidsToDefault() = runBlocking {
         appPreferences.setSlotPid(0, PidRegistry.RPM.id)

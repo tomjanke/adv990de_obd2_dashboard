@@ -178,6 +178,26 @@ class ObdRepository @Inject constructor(
     }
 
     /**
+     * Die vier Bitmasken-Bytes aus der Antwort auf eine Bereichsabfrage (`0100`/`0120`/`0140`), oder null.
+     *
+     * Erwartet wird `41 <Bereich> B1 B2 B3 B4` — aber nicht zwingend am Anfang: Der erste OBD-Befehl nach ATSP0 loest die
+     * Protokollsuche aus, der ELM327 stellt dann "SEARCHING..." (bei ISO/KWP auch "BUS INIT: OK") vor die Antwort.
+     * Bis 1.24.5 musste "41" das allererste Token sein — mit dem Banner ging der ganze Bereich 01-20 verloren (B8).
+     * Gesucht wird deshalb der erste Eintrag `41 <Bereich>`. Dass das zweite Token der abgefragte Bereich ist, schliesst
+     * zugleich eine verspaetet eintreffende Antwort auf einen ANDEREN Bereich aus (deren Bits gehoeren zu anderen PIDs).
+     * Zu kurze Antworten ergeben null statt geratener Bytes.
+     */
+    internal fun rangeDataBytes(raw: String, base: Int): List<String>? {
+        val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+        val rangeToken = "%02X".format(base)
+        val header = tokens.indices.firstOrNull { i ->
+            tokens[i] == "41" && tokens.getOrNull(i + 1) == rangeToken
+        } ?: return null
+        val data = tokens.drop(header + 2).take(4)
+        return data.takeIf { it.size == 4 }
+    }
+
+    /**
      * Queries OBD2 PID support ranges (0100/0120/0140) and returns the subset of
      * [PidRegistry.all] keys that the ECU reports as supported.
      *
@@ -202,11 +222,9 @@ class ObdRepository @Inject constructor(
               catch (_: ObdException.Timeout)         { continue }
               catch (_: ObdException.UnknownResponse) { continue }
               catch (_: ObdException.BusInit)         { continue }
-            val tokens = raw.trim().uppercase().split("\\s+".toRegex())
-            // "41 XX B1 B2 B3 B4" → at least 6 tokens
-            if (tokens.size < 6 || tokens[0] != "41") continue
+            val dataBytes = rangeDataBytes(raw, base) ?: continue
             val bitmap = try {
-                tokens.drop(2).take(4).fold(0L) { acc, t -> (acc shl 8) or t.toLong(16) }
+                dataBytes.fold(0L) { acc, t -> (acc shl 8) or t.toLong(16) }
             } catch (_: NumberFormatException) { continue }
             for (i in 31 downTo 0) {
                 if ((bitmap shr i) and 1L == 1L) {

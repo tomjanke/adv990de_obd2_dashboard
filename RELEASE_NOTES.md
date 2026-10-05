@@ -1,5 +1,66 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.5 (versionCode 87)
+
+Tests, Release-Ablauf und Doku aufgeräumt (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B32, B34, B35, B36, B37, B38, B39) — und zwei
+Fehler im Verbindungs-Code, die dabei zutage kamen (B8 und eine falsche Timeout-Einstufung).
+
+### Zwei Fehler, die die neuen Tests aufdeckten
+
+- **Die Fahrzeug-Discovery verlor den Bereich 01–20 (B8).** Der erste OBD-Befehl nach `ATSP0` löst beim ELM327 die Protokollsuche aus; der
+  Adapter stellt dann „SEARCHING...“ (bei ISO/KWP auch „BUS INIT: OK“) **vor** die Antwort `41 00 …`. Die Auswertung verlangte „41“ als allererstes
+  Token — mit dem Banner ging der ganze Bereich verloren, `supportedPids` enthielt dann u. a. weder Geschwindigkeit noch Last noch Drossel. Jetzt
+  wird der erste Eintrag `41 <Bereich>` gesucht; das schließt zugleich eine verspätet eintreffende Antwort auf einen anderen Bereich aus, und zu kurze
+  Antworten ergeben `null` statt geratener Bytes. *Nicht an einem echten Adapter geprüft* (Grundlage: das ELM327-Datenblatt).
+- **Ein stiller, aber unterbrechbarer Adapter meldete `ConnectionLost` statt `Timeout`.** Läuft das Lese-Zeitlimit ab, unterbricht Kotlin den
+  blockierenden Lesevorgang; ein unterbrechbarer Eingang (die BLE-Pipe, der Simulator) wirft dann eine `InterruptedIOException`, die als
+  „Verbindung verloren“ gemeldet wurde — und eine echte Ausnahme schlägt bei Kotlin die Abbruchursache. Folge: Statt des toleranten Timeout-Wegs
+  (Messwert überspringen, Watchdog entscheidet) kam sofort Trennen und Reconnect. Ebenso meldete ein **von außen abgebrochener** Lesevorgang
+  (Kachel-Wechsel, Trennen) `ConnectionLost` und konnte so einen überflüssigen Reconnect anstoßen. Jetzt ist ein IO-Fehler nach dem Abbruch unser
+  eigener Interrupt und wird zu Timeout bzw. sauberem Abbruch. (Die klassische Bluetooth-Verbindung (RFCOMM) ist nicht betroffen: dort lässt sich
+  das Lesen gar nicht unterbrechen, B6.)
+
+### Tests
+
+- **Locale (B35).** Zwei Tests hingen an der Standard-Locale der Maschine (`.contains(".")`, `"14.2 (V)"`) und waren unter `de_DE` rot. Sie pinnen die
+  Locale jetzt (`withDefaultLocale`), prüfen exakt und decken Punkt **und** Komma ab. Die JVM-Tests laufen künftig unter `de_DE`, damit eine versteckte
+  Abhängigkeit sofort auffällt.
+- **Produktions-Bootstrap statt Nachbauten (B36).** Datenbankversion und Migrationsliste stehen einmal (`APP_DATABASE_VERSION`, `ALL_MIGRATIONS`,
+  `appDatabaseBuilder`), `AppModule` und die Tests benutzen sie; ein JVM-Test prüft, dass die Kette lückenlos von 1 bis zur aktuellen Version reicht — wer eine
+  Version anhebt oder eine Migration nicht einträgt, scheitert vor dem Release statt beim Update eines Nutzers. Der **Foreign-Key-Callback in `AppModule`
+  war überflüssig** (Rooms generierter `onOpen` setzt `PRAGMA foreign_keys = ON` selbst) — am Gerät über den Produktions-Builder nachgewiesen
+  (`AppDatabaseBootstrapTest`: Pragma, Cascade, abgelehnter Verstoß) und entfernt; die nachgebauten Callbacks in den DAO-Tests ebenfalls. Der
+  Benachrichtigungskanal entsteht in `createObdNotificationChannel`, das `Obd2Application` **und** der Service-Test benutzen.
+- **Eigener DataStore je Instrumentation-Test (B37).** Alle Tests teilten den echten `app_prefs` der Debug-App: reihenfolgeabhängig, und sie überschrieben
+  die Entwicklereinstellungen auf dem Gerät. Jetzt hat jeder Test einen frischen Speicher in einer Temp-Datei (`TestDataStoreIsolationTest` beweist es mit
+  zwei spiegelbildlichen Tests).
+- **Timeout und „SEARCHING...“ (B38).** Das Lese-Zeitlimit des `ElmController` ist ein Konstruktor-Parameter (Standard unverändert 5 s) und damit testbar
+  (100 ms); neu: Timeout-Abbildung, Abbruch von außen, die „SEARCHING...“- und „BUS INIT“-Fixtures bis in die Discovery.
+- **B34** (Test für einen werfenden `writeReadings`) war seit 1.24.0 erledigt (`ReadingsPipelineTest`) und ist nur abgehakt.
+
+### Release-Ablauf (B32) und Doku (B39)
+
+- **`scripts/release.sh`** hält den Ablauf fest: sauberer Arbeitsbaum (der Version-Bump muss **committet** sein, bevor gebaut wird), README und Release-Notes
+  nennen die Version, Tag noch frei → Unit-Tests → `assembleRelease` → eingebettete Revision == HEAD → Signatur → `mapping.txt` (45 MB) und Prüfsumme
+  außerhalb des Repos archivieren → optional `--install`. Taggen und Pushen bleiben Handarbeit.
+- **`ReleaseDocsConsistencyTest`** hält Version und versionCode in `build.gradle.kts`, README und `RELEASE_NOTES.md` zusammen (die README nannte bis zur QS 1.17.7).
+- **Doku an den Ist-Stand:** README-Berechtigungstabelle vollständig (Hintergrund-Standort, `FOREGROUND_SERVICE*`, `INTERNET`; was zur Laufzeit angefragt
+  wird und was nicht), Einstellungsliste führt die tatsächlich vorhandenen Einstellungen statt „Aufzeichnungs-Modus“ und „Log-Verbosity“, die es nicht gibt;
+  CLAUDE.md beschreibt das Dashboard-Raster (feste `Row`/`Column` mit 1-dp-Trennlinien, kein `LazyVerticalGrid`) und die Screen-Übergänge (Standard-Überblendung
+  statt der dokumentierten 220-ms-Slide-Vorgabe, die offen bleibt) wahrheitsgemäß.
+
+### Zahlen
+
++19 JVM-Tests (1099 insgesamt) und +6 Instrumentation-Tests (277 insgesamt: Datenbank-Bootstrap 3, DataStore-Isolation 2, Benachrichtigungskanal 1). Neun bewusst eingebaute Fehler wurden erkannt; einer überlebte zunächst (das gekürzte Discovery-Fixture lieferte
+zufällig nur unbekannte PIDs) und bekam ein Fixture, dessen Teilbytes sonst RPM und Speed ergäben.
+
+### Bekannte Grenzen
+
+- B8 ist am echten Adapter nicht bestätigt (nur per Fixture nach Datenblatt).
+- Die Zeitlimit-Korrektur wirkt nur dort, wo das Lesen unterbrechbar ist; der Kern von B6 (nicht unterbrechbarer RFCOMM-Lesevorgang, Verbindungsaufbau ohne
+  Zeitlimit) bleibt offen.
+- Das Release-Skript ist nicht automatisch ausgeführt getestet (nur Syntax-Test und die Vorprüfung); der erste echte Lauf ist dieser Release.
+
 ## Version 1.24.4 (versionCode 86)
 
 Dashboard-Zustände und sichtbare Berechtigungen (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B10, B20, B21, B23, B24).

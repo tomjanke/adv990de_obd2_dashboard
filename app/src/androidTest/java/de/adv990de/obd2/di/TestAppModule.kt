@@ -3,6 +3,7 @@ package de.adv990de.obd2.di
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
 import dagger.Module
@@ -11,7 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import de.adv990de.obd2.bluetooth.BluetoothDeviceScanner
-import de.adv990de.obd2.data.dataStore
+import de.adv990de.obd2.data.appPreferencesCorruptionHandler
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.DtcHistoryDao
@@ -19,6 +20,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.io.File
+import java.util.UUID
 import javax.inject.Singleton
 
 /**
@@ -83,10 +86,26 @@ object TestAppModule {
     fun provideBluetoothDeviceScanner(): BluetoothDeviceScanner = mockk(relaxed = true)
 
     /**
-     * Provides the real DataStore backed by the test application context. AppPreferences
-     * uses DataStore for all preference reads/writes; the in-process store is safe for tests.
+     * A DataStore of its own per test (a fresh [dagger.hilt.android.testing.HiltAndroidTest] component builds a fresh
+     * one), backed by a unique temp file in the cache directory — NOT the app's real `app_prefs` store.
+     *
+     * Until 1.24.4 every instrumentation test shared the debug app's real DataStore (B37): results depended on
+     * the order the tests ran in, and tests overwrote the developer's own settings on the device (an empty
+     * `loggedPidIds` left behind meant a later real recording would have logged nothing). Each test now starts from
+     * the defaults and leaves nothing behind; one unique file per store also avoids DataStore's "multiple
+     * DataStores active for the same file" failure when several components live in one process. The corruption
+     * handler is the production one, so it is exercised the same way.
      */
     @Provides
     @Singleton
-    fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> = ctx.dataStore
+    fun provideDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> {
+        val dir = File(ctx.cacheDir, "test_prefs")
+        // Files of earlier tests are dead weight: their stores are gone with their components.
+        dir.deleteRecursively()
+        return PreferenceDataStoreFactory.create(
+            corruptionHandler = appPreferencesCorruptionHandler(),
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+            produceFile = { File(dir, "prefs_${UUID.randomUUID()}.preferences_pb") },
+        )
+    }
 }
