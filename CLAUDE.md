@@ -648,6 +648,16 @@ Genutzt in `MainActivity.onCreate` (Theme → `collectAsState(initial = …)`) u
 die monotone Uhr; negatives Alter = ungültig). Sonst ein aktiver Fix (GPS, dann Netzwerk, je 15 s); **scheitert auch der, gibt es keinen Standort** — lieber keine Außentemperatur als eine für die falsche Gegend (vorher zählte jeder gecachte Fix, der GPS-Cache schlug einen
 frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standort anfordert). Das Halten des letzten guten Werts (30 min, `holdOutsideTemp`) bleibt davon unberührt.
 
+### Wetter-Client und Repository-Hygiene (seit v1.24.11)
+
+- **`OpenMeteoApi` ist gegenüber dem Dritten begrenzt (SEC-9):** `User-Agent` = `weatherUserAgent(BuildConfig.VERSION_NAME)` („OBD2Monitor/1.24.11“; ohne Version „OBD2Monitor“) und `Accept: application/json` — der JVM-Standard „Dalvik/…“ nennt keinen Ansprechpartner. Die Antwort
+  wird mit `readBounded` höchstens `MAX_RESPONSE_BYTES` = 16 KiB weit gelesen (Bytes **nach** dem Entpacken, nicht Zeichen; die echte Antwort hat rund 400 Byte); ein größeres `Content-Length` wird gar nicht erst geöffnet, mehr als die Grenze ergibt `null` wie jeder andere Fehler.
+  **Nie eine Schleife mit Lesen der Länge 0** (`read(buf, 0, 0)` liefert 0, nie −1): `readBounded` liest höchstens `maxBytes + 1 − gelesen` ≥ 1 Byte.
+- **Nichts Persönliches im Git (SEC-11):** `.idea/` ist ganz ignoriert (`RepositoryHygieneTest`: Eintrag in der `.gitignore`, keine getrackte IDE-Datei, keine `serial=…` in getrackten Dateien). Ignorieren wirkt nur auf Dateien, die nicht im Index stehen — eine
+  neu getrackte IDE-Datei bricht den Test. Die Seriennummer des Testgeräts steht noch in der Historie (Commits ab Februar 2026); sie zu tilgen hieße `git filter-repo` mit neuen SHAs und Tags, bewusst nicht getan (privates Repository).
+- **`uses-feature android.hardware.bluetooth` (`required="true"`, DAT-17):** ohne Bluetooth liefert `getSystemService(BLUETOOTH_SERVICE)` null, und `AppModule.provideBluetoothAdapter` wirft beim Aufbau des Hilt-Graphen. Die Deklaration hält solche Geräte aus Stores und Installern heraus
+  (`BluetoothScopeSourceTest`). **Bekannte Grenze:** ein von Hand (adb) installiertes Exemplar auf einem Gerät ohne Bluetooth stürzt weiter beim Start ab — die App ist dort ohnehin nutzlos; ein nullbarer Adapter durch drei Verbraucher wäre mehr Code als Nutzen.
+
 ### Fehlerhistorie: Randfälle (seit v1.24.9)
 
 - **Eine Live-Liste gehört zu EINER Verbindung:** `DtcViewModel` setzt `liveCodes` zurück, sobald `isConnected` falsch wird (vorher galt nach Trennen + Wiederverbinden ohne offene Seite die alte Liste wieder als „Aktiv“).
@@ -814,7 +824,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1284 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1297 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 312 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

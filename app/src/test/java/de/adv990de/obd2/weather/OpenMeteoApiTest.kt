@@ -142,6 +142,112 @@ class OpenMeteoApiTest {
             requestedUrls.single().query,
         )
     }
+
+    // ── Request headers (SEC-9) ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `the request identifies the app with a User-Agent and asks for JSON`() = runTest {
+        val api = OpenMeteoApi(userAgent = "OBD2Monitor/9.9.9", openConnection = { url ->
+            requestedUrls += url
+            object : FakeHttpURLConnection() {
+                override fun getInputStream() = okBody.byteInputStream()
+                override fun getResponseCode() = 200
+            }.also { openedConnections += it }
+        })
+        api.currentTemperatureC(52.52, 13.41)
+
+        val connection = openedConnections.single()
+        assertEquals("OBD2Monitor/9.9.9", connection.getRequestProperty("User-Agent"))
+        assertEquals("application/json", connection.getRequestProperty("Accept"))
+    }
+
+    @Test
+    fun `without an explicit User-Agent the app still names itself - never the JVM default`() = runTest {
+        fakeApi(okBody).currentTemperatureC(52.52, 13.41)
+        val ua = openedConnections.single().getRequestProperty("User-Agent")
+        assertEquals(DEFAULT_USER_AGENT, ua)
+        assertTrue(ua.startsWith("OBD2Monitor"))
+    }
+
+    @Test
+    fun `the User-Agent carries the app and its version only - no device or location data`() {
+        assertEquals("OBD2Monitor/1.24.10", weatherUserAgent("1.24.10"))
+        assertEquals("OBD2Monitor/1.24.10-debug", weatherUserAgent("1.24.10-debug"))
+        // Ein leerer oder fehlender Versionsname ergibt nie "OBD2Monitor/".
+        assertEquals(DEFAULT_USER_AGENT, weatherUserAgent(""))
+        assertEquals(DEFAULT_USER_AGENT, weatherUserAgent("  "))
+    }
+
+    // ── Response size is bounded (SEC-9) ────────────────────────────────────────────────────
+
+    @Test
+    fun `a response exactly at the size limit is still parsed`() = runTest {
+        val padded = okBody + " ".repeat(MAX_RESPONSE_BYTES - okBody.toByteArray().size)
+        assertEquals(MAX_RESPONSE_BYTES, padded.toByteArray().size)
+
+        assertEquals(13.5f, fakeApi(padded).currentTemperatureC(52.52, 13.41)!!, 0.01f)
+    }
+
+    @Test
+    fun `a response one byte over the size limit yields null`() = runTest {
+        val padded = okBody + " ".repeat(MAX_RESPONSE_BYTES + 1 - okBody.toByteArray().size)
+        assertEquals(MAX_RESPONSE_BYTES + 1, padded.toByteArray().size)
+
+        assertNull(fakeApi(padded).currentTemperatureC(52.52, 13.41))
+    }
+
+    @Test
+    fun `an endless response is cut off at the limit instead of being read to the end`() = runTest {
+        var bytesRead = 0L
+        val endless = object : java.io.InputStream() {
+            override fun read(): Int { bytesRead++; return ' '.code }
+            override fun read(b: ByteArray, off: Int, len: Int): Int { java.util.Arrays.fill(b, off, off + len, ' '.code.toByte()); bytesRead += len; return len }
+        }
+        val api = OpenMeteoApi(openConnection = { url ->
+            requestedUrls += url
+            object : FakeHttpURLConnection() {
+                override fun getInputStream() = endless
+                override fun getResponseCode() = 200
+            }.also { openedConnections += it }
+        })
+
+        assertNull(api.currentTemperatureC(52.52, 13.41))
+        assertTrue("gelesen: $bytesRead", bytesRead <= MAX_RESPONSE_BYTES + 1L)
+        assertTrue(openedConnections.single().disconnected)
+    }
+
+    @Test
+    fun `a declared Content-Length beyond the limit is refused before any byte is read`() = runTest {
+        var streamOpened = false
+        val api = OpenMeteoApi(openConnection = { url ->
+            requestedUrls += url
+            object : FakeHttpURLConnection() {
+                override fun getContentLengthLong() = 50_000_000L
+                override fun getInputStream(): java.io.InputStream { streamOpened = true; return okBody.byteInputStream() }
+                override fun getResponseCode() = 200
+            }.also { openedConnections += it }
+        })
+
+        assertNull(api.currentTemperatureC(52.52, 13.41))
+        assertEquals(false, streamOpened)
+        assertTrue(openedConnections.single().disconnected)
+    }
+
+    @Test
+    fun `multi-byte characters count as bytes, not characters`() = runTest {
+        // Ein Umlaut sind zwei Bytes: die Grenze gilt fuer die Bytes auf der Leitung.
+        val body = """{"current":{"temperature_2m":13.5,"note":"${"ä".repeat(MAX_RESPONSE_BYTES / 2)}"}}"""
+        assertTrue(body.length < MAX_RESPONSE_BYTES && body.toByteArray().size > MAX_RESPONSE_BYTES)
+
+        assertNull(fakeApi(body).currentTemperatureC(52.52, 13.41))
+    }
+
+    @Test
+    fun `readBounded returns the bytes up to the limit and null beyond it`() {
+        assertEquals("abc", String(readBounded("abc".byteInputStream(), 3)!!))
+        assertEquals("", String(readBounded("".byteInputStream(), 3)!!))
+        assertNull(readBounded("abcd".byteInputStream(), 3))
+    }
 }
 
 /** Minimal fake so tests don't need a real socket — every method not overridden throws, so a

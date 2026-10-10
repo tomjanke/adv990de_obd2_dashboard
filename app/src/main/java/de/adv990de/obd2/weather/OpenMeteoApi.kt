@@ -4,6 +4,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -32,8 +34,14 @@ import java.util.Locale
  * 1,1 km, s. [roundCoordinate]) — fuer Wetter mehr als genau genug, Open-Meteo rechnet laut eigener
  * Doku ohnehin auf einem Raster vergleichbarer Groesse. So steht in keinem Anfrage-Log eines Dritten
  * der genaue Standort.
+ *
+ * Gegenueber dem Dritten gilt (QS SEC-9): Die Anfrage nennt die App im `User-Agent` (Name und Version, sonst
+ * nichts — [weatherUserAgent]) statt des JVM-Standards "Dalvik/…", der Open-Meteo bei Auffaelligkeiten keinen
+ * Ansprechpartner liesse; und die Antwort wird hoechstens [MAX_RESPONSE_BYTES] weit gelesen, damit ein
+ * fehlerhafter oder boesartiger Server die App weder Speicher noch Daten kosten kann (echte Antwort: rund 400 Byte).
  */
 class OpenMeteoApi(
+    private val userAgent: String = DEFAULT_USER_AGENT,
     private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
 ) : WeatherApi {
 
@@ -49,9 +57,14 @@ class OpenMeteoApi(
                 connection = openConnection(url).apply {
                     connectTimeout = 10_000
                     readTimeout = 10_000
+                    setRequestProperty("User-Agent", userAgent)
+                    setRequestProperty("Accept", "application/json")
                 }
                 if (connection.responseCode != 200) return@withContext null
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                // Schon die Ankuendigung genuegt: eine zu grosse Antwort wird gar nicht erst geoeffnet.
+                if (connection.contentLengthLong > MAX_RESPONSE_BYTES) return@withContext null
+                val bytes = connection.inputStream.use { readBounded(it, MAX_RESPONSE_BYTES) } ?: return@withContext null
+                val body = String(bytes, Charsets.UTF_8)
                 val current = JSONObject(body).optJSONObject("current") ?: return@withContext null
                 if (!current.has("temperature_2m")) return@withContext null
                 // NaN/Unendlich (z. B. "NaN" als String, oder ein Wert jenseits des Float-Bereichs)
@@ -70,6 +83,33 @@ class OpenMeteoApi(
                 connection?.disconnect()
             }
         }
+}
+
+/** Obergrenze fuer die Antwort in Bytes (nach dem Entpacken). Die echte Antwort ist rund 400 Byte gross. */
+internal const val MAX_RESPONSE_BYTES = 16 * 1024
+
+/** Der Name der App fuer Open-Meteo, wenn kein Versionsname bekannt ist. */
+internal const val DEFAULT_USER_AGENT = "OBD2Monitor"
+
+/** `User-Agent` der Wetterabfrage: App und Version — kein Geraet, kein Standort, keine Kennung. */
+fun weatherUserAgent(versionName: String): String =
+    if (versionName.isBlank()) DEFAULT_USER_AGENT else "$DEFAULT_USER_AGENT/${versionName.trim()}"
+
+/**
+ * Liest [input] vollstaendig, aber hoechstens [maxBytes] Bytes: `null`, sobald mehr kommt. Liest nie mehr als
+ * `maxBytes + 1` Bytes — der eine zusaetzliche genuegt als Beweis, dass die Antwort zu gross ist.
+ */
+internal fun readBounded(input: InputStream, maxBytes: Int): ByteArray? {
+    val out = ByteArrayOutputStream(minOf(maxBytes, 1024))
+    val chunk = ByteArray(1024)
+    var total = 0
+    while (true) {
+        val n = input.read(chunk, 0, minOf(chunk.size, maxBytes + 1 - total))
+        if (n < 0) return out.toByteArray()
+        total += n
+        if (total > maxBytes) return null
+        out.write(chunk, 0, n)
+    }
 }
 
 /** Zwei Nachkommastellen (~1,1 km). `Locale.ROOT`, nicht die Geraete-Locale: auf einem deutschen

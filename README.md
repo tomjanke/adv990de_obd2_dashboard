@@ -31,7 +31,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 
 ## Hardware-Voraussetzungen
 
-- Android-Gerät mit **Bluetooth Classic**, ab Android 8.0
+- Android-Gerät mit **Bluetooth Classic**, ab Android 8.0 (das Manifest verlangt die Bluetooth-Hardware: `uses-feature android.hardware.bluetooth`, `required="true"`)
 - **ELM327-kompatibler OBD2-Adapter mit klassischem Bluetooth (SPP)** — im Betrieb mit einem MWT_OBD2 am Motorrad; **BLE-only-Adapter** (z. B. Vgate iCar Pro BLE, OBDLink CX im BLE-Modus) funktionieren nicht
 - Fahrzeug mit OBD2-Buchse (ab Bj. ~2001 in EU, ~1996 in US verpflichtend)
 
@@ -134,7 +134,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1284 Tests, < 30 Sekunden)
+# JVM Unit Tests (1297 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -143,7 +143,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1284 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1297 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 247 (Dashboard, Preview Banner, RpmBar, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 49 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -279,7 +279,9 @@ rechnet ohnehin auf einem Raster dieser Größenordnung). Das geschieht nur, sol
 sichtbar ist (Fahrzeug in Bewegung, Einstellung an, App im Vordergrund), dann einmal pro Minute —
 und sofort, wenn die Zeile nach einer Pause von mehr als 5 Sekunden wieder erscheint.
 Dafür deklariert die App `INTERNET` (normale Berechtigung, kein Dialog; das Sentry-SDK bringt sie
-ohnehin schon mit).
+ohnehin schon mit). Die Anfrage nennt die App im `User-Agent` (`OBD2Monitor/<Version>`, sonst nichts —
+keine Geräte- oder Nutzerkennung), und die Antwort wird höchstens 16 KiB weit gelesen (die echte ist rund
+400 Byte groß): ein fehlerhafter oder bösartiger Server kostet die App weder Speicher noch Daten.
 
 ---
 
@@ -358,7 +360,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1284) |
+| `app/src/test/` | JVM-Unit-Tests (1297) |
 | `app/src/androidTest/` | Instrumented Tests (312, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

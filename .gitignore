@@ -35,24 +35,10 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ
+# IntelliJ / Android Studio: der ganze Ordner ist persoenlich (Geraete-Seriennummern in deploymentTargetSelector.xml,
+# Pfade, Fenstergroessen) und wird vom Rechner erzeugt — nichts davon gehoert ins Repository (QS SEC-11).
+.idea/
 *.iml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/caches/
-.idea/modules.xml
-.idea/navEditor.xml
-.idea/deploymentTargetSelector.xml
-.idea/deploymentTargetDropDown.xml
-.idea/deviceStreaming.xml
-.idea/AndroidProjectSystem.xml
-.idea/migrations.xml
-.idea/runConfigurations.xml
-.idea/deviceManager.xml
 
 # Kotlin
 .kotlin/

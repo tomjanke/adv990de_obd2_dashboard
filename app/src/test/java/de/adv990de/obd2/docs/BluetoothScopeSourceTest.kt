@@ -40,6 +40,16 @@ class BluetoothScopeSourceTest {
     }
 
     @Test
+    fun `the manifest declares Bluetooth hardware as required - the app is useless and crashes at start without it`() {
+        // Ohne Bluetooth liefert getSystemService(BLUETOOTH_SERVICE) null; AppModule.provideBluetoothAdapter wirft dann beim
+        // Aufbau des Hilt-Graphen (DAT-17). required="true" haelt solche Geraete aus Stores und Installern heraus.
+        val manifest = read("app/src/main/AndroidManifest.xml")
+        val declaration = Regex("""<uses-feature\s[^>]*android:name="android\.hardware\.bluetooth"[^>]*/>""").find(manifest)
+        assertTrue("uses-feature android.hardware.bluetooth fehlt", declaration != null)
+        assertTrue("muss required=true sein", declaration!!.value.contains("""android:required="true""""))
+    }
+
+    @Test
     fun `the README does not promise BLE adapters`() {
         val readme = read("README.md")
         assertFalse("README bewirbt BLE-Adapter", readme.contains("**BLE** (ELM327-BLE-Adapter"))

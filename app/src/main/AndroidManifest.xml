@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Die App ist ohne Bluetooth nutzlos und startet dort nicht: getSystemService(BLUETOOTH_SERVICE) liefert dann null,
+         und der Aufbau des Hilt-Graphen (AppModule.provideBluetoothAdapter) wirft. required="true" haelt solche Geraete
+         aus Stores und Installern heraus (QS DAT-17). -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
+
     <!-- Classic Bluetooth (API <= 30): Verbinden mit einem gekoppelten Geraet braucht nur BLUETOOTH; BLUETOOTH_ADMIN
          waere fuer die Suche/Einstellungen noetig, die die App nicht macht. -->
     <uses-permission android:name="android.permission.BLUETOOTH"
