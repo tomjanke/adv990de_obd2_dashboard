@@ -107,6 +107,32 @@ class SlotPickerSheetTest {
     }
 
     @Test
+    fun theEntriesAreOrderedByTheDisplayedLabel_notByTheEnglishName() {
+        // Eingabe bewusst in der Reihenfolge RPM, Coolant, Speed: weder die englische noch die deutsche Bezeichnung liegt so.
+        val pids = listOf(PidRegistry.RPM, PidRegistry.COOLANT_TEMP, PidRegistry.SPEED)
+        composeRule.setContent {
+            SlotPickerSheet(
+                currentPidId = PidRegistry.RPM.id,
+                availablePids = pids,
+                readings = emptyList(),
+                useImperial = false,
+                onSelect = {},
+                onDismiss = {},
+            )
+        }
+        composeRule.waitForIdle()
+
+        val labels = pids.map { composeRule.activity.getString(it.labelRes) }
+        val expected = labels.sortedWith(java.text.Collator.getInstance())
+        assertTrue("die Eingabe soll nicht schon sortiert sein: $labels", labels != expected)
+
+        val tops = expected.map { label ->
+            composeRule.onNodeWithText("$label: --", substring = true).fetchSemanticsNode().boundsInRoot.top
+        }
+        assertTrue("von oben nach unten erwartet $expected, Oberkanten $tops", tops == tops.sorted() && tops.toSet().size == tops.size)
+    }
+
+    @Test
     fun tappingAnEntry_invokesOnSelectWithThatPidId() {
         val readings = listOf(SensorValue(PidRegistry.COOLANT_TEMP, 87f))
         var selected: String? = null

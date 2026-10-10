@@ -211,10 +211,16 @@ fun DashboardScreen(
             // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
             // die App nichts misst oder nichts messen kann.
             when (phase) {
-                DashboardPhase.Offline -> PreviewBanner(
-                    modifier = Modifier.fillMaxWidth(),
-                    reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
-                )
+                DashboardPhase.Offline -> {
+                    // Waehrend einer Wiederverbindung nennt das Band den Versuch (n/5) statt nur "nicht verbunden".
+                    val label = previewBannerLabel(state.isReconnecting, state.reconnectAttempt, state.reconnectTotal)
+                    PreviewBanner(
+                        modifier = Modifier.fillMaxWidth(),
+                        reason = previewBannerReason(state.isConnected, state.isReconnecting, state.error),
+                        labelRes = label.res,
+                        labelArgs = label.args,
+                    )
+                }
                 // Der Link steht, es kam noch kein Wert (B24): kein "Vorschau · nicht verbunden", das waere falsch.
                 DashboardPhase.Waiting -> PreviewBanner(
                     modifier = Modifier.fillMaxWidth(),

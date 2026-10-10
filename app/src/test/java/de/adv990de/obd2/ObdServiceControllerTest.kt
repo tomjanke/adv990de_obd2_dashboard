@@ -184,6 +184,48 @@ class ObdServiceControllerTest {
         assertTrue("die Trennung lief zu Ende", finished)
     }
 
+    // ── endSessionSafely (UID-20) ─────────────────────────────────────────
+
+    @Test
+    fun `endSessionSafely logs a failed disconnect instead of throwing - and still stops the service`() = runTest {
+        val repo = mockk<ObdRepository> { coEvery { disconnectByUser() } throws IllegalStateException("boom") }
+        val log = mockk<AppLogRepository>(relaxed = true)
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, repo = repo, context = context, log = log)
+
+        c.endSessionSafely()
+
+        coVerify { log.log(LogLevel.WARN, match { "boom" in it }) }
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
+    @Test
+    fun `endSessionSafely passes a cancellation on - it is not a failure to log`() = runTest {
+        val repo = mockk<ObdRepository> { coEvery { disconnectByUser() } throws kotlinx.coroutines.CancellationException("cancelled") }
+        val log = mockk<AppLogRepository>(relaxed = true)
+        val c = controller(backgroundScope, repo = repo, log = log)
+
+        try {
+            c.endSessionSafely()
+            fail("CancellationException erwartet")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // erwartet
+        }
+        coVerify(exactly = 0) { log.log(LogLevel.WARN, any()) }
+    }
+
+    @Test
+    fun `endSessionSafely ends the session as before when nothing fails`() = runTest {
+        val repo = makeRepo()
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, repo = repo, context = context)
+
+        c.endSessionSafely()
+
+        coVerify(exactly = 1) { repo.disconnectByUser() }
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
     // ── endSessionInBackground ────────────────────────────────────────────
 
     @Test

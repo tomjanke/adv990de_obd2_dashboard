@@ -84,6 +84,28 @@ class PreviewBannerTest {
     }
 
     @Test
+    fun duringAReconnect_theBannerNamesTheAttempt() {
+        composeRule.setContent {
+            val label = previewBannerLabel(isReconnecting = true, attempt = 2, total = 5)
+            MaterialTheme { PreviewBanner(labelRes = label.res, labelArgs = label.args) }
+        }
+
+        val expected = composeRule.activity.getString(R.string.dashboard_preview_banner_attempt, 2, 5)
+        composeRule.onNodeWithText(expected.uppercase()).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.dashboard_preview_banner).uppercase()).assertCountEquals(0)
+    }
+
+    @Test
+    fun duringTheAutoConnectAtStart_theBannerSaysItIsConnecting() {
+        composeRule.setContent {
+            val label = previewBannerLabel(isReconnecting = true, attempt = 0, total = 5)
+            MaterialTheme { PreviewBanner(labelRes = label.res, labelArgs = label.args) }
+        }
+
+        composeRule.onNodeWithText(string(R.string.dashboard_preview_banner_connecting).uppercase()).assertIsDisplayed()
+    }
+
+    @Test
     fun withAnotherLabel_theStaleBannerReplacesThePreviewLabel() {
         composeRule.setContent {
             MaterialTheme { PreviewBanner(labelRes = R.string.dashboard_stale_banner) }

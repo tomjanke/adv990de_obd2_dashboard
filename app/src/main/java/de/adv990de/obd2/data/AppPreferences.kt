@@ -214,7 +214,7 @@ class AppPreferences @Inject constructor(
      *  die Standortberechtigung wird erst angefragt, wenn der Nutzer das Feature einschaltet. */
     val useGpsSpeed: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_USE_GPS_SPEED] ?: false
-    }
+    }.distinctUntilChanged() // DataStore emits on every write; ReadingsPipeline restarts the GPS listener on each emission (DAT-13)
 
     suspend fun setUseGpsSpeed(enabled: Boolean) {
         dataStore.edit { it[KEY_USE_GPS_SPEED] = enabled }

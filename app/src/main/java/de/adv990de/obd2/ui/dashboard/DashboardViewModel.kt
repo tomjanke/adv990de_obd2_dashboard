@@ -172,6 +172,19 @@ class DashboardViewModel @Inject constructor(
     /** Zeitstempel des letzten Sparkline-Punkts je PID — s. [shouldAppendSparklineSample] (B30). */
     private val lastSparklineTimestamp = mutableMapOf<String, Long>()
 
+    /**
+     * Eine Sparkline gehoert zu EINER Verbindung: nach einem Verlust haengte der naechste Punkt sonst an die Kurve von vorher,
+     * als haette es keine Luecke gegeben (UID-16). Der Zeitstempel geht mit — sonst verschluckte der Mindestabstand den ersten
+     * Punkt der neuen Verbindung, wenn die Geraeteuhr nur wenig weitergelaufen ist.
+     */
+    private fun clearSparklines() {
+        sparklineBuffer.clear()
+        lastSparklineTimestamp.clear()
+    }
+
+    /** Beginn des Widerspruchs "ECU steht, GPS faehrt" ([standstillConflictSince]); gehoert wie die Sparkline zu einer Verbindung. */
+    private var standstillConflictSinceMs: Long? = null
+
     // Interner Timer-Zustand des Oel-Balkens (Gruen-Hysterese) — bewusst NICHT Teil von
     // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest; in den
     // UI-State gehoert nur die daraus abgeleitete OilBarColor. Wird bei einem Verbindungsabbruch
@@ -258,7 +271,11 @@ class DashboardViewModel @Inject constructor(
             SessionEvent.Idle -> applyIdle()
             SessionEvent.Stale -> applyStale()
             SessionEvent.ConnectionLost -> startReconnecting()
-            is SessionEvent.Failed -> _uiState.value = DashboardUiState.disconnected(event.error)
+            is SessionEvent.Failed -> {
+                clearSparklines()
+                standstillConflictSinceMs = null
+                _uiState.value = DashboardUiState.disconnected(event.error)
+            }
         }
     }
 
@@ -326,7 +343,14 @@ class DashboardViewModel @Inject constructor(
         // "N" nutzt bewusst newSpeedKmh (ECU zuerst): die ECU meldet den Stillstand sofort und ohne
         // GPS-Fix, waehrend computedGear aus der verzoegerten GPS-Geschwindigkeit noch einen Gang
         // liefern kann. Dann gewinnt "N" und der Gang wird geleert (isNeutral => gear == null).
-        val newNeutral = isNeutral(newRpmValue, newSpeedKmh, _uiState.value.isNeutral)
+        // Gegenprobe mit dem rohen GPS (UID-19): meldet die ECU konstant 0, soll "N" nicht die ganze Fahrt stehen. Erst ein
+        // Widerspruch, der ununterbrochen laenger dauert als das uebliche GPS-Nachhinken beim Anhalten, hebt "N" auf.
+        val neutralCheckedAt = nowMillis()
+        standstillConflictSinceMs = standstillConflictSince(newSpeedKmh, gpsSpeedKmh, standstillConflictSinceMs, neutralCheckedAt)
+        val newNeutral = isNeutral(
+            newRpmValue, newSpeedKmh, _uiState.value.isNeutral,
+            gpsVeto = gpsVetoesNeutral(standstillConflictSinceMs, neutralCheckedAt),
+        )
         val newGear = if (newNeutral) null else holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
         // Oel-Balken-Farbe: unabhaengig von rpmDynamicThreshold (anders als engineTempC oben) —
         // die Kuehlmitteltemperatur wird hier immer gesucht, wenn ein plausibler Wert vorliegt.
@@ -372,6 +396,7 @@ class DashboardViewModel @Inject constructor(
      * hat ihr eigenes 60-s-Luecken-Limit); sie wird ohne "live" ohnehin grau gezeichnet.
      */
     private fun applyStale() {
+        standstillConflictSinceMs = null
         _uiState.value = _uiState.value.copy(
             isStale = true,
             awaitingFirstValues = false,
@@ -390,6 +415,8 @@ class DashboardViewModel @Inject constructor(
      * Leerlauf genau die Meldung, die der Nutzer lesen soll.
      */
     private fun applyIdle() {
+        clearSparklines()
+        standstillConflictSinceMs = null
         _uiState.value = if (_uiState.value.error != null || _uiState.value.isReconnecting) {
             // speedKmh/gear werden hier explizit mit zurueckgesetzt (anders als rpmValue/
             // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
@@ -403,7 +430,8 @@ class DashboardViewModel @Inject constructor(
                 speedKmh = null,
                 gear = null,
                 isNeutral = false,
-                oilBarColor = null
+                oilBarColor = null,
+                sparklines = emptyMap(),
             )
         } else {
             DashboardUiState.disconnected()
@@ -447,7 +475,10 @@ class DashboardViewModel @Inject constructor(
      * unsichtbar.
      */
     private fun startReconnecting() {
+        clearSparklines()
+        standstillConflictSinceMs = null
         _uiState.value = _uiState.value.copy(
+            sparklines = emptyMap(),
             // Ein gemeldeter Verbindungsverlust heisst per Definition "nicht mehr verbunden" — unabhaengig davon,
             // ob das Idle-Ereignis des Messwert-Stroms schon da ist. Seit onLinkUp() den Link vor dem ersten Wert
             // als verbunden fuehrt, bliebe isConnected sonst wahr, solange isConnectedFlow nicht gekippt ist

@@ -35,6 +35,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -455,7 +456,8 @@ internal fun SensorCardSlot(
  * sagt jetzt, was sie ist.
  *
  * [labelRes] ist normalerweise "Vorschau · nicht verbunden"; bei veralteten Werten ([DashboardUiState.isStale])
- * nutzt dasselbe Band "Keine aktuellen Werte" — die Verbindung steht, das Steuergeraet schweigt.
+ * nutzt dasselbe Band "Keine aktuellen Werte" — die Verbindung steht, das Steuergeraet schweigt. Waehrend einer
+ * Wiederverbindung nennt es den Versuch ([previewBannerLabel], [labelArgs] = Nummer und Gesamtzahl).
  *
  * [reason] (siehe [previewBannerReason]) schreibt aus, WARUM nicht verbunden ist; ohne Grund bleibt es
  * das schlichte Band. Der Grund steht in der Fehlerfarbe des Themes (theme-sicherer Kontrast, wie die
@@ -466,6 +468,7 @@ internal fun PreviewBanner(
     modifier: Modifier = Modifier,
     reason: UiText? = null,
     @StringRes labelRes: Int = R.string.dashboard_preview_banner,
+    labelArgs: List<Any> = emptyList(),
 ) {
     Surface(
         modifier = modifier,
@@ -479,7 +482,7 @@ internal fun PreviewBanner(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SectionLabel(
-                text = stringResource(labelRes),
+                text = stringResource(labelRes, *labelArgs.toTypedArray()),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -561,6 +564,9 @@ internal fun SlotPickerSheet(
 ) {
     // Volle Hoehe statt halb: im Querformat zeigte das halbhohe Sheet anfangs nur ~3 Zeilen.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Nach dem angezeigten (uebersetzten) Namen geordnet, nicht nach dem englischen (UID-15).
+    val labels = availablePids.associate { it.id to stringResource(it.labelRes) }
+    val ordered = remember(availablePids, labels) { sortByDisplayLabel(availablePids, { labels.getValue(it.id) }) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
@@ -569,14 +575,14 @@ internal fun SlotPickerSheet(
         // wenn sie hier erneut gesetzt wird (s. ProvideMinTouchTarget).
         ProvideMinTouchTarget {
             LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
-                items(availablePids, key = { it.id }) { pid ->
+                items(ordered, key = { it.id }) { pid ->
                     val reading = readings.firstOrNull { it.pid.id == pid.id }
                     val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                        "${stringResource(pid.labelRes)}: -- (${pid.unit})"
+                        "${labels.getValue(pid.id)}: -- (${pid.unit})"
                     } else {
                         val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
                         val formatted = formatSensorNumber(convertedValue, pid.unit)
-                        "${stringResource(pid.labelRes)}: $formatted ($displayUnit)"
+                        "${labels.getValue(pid.id)}: $formatted ($displayUnit)"
                     }
                     ListItem(
                         modifier = Modifier.clickable { onSelect(pid.id) },

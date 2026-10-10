@@ -259,6 +259,46 @@ class GearIndicatorTest {
         assertNull(holdGear(computedGear = null, speedKmh = 60f, heldGear = null))
     }
 
+    // --- isNeutral: Plausibilitaet gegen die GPS-Geschwindigkeit (UID-19) ---
+
+    @Test
+    fun `a GPS veto switches neutral off - whether or not it was shown before`() {
+        assertFalse(isNeutral(engineRpm = 3000f, speedKmh = 0f, wasNeutral = false, gpsVeto = true))
+        assertFalse(isNeutral(engineRpm = 3000f, speedKmh = 0f, wasNeutral = true, gpsVeto = true))
+        assertTrue(isNeutral(engineRpm = 3000f, speedKmh = 0f, wasNeutral = false, gpsVeto = false))
+    }
+
+    @Test
+    fun `the conflict starts when the ECU stands and the GPS moves - and keeps its start while it lasts`() {
+        assertEquals(1_000L, standstillConflictSince(speedKmh = 0f, gpsSpeedKmh = 60f, sinceMs = null, nowMs = 1_000L))
+        assertEquals("der Beginn bleibt", 1_000L, standstillConflictSince(speedKmh = 0f, gpsSpeedKmh = 60f, sinceMs = 1_000L, nowMs = 4_000L))
+    }
+
+    @Test
+    fun `no conflict - and the count starts over - when GPS noise, a moving ECU or missing data say otherwise`() {
+        assertNull("GPS-Rauschen unter der Grenze", standstillConflictSince(0f, 7.9f, sinceMs = 1_000L, nowMs = 2_000L))
+        assertNull("die ECU meldet Fahrt", standstillConflictSince(30f, 60f, sinceMs = 1_000L, nowMs = 2_000L))
+        assertNull("kein GPS-Fix", standstillConflictSince(0f, null, sinceMs = 1_000L, nowMs = 2_000L))
+        assertNull("NaN ist kein Beleg", standstillConflictSince(0f, Float.NaN, sinceMs = 1_000L, nowMs = 2_000L))
+        assertNull("negativ ist kein Beleg", standstillConflictSince(0f, -5f, sinceMs = 1_000L, nowMs = 2_000L))
+        assertNull("keine Geschwindigkeit der ECU", standstillConflictSince(null, 60f, sinceMs = 1_000L, nowMs = 2_000L))
+    }
+
+    @Test
+    fun `the conflict counts from 8 km per hour GPS - the noise floor of the gear detection - and an ECU below 4`() {
+        assertEquals(0L, standstillConflictSince(0f, 8f, null, 0L))
+        assertEquals(0L, standstillConflictSince(3.9f, 8f, null, 0L))
+        assertNull(standstillConflictSince(4f, 8f, null, 0L))
+    }
+
+    @Test
+    fun `the GPS vetoes neutral only after the conflict lasted 5 seconds - the usual GPS lag when stopping is no conflict`() {
+        assertFalse("kein Widerspruch", gpsVetoesNeutral(conflictSinceMs = null, nowMs = 100_000L))
+        assertFalse(gpsVetoesNeutral(conflictSinceMs = 10_000L, nowMs = 10_000L))
+        assertFalse(gpsVetoesNeutral(conflictSinceMs = 10_000L, nowMs = 14_999L))
+        assertTrue(gpsVetoesNeutral(conflictSinceMs = 10_000L, nowMs = 15_000L))
+    }
+
     // --- isNeutral ---
 
     @Test

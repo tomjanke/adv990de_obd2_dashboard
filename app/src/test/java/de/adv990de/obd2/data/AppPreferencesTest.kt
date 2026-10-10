@@ -15,6 +15,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -297,6 +299,26 @@ class AppPreferencesTest {
     @Test
     fun `useGpsSpeed defaults to false`() = runTest {
         assertEquals(false, makePreferences().useGpsSpeed.first())
+    }
+
+    @Test
+    fun `useGpsSpeed does not emit again when an unrelated setting is written (DAT-13)`() = runTest {
+        // ReadingsPipeline startet den Standort-Listener per flatMapLatest auf diesem Flow neu — jeder DataStore-Schreibvorgang
+        // (u. a. persistDevice bei jedem manuellen Verbinden) liess ihn vorher mit demselben Wert erneut anlaufen.
+        val prefs = makePreferences()
+        val emissions = mutableListOf<Boolean>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) { prefs.useGpsSpeed.toList(emissions) }
+
+        prefs.setUseImperial(true)
+        prefs.setTheme(AppPreferences.THEME_BLUE)
+        assertEquals("fremde Schluessel loesen nichts aus", listOf(false), emissions)
+
+        prefs.setUseGpsSpeed(true)
+        assertEquals("eine echte Aenderung kommt an", listOf(false, true), emissions)
+
+        prefs.setUseGpsSpeed(true)
+        assertEquals("dasselbe noch einmal schreiben ist keine Aenderung", listOf(false, true), emissions)
+        job.cancel()
     }
 
     @Test

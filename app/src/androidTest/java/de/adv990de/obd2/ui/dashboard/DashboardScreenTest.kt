@@ -293,8 +293,8 @@ class DashboardScreenTest {
      * connectionCoordinator.requestReconnect() — and lastConnectedDevice being non-null lets the
      * reconnect loop skip the cold-launch AppPreferences lookup entirely.
      */
-    @Test
-    fun dashboard_showsConnectingDot_whenReconnecting() {
+    /** Eine Sitzung, die sofort mit ConnectionLost endet, dazu ein Reconnect, der immer scheitert: das Dashboard steht in der Wiederverbindung. */
+    private fun startFailingReconnect() {
         val isConnectedFlow = MutableStateFlow(false)
         every { obdRepository.isConnectedFlow } returns isConnectedFlow
         every { obdRepository.lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
@@ -314,6 +314,11 @@ class DashboardScreenTest {
         launchDashboardScreen()
         isConnectedFlow.value = true
         composeRule.waitForIdle()
+    }
+
+    @Test
+    fun dashboard_showsConnectingDot_whenReconnecting() {
+        startFailingReconnect()
 
         // A single waitForIdle() only settles Compose's own recomposition/layout/draw queue; it
         // does not span the real DataStore reads and Room writes that ReadingsPipeline.runSession
@@ -328,6 +333,24 @@ class DashboardScreenTest {
         composeRule
             .onNodeWithContentDescription(connectingDesc)
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun dashboard_previewBannerSaysItIsConnecting_whenReconnecting() {
+        startFailingReconnect()
+
+        // In dieser Anordnung bleibt isConnectedFlow absichtlich true (s. startFailingReconnect), die Wiederverbindungsschleife
+        // kehrt deshalb sofort zurueck und meldet keinen nummerierten Versuch: das Band steht auf "verbinde ..." — nicht mehr auf
+        // "nicht verbunden" (kein Widerspruch zum pulsierenden Punkt). Der nummerierte Text ("Verbindungsversuch n/5") ist in
+        // PreviewBannerTest (Compose) und PreviewBannerLabelTest (JVM) abgedeckt, die Nummer im ViewModel-Test.
+        val connectingLabel = composeRule.activity.getString(R.string.dashboard_preview_banner_connecting).uppercase()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(connectingLabel).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithText(connectingLabel).assertIsDisplayed()
+        composeRule.onAllNodesWithText(composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase())
+            .assertCountEquals(0)
     }
 
     // ── Backlog-Sweep 2026-09-24: verbleibende Teilabdeckungs-Luecken ───────────────────────────

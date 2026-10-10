@@ -9,6 +9,8 @@
     <string name="dashboard_slot_waiting_gps">Warte auf GPS-Signal</string>
     <string name="dashboard_slot_gps_permission">Standortberechtigung fehlt</string>
     <string name="dashboard_preview_banner">Vorschau · nicht verbunden</string>
+    <string name="dashboard_preview_banner_attempt">Vorschau · Verbindungsversuch %1$d/%2$d</string>
+    <string name="dashboard_preview_banner_connecting">Vorschau · verbinde …</string>
     <string name="dashboard_stale_banner">Keine aktuellen Werte</string>
     <string name="dashboard_waiting_banner">Verbunden · warte auf Werte</string>
 

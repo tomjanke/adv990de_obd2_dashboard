@@ -11,7 +11,8 @@
 #   scripts/release.sh              Vorpruefung, Unit-Tests, assembleRelease, Pruefung des APK, mapping.txt archivieren
 #   scripts/release.sh --install    zusaetzlich: auf das angeschlossene Geraet installieren und die Version pruefen
 #
-# Taggen und Pushen bleiben bewusst Handarbeit (`git tag vX.Y.Z && git push origin main vX.Y.Z`), nach dem Smoke-Test.
+# Taggen und Pushen bleiben bewusst Handarbeit (`git tag vX.Y.Z && git push origin main vX.Y.Z`), nach dem Smoke-Test
+# (`python3 -u scripts/smoke.py <versionName> <versionCode>`, Geraet entsperrt).
 #
 # Umgebung:
 #   RELEASE_ARCHIVE_DIR   Ablage fuer mapping.txt und APK-Pruefsumme (Standard: $HOME/obd2-release-archive). Ausserhalb des
@@ -136,5 +137,5 @@ if [ "$MODE_INSTALL" -eq 1 ]; then
 fi
 
 step "Fertig"
-echo "Naechste Schritte (von Hand): Smoke-Test auf dem Geraet, dann"
+echo "Naechste Schritte (von Hand): Smoke-Test auf dem Geraet (python3 -u scripts/smoke.py $VERSION_NAME $VERSION_CODE), dann"
 echo "  git tag v$VERSION_NAME && git push origin main v$VERSION_NAME"

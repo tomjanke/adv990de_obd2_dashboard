@@ -50,6 +50,17 @@ class BluetoothScopeSourceTest {
     }
 
     @Test
+    fun `location hardware is optional - the GPS speed is an opt-in, so a device without it must still install`() {
+        // Die Standort-Berechtigungen deklarieren die Hardware sonst implizit als Pflicht (aapt2: uses-implied-feature).
+        val manifest = read("app/src/main/AndroidManifest.xml")
+        for (feature in listOf("android.hardware.location", "android.hardware.location.gps")) {
+            val declaration = Regex("""<uses-feature\s[^>]*android:name="${Regex.escape(feature)}"[^>]*/>""").find(manifest)
+            assertTrue("uses-feature $feature fehlt", declaration != null)
+            assertTrue("$feature muss required=false sein", declaration!!.value.contains("""android:required="false""""))
+        }
+    }
+
+    @Test
     fun `the README does not promise BLE adapters`() {
         val readme = read("README.md")
         assertFalse("README bewirbt BLE-Adapter", readme.contains("**BLE** (ELM327-BLE-Adapter"))

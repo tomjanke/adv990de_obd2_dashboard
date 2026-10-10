@@ -43,6 +43,19 @@ class ExitAppViewModelTest {
     }
 
     @Test
+    fun `exitApp never throws when the disconnect fails - the app still has to close (UID-20)`() = runTest {
+        // BottomNav ruft nach exitApp() finishAffinity(). Eine Ausnahme aus der Trennung beendete in der Komposition-Coroutine
+        // den Prozess und liess das Beenden unvollendet.
+        val obdRepo = mockk<ObdRepository> { coEvery { disconnectByUser() } throws IllegalStateException("boom") }
+        val ctx = mockk<Context>(relaxed = true)
+        val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
+
+        vm.exitApp()    // darf nicht werfen
+
+        verify { ctx.stopService(any()) }
+    }
+
+    @Test
     fun `exitApp stops the foreground service`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val vm = makeVm(appContext = ctx)

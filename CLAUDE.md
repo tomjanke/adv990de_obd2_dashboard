@@ -233,6 +233,8 @@ Signatur: `LiveValueTile(label, value, unit?, modifier, sparkline, status = Ok, 
 Querformat (~1008 px Fensterhöhe) anfangs nur ~3 Zeilen, im Hochformat ~8; der Preis der vollen Höhe ist, dass die
 Kachel dahinter nicht mehr sichtbar bleibt. Nicht zurück auf den Default stellen, ohne diese Abwägung neu zu treffen.
 Regressionstest: `DashboardScreenTest.dashboard_slotPicker_opensFullyExpanded_soLowerRowsAreVisibleInLandscape`.
+**Reihenfolge (seit v1.24.12, UID-15):** nach dem **angezeigten, übersetzten** Namen (`sortByDisplayLabel`, `Collator` der Gerätesprache: „Ö“ bei „O“, Groß-/Kleinschreibung egal, stabil) —
+nicht nach dem englischen `PidDefinition.name`, nach dem `DashboardViewModel.availablePids` weiter vorsortiert; die Namen werden in der Komposition aufgelöst (`stringResource`).
 
 ### RPM-Balken
 
@@ -258,6 +260,11 @@ Geschwindigkeit, bleibt es bei „–“. „N“ schließt einen Gang aus (`Das
 `gear == null`), ohne Verbindung zeigt die Box immer „–“ (`gearBoxContent()`). Die Berechnung selbst
 (`determineGear`, Hysterese via `STAY_TOLERANCE`/`ENTER_TOLERANCE`; `isNeutral`, Hysterese 2/4 km/h)
 liegt in `ui/dashboard/GearIndicator.kt`, domain-agnostisch und ohne Android-Bezug.
+**Gegenprobe mit dem GPS (seit v1.24.12, UID-19):** Eine ECU, die konstant 0 km/h meldet, ließe „N“ die ganze Fahrt stehen. `standstillConflictSince` führt mit, seit wann
+„ECU steht (< 4 km/h)“ und „GPS fährt (≥ 8 km/h, die Rauschgrenze von `determineGear`)“ **ununterbrochen** zusammen gelten; erst nach `NEUTRAL_VETO_AFTER_MS` = 5 s
+hebt `gpsVetoesNeutral` das „N“ auf (`isNeutral(…, gpsVeto)`), und der Gang kommt wieder aus dem GPS. **Nie ein sofortiges Veto:** beim Anhalten meldet die ECU sofort 0,
+das GPS hinkt ein bis zwei Sekunden nach — das ist der Normalfall und darf „N“ nicht verzögern (`neutral wins over a gear that GPS still reports`). Die Zeit kommt aus
+`DashboardViewModel.nowMillis` (monoton), der Beginn wird mit der Verbindung zurückgesetzt (Idle, Verlust, Fehler, Stale).
 
 **Anzeige-Persistenz (seit 2026-09-23, Nutzer-Feedback nach Testfahrt):** Ein einzelner
 unplausibler Messzyklus (Kupplung gezogen, Gas weg) soll die Anzeige nicht auf „–“ zurückfallen
@@ -453,6 +460,10 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   (`previewBannerReason`: nur ohne Verbindung und **nicht** während eines Reconnects — sonst widerspräche das Band dem pulsierenden
   Punkt, weil `startReconnecting()` den alten Fehler bewusst stehen lässt). Farbe `colorScheme.error` (themesicher), Größe `labelLarge`.
   Jeder gescheiterte Reconnect-Versuch steht zusätzlich mit Ursache im App-Log.
+  **Seit v1.24.12 nennt das Band den Versuch:** `previewBannerLabel(isReconnecting, attempt, total)` (reine Funktion, `PreviewBannerLabel.kt`) → „Vorschau · Verbindungsversuch 2/5“
+  bei laufender Wiederverbindung, „Vorschau · verbinde …“ beim Auto-Connect beim Start (und in dem kurzen Moment zwischen Verlust und erstem Versuch), sonst „Vorschau · nicht verbunden“.
+  `DashboardUiState.reconnectAttempt` wurde schon vorher gesetzt, aber von keiner Oberfläche gelesen. Der Koordinator meldet einen Versuch, **bevor** seine Wartezeit beginnt: „1/5“ steht
+  also auch während der ersten 3 s (wie die Zeile im App-Log). Bewusst nicht gebaut: „nächster Versuch in X s“ (bräuchte ein neues Ereignis mit der Wartezeit).
 - **Beschädigte Einstellungen führen nicht zum Absturz.** `Context.dataStore` hat einen `corruptionHandler`
   (`appPreferencesCorruptionHandler()`: leere Einstellungen = Standardwerte), und `AppPreferences` liest über einen Flow, der
   `IOException` abfängt. Alle Lesezugriffe gehen über `AppPreferences.data`, nie direkt über `dataStore.data`.
@@ -658,6 +669,19 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **`uses-feature android.hardware.bluetooth` (`required="true"`, DAT-17):** ohne Bluetooth liefert `getSystemService(BLUETOOTH_SERVICE)` null, und `AppModule.provideBluetoothAdapter` wirft beim Aufbau des Hilt-Graphen. Die Deklaration hält solche Geräte aus Stores und Installern heraus
   (`BluetoothScopeSourceTest`). **Bekannte Grenze:** ein von Hand (adb) installiertes Exemplar auf einem Gerät ohne Bluetooth stürzt weiter beim Start ab — die App ist dort ohnehin nutzlos; ein nullbarer Adapter durch drei Verbraucher wäre mehr Code als Nutzen.
 
+### Anzeige-Fixes (seit v1.24.12)
+
+- **Sparkline gehört zu einer Verbindung (UID-16):** `DashboardViewModel.clearSparklines()` leert Puffer **und** Zeitmarken bei Idle, Verbindungsverlust (`startReconnecting`) und Sitzungsfehler — vorher hängte der erste Punkt nach einem Reconnect
+  an die Kurve von vorher. Die Zeitmarke geht mit, sonst verschluckt der 800-ms-Mindestabstand den ersten neuen Punkt. Bei „veraltet“ (Stale) bleibt die Kurve (die Verbindung steht).
+- **„Beenden“ läuft immer zu Ende (UID-20):** `ObdServiceController.endSessionSafely()` fängt jeden Fehler beim Trennen (App-Log WARN), reicht nur die Abbruch-Ausnahme weiter und stoppt den Dienst auch bei Fehlschlag; `ExitAppViewModel.exitApp()` und
+  `endSessionInBackground()` nutzen sie. Vorher beendete eine Ausnahme aus dem Trennen die Komposition-Coroutine (Prozess-Absturz) und `finishAffinity()` lief nie.
+- **`useGpsSpeed` mit `distinctUntilChanged` (DAT-13):** `ReadingsPipeline` startet den Standort-Listener per `flatMapLatest` auf diesem Flow neu — jeder DataStore-Schreibvorgang (u. a. `persistDevice` bei jedem manuellen Verbinden) tat das vorher mit unverändertem Wert.
+  Die übrigen Einstellungs-Flows, die nur Anzeige speisen, sind `StateFlow`s (fassen gleiche Werte selbst zusammen) und blieben unverändert.
+- **Standort-Hardware ist optional:** `uses-feature android.hardware.location` und `….gps` mit `required="false"` — die Standort-Berechtigungen deklarieren sie sonst implizit als Pflicht (`aapt2 dump badging`: `uses-implied-feature`).
+- **Smoke-Test im Repo:** `scripts/smoke.py <versionName> <versionCode>` (uiautomator, Gerät entsperrt; `SmokeScriptTest` hält ihn vorhanden, übersetzbar und im Release-Ablauf genannt). Er lag bis 1.24.11 nur im Scratchpad einer Sitzung und ging verloren.
+- **Bewusst nicht umgesetzt:** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen; eine größere Skala wäre eine neue Einstellung), der Tacho-Sweep „nur einmal je Start“ (Produktentscheidung) und PRO-11 (der Einzelbefund
+  „`disconnect()` unbedingt“ ist im Bericht nur ein Stichwort; Protokollschicht, ohne Adapter nicht prüfbar).
+
 ### Fehlerhistorie: Randfälle (seit v1.24.9)
 
 - **Eine Live-Liste gehört zu EINER Verbindung:** `DtcViewModel` setzt `liveCodes` zurück, sobald `isConnected` falsch wird (vorher galt nach Trennen + Wiederverbinden ohne offene Seite die alte Liste wieder als „Aktiv“).
@@ -824,8 +848,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1297 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 312 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1331 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 316 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

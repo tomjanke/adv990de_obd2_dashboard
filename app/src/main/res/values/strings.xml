@@ -9,6 +9,8 @@
     <string name="dashboard_slot_waiting_gps">Waiting for a GPS fix</string>
     <string name="dashboard_slot_gps_permission">Location permission missing</string>
     <string name="dashboard_preview_banner">Preview · not connected</string>
+    <string name="dashboard_preview_banner_attempt">Preview · connection attempt %1$d/%2$d</string>
+    <string name="dashboard_preview_banner_connecting">Preview · connecting…</string>
     <string name="dashboard_stale_banner">No current readings</string>
     <string name="dashboard_waiting_banner">Connected · waiting for readings</string>
 

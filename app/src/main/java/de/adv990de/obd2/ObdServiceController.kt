@@ -101,18 +101,26 @@ class ObdServiceController @Inject constructor(
     }
 
     /**
-     * Wie [endSession], fuer Aufrufer ohne eigene Coroutine (`Activity.onDestroy`). Wirft nie: ein Fehler steht im
+     * Wie [endSession], aber ein Fehler steht im App-Log statt als Ausnahme beim Aufrufer (nur die Abbruch-Ausnahme des Aufrufers
+     * wird weitergereicht). Fuer Aufrufer, die danach weitermachen muessen — "Beenden" schliesst die Activity, auch wenn das
+     * Trennen scheiterte (UID-20); ein ungefangener Fehler in der Komposition-Coroutine beendete sonst den Prozess und liess
+     * das Beenden unvollendet. Der Dienst wird dank [endSession] auch bei einem Fehler gestoppt.
+     */
+    suspend fun endSessionSafely() {
+        try {
+            endSession()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            appLogRepository.log(LogLevel.WARN, "Ending the session failed: ${e.javaClass.simpleName}: ${e.message ?: "-"}")
+        }
+    }
+
+    /**
+     * Wie [endSessionSafely], fuer Aufrufer ohne eigene Coroutine (`Activity.onDestroy`). Wirft nie: ein Fehler steht im
      * App-Log, statt im ungefangenen Scope den Prozess zu beenden.
      */
     fun endSessionInBackground() {
-        scope.launch {
-            try {
-                endSession()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                appLogRepository.log(LogLevel.WARN, "Ending the session failed: ${e.javaClass.simpleName}: ${e.message ?: "-"}")
-            }
-        }
+        scope.launch { endSessionSafely() }
     }
 
     /** Der Dienst meldet, dass sein eigenes `startForeground()` abgelehnt wurde (er beendet sich danach selbst). */

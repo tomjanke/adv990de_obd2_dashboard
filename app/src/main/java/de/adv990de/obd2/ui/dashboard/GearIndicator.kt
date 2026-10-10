@@ -31,6 +31,15 @@ private const val NEUTRAL_ENTER_SPEED_KMH = 2.0f
  *  gegen GPS-Rauschen um [NEUTRAL_ENTER_SPEED_KMH]. */
 private const val NEUTRAL_HOLD_SPEED_KMH = 4.0f
 
+/** Ab dieser GPS-Geschwindigkeit widerspricht das GPS einem Stillstand der ECU — dieselbe Schwelle wie [MIN_SPEED_KMH], die
+ *  GPS-Rauschgrenze: darunter ist GPS im Stand unzuverlaessig (Rauschen, Mehrwegeffekte), darueber ist "faehrt" belastbar. */
+private const val NEUTRAL_GPS_CONFLICT_KMH = MIN_SPEED_KMH
+
+/** So lange muss der Widerspruch ECU "steht" gegen GPS "faehrt" ununterbrochen bestehen, bevor das GPS "N" aufhebt. Das GPS
+ *  hinkt beim Anhalten ein bis zwei Sekunden hinterher (die ECU meldet den Stillstand sofort) — das ist KEIN Widerspruch, sondern
+ *  der Normalfall und darf "N" nicht verzoegern. Eine ECU, die konstant 0 meldet, widerspricht dem GPS dagegen dauerhaft. */
+internal const val NEUTRAL_VETO_AFTER_MS = 5_000L
+
 /** Unter dieser Drehzahl laeuft der Motor nicht (Zuendung aus, Anlasser dreht mit ~250 rpm). */
 private const val ENGINE_RUNNING_MIN_RPM = 500f
 
@@ -105,11 +114,32 @@ fun holdGear(computedGear: Int?, speedKmh: Float?, heldGear: Int?): Int? = when 
  * heisst unbekannt — dann nie "N" (anders als die Fahrterkennung, wo "fehlt" als "steht" gilt).
  * Hysterese: Eintritt unter [NEUTRAL_ENTER_SPEED_KMH], ein bereits angezeigtes "N" ([wasNeutral])
  * bleibt bis [NEUTRAL_HOLD_SPEED_KMH]. Das negierte `>=` macht eine NaN-Drehzahl zu "Motor aus".
+ *
+ * Plausibilitaet gegen das GPS (UID-19): [speedKmh] kommt zuerst von der ECU. Meldet sie konstant 0 (ein haengendes oder nie
+ * befuelltes Geschwindigkeits-PID), stuende "N" waehrend der ganzen Fahrt. Hat das GPS der ECU lange genug widersprochen
+ * ([gpsVetoesNeutral], aus [standstillConflictSince]), gilt kein "N" ([gpsVeto]) — und der Gang kommt aus dem GPS-Wert.
  */
-fun isNeutral(engineRpm: Float, speedKmh: Float?, wasNeutral: Boolean): Boolean {
-    if (speedKmh == null || !(engineRpm >= ENGINE_RUNNING_MIN_RPM)) return false
+fun isNeutral(engineRpm: Float, speedKmh: Float?, wasNeutral: Boolean, gpsVeto: Boolean = false): Boolean {
+    if (gpsVeto || speedKmh == null || !(engineRpm >= ENGINE_RUNNING_MIN_RPM)) return false
     return speedKmh < if (wasNeutral) NEUTRAL_HOLD_SPEED_KMH else NEUTRAL_ENTER_SPEED_KMH
 }
+
+/**
+ * Seit wann widerspricht das GPS dem Stillstand der ECU? [sinceMs] ist der bisherige Beginn des Widerspruchs (`null` = keiner),
+ * [nowMs] die monotone Zeit. Ein Widerspruch besteht, solange die ECU ein Stehen meldet ([speedKmh] unter der Haltegrenze
+ * von "N") UND das GPS ([gpsSpeedKmh], roh, `null` ohne Fix) mindestens [NEUTRAL_GPS_CONFLICT_KMH] zeigt; NaN und negative Werte sind
+ * kein Beleg. Endet er auch nur fuer einen Zyklus, beginnt die Zaehlung von vorn. Rueckgabe: der (bestehende oder neue) Beginn,
+ * oder `null`, wenn kein Widerspruch besteht.
+ */
+fun standstillConflictSince(speedKmh: Float?, gpsSpeedKmh: Float?, sinceMs: Long?, nowMs: Long): Long? {
+    val ecuStanding = speedKmh != null && speedKmh < NEUTRAL_HOLD_SPEED_KMH
+    val gpsMoving = gpsSpeedKmh != null && gpsSpeedKmh >= NEUTRAL_GPS_CONFLICT_KMH
+    return if (ecuStanding && gpsMoving) sinceMs ?: nowMs else null
+}
+
+/** Hebt das GPS "N" auf? Erst, wenn der Widerspruch seit mindestens [NEUTRAL_VETO_AFTER_MS] besteht ([conflictSinceMs] aus [standstillConflictSince]). */
+fun gpsVetoesNeutral(conflictSinceMs: Long?, nowMs: Long): Boolean =
+    conflictSinceMs != null && nowMs - conflictSinceMs >= NEUTRAL_VETO_AFTER_MS
 
 /**
  * Findet Gangpaare, deren Gesamt-Uebersetzung so nah beieinander liegt (relative Abweichung

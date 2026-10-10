@@ -2074,6 +2074,71 @@ class DashboardViewModelTest {
         assertEquals(2, d.vm.uiState.value.sparklines[PidRegistry.COOLANT_TEMP.id]!!.size)
     }
 
+    @Test
+    fun `an idle connection clears the sparkline buffer - a reconnect starts a fresh line (UID-16)`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+        d.cycle(rpmAt(1_000L, 3000f))
+        d.cycle(rpmAt(2_000L, 3100f))
+        advanceUntilIdle()
+        assertEquals(2, d.vm.uiState.value.sparklines[PidRegistry.RPM.id]!!.size)
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+        d.cycle(rpmAt(60_000L, 900f))
+        advanceUntilIdle()
+
+        assertEquals("nur der neue Punkt, nicht der alte Verlauf davor", listOf(900f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `a lost connection clears the sparklines at once and the buffer for the next session (UID-16)`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+        d.cycle(rpmAt(1_000L, 3000f))
+        advanceUntilIdle()
+
+        d.events.emit(SessionEvent.ConnectionLost)
+        advanceUntilIdle()
+        assertTrue("waehrend der Wiederverbindung keine alte Kurve", d.vm.uiState.value.sparklines.isEmpty())
+
+        d.cycle(rpmAt(30_000L, 1100f))
+        advanceUntilIdle()
+        assertEquals(listOf(1100f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `a failed session clears the sparkline buffer too (UID-16)`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+        d.cycle(rpmAt(1_000L, 3000f))
+        advanceUntilIdle()
+
+        d.events.emit(SessionEvent.Failed(UiText.DynamicString("boom")))
+        advanceUntilIdle()
+        d.cycle(rpmAt(5_000L, 1500f))
+        advanceUntilIdle()
+
+        assertEquals(listOf(1500f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `the first sample after a reconnect is not suppressed by the clock of the old line (UID-16)`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+        d.cycle(rpmAt(10_000L, 3000f))
+        advanceUntilIdle()
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+        // 300 ms nach dem letzten Punkt der alten Linie (Geraeteuhr, Zeitstempel zaehlen weiter): ohne zurueckgesetzte
+        // Zeitmarke wuerde der Mindestabstand von 800 ms diesen ersten Punkt der neuen Verbindung verschlucken.
+        d.cycle(rpmAt(10_300L, 900f))
+        advanceUntilIdle()
+
+        assertEquals(listOf(900f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
+    }
+
     private fun coolant(value: Float, ts: Long) = SensorValue(pid = PidRegistry.COOLANT_TEMP, value = value, timestamp = ts)
 
     @Test
@@ -2257,6 +2322,96 @@ class DashboardViewModelTest {
 
         assertTrue(vm.uiState.value.isNeutral)
         assertNull(vm.uiState.value.gear)
+    }
+
+    // UID-19: eine ECU, die konstant 0 km/h meldet, darf "N" nicht die ganze Fahrt stehen lassen. Beim Anhalten hinkt das GPS dagegen
+    // ein bis zwei Sekunden hinterher (siehe `neutral wins over a gear that GPS still reports`) — das ist kein Widerspruch. Erst ein
+    // Widerspruch, der ohne Unterbrechung 5 s dauert, hebt "N" auf; die Zeit kommt aus `nowMillis` (monoton).
+
+    private fun drivenWithGears(): Driven = driven(
+        makePrefs(
+            useGpsSpeed = true,
+            wheelCircumferenceMm = 2000f,
+            primaryRatio = 1f,
+            secondaryRatio = 1f,
+            gearRatios = listOf(10f, 5f, 3f, 2f, 1.5f, 1.2f),
+        )
+    )
+
+    private suspend fun Driven.cycleAt(clockMs: Long, rpm: Float, ecuKmh: Float, gpsKmh: Float?) {
+        vm.nowMillis = { clockMs }
+        events.emit(SessionEvent.Values(cycle(rpm, ecuKmh, timestamp = clockMs), gpsSpeedKmh = gpsKmh))
+    }
+
+    @Test
+    fun `an ECU that always reports 0 stops showing N after 5 seconds of GPS contradiction - and the gear comes back (UID-19)`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.cycleAt(0L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)
+        advanceUntilIdle()
+        assertTrue("das GPS hinkt vielleicht nur nach: zunaechst bleibt N", d.vm.uiState.value.isNeutral)
+
+        d.cycleAt(4_999L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)
+        advanceUntilIdle()
+        assertTrue("knapp unter 5 s", d.vm.uiState.value.isNeutral)
+
+        d.cycleAt(5_000L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)
+        advanceUntilIdle()
+        assertFalse("5 s Widerspruch: kein N mehr", d.vm.uiState.value.isNeutral)
+        // rpm 2500 bei 60 km/h und Rad 2000 mm: Uebersetzung 5 -> zweiter Gang, aus dem GPS.
+        assertEquals(2, d.vm.uiState.value.gear)
+    }
+
+    @Test
+    fun `the GPS catching up with a stop never takes N away - the contradiction ends before it counts`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.cycleAt(0L, rpm = 1200f, ecuKmh = 0f, gpsKmh = 12f)      // ECU steht, GPS hinkt
+        d.cycleAt(1_000L, rpm = 1200f, ecuKmh = 0f, gpsKmh = 4f)   // GPS ist unten
+        advanceUntilIdle()
+        assertTrue(d.vm.uiState.value.isNeutral)
+
+        d.cycleAt(9_000L, rpm = 1200f, ecuKmh = 0f, gpsKmh = 9f)   // spaeter wieder ein GPS-Ausreisser: die Zaehlung beginnt neu
+        advanceUntilIdle()
+        assertTrue("ein Ausreisser nach langer Ruhe loest nichts aus", d.vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `the contradiction has to be uninterrupted - one quiet cycle restarts the count`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.cycleAt(0L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)
+        d.cycleAt(3_000L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 2f)   // Ruhe: Zaehlung zurueckgesetzt
+        d.cycleAt(6_000L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)  // seit 0 waeren das 6 s, seit der Pause sind es 0
+        advanceUntilIdle()
+
+        assertTrue(d.vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `the contradiction clock starts over with every connection`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+        d.cycleAt(0L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)
+        advanceUntilIdle()
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+        d.cycleAt(6_000L, rpm = 2500f, ecuKmh = 0f, gpsKmh = 60f)  // 6 s nach dem alten Beginn, aber eine neue Verbindung
+        advanceUntilIdle()
+
+        assertTrue(d.vm.uiState.value.isNeutral)
+    }
+
+    @Test
+    fun `GPS noise at a standstill does not veto neutral`() = runTest {
+        val vm = makeNeutralVm(cycle(rpm = 1200f, speedKmh = 0f), gpsKmh = 3f)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isNeutral)
     }
 
     @Test

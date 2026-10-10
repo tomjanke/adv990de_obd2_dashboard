@@ -7,6 +7,11 @@
          aus Stores und Installern heraus (QS DAT-17). -->
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
 
+    <!-- Standort ist nur ein Opt-in (GPS-Geschwindigkeit, Aussentemperatur): die Standort-Berechtigungen deklarieren die
+         Hardware sonst implizit als Pflicht (aapt2: uses-implied-feature) und schlossen Geraete ohne sie aus. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
     <!-- Classic Bluetooth (API <= 30): Verbinden mit einem gekoppelten Geraet braucht nur BLUETOOTH; BLUETOOTH_ADMIN
          waere fuer die Suche/Einstellungen noetig, die die App nicht macht. -->
     <uses-permission android:name="android.permission.BLUETOOTH"

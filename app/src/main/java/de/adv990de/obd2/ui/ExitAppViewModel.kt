@@ -16,5 +16,6 @@ class ExitAppViewModel @Inject constructor(
     private val serviceController: ObdServiceController,
 ) : ViewModel() {
 
-    suspend fun exitApp() = serviceController.endSession()
+    /** Beendet die Sitzung und wirft nie (ein Fehler steht im App-Log): der Aufrufer schliesst danach die Activity (UID-20). */
+    suspend fun exitApp() = serviceController.endSessionSafely()
 }
