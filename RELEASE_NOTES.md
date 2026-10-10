@@ -1,5 +1,31 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.11 (versionCode 93)
+
+Drei kleine Härtungen aus dem QS-Bericht: Wetter-Client (SEC-9), `.idea` im Git (SEC-11) und `uses-feature` für Bluetooth (DAT-17). Keine sichtbare Änderung in der App.
+
+### Wetter-Client gegenüber dem Dritten begrenzt (SEC-9)
+
+- **`User-Agent`:** Die Anfrage an Open-Meteo nennt jetzt die App (`OBD2Monitor/<Version>`, sonst nichts — keine Geräte- oder Nutzerkennung, kein Standort) und `Accept: application/json`. Vorher stand dort der JVM-Standard „Dalvik/…“, der bei Auffälligkeiten keinen Ansprechpartner nennt.
+- **Antwort begrenzt:** Gelesen werden höchstens 16 KiB (Bytes nach dem Entpacken; die echte Antwort hat rund 400 Byte). Ein größeres `Content-Length` wird gar nicht erst geöffnet, eine größere Antwort ergibt `null` wie jeder andere Fehler (dann gilt das Halten des letzten Werts für 30 Minuten). Ein fehlerhafter oder bösartiger Server kostet die App damit weder Speicher noch Daten. `readBounded` liest nie mehr als Grenze + 1 Byte.
+
+### Nichts Persönliches im Git (SEC-11)
+
+- 13 `.idea`-Dateien waren getrackt, darunter `deploymentTargetSelector.xml` mit der Seriennummer eines Testgeräts. Sie sind aus dem Index genommen (auf der Platte bleiben sie, Android Studio läuft unverändert weiter), die `.gitignore` ignoriert `.idea/` jetzt ganz — die alten Einzel-Einträge wirkten nicht, weil Ignorieren nur Dateien betrifft, die nicht im Index stehen.
+- **`RepositoryHygieneTest`** hält das fest: Eintrag in der `.gitignore`, keine getrackte IDE-Datei, keine `serial=…` in getrackten Dateien.
+- **Grenze:** Die Seriennummer steht weiter in der Git-Historie (Commits ab Februar 2026). Sie zu entfernen hieße `git filter-repo` und alle SHAs und Tags neu zu schreiben — nicht getan; das Repository ist privat. Die Codestil-Einstellungen des Projekts (`.idea/codeStyles`) kommen damit nicht mehr aus dem Repository, ein frisches Klonen fängt mit den Studio-Standards an.
+
+### `uses-feature` Bluetooth (DAT-17)
+
+- Das Manifest deklariert `android.hardware.bluetooth` als `required="true"`. Ohne Bluetooth liefert `getSystemService(BLUETOOTH_SERVICE)` null, und `AppModule.provideBluetoothAdapter` wirft beim Aufbau des Hilt-Graphen — die App ist dort nutzlos. Geräte ohne Bluetooth kommen damit nicht mehr über Stores und Installer.
+- **Grenze:** Ein von Hand (adb) installiertes Exemplar auf einem Gerät ohne Bluetooth stürzt weiter beim Start ab; ein nullbarer Adapter durch drei Verbraucher wäre mehr Code als Nutzen.
+
+### Tests
+
+- **1297 JVM-Unit-Tests** (vorher 1284, +13) und **312 Instrumentation-Tests auf dem Pixel 8 Pro** (unverändert, einer auf diesem Gerät übersprungen), 0 Fehler; Lint 0 Fehler / 26 Warnungen (unverändert).
+- **Neue Tests:** neun in `OpenMeteoApiTest` (User-Agent und Accept, Standard-Agent, `weatherUserAgent`, Grenze genau/ein Byte darüber, endlose Antwort, `Content-Length`, Mehrbyte-Zeichen, `readBounded`), eine in `BluetoothScopeSourceTest` (Feature `required="true"`), drei in `RepositoryHygieneTest`.
+- **Mutationsprüfung:** fünf gezielte Eingriffe (User-Agent entfernt, `Content-Length`-Prüfung entfernt, Grenze um eins verschoben, `required="false"`, `.idea/` aus der `.gitignore` bzw. eine IDE-Datei wieder getrackt) — **alle erkannt**.
+
 ## Version 1.24.10 (versionCode 92)
 
 Statusleisten-Symbole und System-Splash passen zum Farbschema der App (zwei Punkte aus dem Backlog: „Statusleisten-Symbole folgen dem Systemthema“ und „Hintergrundfarbe des System-Splash“).
