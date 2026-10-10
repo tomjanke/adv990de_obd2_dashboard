@@ -1,5 +1,50 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.12 (versionCode 94)
+
+Kleine Anzeige-Fixes aus dem QS-Bericht (UID-15, UID-16, UID-19, UID-20, DAT-13) und das Verbindungsversuch-Band aus dem Backlog; dazu zwei Kleinigkeiten (Standort-Hardware optional, Smoke-Test im Repo).
+
+### Vorschau-Band nennt den Verbindungsversuch
+
+- Während einer Wiederverbindung steht im Band jetzt **„Vorschau · Verbindungsversuch 2/5“** statt nur „Vorschau · nicht verbunden“ — bis zu 93 s lang (3 · 6 · 12 · 24 · 48 s Wartezeit) war nicht zu sehen, dass die App noch versucht. Beim Auto-Connect beim Start (und im kurzen Moment zwischen Verlust und erstem Versuch) steht **„Vorschau · verbinde …“**. Die Entscheidung trifft die reine Funktion `previewBannerLabel`; `DashboardUiState.reconnectAttempt` wurde schon vorher gesetzt, aber von keiner Oberfläche gelesen.
+- Der Koordinator meldet einen Versuch, bevor seine Wartezeit beginnt: „1/5“ steht also auch während der ersten Wartezeit (wie die Zeile „Reconnect attempt 1/5“ im App-Log).
+- **Nicht gebaut:** „nächster Versuch in X s“ — bräuchte ein neues Ereignis mit der Wartezeit.
+
+### Slot-Picker nach dem angezeigten Namen sortiert (UID-15)
+
+Die Liste war nach dem **englischen** PID-Namen sortiert, angezeigt wird der übersetzte — auf einem deutschen Gerät wirkte sie ungeordnet. Jetzt sortiert `sortByDisplayLabel` nach dem Namen, den man liest (`Collator` der Gerätesprache: „Ö“ bei „O“, Groß-/Kleinschreibung egal, stabil).
+
+### Sparkline gehört zu einer Verbindung (UID-16)
+
+Nach einem Verbindungsverlust hängte der erste neue Punkt an die Kurve von vorher, als gäbe es keine Lücke. Puffer **und** Zeitmarken werden jetzt bei Trennung, Verlust und Sitzungsfehler geleert (die Zeitmarke, damit der 800-ms-Mindestabstand den ersten Punkt der neuen Verbindung nicht verschluckt).
+
+### „N“ mit GPS-Gegenprobe (UID-19)
+
+Meldet die ECU konstant 0 km/h (ein hängendes Geschwindigkeits-PID), stand „N“ die ganze Fahrt. Jetzt hebt das GPS „N“ auf, wenn der Widerspruch **ECU steht (< 4 km/h) / GPS fährt (≥ 8 km/h)** **5 Sekunden ununterbrochen** besteht (`standstillConflictSince`, `gpsVetoesNeutral`); der Gang kommt dann wieder aus dem GPS. **Bewusst nicht sofort:** Beim Anhalten meldet die ECU sofort 0, das GPS hinkt ein bis zwei Sekunden nach — das ist der Normalfall und darf „N“ nicht verzögern (ein erster Entwurf mit sofortigem Veto brach den Test `neutral wins over a gear that GPS still reports` und wurde verworfen). Die Frist läuft auf der monotonen Uhr des ViewModels und beginnt mit jeder Verbindung neu.
+
+### „Beenden“ läuft immer zu Ende (UID-20)
+
+`ObdServiceController.endSessionSafely()` fängt jeden Fehler beim Trennen (App-Log WARN), reicht nur die Abbruch-Ausnahme weiter und stoppt den Dienst auch dann. Vorher beendete eine Ausnahme aus dem Trennen die Coroutine in der Komposition (Prozess-Absturz), und `finishAffinity()` lief nie.
+
+### Weitere
+
+- **`useGpsSpeed` mit `distinctUntilChanged` (DAT-13):** Jeder DataStore-Schreibvorgang (u. a. `persistDevice` bei jedem manuellen Verbinden) startete den Standort-Listener neu, obwohl sich der Schalter nicht geändert hatte.
+- **Standort-Hardware optional:** `uses-feature android.hardware.location` und `….gps` mit `required="false"` — die Standort-Berechtigungen deklarierten sie sonst implizit als Pflicht (aufgefallen beim `aapt2`-Dump von 1.24.11).
+- **Smoke-Test im Repo:** `scripts/smoke.py <versionName> <versionCode>` (uiautomator, Gerät entsperrt: Start, Reiter, Beenden-Dialog, App-Info mit Version und Build, Logcat). Er lag bis 1.24.11 nur im Scratchpad einer Sitzung und ging verloren; `SmokeScriptTest` hält ihn vorhanden, übersetzbar und im Release-Ablauf genannt. Er prüft weder Messwerte noch die Fahrzeugverbindung.
+
+### Bewusst nicht umgesetzt
+
+- **UID-21 (RPM-Skala fest 10 000):** Die Blinkgrenze lässt sich nur bis 10 000 einstellen; eine größere Skala wäre eine neue Einstellung (Produktentscheidung).
+- **Tacho-Sweep nur einmal je Start:** Produktentscheidung.
+- **PRO-11 (`disconnect()` unbedingt):** Der Einzelbefund ist im Bericht nur ein Stichwort, es ist die Protokollschicht — ohne Adapter nicht prüfbar.
+
+### Tests
+
+- **1331 JVM-Unit-Tests** (vorher 1297, +34) und **316 Instrumentation-Tests auf dem Pixel 8 Pro** (vorher 312, +4; einer auf diesem Gerät übersprungen), 0 Fehler; Lint 0 Fehler / 26 Warnungen (unverändert)
+- **Neue Tests:** `PreviewBannerLabelTest`, `SlotPickerOrderTest`, `SmokeScriptTest` (JVM); je Punkt Tests in `GearIndicatorTest`, `DashboardViewModelTest`, `ObdServiceControllerTest`, `ExitAppViewModelTest`, `AppPreferencesTest`, `BluetoothScopeSourceTest`; Gerät: `PreviewBannerTest` (+2), `SlotPickerSheetTest` (+1), `DashboardScreenTest` (+1).
+- **Mutationsprüfung:** neun gezielte Eingriffe (Versuchsnummer ab 2 statt 1, Picker unsortiert, Puffer nicht geleert, Zeitmarke nicht geleert, Grenze 5 s auf `>`, Widerspruchsbeginn nicht gehalten, `endSessionSafely` ohne Fangnetz, `distinctUntilChanged` entfernt, Standort `required="true"`) — **alle erkannt**.
+- **Am Gerät nicht prüfbar:** das Band mit echten Versuchsnummern (in der Testanordnung bleibt `isConnectedFlow` absichtlich wahr, die Schleife meldet keinen Versuch — dort ist „verbinde …“ geprüft, die Nummer über Compose- und JVM-Tests), „N“ mit konstant 0 km/h (braucht ein Fahrzeug).
+
 ## Version 1.24.11 (versionCode 93)
 
 Drei kleine Härtungen aus dem QS-Bericht: Wetter-Client (SEC-9), `.idea` im Git (SEC-11) und `uses-feature` für Bluetooth (DAT-17). Keine sichtbare Änderung in der App.
