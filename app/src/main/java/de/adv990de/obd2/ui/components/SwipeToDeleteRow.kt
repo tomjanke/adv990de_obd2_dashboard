@@ -92,7 +92,7 @@ fun SwipeToDeleteRow(
 // region — Previews
 
 @Composable
-private fun PreviewSwipeToDeleteRowContent() {
+private fun SwipeToDeleteRowPreviewContent() {
     SwipeToDeleteRow(onDelete = {}, modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text("04.10.2026 14:25") },
@@ -105,7 +105,7 @@ private fun PreviewSwipeToDeleteRowContent() {
 @Composable
 private fun PreviewSwipeToDeleteRowLight() {
     MaterialTheme(typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewSwipeToDeleteRowContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { SwipeToDeleteRowPreviewContent() }
     }
 }
 
@@ -113,7 +113,7 @@ private fun PreviewSwipeToDeleteRowLight() {
 @Composable
 private fun PreviewSwipeToDeleteRowDark() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewSwipeToDeleteRowContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { SwipeToDeleteRowPreviewContent() }
     }
 }
 

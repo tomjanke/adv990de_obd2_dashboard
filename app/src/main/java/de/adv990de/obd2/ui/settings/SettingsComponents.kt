@@ -229,7 +229,7 @@ internal fun PermissionHintRow(
 // region — Previews
 
 @Composable
-private fun PreviewChoiceSettingContent() {
+private fun ChoiceSettingPreviewContent() {
     ChoiceSetting(
         headline = "Reconnect-Basisverzögerung",
         supportingText = "Sekunden bis zum ersten Reconnect-Versuch; jeder weitere Versuch verdoppelt die Wartezeit",
@@ -245,7 +245,7 @@ private fun PreviewChoiceSettingContent() {
 @Composable
 private fun PreviewChoiceSettingLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewChoiceSettingContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { ChoiceSettingPreviewContent() }
     }
 }
 
@@ -253,13 +253,14 @@ private fun PreviewChoiceSettingLight() {
 @Composable
 private fun PreviewChoiceSettingDark() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewChoiceSettingContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { ChoiceSettingPreviewContent() }
     }
 }
 
 @Composable
-private fun PreviewSettingsRowsContent() {
-    Column {
+private fun SettingsRowsPreviewContent() {
+    // Der seitliche Rand der Seite (SettingsScreen: contentPadding 16 dp) — ohne ihn klebte die Gruppenueberschrift am Fensterrand.
+    Column(Modifier.padding(horizontal = 16.dp)) {
         SettingsGroupHeader("Dashboard & Anzeige")
         SettingsSwitchRow("Imperiale Einheiten", "Geschwindigkeit in mph, Temperatur in °F", checked = true, onCheckedChange = {})
         SettingsSwitchRow("GPS-Geschwindigkeit", "Wenn das Fahrzeug keine liefert", checked = false, onCheckedChange = {})
@@ -271,7 +272,7 @@ private fun PreviewSettingsRowsContent() {
 @Composable
 private fun PreviewSettingsRowsLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewSettingsRowsContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { SettingsRowsPreviewContent() }
     }
 }
 
@@ -279,7 +280,7 @@ private fun PreviewSettingsRowsLight() {
 @Composable
 private fun PreviewSettingsRowsDark() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewSettingsRowsContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { SettingsRowsPreviewContent() }
     }
 }
 

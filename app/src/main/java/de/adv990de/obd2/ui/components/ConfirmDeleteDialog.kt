@@ -61,7 +61,7 @@ fun ConfirmDeleteDialog(
 // region — Previews
 
 @Composable
-private fun PreviewConfirmDeleteDialogContent() {
+private fun ConfirmDeleteDialogPreviewContent() {
     ConfirmDeleteDialog(
         title = "Alle Logs löschen?",
         message = "Alle Log-Einträge werden gelöscht. Du kannst das gleich noch rückgängig machen.",
@@ -76,7 +76,7 @@ private fun PreviewConfirmDeleteDialogContent() {
 @Composable
 private fun PreviewConfirmDeleteDialogLight() {
     MaterialTheme(typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewConfirmDeleteDialogContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { ConfirmDeleteDialogPreviewContent() }
     }
 }
 
@@ -84,7 +84,7 @@ private fun PreviewConfirmDeleteDialogLight() {
 @Composable
 private fun PreviewConfirmDeleteDialogDark() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) { PreviewConfirmDeleteDialogContent() }
+        Surface(color = MaterialTheme.colorScheme.background) { ConfirmDeleteDialogPreviewContent() }
     }
 }
 

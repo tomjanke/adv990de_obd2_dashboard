@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -266,10 +267,13 @@ internal fun SlotPickerSheet(
 // SlotPickerSheet ist ein Fenster (ModalBottomSheet) und zeigt in der Vorschau nichts Brauchbares; Kachel und Band sind zustandslos.
 
 @Composable
-private fun PreviewSlotComponents() {
-    androidx.compose.foundation.layout.Column {
-        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 87f), sparkline = listOf(60f, 65f, 72f, 80f, 85f, 87f))
-        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 0f), isLive = false)
+private fun SlotComponentsPreviewContent() {
+    // Eine Kachel nimmt, was man ihr gibt (im Dashboard gibt die Reihe die Hoehe vor): ohne feste Hoehe fuellte die erste das ganze
+    // Vorschau-Fenster und schob die zweite und das Band hinaus (am Geraet gerendert gesehen, v1.25.2).
+    val tile = Modifier.height(160.dp)
+    Column {
+        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 87f), modifier = tile, sparkline = listOf(60f, 65f, 72f, 80f, 85f, 87f))
+        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 0f), modifier = tile, isLive = false)
         PreviewBanner(reason = UiText.DynamicString("Verbindung fehlgeschlagen"))
     }
 }
@@ -277,13 +281,13 @@ private fun PreviewSlotComponents() {
 @Preview(name = "SensorCard and PreviewBanner (light)", showBackground = true)
 @Composable
 private fun PreviewSlotComponentsLight() {
-    PreviewTheme(dark = false) { PreviewSlotComponents() }
+    PreviewTheme(dark = false) { SlotComponentsPreviewContent() }
 }
 
 @Preview(name = "SensorCard and PreviewBanner (dark)", showBackground = true)
 @Composable
 private fun PreviewSlotComponentsDark() {
-    PreviewTheme(dark = true) { PreviewSlotComponents() }
+    PreviewTheme(dark = true) { SlotComponentsPreviewContent() }
 }
 
 // endregion

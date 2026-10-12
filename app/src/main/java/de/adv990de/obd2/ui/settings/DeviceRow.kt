@@ -63,7 +63,7 @@ fun DeviceRow(
 private val PREVIEW_DEVICE = ScannedDevice(device = null, type = BtType.CLASSIC, name = "OBDII")
 
 @Composable
-private fun PreviewDeviceRows() {
+private fun DeviceRowsPreviewContent() {
     Column {
         DeviceRow(PREVIEW_DEVICE, onClick = {})
         DeviceRow(PREVIEW_DEVICE.copy(name = "OBDLink MX+"), onClick = {}, isLastConnected = true)
@@ -74,13 +74,13 @@ private fun PreviewDeviceRows() {
 @Preview(name = "DeviceRow · idle, last, connected (light)", showBackground = true)
 @Composable
 private fun PreviewDeviceRowsLight() {
-    PreviewTheme(dark = false) { PreviewDeviceRows() }
+    PreviewTheme(dark = false) { DeviceRowsPreviewContent() }
 }
 
 @Preview(name = "DeviceRow · idle, last, connected (dark)", showBackground = true)
 @Composable
 private fun PreviewDeviceRowsDark() {
-    PreviewTheme(dark = true) { PreviewDeviceRows() }
+    PreviewTheme(dark = true) { DeviceRowsPreviewContent() }
 }
 
 // endregion

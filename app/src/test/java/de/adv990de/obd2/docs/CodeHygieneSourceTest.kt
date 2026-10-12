@@ -82,6 +82,48 @@ class CodeHygieneSourceTest {
         assertTrue("jede Ausnahme nennt einen Grund", previewExempt.values.all { it.isNotBlank() })
     }
 
+    /** Die Vorschau-Funktionen der Quelltexte: `Datei:Name` je Funktion, die auf ein `@Preview` folgt (gestapelte Annotationen zaehlen einmal). */
+    private fun previewFunctions(): List<Pair<String, String>> =
+        mainSources.flatMap { file ->
+            Regex("""(?m)^[ \t]*@Preview\b[\s\S]*?\bfun\s+(\w+)\s*\(([^)]*)\)""").findAll(file.readText())
+                .map { m -> relative(file) + ":" + m.groupValues[1] + "(" + m.groupValues[2].trim() + ")" to m.value }
+                .toList()
+        }.distinctBy { it.first }
+
+    @Test
+    fun `every preview is a private parameterless function named Preview - the device test finds it by that shape`() {
+        // PreviewsRenderDeviceTest sucht die Vorschauen zur Laufzeit (die Annotation ist BINARY, zur Laufzeit nicht lesbar) nach Form:
+        // statische Methode `Preview…(Composer, int)`, das ist eine parameterlose @Composable-Funktion. Eine Vorschau mit anderer Form
+        // wuerde nie gerendert und nie bemerkt.
+        val misshaped = previewFunctions().filter { (id, text) ->
+            val name = id.substringAfter(':').substringBefore('(')
+            val params = id.substringAfter('(').removeSuffix(")")
+            !name.startsWith("Preview") || params.isNotEmpty() || !Regex("""\bprivate\s+fun\b""").containsMatchIn(text)
+        }.map { it.first }
+        assertTrue("@Preview-Funktionen in falscher Form (private fun Preview…(), ohne Parameter): $misshaped", misshaped.isEmpty())
+
+        // Und umgekehrt: eine parameterlose Funktion, die nur so HEISST, haelte der Geraete-Test fuer eine Vorschau. Hilfs-Composables
+        // fuer mehrere Vorschauen heissen `…PreviewContent`.
+        val annotated = previewFunctions().map { it.first.substringAfter(':').substringBefore('(') }.toSet()
+        val lookalikes = mainSources.flatMap { file ->
+            Regex("(?m)^[ \\t]*(?:private |internal )?fun (Preview\\w+)\\(\\)").findAll(file.readText())
+                .map { relative(file) + ":" + it.groupValues[1] }.filter { it.substringAfter(':') !in annotated }.toList()
+        }
+        assertTrue("parameterlose Funktionen namens Preview… ohne @Preview: $lookalikes - umbenennen (z. B. …PreviewContent)", lookalikes.isEmpty())
+    }
+
+    @Test
+    fun `the device test renders exactly the previews there are`() {
+        // `PREVIEW_COUNT` in PreviewsRenderDeviceTest ist die Zahl, die das Geraet findet UND rendert. Stimmt sie nicht mit den Quelltexten
+        // ueberein, fehlt dem Geraet eine Vorschau (Form falsch, Klasse nicht gefunden) oder eine wurde ergaenzt/entfernt: dann die Zahl
+        // dort nachziehen — mit Absicht, nicht nebenbei.
+        val inSource = previewFunctions().size
+        val deviceTest = File(projectRoot, "app/src/androidTest/java/de/adv990de/obd2/ui/PreviewsRenderDeviceTest.kt").readText()
+        val pinned = Regex("""PREVIEW_COUNT\s*=\s*(\d+)""").find(deviceTest)?.groupValues?.get(1)?.toInt()
+        assertTrue("PREVIEW_COUNT fehlt in PreviewsRenderDeviceTest", pinned != null)
+        assertTrue("PREVIEW_COUNT = $pinned, in den Quelltexten stehen $inSource Vorschau-Funktionen", pinned == inSource)
+    }
+
     @Test
     fun `no test class has the same name in test and androidTest`() {
         // Sieben Klassen hiessen auf dem JVM und auf dem Geraet gleich (SettingsScreenTest, SparklineTest ...): in Berichten, im Filter

@@ -156,7 +156,7 @@ private fun previewLog(level: LogLevel, message: String) =
     AppLogEntity(id = level.ordinal.toLong(), timestamp = 1_791_000_000_000L, level = level.name, message = message)
 
 @Composable
-private fun PreviewLogRows() {
+private fun LogRowsPreviewContent() {
     Column {
         LogEntryRow(previewLog(LogLevel.INFO, "Connected to OBDII"))
         LogEntryRow(previewLog(LogLevel.WARN, "Reconnect attempt 2/5 failed: Timeout"))
@@ -167,13 +167,13 @@ private fun PreviewLogRows() {
 @Preview(name = "LogEntryRow · all levels (light)", showBackground = true)
 @Composable
 private fun PreviewLogEntryRowsLight() {
-    PreviewTheme(dark = false) { PreviewLogRows() }
+    PreviewTheme(dark = false) { LogRowsPreviewContent() }
 }
 
 @Preview(name = "LogEntryRow · all levels (dark)", showBackground = true)
 @Composable
 private fun PreviewLogEntryRowsDark() {
-    PreviewTheme(dark = true) { PreviewLogRows() }
+    PreviewTheme(dark = true) { LogRowsPreviewContent() }
 }
 
 // endregion
