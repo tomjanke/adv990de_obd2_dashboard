@@ -1,5 +1,19 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.27.1 (versionCode 103)
+
+Reine Aufräumarbeit im Build; an der App ändert sich nichts.
+
+### Build
+
+- Die Lizenztexte (`docs/licenses`) werden jetzt mit `assets.directories.add(…)` statt mit dem veralteten `assets.srcDir(…)` ins APK gepackt. Der Build meldet die Veraltet-Warnung nicht mehr. Die vier Lizenztexte stehen mit denselben Größen im APK wie vorher (aus dem APK-Inhalt verglichen); der Geräte-Test der Lizenzseite liest sie aus dem echten APK.
+- Gradle 9.7/9.8 und AGP 9.5 bleiben zurückgestellt: Das jüngste stabile Kotlin ist weiter 2.4.21 (2.5.0 gibt es nur als Beta), dessen Tabelle Gradle bis 9.7.0 und AGP bis 9.3.1 nennt; AGP 9.5 gibt es nur als Alpha (`9.5.0-alpha09`). Abfrage am 2026-10-12.
+
+### Tests
+
+- 1475 JVM-Tests, 332 Instrumentation-Tests (1 Annahme-Test läuft nur vor Android 15). Lint: 0 Fehler, 1 Warnung (neuere Gradle-Version 9.8.1, bewusst nicht genommen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft. Weiter ungeprüft: Außentemperatur mit Ziel 37 auf einem Gerät mit Internet, der Verbindungsabriss am echten Adapter, Android ≤ 14.
+
 ## Version 1.27.0 (versionCode 102)
 
 Die App zielt jetzt auf Android 17 (targetSdk 37). Dabei ist eine Lücke bei der Erkennung eines abgerissenen Bluetooth-Adapters geschlossen worden.

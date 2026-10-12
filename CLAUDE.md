@@ -779,7 +779,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 
 `ui/licenses/`: Seite „Open-Source-Lizenzen“ (Route `Screen.Licenses`, Eltern-Tab Einstellungen, Einstieg über eine Zeile der App-Info). `LICENSED_COMPONENTS` ist von Hand gepflegt nach dem, was im Release-APK landet (R8-Mapping geprüft: AndroidX, Kotlin/Coroutines,
 Okio, Dagger/Hilt, Sentry; dazu die zwei Schriften). **`LicenseCatalogTest` zwingt jede neue direkte Abhängigkeit zu einem Eintrag** (Gruppen aus `app/build.gradle.kts` + `libs.versions.toml`). Die Lizenztexte liegen in `docs/licenses/` (Apache 2.0 von apache.org,
-MIT von Sentry **mit beiden Copyright-Zeilen des Originals** — Sentry und ANRWatchDog —, beide OFL) und sind per `sourceSets["main"].assets.srcDir(rootProject.file("docs/licenses"))` zugleich die Assets der App — eine Quelle für Repo und APK; `LicensesScreenTest` liest sie aus dem echten APK.
+MIT von Sentry **mit beiden Copyright-Zeilen des Originals** — Sentry und ANRWatchDog —, beide OFL) und sind per `sourceSets["main"].assets.directories.add(rootProject.file("docs/licenses").path)` (seit v1.27.1; vorher `assets.srcDir(…)`, das AGP 9.4 als veraltet meldet — `LicenseCatalogTest` hält den Wortlaut fest) zugleich die Assets der App — eine Quelle für Repo und APK; `LicensesScreenTest` liest sie aus dem echten APK.
 Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 
 ### Build-Integrität: Prüfsummen (seit v1.24.9)
