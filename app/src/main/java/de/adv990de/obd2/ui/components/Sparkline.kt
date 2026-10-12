@@ -12,6 +12,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 
 /**
  * Leichte Glaettung fuer die Sparkline-Trendlinie: zentrierter gleitender Mittelwert.
@@ -134,3 +139,28 @@ fun Sparkline(
         drawCircle(color, radius = 4.dp.toPx(), center = Offset(size.width, lastPoint.y))
     }
 }
+
+// region — Previews
+
+private val PREVIEW_CLIMB = listOf(60f, 62f, 61f, 65f, 70f, 74f, 73f, 78f, 83f, 87f, 90f)
+private val PREVIEW_FLAT = List(10) { 88f }
+
+@Preview(name = "Sparkline · rising (light)", showBackground = true, widthDp = 240, heightDp = 96)
+@Composable
+private fun PreviewSparklineRisingLight() {
+    PreviewTheme(dark = false) { Sparkline(PREVIEW_CLIMB, Modifier.fillMaxWidth().height(48.dp).padding(16.dp)) }
+}
+
+@Preview(name = "Sparkline · rising (dark)", showBackground = true, widthDp = 240, heightDp = 96)
+@Composable
+private fun PreviewSparklineRisingDark() {
+    PreviewTheme(dark = true) { Sparkline(PREVIEW_CLIMB, Modifier.fillMaxWidth().height(48.dp).padding(16.dp)) }
+}
+
+@Preview(name = "Sparkline · flat (dark)", showBackground = true, widthDp = 240, heightDp = 96)
+@Composable
+private fun PreviewSparklineFlatDark() {
+    PreviewTheme(dark = true) { Sparkline(PREVIEW_FLAT, Modifier.fillMaxWidth().height(48.dp).padding(16.dp)) }
+}
+
+// endregion

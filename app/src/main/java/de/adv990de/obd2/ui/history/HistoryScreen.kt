@@ -54,6 +54,8 @@ import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTime
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -222,3 +224,31 @@ fun SessionRow(
         }
     )
 }
+
+// region — Previews
+//
+// HistoryScreen selbst braucht `hiltViewModel()`; die Zeile einer Fahrt ist zustandslos.
+
+private val PREVIEW_SESSION = SessionEntity(id = 7, startTime = 1_791_000_000_000L, endTime = 1_791_003_600_000L, vehicleVin = "WP0ZZZ99ZTS392124")
+
+@Preview(name = "SessionRow · finished (light)", showBackground = true)
+@Composable
+private fun PreviewSessionRowLight() {
+    PreviewTheme(dark = false) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}) }
+}
+
+@Preview(name = "SessionRow · finished (dark)", showBackground = true)
+@Composable
+private fun PreviewSessionRowDark() {
+    PreviewTheme(dark = true) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}) }
+}
+
+@Preview(name = "SessionRow · recording, no VIN (dark)", showBackground = true)
+@Composable
+private fun PreviewSessionRowRecordingDark() {
+    PreviewTheme(dark = true) {
+        SessionRow(PREVIEW_SESSION.copy(endTime = null, vehicleVin = null), isRecording = true, onExport = {}, onDelete = {})
+    }
+}
+
+// endregion

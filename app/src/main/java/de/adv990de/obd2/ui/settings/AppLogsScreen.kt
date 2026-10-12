@@ -41,6 +41,8 @@ import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTimeSeconds
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,3 +147,33 @@ private fun LogEntryRow(entry: AppLogEntity) {
         )
     }
 }
+
+// region — Previews
+//
+// AppLogsScreen selbst braucht `hiltViewModel()`; die Zeile ist zustandslos — je Stufe eine, damit die Chip-Farben im Blick bleiben.
+
+private fun previewLog(level: LogLevel, message: String) =
+    AppLogEntity(id = level.ordinal.toLong(), timestamp = 1_791_000_000_000L, level = level.name, message = message)
+
+@Composable
+private fun PreviewLogRows() {
+    Column {
+        LogEntryRow(previewLog(LogLevel.INFO, "Connected to OBDII"))
+        LogEntryRow(previewLog(LogLevel.WARN, "Reconnect attempt 2/5 failed: Timeout"))
+        LogEntryRow(previewLog(LogLevel.ERROR, "Recording failed, the live display continues: database or disk is full"))
+    }
+}
+
+@Preview(name = "LogEntryRow · all levels (light)", showBackground = true)
+@Composable
+private fun PreviewLogEntryRowsLight() {
+    PreviewTheme(dark = false) { PreviewLogRows() }
+}
+
+@Preview(name = "LogEntryRow · all levels (dark)", showBackground = true)
+@Composable
+private fun PreviewLogEntryRowsDark() {
+    PreviewTheme(dark = true) { PreviewLogRows() }
+}
+
+// endregion

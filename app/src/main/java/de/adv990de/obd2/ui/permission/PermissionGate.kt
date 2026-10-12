@@ -40,6 +40,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.adv990de.obd2.R
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
 
 // Lint's InlinedApi guard only recognizes a direct `Build.VERSION.SDK_INT >= ...` comparison —
 // it can't see through `sdkInt` as a parameter, even though the real call sites below all use
@@ -179,3 +181,19 @@ internal fun PermissionRequiredScreen(onGrant: () -> Unit, onOpenSettings: () ->
         }
     }
 }
+
+// region — Previews
+
+@Preview(name = "PermissionRequiredScreen (light)", showBackground = true, heightDp = 560)
+@Composable
+private fun PreviewPermissionRequiredLight() {
+    PreviewTheme(dark = false) { PermissionRequiredScreen(onGrant = {}, onOpenSettings = {}) }
+}
+
+@Preview(name = "PermissionRequiredScreen (dark)", showBackground = true, heightDp = 560)
+@Composable
+private fun PreviewPermissionRequiredDark() {
+    PreviewTheme(dark = true) { PermissionRequiredScreen(onGrant = {}, onOpenSettings = {}) }
+}
+
+// endregion

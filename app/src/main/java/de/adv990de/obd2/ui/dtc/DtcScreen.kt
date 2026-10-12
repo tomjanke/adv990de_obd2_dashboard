@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.DtcHistoryEntry
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
@@ -66,6 +67,8 @@ import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDate
 import de.adv990de.obd2.ui.navigation.Screen
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
 
 /** The two views of the DTC page: what the vehicle reports now, and what it has reported before. */
 private enum class DtcView(@StringRes val labelRes: Int) {
@@ -326,3 +329,52 @@ private fun DtcHistoryRow(item: DtcHistoryItem, onDelete: () -> Unit) {
         }
     )
 }
+
+// region — Previews
+//
+// DtcScreen selbst braucht `hiltViewModel()` und hat deshalb keine Vorschau; die zustandslosen Bausteine schon.
+
+private val PREVIEW_CONFIRMED = DtcEntry(code = "P0301", description = "Cylinder 1 Misfire Detected", isPending = false)
+private val PREVIEW_PENDING = DtcEntry(code = "P0420", description = "Catalyst System Efficiency Below Threshold (Bank 1)", isPending = true)
+private val PREVIEW_HISTORY = DtcHistoryItem(
+    entry = DtcHistoryEntry(
+        code = "P0301",
+        description = "Cylinder 1 Misfire Detected",
+        firstSeen = 1_791_000_000_000L,
+        lastSeen = 1_791_500_000_000L,
+        lastWasPending = false,
+    ),
+    isActive = true,
+)
+
+@Preview(name = "DtcRow · confirmed and pending (light)", showBackground = true)
+@Composable
+private fun PreviewDtcRowsLight() {
+    PreviewTheme(dark = false) { Column { DtcRow(PREVIEW_CONFIRMED); DtcRow(PREVIEW_PENDING) } }
+}
+
+@Preview(name = "DtcRow · confirmed and pending (dark)", showBackground = true)
+@Composable
+private fun PreviewDtcRowsDark() {
+    PreviewTheme(dark = true) { Column { DtcRow(PREVIEW_CONFIRMED); DtcRow(PREVIEW_PENDING) } }
+}
+
+@Preview(name = "DtcHistoryRow · active (light)", showBackground = true)
+@Composable
+private fun PreviewDtcHistoryRowLight() {
+    PreviewTheme(dark = false) { DtcHistoryRow(PREVIEW_HISTORY, onDelete = {}) }
+}
+
+@Preview(name = "DtcHistoryRow · active (dark)", showBackground = true)
+@Composable
+private fun PreviewDtcHistoryRowDark() {
+    PreviewTheme(dark = true) { DtcHistoryRow(PREVIEW_HISTORY, onDelete = {}) }
+}
+
+@Preview(name = "ViewSwitch (dark)", showBackground = true)
+@Composable
+private fun PreviewViewSwitchDark() {
+    PreviewTheme(dark = true) { ViewSwitch(selected = DtcView.History, onSelect = {}) }
+}
+
+// endregion

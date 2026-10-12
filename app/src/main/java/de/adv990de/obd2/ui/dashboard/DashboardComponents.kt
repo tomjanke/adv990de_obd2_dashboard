@@ -1,11 +1,7 @@
 package de.adv990de.obd2.ui.dashboard
 
-import androidx.annotation.StringRes
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,33 +13,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -53,18 +35,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
-import de.adv990de.obd2.obd.convertUnit
-import de.adv990de.obd2.obd.formatSensorNumber
-import de.adv990de.obd2.obd.model.PidDefinition
-import de.adv990de.obd2.obd.model.SensorValue
-import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.LiveValueText
-import de.adv990de.obd2.ui.components.LiveValueTile
-import de.adv990de.obd2.ui.components.SectionLabel
-import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.GearIndicatorStyle
-import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -76,133 +49,6 @@ private const val RPM_BAR_MAX = 10_000f
 
 /** Eine Stufe der Segmentanzeige. 200 rpm ergeben 50 Segmente ueber die volle Breite. */
 private const val RPM_SEGMENT = 200f
-
-/**
- * Blinkperiode des Schaltblitzes: 0 (kein Blinken) ausser wenn live verbunden, ein Schwellwert
- * gesetzt ist ([threshold] > 0) und die aktuelle Drehzahl ihn ueberschritten hat. Dann skaliert
- * die Periode linear von 500ms (an der Schwelle) auf 80ms (bei [RPM_BAR_MAX]) — je naeher am
- * Limit, desto hektischer der Blitz.
- *
- * Reine Funktion ohne Compose-Bezug, direkt JVM-testbar (Projekt-Konvention fuer Entscheidungslogik,
- * vgl. `determineGear`, `statusDotColor`). Aus [RpmBar] extrahiert, das sie pro Frame innerhalb der
- * Blink-Coroutine aufruft.
- */
-internal fun rpmBlinkPeriodMs(rpm: Float, threshold: Int, isLive: Boolean): Long {
-    if (!isLive || threshold <= 0 || rpm <= threshold) return 0L
-    val f = if (threshold >= 10000) 1f
-            else ((rpm - threshold) / (10000f - threshold)).coerceIn(0f, 1f)
-    return (500f - 420f * f).toLong()  // 500ms at threshold → 80ms at max
-}
-
-/**
- * Farbe eines einzelnen Segments der [RpmBar]-Skala: unbeleuchtet ([idleColor]), wenn
- * [segmentIndex] >= [litSegments]; sonst beleuchtet — [redlineColor], wenn die Segmentposition
- * [segmentStartRpm] in der Redline-Zone liegt ([redlineFromRpm] oder darueber), sonst [litColor].
- * Die Redline-Zone-Pruefung greift nur fuer bereits beleuchtete Segmente — ein unbeleuchtetes
- * Segment jenseits der Schwelle bleibt [idleColor], nicht rot.
- *
- * Reine Funktion ohne Compose-Bezug (vgl. [rpmBlinkPeriodMs], `statusDotColor`) — die Farben selbst
- * kommen als Parameter herein, weil sie nur innerhalb der Komposition aus `MaterialTheme` bzw.
- * `StatusColors` lesbar sind.
- */
-internal fun rpmSegmentColor(
-    segmentIndex: Int,
-    litSegments: Int,
-    segmentStartRpm: Float,
-    redlineFromRpm: Float,
-    litColor: Color,
-    redlineColor: Color,
-    idleColor: Color,
-): Color = when {
-    segmentIndex < litSegments && segmentStartRpm >= redlineFromRpm -> redlineColor
-    segmentIndex < litSegments                                     -> litColor
-    else                                                            -> idleColor
-}
-
-/**
- * Skalierungsfaktor fuer den RPM-Blink-Schwellwert nach Motortemperatur (vier Baender), wenn
- * dynamische Skalierung aktiv ist (`rpmDynamicThreshold`-Einstellung). Fehlt ein plausibler
- * Messwert ([engineTempC] = `null`) oder liegt er unter 50 °C, gilt der konservativste Faktor
- * 0.50 — je waermer der Motor, desto naeher am konfigurierten Schwellwert (1.00 ab 85 °C).
- *
- * Reine Funktion ohne Compose-Bezug, direkt JVM-testbar (Projekt-Konvention fuer Entscheidungslogik,
- * vgl. [rpmBlinkPeriodMs]/[rpmSegmentColor]). Aus `DashboardScreen` extrahiert, das den
- * Rueckgabewert mit dem konfigurierten `rpmBlinkThreshold` multipliziert.
- */
-internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when {
-    // Kein plausibler Wert (null, NaN) → konservativ. Mit `<`-Grenzen statt Float-Bereichen (`..49.9f`, `50f..69.9f`): zwischen
-    // zwei Bereichen blieben Luecken (49.95, 69.95, 84.95), die in den "else"-Zweig fielen und den vollen Faktor 1.00 bekamen (UID-22).
-    engineTempC == null || engineTempC.isNaN() -> 0.50f
-    engineTempC < 50f                          -> 0.50f
-    engineTempC < 70f                          -> 0.75f
-    engineTempC < 85f                          -> 0.90f
-    else                                       -> 1.00f
-}
-
-/**
- * Ob die RPM-Demo-Sweep-Animation in `DashboardScreen` nach der 400ms-Anlaufverzoegerung starten
- * soll: nur, wenn bis dahin noch keine plausible echte Drehzahl eingetroffen ist. Die Frage "schon
- * gezeigt?" beantwortet diese Funktion NICHT — der Sweep laeuft einmal je App-Start, das entscheidet
- * `DashboardViewModel.consumeDemoSweepOffer()` (der Aufrufer verknuepft beide). Dieses Gate ist die
- * Entscheidung "Drehzahl schon da?" und damit der testbare Teil.
- *
- * Reine Funktion ohne Compose-Bezug (vgl. [rpmThresholdTempScale]).
- */
-internal fun shouldStartRpmDemoSweep(rpmValue: Float): Boolean = rpmValue < 1f
-
-/**
- * Farbe der [OilTemperatureBarStrip]: [idleColor] (grau), solange keine Verbindung besteht oder
- * noch keine Farbe bestimmt ist; sonst eine feste Ampelfarbe je [OilBarColor] — Rot
- * [StatusColors.Critical], Gelb [StatusColors.Warning], Gruen [StatusColors.TrafficLightGreen].
- *
- * Gruen ist bewusst NICHT `colorScheme.tertiary` (so bis zum finalen Review des Features): das ist
- * nur im gruenen Cockpit-Schema tatsaechlich gruen — hellblau im blauen, amber im amber-farbenen
- * (dort kaum von Gelb zu unterscheiden) und mauve bzw. rosa im hellen/dunklen Default-Schema. Eine
- * Ampel muss in jedem Schema als Ampel lesbar sein.
- *
- * Reine Funktion ohne Compose-Bezug (vgl. [rpmSegmentColor]) — [idleColor] kommt als Parameter
- * herein, weil `surfaceVariant` nur innerhalb der Komposition aus `MaterialTheme` lesbar ist.
- */
-internal fun oilBarStripColor(color: OilBarColor?, isLive: Boolean, idleColor: Color): Color =
-    if (!isLive) idleColor else when (color) {
-        null               -> idleColor
-        OilBarColor.Red    -> StatusColors.Critical
-        OilBarColor.Yellow -> StatusColors.Warning
-        OilBarColor.Green  -> StatusColors.TrafficLightGreen
-    }
-
-/** Was die Gang-Box neben dem RPM-Balken zeigt: ein Gang, Leerlauf ("N") oder "–". */
-internal sealed interface GearBoxContent {
-    data object Neutral : GearBoxContent
-    data class Engaged(val gear: Int) : GearBoxContent
-    data object Unknown : GearBoxContent
-}
-
-/**
- * Praezedenz der Gang-Box: ohne Verbindung immer [GearBoxContent.Unknown]; sonst gewinnt "N" vor
- * einem noch gesetzten Gang (die ECU meldet den Stillstand sofort, die GPS-Uebersetzung hinkt nach).
- */
-internal fun gearBoxContent(gear: Int?, isNeutral: Boolean, isLive: Boolean): GearBoxContent = when {
-    !isLive -> GearBoxContent.Unknown
-    isNeutral -> GearBoxContent.Neutral
-    gear != null -> GearBoxContent.Engaged(gear)
-    else -> GearBoxContent.Unknown
-}
-
-/**
- * "N" ist wie die Leerlauf-Kontrollleuchte am Motorrad in jedem Farbschema das feste Ampel-Gruen
- * (dritte dokumentierte Gruen-Ausnahme, s. CLAUDE.md); Gang und Platzhalter nehmen Theme-Farben.
- */
-internal fun gearBoxColor(content: GearBoxContent, engagedColor: Color, unknownColor: Color): Color =
-    when (content) {
-        GearBoxContent.Neutral -> StatusColors.TrafficLightGreen
-        is GearBoxContent.Engaged -> engagedColor
-        GearBoxContent.Unknown -> unknownColor
-    }
-
-/** Die Drehzahl, wie der Screenreader sie ansagt: auf 100 gerundet und nie negativ. */
-internal fun rpmForSpeech(rpm: Float): Int =
-    if (rpm.isNaN() || rpm.isInfinite() || rpm <= 0f) 0 else (Math.round(rpm / 100f) * 100)
 
 @Composable
 internal fun RpmBar(
@@ -393,219 +239,6 @@ internal fun OilTemperatureBarStrip(
             .background(barColor)
             .semantics { contentDescription = description }
     )
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun SensorCardSlot(
-    reading: SensorValue?,
-    sparklines: Map<String, List<Float>>,
-    useImperial: Boolean,
-    modifier: Modifier = Modifier,
-    /** Text fuer den Fall ohne Messwert — siehe [slotPlaceholderRes]. */
-    @StringRes placeholderRes: Int = R.string.dashboard_slot_empty,
-    /** false zeichnet die Kachel als Vorschau: "--" statt einer Zahl, keine Statusfarbe. */
-    isLive: Boolean = true,
-    onLongPress: (() -> Unit)? = null
-) {
-    if (reading != null) {
-        SensorCard(
-            value = reading,
-            modifier = modifier.fillMaxSize(),
-            sparkline = sparklines[reading.pid.id] ?: emptyList(),
-            useImperial = useImperial,
-            onLongPress = onLongPress,
-            isLive = isLive,
-        )
-    } else {
-        Surface(
-            modifier = modifier
-                .fillMaxSize()
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { onLongPress?.invoke() },
-                    onLongClickLabel = stringResource(R.string.dashboard_slot_change_action),
-                ),
-            shape = RectangleShape,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            // Ein unbelegter Slot war bisher eine leere Flaeche und sah nach Renderfehler aus.
-            // Der Hinweis nennt zugleich die einzige Geste, die ihn belegt.
-            Box(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(placeholderRes),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Schmales Band ueber dem Kachelraster, solange keine Verbindung besteht.
- *
- * Bis 1.11.0 zeigte das Dashboard ohne Verbindung Kacheln mit dem Wert 0 — optisch nicht von
- * echten Messwerten zu unterscheiden. Genau diese Verwechslung stand am Anfang der Fehlersuche
- * nach der GPS-Geschwindigkeit: Der Eindruck, die App zeige eine Geschwindigkeit, kam von der
- * Vorschau, nicht vom Fahrzeug.
- *
- * Die Vorschau bleibt — sie zeigt die Slot-Belegung und macht das Layout begreifbar — aber sie
- * sagt jetzt, was sie ist.
- *
- * [labelRes] ist normalerweise "Vorschau · nicht verbunden"; bei veralteten Werten ([DashboardUiState.isStale])
- * nutzt dasselbe Band "Keine aktuellen Werte" — die Verbindung steht, das Steuergeraet schweigt. Waehrend einer
- * Wiederverbindung nennt es den Versuch ([previewBannerLabel], [labelArgs] = Nummer und Gesamtzahl).
- *
- * [reason] (siehe [previewBannerReason]) schreibt aus, WARUM nicht verbunden ist; ohne Grund bleibt es
- * das schlichte Band. Der Grund steht in der Fehlerfarbe des Themes (theme-sicherer Kontrast, wie die
- * uebrigen Leerzustands-Fehlertexte) in lesbarer Schriftgroesse, nicht in der ALL-CAPS-Beschriftung.
- */
-@Composable
-internal fun PreviewBanner(
-    modifier: Modifier = Modifier,
-    reason: UiText? = null,
-    @StringRes labelRes: Int = R.string.dashboard_preview_banner,
-    labelArgs: List<Any> = emptyList(),
-) {
-    Surface(
-        modifier = modifier,
-        shape = RectangleShape,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            SectionLabel(
-                text = stringResource(labelRes, *labelArgs.toTypedArray()),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (reason != null) {
-                Text(
-                    text = reason.asString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Adapter from the domain type [SensorValue] to the generic [LiveValueTile]:
- * handles unit conversion (imperial flag), NaN/Inf → "--", voltage gets one
- * decimal place, everything else integer. The accessibility contentDescription
- * stays here because it depends on the PID semantics.
- */
-@Composable
-internal fun SensorCard(
-    value: SensorValue,
-    modifier: Modifier = Modifier,
-    sparkline: List<Float> = emptyList(),
-    useImperial: Boolean = false,
-    onLongPress: (() -> Unit)? = null,
-    /**
-     * false bedeutet: Es gibt keine Verbindung, der Wert stammt aus der Vorschau-Belegung und ist
-     * kein Messwert. Er wird dann als "--" gezeichnet — eine "0" liesse sich von einem echten
-     * Messwert nicht unterscheiden, und genau diese Verwechslung hat schon eine Fehlersuche
-     * ausgeloest.
-     */
-    isLive: Boolean = true,
-) {
-    val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
-        value.value to value.pid.unit
-    } else {
-        convertUnit(value.value, value.pid.unit, useImperial)
-    }
-    val displayValue = when {
-        !isLive -> "--"
-        value.value.isNaN() || value.value.isInfinite() -> "--"
-        else -> formatSensorNumber(convertedValue, value.pid.unit)
-    }
-    val pidLabel = stringResource(value.pid.labelRes)
-    LiveValueTile(
-        label = pidLabel,
-        value = displayValue,
-        unit = displayUnit,
-        // Ohne Verbindung gibt es auch keinen Verlauf zu zeigen.
-        sparkline = if (isLive) sparkline else emptyList(),
-        status = if (isLive) pidTileStatus(value.pid.id, value.value) else TileStatus.Ok,
-        isPreview = !isLive,
-        onLongPress = onLongPress,
-        // Das Neubelegen per Long-Press ist die einzige Geste dafuer — TalkBack soll sie beim Namen nennen (UID-13).
-        onLongPressLabel = stringResource(R.string.dashboard_slot_change_action),
-        modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
-    )
-}
-
-/** Test-only selector for [SlotPickerSheet]'s [LazyColumn], so instrumentation tests can
- *  `performScrollToNode` to PID rows below the initially-composed viewport (confirmed empirically
- *  2026-09-29: only a handful of rows compose before the first frame settles on a Pixel 8 Pro,
- *  same root cause as `LOGGING_CONFIG_LIST_TEST_TAG`). */
-internal const val SLOT_PICKER_LIST_TEST_TAG = "slot_picker_list"
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun SlotPickerSheet(
-    currentPidId: String,
-    availablePids: List<PidDefinition>,
-    readings: List<SensorValue>,
-    useImperial: Boolean,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Volle Hoehe statt halb: im Querformat zeigte das halbhohe Sheet anfangs nur ~3 Zeilen.
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    // Nach dem angezeigten (uebersetzten) Namen geordnet, nicht nach dem englischen (UID-15).
-    val labels = availablePids.associate { it.id to stringResource(it.labelRes) }
-    val ordered = remember(availablePids, labels) { sortByDisplayLabel(availablePids, { labels.getValue(it.id) }) }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        // Das Sheet ist ein eigenes Fenster mit eigener ViewConfiguration: die 56-dp-Regel aus AppTheme gilt nur,
-        // wenn sie hier erneut gesetzt wird (s. ProvideMinTouchTarget).
-        ProvideMinTouchTarget {
-            LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
-                items(ordered, key = { it.id }) { pid ->
-                    val reading = readings.firstOrNull { it.pid.id == pid.id }
-                    val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
-                        "${labels.getValue(pid.id)}: -- (${pid.unit})"
-                    } else {
-                        val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
-                        val formatted = formatSensorNumber(convertedValue, pid.unit)
-                        "${labels.getValue(pid.id)}: $formatted ($displayUnit)"
-                    }
-                    ListItem(
-                        modifier = Modifier.clickable { onSelect(pid.id) },
-                        headlineContent = { Text(label) },
-                        trailingContent = if (pid.id == currentPidId) {
-                            {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        } else null
-                    )
-                    HorizontalDivider()
-                }
-            }
-        }
-    }
 }
 
 @Preview(name = "RpmBar · gear locked (blue)", showBackground = true)
