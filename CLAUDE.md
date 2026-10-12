@@ -844,7 +844,7 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 
 - **Die Beschreibung eines Fehlercodes ist eine String-Ressource**, kein Text im Code: `dtcDescriptionRes(code)` (`obd/DtcDescriptions.kt`, rein) liefert `R.string.dtc_pXXXX` für die 37 bekannten SAE-J2012-Codes, sonst `R.string.dtc_unknown`. `DtcEntry` und `DtcHistoryEntry` tragen **nur den Code**; die Oberfläche löst
   den Text bei der Anzeige auf (`stringResource(dtcDescriptionRes(code))`). Das App-Log nennt die Codes, nicht die Texte.
-- **Die deutschen Texte sind eine eigene Übersetzung** der SAE-Namen, kein amtlicher Wortlaut; der Code steht immer daneben. Ein neuer Code: Eintrag in der `when`-Liste **und** je ein String in `values/` und `values-de/` — `DtcDescriptionTest` hält Liste, Ressourcen und beide Sprachen zusammen (gleiche Namen, deutscher Text nicht leer und nicht der englische).
+- **Die deutschen Texte sind eine eigene Übersetzung** der SAE-Namen, kein amtlicher Wortlaut; der Code steht immer daneben. **Vom Nutzer gegengelesen am 2026-10-12, keine Korrekturen** (`docs/qa/2026-10-12-dtc-texte-gegenlesen.md`); die englischen Namen sind dabei nicht gegen den Normtext SAE J2012 geprüft. Ein neuer Code: Eintrag in der `when`-Liste **und** je ein String in `values/` und `values-de/` — `DtcDescriptionTest` hält Liste, Ressourcen und beide Sprachen zusammen (gleiche Namen, deutscher Text nicht leer und nicht der englische).
 - **Bewusst nicht gebaut:** mehr als diese Auswahl an Codes (es gibt tausende; alles andere zeigt „Unbekannter Fehlercode“ plus den Code).
 
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
