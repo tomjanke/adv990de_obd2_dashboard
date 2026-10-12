@@ -24,6 +24,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
 import de.adv990de.obd2.ui.navigation.Screen
@@ -130,11 +131,7 @@ class BottomNavTest {
 
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow } returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow } returns MutableStateFlow(false)
-    }
+    val obdRepository: ObdRepository = idleObdRepository()
 
     @Before
     fun setup() {

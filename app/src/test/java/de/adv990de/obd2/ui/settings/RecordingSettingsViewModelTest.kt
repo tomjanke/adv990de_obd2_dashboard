@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.fakeAppPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -41,20 +42,12 @@ class RecordingSettingsViewModelTest {
     // Both flows must always be present because the ViewModel subscribes to
     // both inside its property initialisers.
     // -------------------------------------------------------------------------
-    private fun makePrefs(
-        dtcSessions: Boolean = false,
-        discoveredPids: Boolean = false
-    ): AppPreferences = mockk {
-        every { logOnlyDtcSessions } returns flowOf(dtcSessions)
-        every { logOnlyDiscoveredPids } returns flowOf(discoveredPids)
-    }
-
     // -------------------------------------------------------------------------
     // Test 1: logOnlyDtc reflects AppPreferences flow
     // -------------------------------------------------------------------------
     @Test
     fun `logOnlyDtc reflects AppPreferences flow`() = runTest {
-        val prefs = makePrefs(dtcSessions = true, discoveredPids = false)
+        val prefs = fakeAppPreferences(logOnlyDtcSessions = true, logOnlyDiscoveredPids = false)
         val vm = RecordingSettingsViewModel(prefs)
 
         val collected = mutableListOf<Boolean>()
@@ -72,7 +65,7 @@ class RecordingSettingsViewModelTest {
     // -------------------------------------------------------------------------
     @Test
     fun `logOnlyDiscovered reflects AppPreferences flow`() = runTest {
-        val prefs = makePrefs(dtcSessions = false, discoveredPids = true)
+        val prefs = fakeAppPreferences(logOnlyDtcSessions = false, logOnlyDiscoveredPids = true)
         val vm = RecordingSettingsViewModel(prefs)
 
         val collected = mutableListOf<Boolean>()

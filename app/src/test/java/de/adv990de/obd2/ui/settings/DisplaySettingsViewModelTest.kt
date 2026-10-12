@@ -4,15 +4,13 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_DARK
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_BLUE
+import de.adv990de.obd2.fakeAppPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.just
-import io.mockk.mockk
 import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -34,27 +32,9 @@ class DisplaySettingsViewModelTest {
     @Before fun setup() { Dispatchers.setMain(testDispatcher) }
     @After  fun teardown() { Dispatchers.resetMain() }
 
-    private fun makePrefs(
-        useImperial: Boolean = false,
-        theme: String = THEME_SYSTEM,
-        useGpsSpeed: Boolean = false,
-        backgroundLocationPrompted: Boolean = false,
-        weatherLocationPrompted: Boolean = false,
-        rpmBlinkThreshold: Int = 0,
-        rpmDynamicThreshold: Boolean = false
-    ): AppPreferences = mockk {
-        every { this@mockk.useImperial }  returns flowOf(useImperial)
-        every { this@mockk.theme }        returns flowOf(theme)
-        every { this@mockk.useGpsSpeed }  returns flowOf(useGpsSpeed)
-        every { this@mockk.backgroundLocationPrompted } returns flowOf(backgroundLocationPrompted)
-        every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)
-        every { this@mockk.rpmBlinkThreshold } returns flowOf(rpmBlinkThreshold)
-        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
-    }
-
     @Test
     fun `useImperial defaults to false`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(useImperial = false))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(useImperial = false))
         // Subscribe to trigger WhileSubscribed collection
         val job = launch { vm.useImperial.collect {} }
         advanceUntilIdle()
@@ -64,7 +44,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `useImperial reflects persisted true value`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(useImperial = true))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(useImperial = true))
         // Subscribe to trigger WhileSubscribed collection
         val job = launch { vm.useImperial.collect {} }
         advanceUntilIdle()
@@ -74,7 +54,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `toggleUseImperial calls setUseImperial with toggled value`() = runTest {
-        val prefs = makePrefs(useImperial = false)
+        val prefs = fakeAppPreferences(useImperial = false)
         coEvery { prefs.setUseImperial(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.useImperial.collect {} }
@@ -89,7 +69,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `theme defaults to system`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(theme = THEME_SYSTEM))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(theme = THEME_SYSTEM))
         // Subscribe to trigger WhileSubscribed collection
         val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
@@ -99,7 +79,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setTheme calls appPreferences setTheme with given value`() = runTest {
-        val prefs = makePrefs(theme = THEME_SYSTEM)
+        val prefs = fakeAppPreferences(theme = THEME_SYSTEM)
         coEvery { prefs.setTheme(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.theme.collect {} }
@@ -114,7 +94,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `toggleUseImperial from true calls setUseImperial with false`() = runTest {
-        val prefs = makePrefs(useImperial = true)
+        val prefs = fakeAppPreferences(useImperial = true)
         coEvery { prefs.setUseImperial(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.useImperial.collect {} }
@@ -129,7 +109,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `theme emits THEME_BLUE when prefs returns blue`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(theme = THEME_BLUE))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(theme = THEME_BLUE))
         val job = launch { vm.theme.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -138,7 +118,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `useGpsSpeed defaults to false`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(useGpsSpeed = false))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(useGpsSpeed = false))
         val job = launch { vm.useGpsSpeed.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -147,7 +127,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `useGpsSpeed reflects persisted true value`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(useGpsSpeed = true))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(useGpsSpeed = true))
         val job = launch { vm.useGpsSpeed.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -156,7 +136,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setUseGpsSpeed calls appPreferences setUseGpsSpeed with given value`() = runTest {
-        val prefs = makePrefs(useGpsSpeed = false)
+        val prefs = fakeAppPreferences(useGpsSpeed = false)
         coEvery { prefs.setUseGpsSpeed(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.useGpsSpeed.collect {} }
@@ -171,7 +151,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `backgroundLocationPrompted defaults to false`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(backgroundLocationPrompted = false))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(backgroundLocationPrompted = false))
         val job = launch { vm.backgroundLocationPrompted.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -180,7 +160,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `backgroundLocationPrompted reflects persisted true value`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(backgroundLocationPrompted = true))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(backgroundLocationPrompted = true))
         val job = launch { vm.backgroundLocationPrompted.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -189,7 +169,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setBackgroundLocationPrompted calls appPreferences setBackgroundLocationPrompted with given value`() = runTest {
-        val prefs = makePrefs(backgroundLocationPrompted = false)
+        val prefs = fakeAppPreferences(backgroundLocationPrompted = false)
         coEvery { prefs.setBackgroundLocationPrompted(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.backgroundLocationPrompted.collect {} }
@@ -204,7 +184,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `weatherLocationPrompted defaults to false`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(weatherLocationPrompted = false))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(weatherLocationPrompted = false))
         val job = launch { vm.weatherLocationPrompted.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -213,7 +193,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `weatherLocationPrompted reflects persisted true value`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(weatherLocationPrompted = true))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(weatherLocationPrompted = true))
         val job = launch { vm.weatherLocationPrompted.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -222,7 +202,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setWeatherLocationPrompted calls appPreferences setWeatherLocationPrompted with given value`() = runTest {
-        val prefs = makePrefs(weatherLocationPrompted = false)
+        val prefs = fakeAppPreferences(weatherLocationPrompted = false)
         coEvery { prefs.setWeatherLocationPrompted(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
         val job = launch { vm.weatherLocationPrompted.collect {} }
@@ -239,7 +219,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `rpmBlinkThreshold reflects AppPreferences flow`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(rpmBlinkThreshold = 4000))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(rpmBlinkThreshold = 4000))
 
         val collected = mutableListOf<Int>()
         val job = launch { vm.rpmBlinkThreshold.collect { collected.add(it) } }
@@ -253,7 +233,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setRpmBlinkThreshold delegates to AppPreferences`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setRpmBlinkThreshold(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
 
@@ -265,7 +245,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `rpmDynamicThreshold reflects AppPreferences flow`() = runTest {
-        val vm = DisplaySettingsViewModel(makePrefs(rpmDynamicThreshold = true))
+        val vm = DisplaySettingsViewModel(fakeAppPreferences(rpmDynamicThreshold = true))
 
         val collected = mutableListOf<Boolean>()
         val job = launch { vm.rpmDynamicThreshold.collect { collected.add(it) } }
@@ -279,7 +259,7 @@ class DisplaySettingsViewModelTest {
 
     @Test
     fun `setRpmDynamicThreshold delegates to AppPreferences`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setRpmDynamicThreshold(any()) } just Runs
         val vm = DisplaySettingsViewModel(prefs)
 

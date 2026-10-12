@@ -24,9 +24,8 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -77,11 +76,7 @@ class LiveValueTileDeviceTest {
 
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow } returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow } returns MutableStateFlow(false)
-    }
+    val obdRepository: ObdRepository = idleObdRepository()
 
     @Before
     fun setup() {

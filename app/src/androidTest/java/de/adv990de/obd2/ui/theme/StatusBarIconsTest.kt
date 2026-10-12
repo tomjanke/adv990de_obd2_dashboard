@@ -16,7 +16,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.data.ObdRepository
-import io.mockk.mockk
+import de.adv990de.obd2.idleObdRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -36,7 +36,7 @@ class StatusBarIconsTest {
     @get:Rule(order = 1) val composeRule = createAndroidComposeRule<HiltTestActivity>()
 
     // Hilt validiert den App-Graphen je Testklasse (s. DeviceRowTest) — die Komponente hier nutzt ihn nicht.
-    @BindValue @JvmField val obdRepository: ObdRepository = mockk(relaxed = true)
+    @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository()
 
     @Before fun setup() { hiltRule.inject() }
 

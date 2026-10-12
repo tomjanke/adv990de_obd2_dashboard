@@ -9,6 +9,7 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.ui.UiText
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -23,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -34,7 +34,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -75,20 +74,6 @@ class ConnectionCoordinatorTest {
         every { userDisconnectCount } returns userDisconnects
     }
 
-    // `useGpsSpeed` has no per-test variant here on purpose: shouldIncludeLocationServiceType()
-    // (ObdServiceControllerTest) is tested directly as a pure function, so none of these coordinator-level tests
-    // need to vary it — but ObdServiceController.start() still reads it on
-    // every successful connect, so the stub must exist or the non-relaxed mock throws.
-    // `reconnectBaseDelaySeconds` likewise has no per-test variant: runReconnectLoop() reads it
-    // once per collect (Backlog-Cleanup, Sweep 2026-09-28/29) — reconnectDelays() itself is tested
-    // directly as a pure function below (Tests 12-13), so the exact seconds value here doesn't
-    // matter for these coordinator-level tests, only that the non-relaxed mock has a stub at all.
-    private fun makePrefs(lastDevice: ScannedDevice? = null): AppPreferences = mockk {
-        every { this@mockk.lastDevice } returns flowOf(lastDevice)
-        every { this@mockk.useGpsSpeed } returns flowOf(false)
-        every { this@mockk.reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-    }
-
     private fun makeAdapter(enabled: Boolean = true): BluetoothAdapter = mockk {
         every { isEnabled } returns enabled
     }
@@ -113,7 +98,7 @@ class ConnectionCoordinatorTest {
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = device), context = context)
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), context = context)
             .start(coordinatorScope, events::add)
         advanceUntilIdle()
 
@@ -132,7 +117,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo()
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = null)).start(coordinatorScope, events::add)
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = null)).start(coordinatorScope, events::add)
         advanceUntilIdle()
 
         assertTrue("Ohne Geraet darf kein Ereignis entstehen: $events", events.isEmpty())
@@ -148,7 +133,7 @@ class ConnectionCoordinatorTest {
         coEvery { repo.reconnect() } just Runs
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = device)).start(coordinatorScope, events::add)
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device)).start(coordinatorScope, events::add)
         advanceUntilIdle()
 
         // Der erste Versuch der Schleife traegt die Nummer 1 — der Auto-Connect selbst die 0.
@@ -166,7 +151,7 @@ class ConnectionCoordinatorTest {
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
@@ -191,7 +176,7 @@ class ConnectionCoordinatorTest {
         // ausdrueckliche Aufforderung die Schleife treibt. Das Geraet der letzten Verbindung steht
         // im Repository — genau der Fall "Verbindung waehrend der Fahrt verloren".
         val coordinator = makeCoordinator(
-            repo, makePrefs(lastDevice = null), adapter = makeAdapter(enabled = false), context = context
+            repo, fakeAppPreferences(lastDevice = null), adapter = makeAdapter(enabled = false), context = context
         )
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
@@ -216,7 +201,7 @@ class ConnectionCoordinatorTest {
 
         // Wie oben: nur die ausdrueckliche Aufforderung treibt die Schleife, sonst zaehlte der
         // gescheiterte Auto-Connect einen zweiten Durchlauf mit.
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
@@ -237,7 +222,7 @@ class ConnectionCoordinatorTest {
         coEvery { repo.reconnect() } throws IllegalStateException("socket closed")
         val logRepo = mockk<AppLogRepository>(relaxed = true)
 
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), logRepo = logRepo)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), logRepo = logRepo)
         coordinator.start(coordinatorScope) {}
         coordinator.requestReconnect()
         advanceUntilIdle()
@@ -256,7 +241,7 @@ class ConnectionCoordinatorTest {
         coEvery { repo.reconnect() } just Runs
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         runCurrent()                                  // attempt 1 is announced; the loop sits in its 3 s wait
@@ -277,7 +262,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo(lastConnected = device, userDisconnects = userDisconnects)
         coEvery { repo.reconnect() } just Runs
         val events = mutableListOf<ConnectionEvent>()
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null))
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null))
         coordinator.start(coordinatorScope, events::add)
 
         coordinator.requestReconnect()                // the request carries the count of THIS moment ...
@@ -294,7 +279,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo(lastConnected = null, userDisconnects = userDisconnects)
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
         coordinator.start(coordinatorScope, events::add)
 
         coordinator.requestReconnect()
@@ -312,7 +297,7 @@ class ConnectionCoordinatorTest {
         coEvery { repo.reconnect() } coAnswers { gate.await() }
         val context = mockk<Context>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null), context = context)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceTimeBy(3_001); runCurrent()            // the attempt is in flight, suspended inside reconnect()
@@ -331,7 +316,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo(lastConnected = device, userDisconnects = MutableStateFlow(1))
         coEvery { repo.reconnect() } just Runs
         val events = mutableListOf<ConnectionEvent>()
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = null))
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null))
         coordinator.start(coordinatorScope, events::add)
 
         coordinator.requestReconnect()                // a later link loss, after the user once disconnected
@@ -349,7 +334,7 @@ class ConnectionCoordinatorTest {
         val repo = makeRepo(connected = true, lastConnected = device)
         val events = mutableListOf<ConnectionEvent>()
 
-        val coordinator = makeCoordinator(repo, makePrefs(lastDevice = device))
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = device))
         coordinator.start(coordinatorScope, events::add)
         coordinator.requestReconnect()
         advanceUntilIdle()
@@ -370,7 +355,7 @@ class ConnectionCoordinatorTest {
         val logRepo = mockk<AppLogRepository>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
 
-        makeCoordinator(repo, makePrefs(lastDevice = device), context = refusingContext(), logRepo = logRepo)
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), context = refusingContext(), logRepo = logRepo)
             .start(coordinatorScope, events::add)
         advanceUntilIdle()
 
@@ -390,7 +375,7 @@ class ConnectionCoordinatorTest {
         val logRepo = mockk<AppLogRepository>(relaxed = true)
         val events = mutableListOf<ConnectionEvent>()
         val coordinator = makeCoordinator(
-            repo, makePrefs(lastDevice = null), context = refusingContext(SecurityException("no BLUETOOTH_CONNECT")), logRepo = logRepo,
+            repo, fakeAppPreferences(lastDevice = null), context = refusingContext(SecurityException("no BLUETOOTH_CONNECT")), logRepo = logRepo,
         )
         coordinator.start(coordinatorScope, events::add)
 

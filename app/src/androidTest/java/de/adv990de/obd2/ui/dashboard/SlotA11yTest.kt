@@ -3,7 +3,6 @@ package de.adv990de.obd2.ui.dashboard
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -11,9 +10,9 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
-import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -32,7 +31,7 @@ class SlotA11yTest {
     @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
     @get:Rule(order = 1) val composeRule = createAndroidComposeRule<HiltTestActivity>()
 
-    @BindValue @JvmField val obdRepository: ObdRepository = mockk(relaxed = true)
+    @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository()
 
     @Before fun setup() { hiltRule.inject() }
 

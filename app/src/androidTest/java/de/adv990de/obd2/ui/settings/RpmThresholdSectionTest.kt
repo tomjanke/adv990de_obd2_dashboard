@@ -19,9 +19,8 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -67,10 +66,7 @@ class RpmThresholdSectionTest {
      */
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow } returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-    }
+    val obdRepository: ObdRepository = idleObdRepository()
 
     /** Matches the Slider's semantics node without relying on a production-only test tag. */
     private val sliderNode = SemanticsMatcher("has ProgressBarRangeInfo") {

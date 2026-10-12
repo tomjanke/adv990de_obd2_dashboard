@@ -32,6 +32,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
@@ -92,10 +93,7 @@ class DashboardScreenTest {
      */
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow }      returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow }         returns MutableStateFlow(false)
+    val obdRepository: ObdRepository = idleObdRepository {
         every { supportedPidIds }      returns MutableStateFlow(null)
         every { lastConnectedDevice }  returns MutableStateFlow(null)
         every { latestReadings }       returns MutableStateFlow(emptyList())

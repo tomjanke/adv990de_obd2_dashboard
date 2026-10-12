@@ -30,11 +30,11 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.settings.DeviceRow
 import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.MIN_TOUCH_TARGET
 import de.adv990de.obd2.ui.theme.blueColorScheme
-import io.mockk.mockk
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -54,7 +54,7 @@ class TouchTargetTest {
     @get:Rule(order = 1) val composeRule = createAndroidComposeRule<HiltTestActivity>()
 
     // Hilt validiert den App-Graphen je Testklasse (s. DeviceRowTest) — die Komponenten hier nutzen ihn nicht.
-    @BindValue @JvmField val obdRepository: ObdRepository = mockk(relaxed = true)
+    @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository()
 
     @Before fun setup() { hiltRule.inject() }
 

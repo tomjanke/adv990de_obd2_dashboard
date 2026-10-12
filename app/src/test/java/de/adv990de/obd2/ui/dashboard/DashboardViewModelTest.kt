@@ -3,7 +3,6 @@ package de.adv990de.obd2.ui.dashboard
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
-import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.crash.CrashReporter
@@ -12,6 +11,8 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.fakeAppPreferences
+import de.adv990de.obd2.fakeObdRepository
 import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.DtcEntry
@@ -59,34 +60,6 @@ class DashboardViewModelTest {
 
     private fun makeSensorValue() = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
 
-    private fun makePrefs(
-        slotIds: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
-        logOnlyDtc: Boolean = false,
-        logOnlyDiscovered: Boolean = false,
-        loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS,
-        useGpsSpeed: Boolean = false,
-        wheelCircumferenceMm: Float = AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
-        primaryRatio: Float = AppPreferences.DEFAULT_PRIMARY_RATIO,
-        secondaryRatio: Float = AppPreferences.DEFAULT_SECONDARY_RATIO,
-        gearRatios: List<Float> = AppPreferences.DEFAULT_GEAR_RATIOS,
-        rpmDynamicThreshold: Boolean = false,
-    ): AppPreferences = mockk {
-        every { slotPids }              returns flowOf(slotIds)
-        every { logOnlyDtcSessions }    returns flowOf(logOnlyDtc)
-        every { logOnlyDiscoveredPids } returns flowOf(logOnlyDiscovered)
-        every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
-        every { rpmBlinkThreshold }     returns flowOf(0)
-        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
-        every { lastDevice }            returns flowOf(null)
-        every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
-        every { this@mockk.wheelCircumferenceMm } returns flowOf(wheelCircumferenceMm)
-        every { this@mockk.primaryRatio }         returns flowOf(primaryRatio)
-        every { this@mockk.secondaryRatio }       returns flowOf(secondaryRatio)
-        every { this@mockk.gearRatios }           returns flowOf(gearRatios)
-        every { obdWatchdogTimeoutSeconds }       returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-        every { reconnectBaseDelaySeconds }       returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-    }
-
     private fun makeCrashReporter(): CrashReporter = mockk(relaxed = true)
 
     private fun makeBluetoothAdapter(): BluetoothAdapter = mockk {
@@ -103,15 +76,10 @@ class DashboardViewModelTest {
     @Test
     fun `session starts when connected and readings are written`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } returns "TESTVIN123"
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 42L
@@ -119,7 +87,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -130,15 +98,9 @@ class DashboardViewModelTest {
     @Test
     fun `session ends when disconnected`() = runTest {
         val isConnectedFlow = MutableStateFlow(true)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -146,7 +108,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         advanceUntilIdle()
         isConnectedFlow.value = false
         advanceUntilIdle()
@@ -158,15 +120,9 @@ class DashboardViewModelTest {
     fun `ui state shows readings when connected`() = runTest {
         val reading = makeSensorValue()
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(listOf(reading))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -174,7 +130,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -185,15 +141,10 @@ class DashboardViewModelTest {
     @Test
     fun `session starts with null vin when readVin throws`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             coEvery { readVin() } throws Exception("VIN not supported")
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(null) } returns 1L
@@ -201,7 +152,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -211,13 +162,8 @@ class DashboardViewModelTest {
     @Test
     fun `ui state shows error when livePids throws`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flow { throw Exception("BT disconnected") }
         }
         val sessionRepo = mockk<SessionRepository> {
@@ -226,7 +172,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -242,21 +188,15 @@ class DashboardViewModelTest {
         // gerufen, weil keine Fahrt existiert (Guard: if (sessionId != -1L)). Frueher beendete die
         // generische catch(Exception)-Behandlung die ganze Sitzung mit einer Fehlermeldung.
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(emptyList())
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } throws Exception("DB failure")
             coEvery { endSession(any()) } just Runs
         }
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -271,22 +211,16 @@ class DashboardViewModelTest {
     fun `livePids is called with PIDs from AppPreferences`() = runTest {
         val customIds = setOf(PidRegistry.MAF.id)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(slotIds = customIds.toList())
+        val prefs = fakeAppPreferences(slotPids = customIds.toList())
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -305,14 +239,9 @@ class DashboardViewModelTest {
         // 5 cycles in livePids) routes to startReconnecting() — isReconnecting=true, error=null —
         // rather than the catch(Exception) handler which would set error=".." instead.
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -324,7 +253,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceTimeBy(1)
 
@@ -335,14 +264,9 @@ class DashboardViewModelTest {
     @Test
     fun `reconnect loop starts isReconnecting state before first delay`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 // Simulate what livePids' internal disconnect() does:
                 isConnectedFlow.value = false
@@ -356,7 +280,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -373,15 +297,10 @@ class DashboardViewModelTest {
     fun `cold-launch reconnect falls back to persisted device when no in-memory device`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val persistedDevice = mockk<ScannedDevice>()
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -393,22 +312,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = mockk<AppPreferences> {
-            every { useGpsSpeed }            returns flowOf(false)
-            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
-            every { lastDevice }            returns flowOf(persistedDevice)
-            every { logOnlyDtcSessions }    returns flowOf(false)
-            every { logOnlyDiscoveredPids } returns flowOf(false)
-            every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
-            every { rpmBlinkThreshold }     returns flowOf(0)
-            every { rpmDynamicThreshold }   returns flowOf(false)
-            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
-            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
-            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
-            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
-            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-        }
+        val prefs = fakeAppPreferences(lastDevice = persistedDevice)
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -421,14 +325,9 @@ class DashboardViewModelTest {
     @Test
     fun `reconnect loop sets permanent error after all attempts fail`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -440,7 +339,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -454,14 +353,9 @@ class DashboardViewModelTest {
     @Test
     fun `reconnect loop aborts immediately when Bluetooth is disabled`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -477,7 +371,7 @@ class DashboardViewModelTest {
             every { isEnabled } returns false
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), btAdapter, makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), btAdapter, makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         // Advance past the first 3-second delay so the BT-disabled check fires
         advanceTimeBy(3_001)
@@ -492,15 +386,10 @@ class DashboardViewModelTest {
     fun `active DTCs on connect are logged as WARN`() = runTest {
         val dtc = DtcEntry("P0301", isPending = false)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             coEvery { readDtcs() } returns listOf(dtc)
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -509,7 +398,7 @@ class DashboardViewModelTest {
         }
         val logRepo = mockk<AppLogRepository>(relaxed = true)
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), logRepo, makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), logRepo, makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -520,15 +409,9 @@ class DashboardViewModelTest {
     fun `setMoving true called when Speed PID reading is above zero`() = runTest {
         val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 50f, timestamp = 1000L)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(listOf(speedReading))
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -536,7 +419,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -547,15 +430,9 @@ class DashboardViewModelTest {
     fun `setMoving false called when Speed PID reading is zero`() = runTest {
         val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 0f, timestamp = 1000L)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(listOf(speedReading))
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -563,7 +440,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
         advanceUntilIdle()
 
@@ -575,15 +452,10 @@ class DashboardViewModelTest {
     @Test
     fun `logOnlyDtcSessions=true, no DTCs - session is deleted`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             coEvery { readDtcs() } returns emptyList()  // no DTCs
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 99L
@@ -594,7 +466,7 @@ class DashboardViewModelTest {
 
         makeVmFrom(
             obdRepo, sessionRepo,
-            makePrefs(logOnlyDtc = true),
+            fakeAppPreferences(logOnlyDtcSessions = true),
             makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
             makeGpsSpeedSource(), mockk(relaxed = true)
         )
@@ -612,15 +484,10 @@ class DashboardViewModelTest {
     fun `logOnlyDtcSessions=true, DTCs present - session is kept`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
         val dtc = DtcEntry("P0301", isPending = false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             coEvery { readDtcs() } returns listOf(dtc)  // has DTCs
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 77L
@@ -631,7 +498,7 @@ class DashboardViewModelTest {
 
         makeVmFrom(
             obdRepo, sessionRepo,
-            makePrefs(logOnlyDtc = true),
+            fakeAppPreferences(logOnlyDtcSessions = true),
             makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
             makeGpsSpeedSource(), mockk(relaxed = true)
         )
@@ -645,15 +512,9 @@ class DashboardViewModelTest {
     @Test
     fun `rpm is always polled even when not in selected pids`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -661,7 +522,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
         // Slot contains only SPEED — RPM explicitly excluded
-        val prefs = makePrefs(slotIds = listOf(PidRegistry.SPEED.id))
+        val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.SPEED.id))
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -681,15 +542,9 @@ class DashboardViewModelTest {
         val blockedReading  = SensorValue(pid = PidRegistry.SPEED, value = 80f, timestamp = 1001L)
 
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(listOf(allowedReading, blockedReading))
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 55L
@@ -699,7 +554,7 @@ class DashboardViewModelTest {
 
         makeVmFrom(
             obdRepo, sessionRepo,
-            makePrefs(loggedPidIds = setOf(allowedId)),
+            fakeAppPreferences(loggedPidIds = setOf(allowedId)),
             makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
             makeGpsSpeedSource(), mockk(relaxed = true)
         )
@@ -730,22 +585,17 @@ class DashboardViewModelTest {
         val supportedSet = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id)  // does NOT contain "0111"
 
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(supportedSet)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(slotIds = listOf(unsupportedSlotId))
+        val prefs = fakeAppPreferences(slotPids = listOf(unsupportedSlotId))
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -765,22 +615,16 @@ class DashboardViewModelTest {
         val slotId = PidRegistry.THROTTLE.id  // "0111"
 
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(slotIds = listOf(slotId))
+        val prefs = fakeAppPreferences(slotPids = listOf(slotId))
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -801,22 +645,17 @@ class DashboardViewModelTest {
         val supportedSet = setOf(PidRegistry.SPEED.id, PidRegistry.MAF.id)  // no overlap with slot
 
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(supportedSet)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(slotIds = listOf(slotId))
+        val prefs = fakeAppPreferences(slotPids = listOf(slotId))
 
         makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnectedFlow.value = true
@@ -830,29 +669,10 @@ class DashboardViewModelTest {
     @Test
     fun `setSlotPid delegates to AppPreferences with correct slot and pid`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
         }
-        val prefs = mockk<AppPreferences> {
-            every { useGpsSpeed }            returns flowOf(false)
-            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
-            every { logOnlyDtcSessions }    returns flowOf(false)
-            every { logOnlyDiscoveredPids } returns flowOf(false)
-            every { this@mockk.loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
-            every { rpmBlinkThreshold }     returns flowOf(0)
-            every { rpmDynamicThreshold }   returns flowOf(false)
-            every { lastDevice }            returns flowOf(null)
-            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
-            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
-            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
-            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
-            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-            coEvery { setSlotPid(any(), any()) } just Runs
-        }
+        val prefs = fakeAppPreferences().apply { coEvery { setSlotPid(any(), any()) } just Runs }
         val vm = makeVmFrom(obdRepo, mockk(relaxed = true), prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         advanceUntilIdle()
 
@@ -869,14 +689,9 @@ class DashboardViewModelTest {
 
     @Test
     fun `availablePids returns the full registry when supportedPidIds is null`() = runTest {
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-        }
+        val obdRepo = fakeObdRepository()
 
-        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.availablePids.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -891,14 +706,11 @@ class DashboardViewModelTest {
         // isNullOrEmpty() treats an empty discovered set the same as "no discovery yet" — a
         // vehicle whose discovery legitimately came back empty must still offer the full picker,
         // not an empty one.
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
             every { supportedPidIds } returns MutableStateFlow(emptySet())
         }
 
-        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.availablePids.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -910,14 +722,11 @@ class DashboardViewModelTest {
     @Test
     fun `availablePids is filtered to exactly the supported subset when GPS speed is off`() = runTest {
         val supported = setOf(PidRegistry.RPM.id, PidRegistry.MAF.id)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
-        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), fakeAppPreferences(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.availablePids.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -930,14 +739,11 @@ class DashboardViewModelTest {
         // Die GPS-Ausnahme aus der Produktionslogik: SPEED bleibt waehlbar, weil das GPS sie
         // liefern kann, unabhaengig davon, ob das Fahrzeug den PID selbst unterstuetzt.
         val supported = setOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id) // SPEED absichtlich nicht enthalten
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
-        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = true), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), fakeAppPreferences(useGpsSpeed = true), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.availablePids.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -951,14 +757,11 @@ class DashboardViewModelTest {
         // Kontrastfall zum GPS-Carve-out oben: ohne GPS-Speed und ohne ECU-Unterstuetzung darf
         // SPEED nicht im Picker auftauchen.
         val supported = setOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id) // SPEED absichtlich nicht enthalten
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
             every { supportedPidIds } returns MutableStateFlow(supported)
         }
 
-        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), makePrefs(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, mockk(relaxed = true), fakeAppPreferences(useGpsSpeed = false), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.availablePids.collect {} }
         advanceUntilIdle()
         job.cancel()
@@ -973,17 +776,11 @@ class DashboardViewModelTest {
     @Test
     fun `auto-connect on startup triggers reconnect loop when connect fails`() = runTest {
         val savedDevice = mockk<ScannedDevice> { every { name } returns "TestAdapter" }
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
             coEvery { connectIfDisconnected(savedDevice) } throws Exception("BT unavailable")
             // reconnect() must not be called — auto-connect uses connectIfDisconnected(), not reconnect()
             coEvery { reconnect() } throws Exception("should not be called")
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
@@ -991,22 +788,7 @@ class DashboardViewModelTest {
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = mockk<AppPreferences> {
-            every { useGpsSpeed }            returns flowOf(false)
-            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
-            every { lastDevice }            returns flowOf(savedDevice)
-            every { logOnlyDtcSessions }    returns flowOf(false)
-            every { logOnlyDiscoveredPids } returns flowOf(false)
-            every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
-            every { rpmBlinkThreshold }     returns flowOf(0)
-            every { rpmDynamicThreshold }   returns flowOf(false)
-            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
-            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
-            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
-            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
-            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-        }
+        val prefs = fakeAppPreferences(lastDevice = savedDevice)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         // advanceTimeBy(1) runs all pending coroutines up to the first delay.
@@ -1022,23 +804,16 @@ class DashboardViewModelTest {
     // Wraps makeVmFrom(), which builds the ViewModel with its collaborators, so new tests can be written concisely.
     // Parameters that are not relevant to a specific test keep their defaults.
     private fun makeVm(
-        obdRepo: ObdRepository = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        obdRepo: ObdRepository = fakeObdRepository {
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         },
         sessionRepo: SessionRepository = mockk {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         },
-        prefs: AppPreferences = makePrefs(),
+        prefs: AppPreferences = fakeAppPreferences(),
         crashReporter: CrashReporter = makeCrashReporter(),
         btAdapter: BluetoothAdapter = makeBluetoothAdapter(),
         logRepo: AppLogRepository = makeAppLogRepository(),
@@ -1053,7 +828,7 @@ class DashboardViewModelTest {
     fun `the first state already carries the saved slot PIDs - no flash of empty or default tiles`() {
         // Bewusst OHNE runTest/advance: gemeint ist der Zustand im Moment der Erzeugung, den die erste Komposition liest.
         val saved = listOf("0105", "010C", "010D", "0104")
-        val vm = makeVm(prefs = makePrefs(slotIds = saved))
+        val vm = makeVm(prefs = fakeAppPreferences(slotPids = saved))
 
         assertEquals(saved, vm.slotPids.value)
         assertEquals(saved, vm.placeholderReadings.value.map { it.pid.id })
@@ -1061,7 +836,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `unknown saved PIDs fall back to the defaults, as before`() {
-        val vm = makeVm(prefs = makePrefs(slotIds = listOf("ZZZZ")))
+        val vm = makeVm(prefs = fakeAppPreferences(slotPids = listOf("ZZZZ")))
 
         assertEquals(PidRegistry.defaults.map { it.id }, vm.placeholderReadings.value.map { it.pid.id })
     }
@@ -1072,39 +847,17 @@ class DashboardViewModelTest {
     fun `service is started when auto-connect succeeds on startup`() = runTest {
         val savedDevice = mockk<ScannedDevice> { every { name } returns "TestAdapter" }
         val ctx = mockk<Context>(relaxed = true)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
             coEvery { connectIfDisconnected(savedDevice) } just Runs
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = mockk<AppPreferences> {
-            every { useGpsSpeed }            returns flowOf(false)
-            every { slotPids }              returns flowOf(AppPreferences.DEFAULT_SLOT_PIDS)
-            every { lastDevice }            returns flowOf(savedDevice)
-            every { logOnlyDtcSessions }    returns flowOf(false)
-            every { logOnlyDiscoveredPids } returns flowOf(false)
-            every { loggedPidIds }          returns flowOf(AppPreferences.ALL_PID_IDS)
-            every { rpmBlinkThreshold }     returns flowOf(0)
-            every { rpmDynamicThreshold }   returns flowOf(false)
-            every { wheelCircumferenceMm } returns flowOf(AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM)
-            every { primaryRatio }         returns flowOf(AppPreferences.DEFAULT_PRIMARY_RATIO)
-            every { secondaryRatio }       returns flowOf(AppPreferences.DEFAULT_SECONDARY_RATIO)
-            every { gearRatios }           returns flowOf(AppPreferences.DEFAULT_GEAR_RATIOS)
-            every { obdWatchdogTimeoutSeconds } returns flowOf(AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS)
-            every { reconnectBaseDelaySeconds } returns flowOf(AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS)
-        }
+        val prefs = fakeAppPreferences(lastDevice = savedDevice)
 
         makeVm(obdRepo = obdRepo, sessionRepo = sessionRepo, prefs = prefs, appContext = ctx)
         advanceUntilIdle()
@@ -1116,14 +869,9 @@ class DashboardViewModelTest {
     fun `service is stopped when reconnect loop exhausts all attempts`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -1148,14 +896,9 @@ class DashboardViewModelTest {
     fun `service is started when reconnect loop succeeds`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice> { every { name } returns "TestAdapter" })
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -1183,22 +926,17 @@ class DashboardViewModelTest {
     fun `service is stopped when no device is configured`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
         }
-        // makePrefs() already stubs lastDevice as flowOf(null) → no persisted device either
-        makeVm(obdRepo = obdRepo, prefs = makePrefs(), appContext = ctx)
+        // fakeAppPreferences() already stubs lastDevice as flowOf(null) → no persisted device either
+        makeVm(obdRepo = obdRepo, prefs = fakeAppPreferences(), appContext = ctx)
         isConnectedFlow.value = true
         // advanceTimeBy(1) runs all coroutines up to the first suspension point,
         // which is enough for the reconnect loop to check both device sources and abort.
@@ -1210,19 +948,13 @@ class DashboardViewModelTest {
     @Test
     fun `setMoving false called when SPEED is not in selected PIDs`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(emptyList())
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         // Slot contains only RPM — SPEED is explicitly absent
-        val prefs = makePrefs(slotIds = listOf(PidRegistry.RPM.id))
+        val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.RPM.id))
 
         makeVm(obdRepo = obdRepo, prefs = prefs)
         isConnectedFlow.value = true
@@ -1234,22 +966,17 @@ class DashboardViewModelTest {
     @Test
     fun `uiState error set to no-device banner when no device is configured`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             // Cold launch: no prior connect in this session → lastConnectedDevice is null
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
         }
-        // makePrefs() already stubs lastDevice as flowOf(null) → no persisted device
-        val vm = makeVm(obdRepo = obdRepo, prefs = makePrefs())
+        // fakeAppPreferences() already stubs lastDevice as flowOf(null) → no persisted device
+        val vm = makeVm(obdRepo = obdRepo, prefs = fakeAppPreferences())
         isConnectedFlow.value = true
         // advanceTimeBy(1) runs coroutines up to the first suspension point,
         // enough for the reconnect loop to check both device sources and abort.
@@ -1262,14 +989,9 @@ class DashboardViewModelTest {
     fun `service is stopped when Bluetooth is disabled during reconnect`() = runTest {
         val ctx = mockk<Context>(relaxed = true)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(mockk<ScannedDevice>())
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
@@ -1300,15 +1022,10 @@ class DashboardViewModelTest {
         // Sein value blieb deshalb fuer immer null und die GPS-Geschwindigkeit kam nie an.
         val rpm = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
-            every { setMoving(any()) } just Runs
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(rpm))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -1318,7 +1035,7 @@ class DashboardViewModelTest {
 
         val vm = makeVmFrom(
             obdRepo, sessionRepo,
-            makePrefs(slotIds = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = true),
+            fakeAppPreferences(slotPids = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = true),
             makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
             makeGpsSpeedSource(42f), mockk(relaxed = true)
         )
@@ -1335,15 +1052,10 @@ class DashboardViewModelTest {
     fun `GPS speed is ignored while the switch is off`() = runTest {
         val rpm = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { supportedPidIds } returns MutableStateFlow(setOf(PidRegistry.RPM.id))
-            every { setMoving(any()) } just Runs
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(rpm))
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -1353,7 +1065,7 @@ class DashboardViewModelTest {
 
         val vm = makeVmFrom(
             obdRepo, sessionRepo,
-            makePrefs(slotIds = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = false),
+            fakeAppPreferences(slotPids = listOf(PidRegistry.RPM.id, PidRegistry.SPEED.id, "", ""), useGpsSpeed = false),
             makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
             makeGpsSpeedSource(42f), mockk(relaxed = true)
         )
@@ -1370,15 +1082,9 @@ class DashboardViewModelTest {
         // Speed is NOT one of the default slot PIDs, so state.readings would never carry it —
         // speedKmh must still be populated.
         val speedReading = SensorValue(pid = PidRegistry.SPEED, value = 42f, timestamp = 1000L)
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(listOf(speedReading))
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -1386,7 +1092,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         advanceUntilIdle()
 
         assertEquals(42f, vm.uiState.value.speedKmh!!, 0.001f)
@@ -1400,22 +1106,16 @@ class DashboardViewModelTest {
         val readings = listOf(
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1440,22 +1140,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
             SensorValue(pid = PidRegistry.SPEED, value = 999f, timestamp = 1000L),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1478,22 +1172,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L),
             SensorValue(pid = PidRegistry.SPEED, value = 60f, timestamp = 1000L),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1533,22 +1221,16 @@ class DashboardViewModelTest {
         val secondReadings = listOf(
             SensorValue(pid = PidRegistry.RPM, value = 4810f, timestamp = 2000L),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1590,22 +1272,16 @@ class DashboardViewModelTest {
             listOf(SensorValue(pid = PidRegistry.RPM, value = 100f, timestamp = 2000L)),
             listOf(SensorValue(pid = PidRegistry.RPM, value = 4750f, timestamp = 3000L)),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(readings[0], readings[1], readings[2])
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1631,26 +1307,20 @@ class DashboardViewModelTest {
         // t=200, so that reading is guaranteed to see the already-lowered speed.
         val firstReadings = listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 1000L))
         val secondReadings = listOf(SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L))
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flow {
                 emit(firstReadings)
                 delay(200)
                 emit(secondReadings)
             }
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -1703,13 +1373,8 @@ class DashboardViewModelTest {
         // this delay, this test collapses that gap to zero, an ordering no real connection can
         // produce, and the two independent flows can race.
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flow {
                 // First, a normal cycle that locks in a gear...
                 emit(
@@ -1723,14 +1388,13 @@ class DashboardViewModelTest {
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
             secondaryRatio = 1f,
@@ -1755,15 +1419,9 @@ class DashboardViewModelTest {
     // ── B29: values nobody refreshes are shown as stale, not as live ──────────
 
     private fun staleRepo(isConnected: MutableStateFlow<Boolean>, session: kotlinx.coroutines.flow.Flow<List<SensorValue>>) =
-        mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnected
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnected
             every { livePids(any()) } returns session
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
 
     private val liveCycle = listOf(
@@ -1776,7 +1434,7 @@ class DashboardViewModelTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(1_000)
         assertFalse(vm.uiState.value.isStale)
@@ -1802,7 +1460,7 @@ class DashboardViewModelTest {
             kotlinx.coroutines.flow.flow { emit(liveCycle); delay(15_000); emit(liveCycle); kotlinx.coroutines.awaitCancellation() },
         )
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
         assertTrue(vm.uiState.value.isStale)
@@ -1815,7 +1473,7 @@ class DashboardViewModelTest {
 
     // ── B24/B23: the link is up before the first values; values for no slot are still "live" ──
 
-    private fun makeStaleVm(repo: ObdRepository, prefs: AppPreferences = makePrefs()): DashboardViewModel {
+    private fun makeStaleVm(repo: ObdRepository, prefs: AppPreferences = fakeAppPreferences()): DashboardViewModel {
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
         return makeVmFrom(repo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
     }
@@ -1875,7 +1533,7 @@ class DashboardViewModelTest {
         )
         val vm = makeStaleVm(
             staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(delivered); kotlinx.coroutines.awaitCancellation() }),
-            prefs = makePrefs(slotIds = slots),
+            prefs = fakeAppPreferences(slotPids = slots),
         )
 
         isConnected.value = true
@@ -1898,7 +1556,7 @@ class DashboardViewModelTest {
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         val vm = DashboardViewModel(
             repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
             ReadingsPipeline(repo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
@@ -1923,7 +1581,7 @@ class DashboardViewModelTest {
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         val vm = DashboardViewModel(
             repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
             ReadingsPipeline(repo, sessionRepo, prefs, makeAppLogRepository(), makeCrashReporter(), makeGpsSpeedSource(), mockk(relaxed = true)),
@@ -1964,7 +1622,7 @@ class DashboardViewModelTest {
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         // Ein relaxter Koordinator: der echte wuerde den Reconnect tatsaechlich durchspielen.
         val vm = DashboardViewModel(
             repo,
@@ -1989,7 +1647,7 @@ class DashboardViewModelTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
-        val vm = makeVmFrom(repo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
         assertTrue(vm.uiState.value.isStale)
@@ -2005,13 +1663,10 @@ class DashboardViewModelTest {
 
     private class Driven(val vm: DashboardViewModel, val events: kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>)
 
-    private fun driven(prefs: AppPreferences = makePrefs()): Driven {
+    private fun driven(prefs: AppPreferences = fakeAppPreferences()): Driven {
         val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
         val pipeline = mockk<ReadingsPipeline> { every { events(any()) } returns events }
-        val obdRepo = mockk<ObdRepository> {
-            every { supportedPidIds } returns MutableStateFlow(null)
-            every { isConnectedFlow } returns MutableStateFlow(false)
-        }
+        val obdRepo = fakeObdRepository()
         val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle())
         return Driven(vm, events)
     }
@@ -2175,7 +1830,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `a cycle without a temperature keeps the last one - the dynamic threshold must not halve for a cycle (B26)`() = runTest {
-        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val d = driven(fakeAppPreferences(rpmDynamicThreshold = true))
         val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
         advanceUntilIdle()
 
@@ -2193,7 +1848,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `a newer temperature replaces the held one`() = runTest {
-        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val d = driven(fakeAppPreferences(rpmDynamicThreshold = true))
         val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
         advanceUntilIdle()
 
@@ -2208,7 +1863,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `without the dynamic threshold no temperature is kept`() = runTest {
-        val d = driven(makePrefs(rpmDynamicThreshold = false))
+        val d = driven(fakeAppPreferences(rpmDynamicThreshold = false))
         val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
         advanceUntilIdle()
 
@@ -2222,7 +1877,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `a stale display forgets the held temperature`() = runTest {
-        val d = driven(makePrefs(rpmDynamicThreshold = true))
+        val d = driven(fakeAppPreferences(rpmDynamicThreshold = true))
         val sub = launch { d.vm.rpmDynamicThreshold.collect {} }
         advanceUntilIdle()
         d.cycle(rpmAt(1_000L), coolant(90f, 1_000L))
@@ -2244,13 +1899,10 @@ class DashboardViewModelTest {
         val coordinator = mockk<ConnectionCoordinator>(relaxed = true) {
             every { start(any(), capture(onEvent)) } just Runs
         }
-        val obdRepo = mockk<ObdRepository> {
-            every { isConnectedFlow } returns MutableStateFlow(false)
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
+        val obdRepo = fakeObdRepository {
             every { lastConnectedDevice } returns MutableStateFlow<ScannedDevice?>(null)
         }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         val vm = DashboardViewModel(
             obdRepo,
             prefs,
@@ -2288,22 +1940,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L),
             // No SPEED this cycle — e.g. GPS lost its fix.
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
             secondaryRatio = 1f,
@@ -2336,7 +1982,7 @@ class DashboardViewModelTest {
                 coEvery { writeReadings(any(), any()) } just Runs
                 coEvery { endSession(any()) } just Runs
             },
-            makePrefs(
+            fakeAppPreferences(
                 useGpsSpeed = gpsKmh != null,
                 wheelCircumferenceMm = 2000f,
                 primaryRatio = 1f,
@@ -2361,7 +2007,7 @@ class DashboardViewModelTest {
     // Widerspruch, der ohne Unterbrechung 5 s dauert, hebt "N" auf; die Zeit kommt aus `nowMillis` (monoton).
 
     private fun drivenWithGears(): Driven = driven(
-        makePrefs(
+        fakeAppPreferences(
             useGpsSpeed = true,
             wheelCircumferenceMm = 2000f,
             primaryRatio = 1f,
@@ -2518,27 +2164,21 @@ class DashboardViewModelTest {
         // ganzen State schon vor applyIdle()); delay(1) stellt die reale Zeit-Trennung zwischen
         // zwei Zyklen nach, s. dortigen Kommentar.
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { setMoving(any()) } just Runs
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flow {
                 emit(cycle(rpm = 1200f, speedKmh = 0f))
                 delay(1)
                 isConnectedFlow.value = false
                 throw ObdException.ConnectionLost()
             }
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
 
         val vm = DashboardViewModel(
             obdRepo,
@@ -2571,22 +2211,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
         )
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(rpmDynamicThreshold = false)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = false)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.rpmDynamicThreshold.collect {} }
@@ -2605,22 +2239,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
         )
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(rpmDynamicThreshold = true)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = true)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.rpmDynamicThreshold.collect {} }
@@ -2642,22 +2270,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
         )
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(rpmDynamicThreshold = true)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = true)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.rpmDynamicThreshold.collect {} }
@@ -2680,22 +2302,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 88f, timestamp = 1000L),
         )
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(rpmDynamicThreshold = true)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = true)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.rpmDynamicThreshold.collect {} }
@@ -2717,22 +2333,16 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = Float.NaN, timestamp = 1000L),
         )
         val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = mockk<ObdRepository> {
-            every { this@mockk.isConnectedFlow } returns isConnectedFlow
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
+        val obdRepo = fakeObdRepository {
+            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
-        val prefs = makePrefs(rpmDynamicThreshold = true)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = true)
 
         val vm = makeVmFrom(obdRepo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         val job = launch { vm.rpmDynamicThreshold.collect {} }
@@ -2756,15 +2366,9 @@ class DashboardViewModelTest {
         val readings = listOf(
             SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 70f, timestamp = 1000L),
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(readings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -2772,7 +2376,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         advanceUntilIdle()
 
         assertEquals(OilBarColor.Red, vm.uiState.value.oilBarColor)
@@ -2844,12 +2448,9 @@ class DashboardViewModelTest {
                 }
             }
         }
-        val obdRepo = mockk<ObdRepository> {
-            every { supportedPidIds } returns MutableStateFlow(null)
-            every { isConnectedFlow } returns MutableStateFlow(false)
-        }
+        val obdRepo = fakeObdRepository()
         val vm = DashboardViewModel(
-            obdRepo, makePrefs(), mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(),
+            obdRepo, fakeAppPreferences(), mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(),
         ).also { it.nowMillis = { testScheduler.currentTime } }
         advanceUntilIdle()
 
@@ -2932,15 +2533,9 @@ class DashboardViewModelTest {
             SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 2000L),
             // Kein COOLANT_TEMP in diesem Zyklus.
         )
-        val obdRepo = mockk<ObdRepository> {
+        val obdRepo = fakeObdRepository {
             every { isConnectedFlow } returns MutableStateFlow(false).also { it.value = true }
-            every { userDisconnectCount } returns MutableStateFlow(0)
-            every { supportedPidIds } returns MutableStateFlow(null)
-            coEvery { readVin() } returns null
-            coEvery { readDtcs() } returns emptyList()
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
-            every { setMoving(any()) } just Runs
-            every { updateLatestReadings(any()) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
             coEvery { startSession(any()) } returns 1L
@@ -2948,7 +2543,7 @@ class DashboardViewModelTest {
             coEvery { endSession(any()) } just Runs
         }
 
-        val vm = makeVmFrom(obdRepo, sessionRepo, makePrefs(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
+        val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         advanceUntilIdle()
 
         // 85 C > 80 C, aber der Gruen-Timer laeuft erst seit dem 1. Zyklus -> Yellow, nicht Red
@@ -3013,21 +2608,15 @@ class DashboardViewModelTest {
     private fun makeConnectedObdRepo(
         vararg sessions: Flow<List<SensorValue>>,
         isConnectedFlow: MutableStateFlow<Boolean> = MutableStateFlow(true),
-    ): ObdRepository = mockk {
-        every { this@mockk.isConnectedFlow } returns isConnectedFlow
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { supportedPidIds } returns MutableStateFlow(null)
-        coEvery { readVin() } returns null
-        coEvery { readDtcs() } returns emptyList()
+    ): ObdRepository = fakeObdRepository {
+        every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
         every { livePids(any()) } returnsMany sessions.toList()
-        every { setMoving(any()) } just Runs
-        every { updateLatestReadings(any()) } just Runs
     }
 
     private fun makeOilBarVm(
         obdRepo: ObdRepository,
         nowMillis: () -> Long,
-        prefs: AppPreferences = makePrefs(),
+        prefs: AppPreferences = fakeAppPreferences(),
         gps: GpsSpeedSource = makeGpsSpeedSource(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
     ): DashboardViewModel = makeVmFrom(

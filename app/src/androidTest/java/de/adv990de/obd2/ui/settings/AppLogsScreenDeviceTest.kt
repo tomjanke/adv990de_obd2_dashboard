@@ -20,10 +20,9 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.AppLogEntity
+import de.adv990de.obd2.idleObdRepository
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.spyk
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -98,11 +97,7 @@ class AppLogsScreenDeviceTest {
      */
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow } returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow } returns MutableStateFlow(false)
-    }
+    val obdRepository: ObdRepository = idleObdRepository()
 
     @Before
     fun setup() {

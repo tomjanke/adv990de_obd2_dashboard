@@ -26,13 +26,12 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.formatDateTime
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.spyk
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -102,11 +101,7 @@ class HistoryScreenTest {
      */
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
-        every { isConnectedFlow } returns MutableStateFlow(false)
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow } returns MutableStateFlow(false)
-    }
+    val obdRepository: ObdRepository = idleObdRepository()
 
     /** Set by [setup] — the seeded row's generated id/startTime, reused by several tests below. */
     private var insertedSessionId: Long = 0

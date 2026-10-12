@@ -26,6 +26,7 @@ import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.db.DtcHistoryDao
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.ui.formatDate
@@ -33,7 +34,6 @@ import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -75,10 +75,8 @@ class DtcScreenTest {
 
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
+    val obdRepository: ObdRepository = idleObdRepository {
         every { isConnectedFlow } returns connected
-        every { userDisconnectCount } returns MutableStateFlow(0)
-        every { isMovingFlow } returns MutableStateFlow(false)
         coEvery { readDtcs() } returns emptyList()
     }
 

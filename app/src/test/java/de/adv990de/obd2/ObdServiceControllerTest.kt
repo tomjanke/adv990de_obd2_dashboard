@@ -16,7 +16,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -42,10 +41,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ObdServiceControllerTest {
 
-    private fun makePrefs(useGpsSpeed: Boolean = false): AppPreferences = mockk {
-        every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
-    }
-
     private fun makeRepo(): ObdRepository = mockk { coEvery { disconnectByUser() } just Runs }
 
     /** [scope] ist der, den die Produktion als `@ApplicationScope` einspeist — hier der des Tests. */
@@ -54,7 +49,7 @@ class ObdServiceControllerTest {
         repo: ObdRepository = makeRepo(),
         context: Context = mockk(relaxed = true),
         log: AppLogRepository = mockk(relaxed = true),
-        prefs: AppPreferences = makePrefs(),
+        prefs: AppPreferences = fakeAppPreferences(),
     ) = ObdServiceController(repo, prefs, context, log, scope)
 
     // ── shouldIncludeLocationServiceType (aus dem ConnectionCoordinatorTest hierher gezogen) ──
@@ -303,7 +298,7 @@ class ObdServiceControllerTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = false
         // GPS-Geschwindigkeit an; Hintergrund-Standort gilt im JVM-Test (SDK_INT 0 < Q) als erteilt
-        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -314,7 +309,7 @@ class ObdServiceControllerTest {
     fun `refreshServiceType does nothing when the running service already has the wanted type`() = runTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = true
-        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -325,7 +320,7 @@ class ObdServiceControllerTest {
     fun `refreshServiceType never starts a service that is not running`() = runTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = null
-        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -336,7 +331,7 @@ class ObdServiceControllerTest {
     fun `refreshServiceType drops the location type again when GPS speed is switched off`() = runTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = true
-        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = false))
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = false))
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -347,7 +342,7 @@ class ObdServiceControllerTest {
     fun `refreshServiceType leaves the service alone before API 34`() = runTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = false
-        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceType(ForegroundStartMode.LEGACY)
 
@@ -361,7 +356,7 @@ class ObdServiceControllerTest {
         }
         val log = mockk<AppLogRepository>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = false
-        val c = controller(backgroundScope, context = context, log = log, prefs = makePrefs(useGpsSpeed = true))
+        val c = controller(backgroundScope, context = context, log = log, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceTypeInBackground(ForegroundStartMode.TYPED)
         runCurrent()   // ein ungefangener Fehler im Scope wuerde hier den Test (und in der App den Prozess) beenden

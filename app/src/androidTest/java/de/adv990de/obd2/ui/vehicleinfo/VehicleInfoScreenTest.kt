@@ -14,11 +14,11 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.model.ObdException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
@@ -61,9 +61,8 @@ class VehicleInfoScreenTest {
 
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
+    val obdRepository: ObdRepository = idleObdRepository {
         every { isConnectedFlow } returns connected
-        every { userDisconnectCount } returns MutableStateFlow(0)
         coEvery { readVin() } coAnswers { readVinDeferred.await() }
     }
 

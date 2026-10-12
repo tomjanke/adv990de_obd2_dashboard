@@ -7,6 +7,7 @@ import de.adv990de.obd2.data.DtcHistoryRepository
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.DtcEntry
@@ -78,23 +79,6 @@ class ReadingsPipelineTest {
         coEvery { discardSession(any()) } just Runs
     }
 
-    private fun makePrefs(
-        useGpsSpeed: Boolean = false,
-        logOnlyDtc: Boolean = false,
-        rpmDynamicThreshold: Boolean = false,
-        logOnlyDiscoveredPids: Boolean = false,
-        slotPids: List<String> = AppPreferences.DEFAULT_SLOT_PIDS,
-        obdWatchdogTimeoutSeconds: Int = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
-    ): AppPreferences = mockk {
-        every { this@mockk.slotPids } returns flowOf(slotPids)
-        every { this@mockk.rpmDynamicThreshold } returns flowOf(rpmDynamicThreshold)
-        every { logOnlyDtcSessions } returns flowOf(logOnlyDtc)
-        every { this@mockk.logOnlyDiscoveredPids } returns flowOf(logOnlyDiscoveredPids)
-        every { loggedPidIds } returns flowOf(AppPreferences.ALL_PID_IDS)
-        every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
-        every { this@mockk.obdWatchdogTimeoutSeconds } returns flowOf(obdWatchdogTimeoutSeconds)
-    }
-
     private fun makeGps(kmh: Float? = null): GpsSpeedSource = mockk {
         every { speedKmh } returns flowOf(kmh)
     }
@@ -102,7 +86,7 @@ class ReadingsPipelineTest {
     private fun makePipeline(
         repo: ObdRepository,
         sessionRepo: SessionRepository = makeSessionRepo(),
-        prefs: AppPreferences = makePrefs(),
+        prefs: AppPreferences = fakeAppPreferences(),
         gps: GpsSpeedSource = makeGps(),
         crashReporter: CrashReporter = mockk(relaxed = true),
         logRepo: AppLogRepository = mockk(relaxed = true),
@@ -136,7 +120,7 @@ class ReadingsPipelineTest {
     fun `GPS fills in the speed the vehicle does not provide`() = runTest {
         val events = makePipeline(
             makeRepo(connected = true),
-            prefs = makePrefs(useGpsSpeed = true),
+            prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
         ).events(backgroundScope).take(1).toList()
 
@@ -155,7 +139,7 @@ class ReadingsPipelineTest {
         makePipeline(
             makeRepo(connected = true),
             sessionRepo = sessionRepoGps,
-            prefs = makePrefs(useGpsSpeed = true),
+            prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
         ).events(backgroundScope).take(1).toList()
         val gpsSpeed = gpsFilled.captured.single { it.pid.id == PidRegistry.SPEED.id }
@@ -169,7 +153,7 @@ class ReadingsPipelineTest {
         makePipeline(
             makeRepo(connected = true, readings = listOf(rpm, vehicleSpeed)),
             sessionRepo = sessionRepoEcu,
-            prefs = makePrefs(useGpsSpeed = true),
+            prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
         ).events(backgroundScope).take(1).toList()
         val ecuSpeed = ecuRecorded.captured.single { it.pid.id == PidRegistry.SPEED.id }
@@ -182,7 +166,7 @@ class ReadingsPipelineTest {
     @Test
     fun `a moving vehicle is reported to the repository`() = runTest {
         val repo = makeRepo(connected = true)
-        makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = makeGps(42f))
+        makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = makeGps(42f))
             .events(backgroundScope).take(1).toList()
 
         verify { repo.setMoving(true) }
@@ -231,7 +215,7 @@ class ReadingsPipelineTest {
         val events = makePipeline(
             makeRepo(connected = true),
             sessionRepo = sessionRepo,
-            prefs = makePrefs(logOnlyDtc = true),
+            prefs = fakeAppPreferences(logOnlyDtcSessions = true),
         ).events(backgroundScope).take(1).toList()
 
         // Die Entscheidung steht vor dem Start fest. Frueher wurde die Fahrt angelegt, aufgezeichnet und
@@ -264,7 +248,7 @@ class ReadingsPipelineTest {
 
         val collected = mutableListOf<SessionEvent>()
         val job = launch {
-            makePipeline(repo, sessionRepo = sessionRepo, prefs = makePrefs(useGpsSpeed = true), gps = gps)
+            makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gps)
                 .events(backgroundScope)
                 .filterIsInstance<SessionEvent.Values>()
                 .toList(collected)
@@ -285,7 +269,7 @@ class ReadingsPipelineTest {
         val repo = makeRepo(connected = true)
         val pidsSlot = slot<List<PidDefinition>>()
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             rpmDynamicThreshold = true,
             slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
         )
@@ -312,7 +296,7 @@ class ReadingsPipelineTest {
         val repo = makeRepo(connected = true)
         val pidsSlot = slot<List<PidDefinition>>()
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             rpmDynamicThreshold = false,
             slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
         )
@@ -339,7 +323,7 @@ class ReadingsPipelineTest {
         val repo = makeRepo(connected = true)
         val pidsSlot = slot<List<PidDefinition>>()
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
-        val prefs = makePrefs(rpmDynamicThreshold = true, slotPids = AppPreferences.DEFAULT_SLOT_PIDS)
+        val prefs = fakeAppPreferences(rpmDynamicThreshold = true, slotPids = AppPreferences.DEFAULT_SLOT_PIDS)
 
         makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
 
@@ -355,7 +339,7 @@ class ReadingsPipelineTest {
         val readings = listOf(rpm, coolantTemp)
         val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
         val sessionRepo = makeSessionRepo()
-        val prefs = makePrefs(logOnlyDiscoveredPids = true)
+        val prefs = fakeAppPreferences(logOnlyDiscoveredPids = true)
 
         makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
             .events(backgroundScope).take(1).toList()
@@ -370,7 +354,7 @@ class ReadingsPipelineTest {
         val readings = listOf(rpm, coolantTemp)
         val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
         val sessionRepo = makeSessionRepo()
-        val prefs = makePrefs(logOnlyDiscoveredPids = false)
+        val prefs = fakeAppPreferences(logOnlyDiscoveredPids = false)
 
         makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
             .events(backgroundScope).take(1).toList()
@@ -389,7 +373,7 @@ class ReadingsPipelineTest {
         val events = makePipeline(
             repo,
             sessionRepo = sessionRepo,
-            prefs = makePrefs(logOnlyDtc = true),
+            prefs = fakeAppPreferences(logOnlyDtcSessions = true),
         ).events(backgroundScope).take(1).toList()
 
         // readDtcs() throwing is caught inside runSession()'s own try/catch: the session still runs
@@ -412,7 +396,7 @@ class ReadingsPipelineTest {
         // it would not answer a call carrying the non-default 45_000 ms.
         every { repo.livePids(any(), any(), any(), any()) } returns flowOf(listOf(rpm))
 
-        makePipeline(repo, prefs = makePrefs(obdWatchdogTimeoutSeconds = 45))
+        makePipeline(repo, prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = 45))
             .events(backgroundScope).take(1).toList()
 
         verify {
@@ -619,7 +603,7 @@ class ReadingsPipelineTest {
         val repo = makeRepo(connected = true)
         every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
         val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
-        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        val events = collect(makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gpsSource))
         runCurrent()
         gps.value = 10f; runCurrent()
         assertEquals("solange sie frisch sind, ergaenzt GPS sie: $events", 2, events.count { it is SessionEvent.Values })
@@ -659,7 +643,7 @@ class ReadingsPipelineTest {
             emit(listOf(rpm)); delay(15_000); emit(listOf(rpm.copy(timestamp = 2000L))); awaitCancellation()
         }
         val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
-        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        val events = collect(makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gpsSource))
         advanceTimeBy(15_001); runCurrent()                 // stale at 10 s, fresh again at 15 s
         events.clear()
 
@@ -681,7 +665,7 @@ class ReadingsPipelineTest {
             flow { awaitCancellation() },                       // after the reconnect: silent so far
         )
         val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
-        val events = collect(makePipeline(repo, prefs = makePrefs(useGpsSpeed = true), gps = gpsSource))
+        val events = collect(makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gpsSource))
         runCurrent()
         assertTrue("erste Verbindung liefert: $events", events.any { it is SessionEvent.Values })
 

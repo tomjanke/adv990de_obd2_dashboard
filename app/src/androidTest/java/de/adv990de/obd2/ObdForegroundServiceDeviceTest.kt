@@ -14,7 +14,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.data.ObdRepository
 import io.mockk.coJustRun
 import io.mockk.coVerify
-import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -61,7 +60,7 @@ class ObdForegroundServiceDeviceTest {
      */
     @BindValue
     @JvmField
-    val obdRepository: ObdRepository = mockk(relaxed = true) {
+    val obdRepository: ObdRepository = idleObdRepository {
         coJustRun { disconnectByUser() }
     }
 

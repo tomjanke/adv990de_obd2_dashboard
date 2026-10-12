@@ -3,16 +3,15 @@ package de.adv990de.obd2.ui.settings
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
+import de.adv990de.obd2.fakeAppPreferences
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -32,23 +31,11 @@ class GearSettingsViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After  fun tearDown() { Dispatchers.resetMain() }
 
-    private fun makePrefs(
-        wheelCircumferenceMm: Float = AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
-        primaryRatio: Float = AppPreferences.DEFAULT_PRIMARY_RATIO,
-        secondaryRatio: Float = AppPreferences.DEFAULT_SECONDARY_RATIO,
-        gearRatios: List<Float> = AppPreferences.DEFAULT_GEAR_RATIOS,
-    ): AppPreferences = mockk {
-        every { this@mockk.wheelCircumferenceMm } returns flowOf(wheelCircumferenceMm)
-        every { this@mockk.primaryRatio }         returns flowOf(primaryRatio)
-        every { this@mockk.secondaryRatio }       returns flowOf(secondaryRatio)
-        every { this@mockk.gearRatios }           returns flowOf(gearRatios)
-    }
-
     private fun makeLogRepository(): AppLogRepository = mockk(relaxed = true)
 
     @Test
     fun `wheelCircumferenceMm reflects AppPreferences flow`() = runTest {
-        val prefs = makePrefs(wheelCircumferenceMm = 2100f)
+        val prefs = fakeAppPreferences(wheelCircumferenceMm = 2100f)
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         val job = launch { vm.wheelCircumferenceMm.collect {} }
@@ -62,7 +49,7 @@ class GearSettingsViewModelTest {
     fun `gearRatioConflicts reflects close gear ratios from AppPreferences`() = runTest {
         // 10x und 9.9x liegen ca. 1 Prozent auseinander -- klarer Konflikt, weit unter jeder
         // Grenzwert-Unschaerfe.
-        val prefs = makePrefs(
+        val prefs = fakeAppPreferences(
             primaryRatio = 1f,
             secondaryRatio = 1f,
             gearRatios = listOf(10f, 9.9f, 5f, 4f, 3f, 2f),
@@ -78,7 +65,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `gearRatioConflicts is empty for the default ratios`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         val job = launch { vm.gearRatioConflicts.collect {} }
@@ -91,7 +78,7 @@ class GearSettingsViewModelTest {
     @Test
     fun `gearRatios reflects AppPreferences flow`() = runTest {
         val customRatios = listOf(3f, 2.2f, 1.7f, 1.4f, 1.1f, 1.0f)
-        val prefs = makePrefs(gearRatios = customRatios)
+        val prefs = fakeAppPreferences(gearRatios = customRatios)
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
         val job = launch { vm.gearRatios.collect {} }
@@ -103,7 +90,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `setWheelCircumferenceMm delegates to AppPreferences`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setWheelCircumferenceMm(any()) } just Runs
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
@@ -115,7 +102,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `setPrimaryRatio and setSecondaryRatio delegate to AppPreferences`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setPrimaryRatio(any()) } just Runs
         coEvery { prefs.setSecondaryRatio(any()) } just Runs
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
@@ -130,7 +117,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `setGearRatio delegates to AppPreferences with the given index`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setGearRatio(any(), any()) } just Runs
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
 
@@ -142,7 +129,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `a failed write is caught and logged instead of crashing`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         val boom = RuntimeException("disk full")
         coEvery { prefs.setGearRatio(any(), any()) } throws boom
         val logRepository = makeLogRepository()
@@ -156,7 +143,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `a CancellationException is rethrown instead of caught and logged`() = runTest {
-        val prefs = makePrefs()
+        val prefs = fakeAppPreferences()
         coEvery { prefs.setGearRatio(any(), any()) } throws CancellationException("cancelled")
         val logRepository = makeLogRepository()
         val vm = GearSettingsViewModel(prefs, logRepository)
@@ -171,7 +158,7 @@ class GearSettingsViewModelTest {
 
     // ── B22: the ViewModel is the last line of defence against implausible values ──────────────────────
 
-    private fun prefsThatAcceptWrites(): AppPreferences = makePrefs().also { prefs ->
+    private fun prefsThatAcceptWrites(): AppPreferences = fakeAppPreferences().also { prefs ->
         coEvery { prefs.setWheelCircumferenceMm(any()) } just Runs
         coEvery { prefs.setPrimaryRatio(any()) } just Runs
         coEvery { prefs.setSecondaryRatio(any()) } just Runs
@@ -240,7 +227,7 @@ class GearSettingsViewModelTest {
 
     @Test
     fun `a switched-off gear causes no conflict warning`() = runTest {
-        val prefs = makePrefs(gearRatios = listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 0f))
+        val prefs = fakeAppPreferences(gearRatios = listOf(2.9167f, 2.1333f, 1.6667f, 1.35f, 1.125f, 0f))
         val vm = GearSettingsViewModel(prefs, makeLogRepository())
         val job = launch { vm.gearRatioConflicts.collect {} }
         advanceUntilIdle()
