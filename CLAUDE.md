@@ -758,7 +758,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **Entschieden am 2026-10-12 (`docs/qa/2026-10-12-decisions.md`):** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen) **bleibt**, keine neue Einstellung; der Tacho-Sweep (`DashboardScreen`, `shouldStartRpmDemoSweep`) läuft
   **nur einmal je App-Start** (umgesetzt in v1.24.13, s. „Tacho-Sweep“ unten); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
 - **Produktentscheidungen, zweite Runde (2026-10-12, `docs/qa/2026-10-12-decisions.md`, Punkte 9–13):** die Beschreibungen der Fehlercodes werden übersetzt (s. „Fehlercode-Texte“); „imperial“ bleibt bei km/h → mph und °C → °F; die Ganganzeige bleibt bei **einem** Satz Getriebedaten;
-  die Toleranzen 4 % / 6 % und die Eingabeart der Übersetzungen blieben ohne Präferenz und sind **unverändert** (Toleranzen: Auswertung der Testfahrt abwarten).
+  die Toleranzen 4 % / 6 % und die Eingabeart der Übersetzungen blieben ohne Präferenz und sind **unverändert** (Toleranzen: Auswertung der Testfahrt abwarten; **Eingabeart: Bruch im Feld wie `42/16` nicht umsetzen, niedrigste Priorität** — Nutzer, 2026-10-12).
 - **PRO-11 ist umgesetzt** (v1.25.1, s. „Verbindungs-Entscheidungen gehören unter den Lock“): Lesepfade trennen nur die Verbindung, auf der sie lasen. Das bewusste „ein Zeitlimit bei Fehlercodes/Freeze-Frame trennt“ bleibt.
 
 ### Tacho-Sweep: einmal je App-Start (seit v1.24.13)
