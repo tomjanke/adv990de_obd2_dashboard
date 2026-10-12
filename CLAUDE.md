@@ -622,7 +622,11 @@ Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilen
 - **`scripts/release.sh` verweigert** den Release, wenn Keystore oder `~/.gradle/gradle.properties` für Gruppe/Andere zugänglich sind (`is_private_file`, vorher Modus 644), und prüft, dass das APK mit
   dem Zertifikat aus `scripts/release-cert.sha256` signiert ist (öffentlicher SHA-256-Fingerabdruck; ein falscher Schlüssel nach einem Umzug ergäbe ein Update, das sich nicht einspielen lässt).
   `apksigner` fehlt → kein Release (vorher stillschweigend „nicht geprüft“). Die Prüfungen stehen in `scripts/release-lib.sh` und werden von `ReleaseScriptLibTest` mit echtem `bash` ausgeführt.
-- **Nicht geändert:** die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert) — Berechtigungen sind Entscheidung des Nutzers.
+- **Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert) — verschärft am 2026-10-12 (Entscheidung des Nutzers):** Die Dateirechte schützen nicht vor der Sitzung (gleicher Benutzer), deshalb sind `python3`, `curl`, `cat`, `keytool`,
+  `apksigner sign`, `xargs`, `kill`, `pkill` und der Eintrag für `~/.gradle/gradle.properties` aus den Freigaben entfernt (116 → 106 Einträge), `git push` ist auf `origin main` und `origin v*` verengt, und eine Deny-Liste sperrt `Read`/`Edit` auf `~/.android-keys/**` und
+  `~/.gradle/gradle.properties` sowie jeden Bash-Aufruf, dessen Text `.android-keys` oder `/.gradle/gradle.properties` enthält (am Gerät geprüft: `ls -ld ~/.android-keys` wird abgelehnt). **Folgen:** `python3` (`scripts/smoke.py`), `kill`/`pkill` und `curl` fragen einzeln nach; Schlüsselnamen von
+  `gradle.properties` lassen sich nicht mehr per Befehl anzeigen (`scripts/release.sh` läuft weiter, sein Aufruf enthält diese Pfade nicht). **Grenze:** Deny-Regeln prüfen den Befehlstext, nicht, was ein Skript intern liest — kein Ersatz für Vorsicht. Wer die Liste wieder lockert, schreibt hier den Grund auf.
+  **Keystore-Zweitkopie:** legt der Nutzer selbst an (verschlüsselt, Passwortmanager oder Backup); Datum der Sicherung steht im Entscheidungsprotokoll `docs/qa/2026-10-12-decisions.md` (noch nachzutragen).
 
 ### Bluetooth: nur klassisch, nur gekoppelt (seit v1.24.9)
 
@@ -665,7 +669,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   wird mit `readBounded` höchstens `MAX_RESPONSE_BYTES` = 16 KiB weit gelesen (Bytes **nach** dem Entpacken, nicht Zeichen; die echte Antwort hat rund 400 Byte); ein größeres `Content-Length` wird gar nicht erst geöffnet, mehr als die Grenze ergibt `null` wie jeder andere Fehler.
   **Nie eine Schleife mit Lesen der Länge 0** (`read(buf, 0, 0)` liefert 0, nie −1): `readBounded` liest höchstens `maxBytes + 1 − gelesen` ≥ 1 Byte.
 - **Nichts Persönliches im Git (SEC-11):** `.idea/` ist ganz ignoriert (`RepositoryHygieneTest`: Eintrag in der `.gitignore`, keine getrackte IDE-Datei, keine `serial=…` in getrackten Dateien). Ignorieren wirkt nur auf Dateien, die nicht im Index stehen — eine
-  neu getrackte IDE-Datei bricht den Test. Die Seriennummer des Testgeräts steht noch in der Historie (Commits ab Februar 2026); sie zu tilgen hieße `git filter-repo` mit neuen SHAs und Tags, bewusst nicht getan (privates Repository).
+  neu getrackte IDE-Datei bricht den Test. Die Seriennummer des Testgeräts steht noch in der Historie (Commits ab Februar 2026); sie zu tilgen hieße `git filter-repo` mit neuen SHAs und Tags, bewusst nicht getan (privates Repository). **Entscheidung 2026-10-12:** erst tilgen, wenn das Repository öffentlich wird — das ist die **Vorbedingung jeder Veröffentlichung** (Force-Push, Verweise auf alte SHAs in Doku/Memory neu setzen).
 - **`uses-feature android.hardware.bluetooth` (`required="true"`, DAT-17):** ohne Bluetooth liefert `getSystemService(BLUETOOTH_SERVICE)` null, und `AppModule.provideBluetoothAdapter` wirft beim Aufbau des Hilt-Graphen. Die Deklaration hält solche Geräte aus Stores und Installern heraus
   (`BluetoothScopeSourceTest`). **Bekannte Grenze:** ein von Hand (adb) installiertes Exemplar auf einem Gerät ohne Bluetooth stürzt weiter beim Start ab — die App ist dort ohnehin nutzlos; ein nullbarer Adapter durch drei Verbraucher wäre mehr Code als Nutzen.
 
@@ -679,7 +683,9 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   Die übrigen Einstellungs-Flows, die nur Anzeige speisen, sind `StateFlow`s (fassen gleiche Werte selbst zusammen) und blieben unverändert.
 - **Standort-Hardware ist optional:** `uses-feature android.hardware.location` und `….gps` mit `required="false"` — die Standort-Berechtigungen deklarieren sie sonst implizit als Pflicht (`aapt2 dump badging`: `uses-implied-feature`).
 - **Smoke-Test im Repo:** `scripts/smoke.py <versionName> <versionCode>` (uiautomator, Gerät entsperrt; `SmokeScriptTest` hält ihn vorhanden, übersetzbar und im Release-Ablauf genannt). Er lag bis 1.24.11 nur im Scratchpad einer Sitzung und ging verloren.
-- **Bewusst nicht umgesetzt:** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen; eine größere Skala wäre eine neue Einstellung), der Tacho-Sweep „nur einmal je Start“ (Produktentscheidung) und PRO-11 (der Einzelbefund
+- **Entschieden am 2026-10-12 (`docs/qa/2026-10-12-decisions.md`):** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen) **bleibt**, keine neue Einstellung; der Tacho-Sweep (`DashboardScreen`, `shouldStartRpmDemoSweep`) soll künftig
+  **nur einmal je App-Start** laufen — **noch nicht umgesetzt** (bis dahin läuft er bei jedem Betreten des Dashboards ohne Drehzahl); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
+- **Bewusst nicht umgesetzt:** PRO-11 (der Einzelbefund
   „`disconnect()` unbedingt“ ist im Bericht nur ein Stichwort; Protokollschicht, ohne Adapter nicht prüfbar).
 
 ### Fehlerhistorie: Randfälle (seit v1.24.9)
@@ -754,9 +760,9 @@ lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
 - **Connection-Status:** Pulsierender Dot via `infiniteRepeatable` `tween(600)` für „connecting"; statisch für „connected"/„disconnected".
-- **Screen-Transitions:** Vorgabe `slideIntoContainer` 220 ms, **nicht** `fadeIn` allein (zu unbestimmt). **Ist-Stand (Korrektur 2026-10-05, B39):**
-  `AppNavHost` setzt keine eigenen Übergänge — es gilt der Standard von `NavHost` (Überblendung, 700 ms). Die Vorgabe ist offen (QS-Bericht C, UID-10);
-  wer Übergänge ergänzt, hält sich an die 220 ms.
+- **Screen-Transitions (entschieden 2026-10-12, UID-10):** `AppNavHost` setzt keine eigenen Übergänge — es gilt der Standard von `NavHost` (Überblendung, laut früherer Prüfung 700 ms; am Gerät nicht gemessen).
+  Das ist die **Vorgabe**, kein offener Mangel: die frühere Forderung „`slideIntoContainer` 220 ms“ entfällt. Wer eigene Übergänge ergänzen will, braucht eine neue Entscheidung des Nutzers
+  (Kandidat war der 220-ms-Slide; **nicht** `fadeIn` allein — zu unbestimmt) und trägt sie hier ein.
 - **Verboten:** parallax scroll, decorative particle effects, anything that draws attention away from data.
 
 ### Iconography
