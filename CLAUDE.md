@@ -656,7 +656,7 @@ Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilen
   (~370 Zeilen) und wurden entfernt; die README warb trotzdem mit BLE-Adaptern. `BtType` = `CLASSIC | SIMULATOR`. Ein früher gespeichertes Gerät mit dem Typ „BLE“ wird von `AppPreferences.lastDevice` als unbekannt gelesen (kein Auto-Connect).
 - **Berechtigungen sind das, was Verbinden braucht:** ab API 31 nur `BLUETOOTH_CONNECT`, bis API 30 nur `BLUETOOTH` (`PermissionGate.requiredPermissions`). `BLUETOOTH_SCAN`, `BLUETOOTH_ADMIN` und der Pflicht-Standort bis API 30
   gehörten nur zum BLE-Scan — wer auf Android ≤ 11 Standort ablehnte, war grundlos ausgesperrt. `BluetoothScopeSourceTest` hält BLE-Code, diese Berechtigungen im Manifest und das README-Versprechen draußen.
-  **Auf API ≤ 30 nicht am Gerät geprüft** (das Testgerät ist API 37).
+  **Auf API ≤ 30 nicht am Gerät geprüft** (das Testgerät ist API 37; ein Test auf älteren Android-Versionen ist nach Entscheidung des Nutzers vom 2026-10-12 nicht notwendig und steht nicht im Backlog).
 
 ### Start ohne Blitz (seit v1.24.9)
 
@@ -669,7 +669,7 @@ Genutzt in `MainActivity.onCreate` (Theme → `collectAsState(initial = …)`) u
 - **Die Symbole der Statusleiste folgen dem Farbschema der App, nicht dem Systemmodus.** `AppTheme` ruft `StatusBarIconsEffect(colorScheme)` (`ui/theme/SystemBars.kt`): `useDarkStatusBarIcons` = Leuchtdichte des Schema-Hintergrunds > 0,5, gesetzt über
   `WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars` (`true` heißt dunkle Symbole). Vorher kam die Farbe vom `DayNight`-Theme: helles System + Cockpit-Schema (fast schwarz) ergab dunkle Symbole auf Schwarz, dunkles System + helles
   Standard-Schema weiße auf Hell (am Pixel mit „Standard + Hell“ bei dunklem System nachgestellt und behoben). **Nur ab API 35** (`controlsStatusBarIcons`, `EDGE_TO_EDGE_ENFORCED_SDK`): erst dort ist die Leiste durchsichtig und die App zeichnet dahinter (targetSdk 36 erzwingt es);
-  davor hat sie eine eigene, undurchsichtige Theme-Farbe, und erzwungene Symbole könnten dort dunkel auf Schwarz werden — **auf API ≤ 34 nicht geprüft** (kein Emulator unter API 37 installiert). Die Navigationsleiste fasst die App nicht an (ihr Griff passt sich ab Android 10 selbst an).
+  davor hat sie eine eigene, undurchsichtige Theme-Farbe, und erzwungene Symbole könnten dort dunkel auf Schwarz werden — **auf API ≤ 34 nicht geprüft** (kein Emulator unter API 37 installiert; ein Test auf älteren Android-Versionen ist nach Entscheidung des Nutzers vom 2026-10-12 nicht notwendig). Die Navigationsleiste fasst die App nicht an (ihr Griff passt sich ab Android 10 selbst an).
 - **Der System-Splash (Android 12+) zeigt die Hintergrundfarbe der App statt des Theme-Graus.** Er entsteht vor jedem App-Code und liest nur Ressourcen; gemessen war er `#303030` (das neutrale `DayNight`-Grau). Zwei Ebenen: (1) **statisch** — `res/values/splash_colors.xml` (+ `values-night/`),
   `Theme.OBD2Monitor` setzt `android:windowBackground` auf `@color/splash_background_system` (hell am Tag `#FEF7FF`, dunkel `#141218` = Hintergrund des Default-Schemas; der Splash nimmt `windowBackground`, wenn es eine einzelne Farbe ist; vor Android 12 ist es das, was vor dem ersten Frame steht);
   (2) **je Farbschema** — `Theme.OBD2Monitor.Splash.{Light,Dark,Blue,Amber,Green}` malen die Hintergrundfarbe des jeweiligen Schemas, `MainActivity` setzt das passende per `Activity.splashScreen.setSplashScreenTheme(splashThemeRes(theme))` (`ui/theme/SplashTheme.kt`, ab API 31) bei jedem Start und jeder Änderung des Farbschemas
