@@ -1,28 +1,26 @@
 [versions]
-agp = "9.3.0"
+agp = "9.4.1"
 kotlin = "2.4.21"
 sentry = "8.60.0"
-# Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6.
-# Bewusst auf dem mit 1.7.0 ausgelieferten Stand belassen — das Toolchain-Upgrade
-# soll nicht zugleich den Compose-Stack anheben.
-compose-bom = "2026.05.00"
-# Stand v1.25.3: unter compileSdk 36 nicht weiter moeglich (checkDebugAarMetadata meldet es): navigation-compose 2.10.x, lifecycle 2.11.0,
-# core-ktx 1.19.x, hilt-navigation-compose 1.4.0. Sie warten mit der BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6).
+# Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6 (seit v1.26.0: AGP 9.4.1, Gradle 9.6.1, compileSdk 37).
+# Kotlin 2.4.21 ist offiziell bis Gradle 9.7.0 und AGP 9.3.1 freigegeben (kotlinlang.org, Abfrage 2026-10-12); AGP 9.4 ist darueber hinaus —
+# der Build laeuft, ein Kotlin-Update bringt voraussichtlich die Freigabe fuer AGP 9.4 nach.
+compose-bom = "2026.09.00"
 # `kotlin` steht auch im buildscript-Block des Root-build.gradle.kts (kotlin-gradle-plugin-Pin) — beide gemeinsam aendern (BuildIntegrityTest).
 hilt = "2.60.1"
 room = "2.8.5"
-navigation = "2.9.8"
+navigation = "2.10.2"
 datastore = "1.2.1"
 coroutines = "1.11.0"
 mockk = "1.14.11"
-lifecycle = "2.10.0"
+lifecycle = "2.11.0"
 appcompat = "1.8.0"
 paging = "3.5.2"
 kotlinx-serialization = "1.11.0"
 
 [libraries]
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
-androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version = "1.18.0" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version = "1.19.1" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version = "1.13.0" }
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
@@ -35,7 +33,7 @@ compose-material-icons-extended = { group = "androidx.compose.material", name = 
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.3.0" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.4.0" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }

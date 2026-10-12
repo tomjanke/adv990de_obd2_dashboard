@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "de.adv990de.obd2"
-    compileSdk = 36
+    compileSdk = 37
 
     val appVersionCode = 100
     val appVersionName = "1.25.3"

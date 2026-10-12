@@ -32,13 +32,14 @@ class BuildIntegrityTest {
 
     @Test
     fun `the pinned checksum is the one of the distribution named in the URL`() {
-        // Gradle 9.5.0 (bin): offiziell von services.gradle.org/distributions/gradle-9.5.0-bin.zip.sha256 und von
-        // gradle.org/release-checksums bestaetigt, ausserdem selbst gehasht (140319124 Bytes). Wird die Version angehoben,
+        // Gradle 9.6.1 (bin): offiziell von downloads.gradle.org/distributions/gradle-9.6.1-bin.zip.sha256 (frueher services.gradle.org,
+        // leitet um) und von gradle.org/release-checksums bestaetigt; der Wrapper hat die Distribution beim Laden gegen diese Summe
+        // geprueft (das Archiv bleibt danach nicht liegen, ein eigener Hash waere ein zweiter Download). Wird die Version angehoben,
         // MUSS diese Zahl (und die Pruefsumme in den Properties) gemeinsam geaendert werden.
         val props = read("gradle/wrapper/gradle-wrapper.properties")
-        assertTrue("distributionUrl nennt 9.5.0-bin", props.contains("gradle-9.5.0-bin.zip"))
+        assertTrue("distributionUrl nennt 9.6.1-bin", props.contains("gradle-9.6.1-bin.zip"))
         assertTrue(
-            props.contains("distributionSha256Sum=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746"),
+            props.contains("distributionSha256Sum=9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14"),
         )
     }
 
