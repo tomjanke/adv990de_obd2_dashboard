@@ -22,14 +22,6 @@ import javax.inject.Inject
 
 // DashboardUiState.disconnected() is the canonical way to reset to a disconnected/error state.
 // If you add a field with a non-trivial default, update disconnected() accordingly.
-private const val SPARKLINE_WINDOW = 60
-
-// SavedStateHandle-Schluessel fuer den Oel-Balken-Timerzustand — s. Kommentare an
-// oilBarTimerState/lastOilBarSampleTimestamp.
-private const val KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS = "oilBarAboveGreenSinceMillis"
-private const val KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS = "oilBarLastSampleAtMillis"
-private const val KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP = "oilBarLastSampleTimestamp"
-
 private fun SensorValue.isPlausible() = value.isFinite()
 
 /**
@@ -130,20 +122,8 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setSlotPid(slot, pidId) }
     }
 
-    private val sparklineBuffer = mutableMapOf<String, ArrayDeque<Float>>()
-
-    /** Zeitstempel des letzten Sparkline-Punkts je PID — s. [shouldAppendSparklineSample] (B30). */
-    private val lastSparklineTimestamp = mutableMapOf<String, Long>()
-
-    /**
-     * Eine Sparkline gehoert zu EINER Verbindung: nach einem Verlust haengte der naechste Punkt sonst an die Kurve von vorher,
-     * als haette es keine Luecke gegeben (UID-16). Der Zeitstempel geht mit — sonst verschluckte der Mindestabstand den ersten
-     * Punkt der neuen Verbindung, wenn die Geraeteuhr nur wenig weitergelaufen ist.
-     */
-    private fun clearSparklines() {
-        sparklineBuffer.clear()
-        lastSparklineTimestamp.clear()
-    }
+    /** Die Sparkline-Puffer; sie gehoeren zu EINER Verbindung ([SparklineBuffer.clear] bei Idle, Verlust und Fehler). */
+    private val sparklines = SparklineBuffer()
 
     /** Ob der Tacho-Sweep dieses App-Starts schon angeboten wurde — s. [consumeDemoSweepOffer]. Bewusst nicht im `SavedStateHandle`. */
     private var demoSweepOffered = false
@@ -164,61 +144,11 @@ class DashboardViewModel @Inject constructor(
         return firstOffer
     }
 
-    /** Beginn des Widerspruchs "ECU steht, GPS faehrt" ([standstillConflictSince]); gehoert wie die Sparkline zu einer Verbindung. */
-    private var standstillConflictSinceMs: Long? = null
+    /** Gang und "N" ueber die Zyklen einer Verbindung — s. [GearTracker]. */
+    private val gearTracker = GearTracker(now = { nowMillis() })
 
-    // Interner Timer-Zustand des Oel-Balkens (Gruen-Hysterese) — bewusst NICHT Teil von
-    // DashboardUiState: OilBarTimerState ist ein Berechnungsdetail, das die UI nie liest; in den
-    // UI-State gehoert nur die daraus abgeleitete OilBarColor. Wird bei einem Verbindungsabbruch
-    // bewusst NICHT zurueckgesetzt (anders als gear/speedKmh in applyIdle()): Die
-    // Kuehlmitteltemperatur aendert sich nicht, nur weil BLE kurz aussetzt. Unbegrenzt ueberlebt
-    // der Timer eine Trennung trotzdem nicht — das Luecken-Limit in updateOilBarTimer()
-    // (MAX_SAMPLE_GAP_MS, 60 s) laesst ihn verfallen, wenn zwischen zwei Messwerten mehr Zeit
-    // liegt: Ein Reconnect innerhalb dieser Zeit behaelt die Zaehlung, eine laengere Trennung
-    // (oder eine stundenlang geschlossene App) beginnt von vorn.
-    //
-    // Ueber savedStateHandle statt eines einfachen Feldes (Backlog-Sweep 2026-09-28): eine reine
-    // In-Memory-Property ueberlebt nur Konfigurationsaenderungen (die ViewModelStore-Instanz bleibt
-    // dabei erhalten), nicht aber eine Activity-Neuerzeugung BEI LAUFENDEM PROZESS — "Nicht im
-    // Hintergrund behalten" oder aggressives OEM-Reclaiming erzeugen dabei ein frisches ViewModel,
-    // ohne dass ConnectionLost oder das Luecken-Limit je eintraten. SavedStateHandle uebersteht
-    // genau das (Bundle aus onSaveInstanceState), zusaetzlich zu Prozess-Tod. OilBarTimerState hat
-    // keinen eigenen Parcelize-Support, deshalb als zwei einzelne Long?-Werte gespeichert statt als
-    // ein Objekt.
-    private var oilBarTimerState: OilBarTimerState
-        get() = OilBarTimerState(
-            aboveGreenThresholdSinceMillis = savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS],
-            lastSampleAtMillis = savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS],
-        )
-        set(value) {
-            savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS] = value.aboveGreenThresholdSinceMillis
-            savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS] = value.lastSampleAtMillis
-        }
-
-    // SensorValue.timestamp des zuletzt in updateOilBarTimer() eingespeisten Kuehlmittelwerts.
-    // ReadingsPipeline.gpsRefresh() stellt bei jeder GPS-Aenderung (bis 5 Hz) die letzten
-    // OBD-Werte erneut zu — dieselben SensorValue-Objekte mit ihrem urspruenglichen Zeitstempel,
-    // auch wenn das Steuergeraet laengst nichts Neues mehr liefert (Zuendung aus: nur noch
-    // NO DATA, das der Watchdog beliebig lange toleriert). Ohne diese Pruefung bestaetigte
-    // GPS-Rauschen allein einen alten Wert ueber 80 °C immer wieder, bis der Balken bei
-    // abgestelltem Motor gruen wurde. Deshalb zaehlt nur ein Messwert mit echt NEUEREM
-    // Zeitstempel als neuer Messwert; eine Wiederholung laesst Timer und Farbe unveraendert.
-    //
-    // Bekannte Grenze: Der Zeitstempel ist Wanduhr-Zeit (System.currentTimeMillis() in
-    // PidParser). Springt die Systemzeit waehrend der Fahrt zurueck (manuelle Umstellung, grosse
-    // Netzzeit-Korrektur), gelten neue Messwerte so lange als "nicht neuer", bis die Uhr den
-    // zuletzt verarbeiteten Zeitstempel wieder eingeholt hat — der Balken steht fuer die Dauer des
-    // Sprungs still (nie faelschlich Gruen; nach mehr als 60 s greift danach das Luecken-Limit).
-    // Das ist der Preis fuer `>` statt `!=`: `>` macht auch eine Wiederholung wirkungslos, die erst
-    // nach einem neueren Messwert ankaeme.
-    //
-    // Ebenfalls SavedStateHandle-gestuetzt, aus demselben Grund wie oilBarTimerState oben: ohne das
-    // wuerde eine Activity-Neuerzeugung bei laufendem Prozess diesen Wert auf null zuruecksetzen und
-    // damit einmalig genau die GPS-Wiederholungs-Falle wieder oeffnen, die diese Pruefung eigentlich
-    // verhindern soll.
-    private var lastOilBarSampleTimestamp: Long?
-        get() = savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP]
-        set(value) { savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP] = value }
+    /** Farbe des Oel-Balkens samt Timer-Zustand im [SavedStateHandle] — s. [OilBarTracker]. */
+    private val oilBarTracker = OilBarTracker(savedStateHandle, now = { nowMillis() })
 
     // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
     // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:
@@ -254,8 +184,8 @@ class DashboardViewModel @Inject constructor(
             SessionEvent.Stale -> applyStale()
             SessionEvent.ConnectionLost -> startReconnecting()
             is SessionEvent.Failed -> {
-                clearSparklines()
-                standstillConflictSinceMs = null
+                sparklines.clear()
+                gearTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
             }
         }
@@ -279,14 +209,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?) {
-        values.forEach { sv ->
-            // Nur ein NEUER Messwert bekommt einen Punkt: das GPS-Zwischenupdate wiederholt die letzten OBD-Werte (B30).
-            if (!shouldAppendSparklineSample(lastSparklineTimestamp[sv.pid.id], sv.timestamp)) return@forEach
-            lastSparklineTimestamp[sv.pid.id] = sv.timestamp
-            val deque = sparklineBuffer.getOrPut(sv.pid.id) { ArrayDeque(SPARKLINE_WINDOW) }
-            if (deque.size >= SPARKLINE_WINDOW) deque.removeFirst()
-            deque.addLast(sv.value)
-        }
+        sparklines.append(values)
         val displayIds = slotPids.value.toSet()
         val engineTempC = if (rpmDynamicThreshold.value) {
             values.firstOrNull { it.pid.id == PidRegistry.ENGINE_OIL_TEMP.id && it.isPlausible() }?.value
@@ -306,68 +229,29 @@ class DashboardViewModel @Inject constructor(
         // determineGear() mit ihr fuettern, obwohl das Fahrzeug sie nicht mehr meldet.
         val newSpeedKmh = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id && it.isPlausible() }
             ?.value
-        // Bewusst NICHT newSpeedKmh (das ist der ggf. vom Fahrzeug dominierte, zusammengefuehrte
-        // Anzeigewert, s. mergeGpsSpeed) — die Ganganzeige braucht exklusiv den rohen GPS-Wert.
-        // determineGear()s Annahmen (MIN_SPEED_KMH als GPS-Rauschgrenze, die 2s-Staleness in
-        // GpsSpeedSource) sind auf GPS-Charakteristik zugeschnitten, nicht auf die vom Fahrzeug
-        // gemeldete Geschwindigkeit. Fehlt GPS (aus, keine Berechtigung, kein Fix), ist der Gang
-        // unbekannt, auch wenn das Fahrzeug selbst eine Geschwindigkeit liefert.
-        val computedGear = determineGear(newRpmValue, gpsSpeedKmh, _uiState.value.gear, gearRatios.value)
-        // Nutzer-Feedback nach einer Testfahrt (v1.16.6): Kupplung ziehen oder Gas wegnehmen
-        // entkoppelt die Motordrehzahl kurz von der Radgeschwindigkeit — determineGear() liefert
-        // dann fuer einen Zyklus `null`, obwohl das Fahrzeug erkennbar weiterrollt. Ohne
-        // holdGear() wuerde das nicht nur die Anzeige kurz auf "–" springen lassen, sondern auch
-        // das Hysterese-Gedaechtnis loeschen (naechster Zyklus haette wieder lastGear=null) — der
-        // Gang muesste sich danach komplett neu einrasten (ENTER_TOLERANCE statt STAY_TOLERANCE),
-        // was sich als zaeher Wiedereinstieg bemerkbar machte. holdGear() haelt den zuletzt
-        // angezeigten Gang, solange die Geschwindigkeit ueber MIN_SPEED_KMH bleibt, und loescht
-        // ihn nur bei echtem Stillstand oder fehlendem GPS-Fix.
-        // "N" nutzt bewusst newSpeedKmh (ECU zuerst): die ECU meldet den Stillstand sofort und ohne
-        // GPS-Fix, waehrend computedGear aus der verzoegerten GPS-Geschwindigkeit noch einen Gang
-        // liefern kann. Dann gewinnt "N" und der Gang wird geleert (isNeutral => gear == null).
-        // Gegenprobe mit dem rohen GPS (UID-19): meldet die ECU konstant 0, soll "N" nicht die ganze Fahrt stehen. Erst ein
-        // Widerspruch, der ununterbrochen laenger dauert als das uebliche GPS-Nachhinken beim Anhalten, hebt "N" auf.
-        val neutralCheckedAt = nowMillis()
-        standstillConflictSinceMs = standstillConflictSince(newSpeedKmh, gpsSpeedKmh, standstillConflictSinceMs, neutralCheckedAt)
-        val newNeutral = isNeutral(
-            newRpmValue, newSpeedKmh, _uiState.value.isNeutral,
-            gpsVeto = gpsVetoesNeutral(standstillConflictSinceMs, neutralCheckedAt),
+        // Gang, "N" und Oel-Balken-Farbe: die Begruendungen stehen an GearTracker und OilBarTracker.
+        val gearReading = gearTracker.update(
+            rpm = newRpmValue,
+            ecuSpeedKmh = newSpeedKmh,
+            gpsSpeedKmh = gpsSpeedKmh,
+            previous = GearReading(_uiState.value.gear, _uiState.value.isNeutral),
+            ratios = gearRatios.value,
         )
-        val newGear = if (newNeutral) null else holdGear(computedGear, gpsSpeedKmh, _uiState.value.gear)
-        // Oel-Balken-Farbe: unabhaengig von rpmDynamicThreshold (anders als engineTempC oben) —
-        // die Kuehlmitteltemperatur wird hier immer gesucht, wenn ein plausibler Wert vorliegt.
-        // Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z.B. NaN) oder ist sie nur
-        // die GPS-Wiederholung eines schon verarbeiteten Messwerts (Zeitstempel nicht neuer, s.
-        // lastOilBarSampleTimestamp), bleibt die zuletzt angezeigte Farbe unveraendert — derselbe
-        // "keine Regression bei einem einzelnen fehlenden Wert"-Ansatz wie bei holdGear() weiter
-        // oben, hier realisiert, indem der Timer-Zustand unangetastet bleibt und newOilBarColor
-        // auf den bisherigen UI-Wert faellt, statt den Copy-Aufruf unten in zwei Varianten
-        // aufzuspalten.
-        val newCoolantReading = values
-            .firstOrNull { it.pid.id == PidRegistry.COOLANT_TEMP.id && it.isPlausible() }
-            ?.takeIf { reading -> lastOilBarSampleTimestamp.let { last -> last == null || reading.timestamp > last } }
-        val newOilBarColor = if (newCoolantReading != null) {
-            lastOilBarSampleTimestamp = newCoolantReading.timestamp
-            val now = nowMillis()
-            oilBarTimerState = updateOilBarTimer(newCoolantReading.value, now, oilBarTimerState)
-            oilBarColor(newCoolantReading.value, now, oilBarTimerState)
-        } else {
-            _uiState.value.oilBarColor
-        }
+        val newOilBarColor = oilBarTracker.update(values, previous = _uiState.value.oilBarColor)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,
             engineTempC = engineTempC,
             speedKmh = newSpeedKmh,
-            gear = newGear,
-            isNeutral = newNeutral,
+            gear = gearReading.gear,
+            isNeutral = gearReading.isNeutral,
             oilBarColor = newOilBarColor,
             isConnected = true,
             isReconnecting = false,
             isStale = false,
             awaitingFirstValues = false,
             error = null,
-            sparklines = sparklineBuffer.mapValues { (_, deque) -> deque.toList() }
+            sparklines = sparklines.snapshot()
         )
     }
 
@@ -378,7 +262,7 @@ class DashboardViewModel @Inject constructor(
      * hat ihr eigenes 60-s-Luecken-Limit); sie wird ohne "live" ohnehin grau gezeichnet.
      */
     private fun applyStale() {
-        standstillConflictSinceMs = null
+        gearTracker.reset()
         _uiState.value = _uiState.value.copy(
             isStale = true,
             awaitingFirstValues = false,
@@ -397,8 +281,8 @@ class DashboardViewModel @Inject constructor(
      * Leerlauf genau die Meldung, die der Nutzer lesen soll.
      */
     private fun applyIdle() {
-        clearSparklines()
-        standstillConflictSinceMs = null
+        sparklines.clear()
+        gearTracker.reset()
         _uiState.value = if (_uiState.value.error != null || _uiState.value.isReconnecting) {
             // speedKmh/gear werden hier explizit mit zurueckgesetzt (anders als rpmValue/
             // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
@@ -457,8 +341,8 @@ class DashboardViewModel @Inject constructor(
      * unsichtbar.
      */
     private fun startReconnecting() {
-        clearSparklines()
-        standstillConflictSinceMs = null
+        sparklines.clear()
+        gearTracker.reset()
         _uiState.value = _uiState.value.copy(
             sparklines = emptyMap(),
             // Ein gemeldeter Verbindungsverlust heisst per Definition "nicht mehr verbunden" — unabhaengig davon,

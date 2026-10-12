@@ -247,7 +247,11 @@ class ReadingsPipeline @Inject constructor(
         val userDisconnectsAtStart = obdRepository.userDisconnectCount.value
         fun lostLinkWantsReconnect() = obdRepository.userDisconnectCount.value == userDisconnectsAtStart
 
-        val selectedPids = selectPids(slotIds)
+        val selectedPids = selectPids(
+            slotIds,
+            supported = obdRepository.supportedPidIds.value,
+            dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first(),
+        )
 
         // Aufzeichnungs-Einstellungen einmal pro Sitzung lesen, nicht pro Zyklus.
         val logOnlyDtc = appPreferences.logOnlyDtcSessions.first()
@@ -304,26 +308,11 @@ class ReadingsPipeline @Inject constructor(
         // eine DTC-lose Fahrt entgegen der Einstellung).
         val recordThisTrip = !(logOnlyDtc && !hasDtcForRecording)
 
-        // Aufzeichnen ist Beiwerk der Live-Anzeige: Ein Datenbankfehler (Platte voll, Datenbank gesperrt)
-        // darf sie nicht beenden. Einmal je Sitzung melden — ein Fehler mit 2 Hz wuerde sonst das
-        // ebenfalls betroffene App-Log fluten.
-        var recordingFailureReported = false
-        suspend fun recordingFailed(e: Exception) {
-            if (recordingFailureReported) return
-            recordingFailureReported = true
-            crashReporter.recordException(e)
-            logBestEffort(LogLevel.WARN, "Recording failed, the live display continues: ${e.message}")
-        }
-
-        var sessionId = -1L
+        val recorder = SessionRecorder(
+            sessionRepository, obdRepository, crashReporter, ::logBestEffort, logOnlyDiscovered, loggedPidIds,
+        )
         try {
-            if (recordThisTrip) {
-                sessionId = try { sessionRepository.startSession(vin) } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    recordingFailed(e)
-                    -1L
-                }
-            }
+            if (recordThisTrip) recorder.start(vin)
             emitAll(
                 obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
@@ -337,15 +326,7 @@ class ReadingsPipeline @Inject constructor(
                     // (s. SessionEvent.Values-KDoc) — die Ganganzeige braucht ihn unabhaengig davon,
                     // ob das Fahrzeug selbst eine Geschwindigkeit meldet.
                     .map { readings -> val gpsKmh = gpsSpeed.value; mergeGpsSpeed(readings, gpsKmh) to gpsKmh }
-                    .onEach { (values, _) ->
-                        if (sessionId == -1L) return@onEach // keine Fahrt: nichts aufzuzeichnen
-                        try {
-                            record(sessionId, values, logOnlyDiscovered, loggedPidIds)
-                        } catch (e: Exception) {
-                            if (e is CancellationException) throw e
-                            recordingFailed(e)
-                        }
-                    }
+                    .onEach { (values, _) -> recorder.record(values) }
                     .onEach { (values, _) -> applyMerged(values) }
                     .map { (values, gpsKmh) -> SessionEvent.Values(values, gpsKmh) }
             )
@@ -367,10 +348,7 @@ class ReadingsPipeline @Inject constructor(
             crashReporter.recordException(e)
             emit(SessionEvent.Failed(ObdErrorMapper.toUiText(e)))
         } finally {
-            // Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern.
-            if (sessionId != -1L) {
-                try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
-            }
+            recorder.end()
         }
     }
 
@@ -381,37 +359,6 @@ class ReadingsPipeline @Inject constructor(
      */
     private suspend fun logBestEffort(level: LogLevel, message: String) {
         withContext(NonCancellable) { appLogRepository.log(level, message) }
-    }
-
-    /**
-     * Die tatsaechlich abzufragenden PIDs: die belegten Slots, gefiltert gegen die vom Steuergeraet
-     * gemeldete Menge, dazu immer Drehzahl (RPM-Balken, Ganganzeige) und Kuehlmitteltemperatur
-     * (Oel-Temperatur-Balken) — bei dynamischer Schwelle zusaetzlich die Oeltemperatur.
-     *
-     * Die Kuehlmitteltemperatur ist seit dem Oel-Temperatur-Balken unbedingt, genau wie RPM: Hing
-     * sie nur an der Slot-Belegung (oder der standardmaessig ausgeschalteten dynamischen Schwelle),
-     * bekam jeder Nutzer, der die Kuehlmittel-Kachel gegen einen anderen Wert getauscht hatte, nie
-     * einen Messwert — der Balken blieb trotz Verbindung dauerhaft grau. Doppelt abgefragt wird sie
-     * trotzdem nie: `distinctBy` unten entfernt den Eintrag, wenn sie zugleich ein Slot ist.
-     *
-     * Greift keiner davon, bleiben die Standard-PIDs. Das faengt den Fall ab, dass im DataStore
-     * nur noch unbekannte IDs stehen, etwa nach einem Downgrade.
-     */
-    private suspend fun selectPids(slotIds: List<String>) = run {
-        val dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first()
-        val supported = obdRepository.supportedPidIds.value
-        val filteredSlotIds = if (supported.isNullOrEmpty()) slotIds else slotIds.filter { it in supported }
-        buildList {
-            addAll(filteredSlotIds)
-            add(PidRegistry.RPM.id)
-            add(PidRegistry.COOLANT_TEMP.id)
-            if (dynamicThresholdEnabled) {
-                add(PidRegistry.ENGINE_OIL_TEMP.id)
-            }
-        }
-            .mapNotNull { PidRegistry.all[it] }
-            .distinctBy { it.id }
-            .ifEmpty { PidRegistry.defaults }
     }
 
     /**
@@ -427,19 +374,5 @@ class ReadingsPipeline @Inject constructor(
         val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
         moving = isMoving(speed?.value, moving)
         obdRepository.setMoving(moving)
-    }
-
-    private suspend fun record(
-        sessionId: Long,
-        values: List<SensorValue>,
-        logOnlyDiscovered: Boolean,
-        loggedPidIds: Set<String>,
-    ) {
-        val filtered = values
-            .filter { sv ->
-                !logOnlyDiscovered || (obdRepository.supportedPidIds.value?.contains(sv.pid.id) ?: true)
-            }
-            .filter { sv -> sv.pid.id in loggedPidIds }
-        sessionRepository.writeReadings(sessionId, filtered)
     }
 }

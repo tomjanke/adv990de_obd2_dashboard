@@ -1,0 +1,74 @@
+package de.adv990de.obd2.ui.dashboard
+
+import de.adv990de.obd2.crash.CrashReporter
+import de.adv990de.obd2.data.LogLevel
+import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.obd.model.SensorValue
+import kotlinx.coroutines.CancellationException
+
+/**
+ * Die Aufzeichnung EINER Sitzung: Fahrt anlegen, Zyklen schreiben, Fahrt beenden. Herausgeloest aus
+ * [ReadingsPipeline.events]; die Pipeline entscheidet, OB aufgezeichnet wird (`logOnlyDtcSessions`), dieser Baustein, WIE.
+ *
+ * Aufzeichnen ist Beiwerk der Live-Anzeige: Ein Datenbankfehler (Platte voll, Datenbank gesperrt) darf sie nicht beenden. Er wird
+ * einmal je Sitzung gemeldet — ein Fehler mit 2 Hz wuerde sonst das ebenfalls betroffene App-Log fluten. Nur die Abbruch-Ausnahme
+ * des Aufrufers geht immer durch. Ohne angelegte Fahrt ([start] nie gerufen oder gescheitert) sind [record] und [end] wirkungslos.
+ *
+ * [log] schreibt ins App-Log, auch wenn die Sitzung gerade abgebrochen wird (die Pipeline reicht ihr `logBestEffort`).
+ */
+internal class SessionRecorder(
+    private val sessionRepository: SessionRepository,
+    private val obdRepository: ObdRepository,
+    private val crashReporter: CrashReporter,
+    private val log: suspend (LogLevel, String) -> Unit,
+    private val logOnlyDiscovered: Boolean,
+    private val loggedPidIds: Set<String>,
+) {
+    private var sessionId = NO_SESSION
+    private var failureReported = false
+
+    /** Legt die Fahrt an. Scheitert das, laeuft die Anzeige ohne Aufzeichnung weiter. */
+    suspend fun start(vin: String?) {
+        sessionId = try {
+            sessionRepository.startSession(vin)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reportFailure(e)
+            NO_SESSION
+        }
+    }
+
+    /** Schreibt einen zusammengefuehrten Zyklus: nur die aufzuzeichnenden PIDs, bei `logOnlyDiscovered` nur die vom Steuergeraet gemeldeten. */
+    suspend fun record(values: List<SensorValue>) {
+        if (sessionId == NO_SESSION) return // keine Fahrt: nichts aufzuzeichnen
+        try {
+            val filtered = values
+                .filter { sv ->
+                    !logOnlyDiscovered || (obdRepository.supportedPidIds.value?.contains(sv.pid.id) ?: true)
+                }
+                .filter { sv -> sv.pid.id in loggedPidIds }
+            sessionRepository.writeReadings(sessionId, filtered)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reportFailure(e)
+        }
+    }
+
+    /** Beendet die Fahrt, falls es eine gibt. Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern. */
+    suspend fun end() {
+        if (sessionId == NO_SESSION) return
+        try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
+    }
+
+    private suspend fun reportFailure(e: Exception) {
+        if (failureReported) return
+        failureReported = true
+        crashReporter.recordException(e)
+        log(LogLevel.WARN, "Recording failed, the live display continues: ${e.message}")
+    }
+
+    private companion object {
+        const val NO_SESSION = -1L
+    }
+}
