@@ -2,17 +2,24 @@
 """Kompakter Release-Smoke-Test per uiautomator am angeschlossenen Geraet.
 
     python3 -u scripts/smoke.py <versionName> <versionCode> [--package de.adv990de.obd2]
+    python3 -u scripts/smoke.py <versionName> <versionCode> --simulator [--package de.adv990de.obd2.debug]
 
 Prueft: die App startet und zeigt das Dashboard, die Reiter DTCs/Verlauf/Einstellungen oeffnen, der Beenden-Dialog erscheint
 (und wird abgebrochen), App-Info nennt Version und Build, und Logcat enthaelt keinen Absturz. Endet mit "ALL PASS" bzw. "FAILURES"
 (Exit-Code 0 bzw. 1).
+
+Mit --simulator zusaetzlich der Datenfluss (nur im DEBUG-Build, der Simulator "OBD Sim" steht nur dort in der Geraeteliste; das ist dann
+auch das Standard-Paket): verbinden, auf Werte warten (Verbindungspunkt "verbunden", Drehzahl als Zahl, kein Band "Vorschau"/"warte auf
+Werte"/"Keine aktuellen Werte"), per "Trennen" wieder trennen und pruefen, dass die Verbindung danach NICHT von selbst zurueckkommt.
+Voraussetzung: die Debug-App hat BLUETOOTH_CONNECT und POST_NOTIFICATIONS (sonst fragt Android beim Verbinden).
 
 Grenzen (aus den Fallen im Projekt-Memory):
  - Das Geraet muss ENTSPERRT sein. Das Skript weckt es nur (KEYCODE_WAKEUP) und bricht bei gesperrtem Bildschirm ab.
  - Ein Dump dauert ~3 s, ein Lauf rund eine Minute. Mit `python3 -u` starten, wenn die Ausgabe umgeleitet wird.
  - Es tippt per TEXT, nie per Koordinate (die Ausrichtung wechselt, Auto-Drehen ist an).
  - BACK nur dort, wo nachweislich ein Dialog/eine Unterseite offen ist: auf einem Hauptreiter beendet es die App.
- - Es prueft NICHT: Messwerte, Verbindung zum Adapter, Wetter, Gaenge — dafuer gibt es die Instrumentation-Tests und die Fahrt.
+ - Es prueft NICHT: einen echten Adapter, Wetter, Gaenge — dafuer gibt es die Instrumentation-Tests und die Fahrt. Messwerte und
+   Verbindung prueft es nur mit --simulator, und auch dort nur gegen den Simulator, nie gegen ein Fahrzeug.
 """
 import argparse
 import os
@@ -61,18 +68,140 @@ def tap_text(text):
     return False
 
 
+# --- Reine Entscheidungslogik (ohne Geraet, getestet in scripts/test_smoke.py) ---------------------------------------------------------
+
+SIMULATOR_ROW = "OBD Sim"
+# Baender des Dashboards, die sagen: noch keine (frischen) Werte — Vorschau (offline/verbinde), warte auf Werte, veraltet. Grossgeschrieben,
+# weil uiautomator den DARGESTELLTEN Text liefert ("VORSCHAU \u00b7 NICHT VERBUNDEN"); verglichen wird ohne Beachtung der Schreibweise.
+NO_DATA_BANDS = ("VORSCHAU", "VERBUNDEN \u00b7 WARTE", "KEINE AKTUELLEN")
+
+
+def bluetooth_state(texts):
+    """'connected' / 'disconnected' aus der Beschreibung des Verbindungspunkts im Dashboard, None wenn er nicht zu sehen ist."""
+    if "Bluetooth verbunden" in texts:
+        return "connected"
+    if "Bluetooth getrennt" in texts:
+        return "disconnected"
+    return None
+
+
+def live_rpm(texts):
+    """Die Zahl aus der Beschreibung des Drehzahlbalkens ("Drehzahl 2800 rpm"); None bei "Drehzahl nicht verfuegbar"."""
+    for text in texts:
+        match = re.fullmatch(r"Drehzahl (\d+) rpm", text.strip())
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def no_data_bands(texts):
+    """Die Baender unter den Texten, die "noch keine (frischen) Werte" sagen."""
+    return [text for text in texts if text.upper().startswith(NO_DATA_BANDS)]
+
+
+def reconnecting(texts):
+    """Das Dashboard zeigt einen Verbindungsversuch ("VORSCHAU \u00b7 VERBINDUNGSVERSUCH 2/5" bzw. "\u2026 VERBINDE \u2026")."""
+    return any("VERBINDUNGSVERSUCH" in text.upper() or text.upper().startswith("VORSCHAU \u00b7 VERBINDE") for text in texts)
+
+
+def data_flows(texts):
+    """Werte fliessen: Verbindung steht, der Balken zeigt eine Zahl und kein Band sagt "noch keine Werte"."""
+    return bluetooth_state(texts) == "connected" and live_rpm(texts) is not None and not no_data_bands(texts)
+
+
+def row_button(nodes, row_text, button_text):
+    """Mitte (x, y) der Schaltflaeche `button_text` in der Zeile `row_text`, sonst None.
+
+    Eine Zeile ist rund 220 px hoch: Die Schaltflaeche gehoert zur Zeile, wenn ihre Mitte hoechstens zwei Texthoehen von der Mitte
+    des Zeilentitels entfernt liegt. Hat die Zeile die Schaltflaeche nicht (verbunden zeigt "Trennen", nicht "Verbinden"), darf es NICHT
+    die der Nachbarzeile werden — deshalb gibt es kein "naechste Schaltflaeche", sondern eine feste Grenze. Streifen unter 20 px Hoehe
+    (unter die App-Leiste gescrollt) zaehlen nicht.
+    """
+    visible = [n for n in nodes if n["y2"] - n["y1"] >= 20]
+    for row in (n for n in visible if n["t"] == row_text):
+        limit = 2 * (row["y2"] - row["y1"])
+        for button in (n for n in visible if n["t"] == button_text):
+            if abs(button["cy"] - row["cy"]) <= limit:
+                return button["cx"], button["cy"]
+    return None
+
+
+def resolve_package(package, simulator):
+    """Der Simulator gibt es nur im Debug-Build: mit --simulator ist dessen Paket der Standard."""
+    return package or ("de.adv990de.obd2.debug" if simulator else "de.adv990de.obd2")
+
+
+def simulator_package_error(package, simulator):
+    """Meldung, wenn --simulator mit einem Paket ohne Simulator kombiniert wird, sonst None."""
+    if simulator and not package.endswith(".debug"):
+        return f"--simulator braucht den Debug-Build (Paket auf .debug endend), nicht {package}: der Simulator steht nur dort in der Geraeteliste."
+    return None
+
+
+def poll(fn, timeout, interval, sleep=time.sleep, now=time.monotonic):
+    """Ruft fn bis zur ersten wahren Antwort (die zurueckkommt) oder bis zur Frist (dann die letzte Antwort)."""
+    deadline = now() + timeout
+    while True:
+        value = fn()
+        if value or now() >= deadline:
+            return value
+        sleep(interval)
+
+
 def screen_size():
     w, h = adb("shell", "wm", "size").split()[-1].split("x")
     return int(w), int(h)
+
+
+def simulator_button(label):
+    """Schaltflaeche `label` ("Verbinden"/"Trennen") in der Zeile des Simulators antippen; False, wenn die Zeile sie nicht hat."""
+    spot = row_button(dump_nodes(), SIMULATOR_ROW, label)
+    if spot:
+        tap(*spot)
+    return spot is not None
+
+
+def run_simulator_checks(check, alive):
+    """Verbinden, Werte, Trennen, kein Reconnect — gegen den Simulator des Debug-Builds (Geraet entsperrt, Dashboard offen)."""
+    tap_text("Einstellungen")
+    time.sleep(2)
+    check("Simulator-Zeile \"" + SIMULATOR_ROW + "\" bietet Verbinden an", simulator_button("Verbinden"))
+
+    connected = poll(lambda: row_button(dump_nodes(), SIMULATOR_ROW, "Trennen"), timeout=20, interval=1)
+    check("Simulator verbunden (Zeile zeigt Trennen)", connected)
+
+    tap_text("Live")
+    live = poll(lambda: data_flows(texts()), timeout=25, interval=1)
+    t = texts()
+    check("Dashboard zeigt Werte vom Simulator", live,
+          f"Verbindung {bluetooth_state(t)}, Drehzahl {live_rpm(t)}, Baender {no_data_bands(t)}")
+
+    tap_text("Einstellungen")
+    time.sleep(2)
+    check("Simulator-Zeile bietet Trennen an", simulator_button("Trennen"))
+    disconnected = poll(lambda: row_button(dump_nodes(), SIMULATOR_ROW, "Verbinden"), timeout=15, interval=1)
+    check("Simulator getrennt (Zeile zeigt wieder Verbinden)", disconnected)
+
+    tap_text("Live")
+    time.sleep(10)   # laenger als die Basisverzoegerung des Reconnects (3 s): nach "Trennen" darf KEIN Versuch folgen
+    t = texts()
+    check("Nach Trennen kein Reconnect", bluetooth_state(t) == "disconnected" and not reconnecting(t),
+          f"Verbindung {bluetooth_state(t)}, Baender {no_data_bands(t)}")
+    check("App laeuft nach dem Simulator-Lauf", alive())
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("version")
     parser.add_argument("code")
-    parser.add_argument("--package", default="de.adv990de.obd2")
+    parser.add_argument("--package", default=None, help="Standard: de.adv990de.obd2, mit --simulator de.adv990de.obd2.debug")
+    parser.add_argument("--simulator", action="store_true", help="zusaetzlich den Datenfluss gegen den ECU-Simulator pruefen (Debug-Build)")
     args = parser.parse_args()
-    package = args.package
+    package = resolve_package(args.package, args.simulator)
+    error = simulator_package_error(package, args.simulator)
+    if error:
+        print(error, file=sys.stderr)
+        return 2
 
     adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     if "isKeyguardShowing=true" in adb("shell", "dumpsys", "window").replace(" ", ""):
@@ -112,6 +241,9 @@ def main():
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
     time.sleep(1)
     check("Dialog geschlossen, App laeuft", alive() and any("DREHZAHL" in x.upper() for x in texts()))
+
+    if args.simulator:
+        run_simulator_checks(check, alive)
 
     tap_text("Einstellungen")
     time.sleep(2)

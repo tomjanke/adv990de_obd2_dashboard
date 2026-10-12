@@ -41,6 +41,30 @@ class SmokeScriptTest {
     }
 
     @Test
+    fun `the decision logic of the smoke script passes its own Python tests`() {
+        // Das Tippen und Warten laeuft nur am Geraet; was entscheidet (Verbindung, Werte, Zeile, Argumente), steht als reine Funktion
+        // in smoke.py und ist hier ohne Geraet geprueft (scripts/test_smoke.py).
+        val tests = File(projectRoot, "scripts/test_smoke.py")
+        assertTrue("scripts/test_smoke.py fehlt", tests.isFile)
+        val python = try {
+            ProcessBuilder("python3", "-I", tests.absolutePath).redirectErrorStream(true).start()
+        } catch (_: java.io.IOException) {
+            null
+        }
+        assumeTrue("python3 nicht verfuegbar", python != null)
+        val output = python!!.inputStream.bufferedReader().readText()
+        assertTrue("test_smoke.py lief nicht in 60 s", python.waitFor(60, TimeUnit.SECONDS))
+        assertEquals("Python-Tests der Smoke-Logik scheitern:\n$output", 0, python.exitValue())
+    }
+
+    @Test
+    fun `the simulator mode is documented where people look for it`() {
+        for (file in listOf("scripts/smoke.py", "README.md")) {
+            assertTrue("$file nennt --simulator nicht", "--simulator" in File(projectRoot, file).readText())
+        }
+    }
+
+    @Test
     fun `the release flow points to the script`() {
         assertTrue("README nennt scripts/smoke.py nicht", "scripts/smoke.py" in File(projectRoot, "README.md").readText())
         assertTrue("release.sh nennt scripts/smoke.py nicht", "scripts/smoke.py" in File(projectRoot, "scripts/release.sh").readText())

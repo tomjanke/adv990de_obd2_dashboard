@@ -134,9 +134,9 @@ fun LiveValueTile(
         surface = MaterialTheme.colorScheme.surface,
     )
     val interactive = onClick != null || onLongPress != null
-    // Ripple in der Akzentfarbe der Kachel statt des M3-Default-Grau (CLAUDE.md-TODO "falls als
-    // zu auffaellig empfunden"): ein generischer grauer Ripple wirkt neben der sonst durchgehend
-    // themenfarbigen Cockpit-Optik fremd. `MutableInteractionSource` explizit, weil `ripple()` als
+    // Ripple in der Akzentfarbe der Kachel statt des M3-Default-Grau: ein generischer grauer
+    // Ripple wirkt neben der sonst durchgehend themenfarbigen Cockpit-Optik fremd (s. CLAUDE.md,
+    // "Layout-Patterns", Tap). `MutableInteractionSource` explizit, weil `ripple()` als
     // `indication`-Parameter eine braucht, um Press-Events ueberhaupt zu empfangen.
     val finalModifier = if (interactive) {
         modifier.combinedClickable(

@@ -125,6 +125,17 @@ class CodeHygieneSourceTest {
     }
 
     @Test
+    fun `device tests limit themselves by API level with SdkSuppress, not with an assumption`() {
+        // Seit AGP 9.4 schreibt das Geraete-Testprotokoll eine verletzte Annahme (`assumeTrue`) als <failure> mit AssumptionViolatedException
+        // statt als <skipped> (Gradle zaehlt sie weiter als bestanden). Wer das XML auswertet, haelt einen uebersprungenen Test fuer einen
+        // Fehlschlag. `@SdkSuppress(minSdkVersion/maxSdkVersion)` filtert den Test VOR dem Lauf: er steht dann nirgends im Protokoll.
+        val sdkAssumption = Regex("""assume(?:True|That)\s*\([^)\n]*SDK_INT""")
+        val offenders = File(projectRoot, "app/src/androidTest/java").walkTopDown().filter { it.extension == "kt" }
+            .filter { sdkAssumption.containsMatchIn(it.readText()) }.map(::relative).toList()
+        assertTrue("assumeTrue(SDK_INT ...) in $offenders - stattdessen @SdkSuppress(minSdkVersion = ...) bzw. maxSdkVersion am Test", offenders.isEmpty())
+    }
+
+    @Test
     fun `no test class has the same name in test and androidTest`() {
         // Sieben Klassen hiessen auf dem JVM und auf dem Geraet gleich (SettingsScreenTest, SparklineTest ...): in Berichten, im Filter
         // `--tests` und in der IDE-Suche nicht zu unterscheiden. Was ein Geraet braucht, endet auf `DeviceTest` (wie SessionRepositoryDeviceTest).
