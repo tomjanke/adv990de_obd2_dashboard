@@ -365,78 +365,9 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
 
-            // ═══ Aufzeichnung ════════════════════════════════════════════
-            item { SettingsGroupHeader(stringResource(R.string.settings_recording_section)) }
-            item {
-                SettingsSwitchRow(
-                    title = stringResource(R.string.settings_log_only_dtc),
-                    summary = stringResource(R.string.settings_log_only_dtc_desc),
-                    checked = logOnlyDtc,
-                    onCheckedChange = { recordingVm.toggleLogOnlyDtc() },
-                )
-                HorizontalDivider()
-            }
-            item {
-                SettingsSwitchRow(
-                    title = stringResource(R.string.settings_log_only_discovered),
-                    summary = stringResource(R.string.settings_log_only_discovered_desc),
-                    checked = logOnlyDiscovered,
-                    onCheckedChange = { recordingVm.toggleLogOnlyDiscovered() },
-                )
-                HorizontalDivider()
-            }
-            item {
-                SettingsLinkRow(
-                    title = stringResource(R.string.settings_logging_pids),
-                    summary = stringResource(R.string.settings_logging_pids_summary),
-                    onClick = { navController.navigate(Screen.LoggingConfig.route) },
-                )
-                HorizontalDivider()
-            }
-
-            // ═══ Fahrzeug ════════════════════════════════════════════════
-            item { SettingsGroupHeader(stringResource(R.string.settings_group_vehicle)) }
-            item {
-                SettingsLinkRow(
-                    title = stringResource(R.string.settings_vehicle_info),
-                    summary = stringResource(R.string.settings_vehicle_info_summary),
-                    onClick = { navController.navigate(Screen.VehicleInfo.route) },
-                )
-                HorizontalDivider()
-            }
-
-            // ═══ Info & Wartung ══════════════════════════════════════════
-            item { SettingsGroupHeader(stringResource(R.string.settings_group_info)) }
-            // Nur in einer Version mit eingebautem DSN: ohne ihn gibt es nichts, was dieser Schalter abschalten koennte (QS B33).
-            if (crashVm.available) {
-                item {
-                    val crashReportsEnabled by crashVm.enabled.collectAsStateWithLifecycle()
-                    SettingsSwitchRow(
-                        title = stringResource(R.string.settings_crash_reports_title),
-                        summary = stringResource(R.string.settings_crash_reports_summary),
-                        checked = crashReportsEnabled,
-                        onCheckedChange = { crashVm.setEnabled(it) },
-                        modifier = Modifier.testTag(CRASH_REPORTS_SWITCH_TEST_TAG),
-                    )
-                    HorizontalDivider()
-                }
-            }
-            item {
-                SettingsLinkRow(
-                    title = stringResource(R.string.settings_app_logs),
-                    summary = stringResource(R.string.settings_app_logs_summary),
-                    onClick = { navController.navigate(Screen.AppLogs.route) },
-                )
-                HorizontalDivider()
-            }
-            item {
-                SettingsLinkRow(
-                    title = stringResource(R.string.settings_app_info),
-                    summary = stringResource(R.string.settings_app_info_summary),
-                    onClick = { navController.navigate(Screen.AppInfo.route) },
-                )
-                HorizontalDivider()
-            }
+            recordingSection(logOnlyDtc, logOnlyDiscovered, recordingVm, navController)
+            vehicleSection(navController)
+            infoSection(navController, crashVm)
         }
     }
 }
