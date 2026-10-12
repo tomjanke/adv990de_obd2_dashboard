@@ -4,7 +4,7 @@
 
 ## Projekt-Kontext
 
-Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.4), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 37. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
+Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.4), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 37 / compileSdk 37. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
 ---
 
@@ -710,6 +710,9 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   nicht gemeldet (der folgende Schreibzugriff tut es als `ConnectionLost`). **Grenze:** Bytes, die erst NACH dem Absenden eintreffen, erwischt das nicht (Protokollgrenze); dort fängt die Auswertung das Echo des PID-Bytes ab. **Am Fahrzeug nicht geprüft** — nur per Test (Mutation: ohne das Verwerfen scheitern zwei Tests).
 - **Test-Falle:** Ein Adapter-Fake, der alle Antworten schon VOR dem ersten Befehl im Eingang liegen hat (`ByteArrayInputStream` mit allem), verträgt das Verwerfen nicht. `ElmControllerTest.ScriptedAdapter` gibt eine Antwort erst frei, wenn ein Befehl geschrieben und geflusht wurde — wie der echte Adapter;
   `stale =` legt die verspätete Antwort eines früheren Befehls vorab in den Eingang.
+- **Ende des Datenstroms vor dem Prompt ist ein Verbindungsverlust (seit v1.27.0, targetSdk 37):** `ElmController.readResponse` wirft `ConnectionLost`, sobald `read()` -1 liefert — **auch wenn schon ein Teil der Antwort da war**. Ab Android 17 und `targetSdk` 37 liefert `read()` auf einem RFCOMM-Socket beim Abriss der Verbindung -1 statt einer
+  `IOException` (BluetoothSocket-Änderung für Ziel 37). Bis 1.26.0 wurde -1 ohne ein einziges Byte schon als Verlust gemeldet, eine **halbe Antwort** (Bytes da, Prompt fehlt) aber als Ergebnis zurückgegeben — der Abriss fiel erst beim nächsten Befehl auf. Eine Antwort endet mit `>`; das Ende des Datenstroms davor ist nie eine Antwort.
+  Tests: `ElmControllerTest` (halbe Antwort → `ConnectionLost`; eine vollständige Antwort bleibt eine Antwort, auch wenn der Strom danach endet). **Am echten Adapter nicht geprüft** (das Fake bildet -1 nach). Ein vorab gefüllter `ByteArrayInputStream` taugt für so einen Test nicht (das Verwerfen der Altbytes frisst ihn) — `ScriptedAdapter`.
 
 ### Zustand sammeln, Drehung und Vorschauen (seit v1.25.0)
 
@@ -803,6 +806,12 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
   (downloads.gradle.org/.sha256, gradle.org/release-checksums) und der Wrapper hat die Distribution damit geprüft; `services.gradle.org/.sha256` leitet auf `downloads.gradle.org` um. **Neu mit AGP 9.4:** das Protokoll der Geräte-Tests schreibt einen Annahme-Test (`StatusBarIconsTest.beforeAndroid15…`, läuft nur vor API 35) als `<failure>` mit `AssumptionViolatedException`
   statt als `<skipped>` (Gradle zählt ihn weiter als bestanden, Exit-Code 0) — wer das XML auswertet, rechnet ihn heraus; die laufende Ausgabe zeigt keine Test-für-Test-Zeilen mehr. Vorschau-Bilder (59) und der Rendertest liefen unverändert (ein Bild, `PreviewSlotComponentsLight`, ist Byte für Byte gleich dem vom Release 1.25.2). 0 Lint-Fehler, 2 Warnungen (Ziel-API, neuere Gradle-Version).
   **Nur auf dem Pixel 8 Pro (API 37) geprüft**, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+- **targetSdk 37 (v1.27.0, Auftrag des Nutzers 2026-10-12):** `targetSdk` 36 → **37** (Android 17; `compileSdk` war seit 1.26.0 schon 37). `ReleaseDocsConsistencyTest` hält README und CLAUDE.md gleich `app/build.gradle.kts` (`targetSdk`/`compileSdk`). Grundlage: die Änderungen für Apps mit Ziel 37 (developer.android.com/about/versions/17/behavior-changes-17 und
+  …/release-notes, Abfrage 2026-10-12) gegen den Quelltext der App geprüft. **Betrifft die App:** Bluetooth-RFCOMM-`read()` liefert -1 statt `IOException` — Lücke in `ElmController.readResponse` geschlossen (s. „Zeitlimit-Richtlinie und Altbytes“). **Betrifft sie nicht** (Quelltext-Suche): Hintergrund-Activity-Starts (nur die vom Nutzer angetippte `PendingIntent` der Benachrichtigung),
+  `ACCESS_LOCAL_NETWORK` (kein LAN-Verkehr), Hintergrund-Audio, `RemoteViews`, `System.load`, Reflexion auf `MessageQueue`/`static final`, Content Capture, Keystore-Grenzen, Kontakte/SMS, Klartext-Verkehr (nur HTTPS, kein `usesCleartextTraffic`), `screenOrientation`/`resizeableActivity`/Seitenverhältnis (nicht im Manifest). **Zu „Optimized configuration changes“:**
+  Tastatur, Navigation, Touchscreen, Farbmodus und der Wechsel des UI-Modus vom/zum Schreibtisch-Modus starten die Activity nicht mehr neu (Hell/Dunkel gehört nicht dazu; ob die Änderung am Ziel hängt, sagt die Seite nicht) — die App liest die Konfiguration über Compose, ein `AndroidView` mit Zustand gibt es nicht. **Certificate Transparency ist ab Ziel 37 standardmäßig an:** der Wetter-Abruf
+  (`api.open-meteo.com`) ist betroffen, das Zertifikat (Let's Encrypt YR1) trägt eingebettete SCTs mehrerer Logs (Abfrage 2026-10-12 vom Entwicklungsrechner). **Ein Abruf auf dem Gerät war nicht möglich:** das WLAN des Testgeräts hat keinen ausgehenden Internetzugang (TCP-Timeout schon beim Verbinden, auch zu 8.8.8.8) — ob die Außentemperatur unter Ziel 37 lädt, ist **ungeprüft**.
+  Die Android-17-Änderungen „für alle Apps“ (Speichergrenzen, autonomes Re-Pairing verlorener Bluetooth-Kopplungen u. a.) gelten auf dem Pixel (API 37) unabhängig vom Ziel. Geprüft: 1475 JVM, 332 Instrumentation (der Annahme-Test `StatusBarIconsTest` läuft nur vor API 35), Lint 0 Fehler / 1 Warnung (Gradle 9.8.1, gewollt; `OldTargetApi` ist weg).
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -965,7 +974,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1472 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1475 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 332 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

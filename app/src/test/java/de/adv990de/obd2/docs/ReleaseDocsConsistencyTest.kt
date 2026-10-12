@@ -42,6 +42,26 @@ class ReleaseDocsConsistencyTest {
     }
 
     @Test
+    fun `the README and CLAUDE_md name the target and compile SDK of the build`() {
+        // targetSdk/compileSdk stehen in README ("targetSdk **37** (Android 17) · compileSdk **37**") und CLAUDE.md ("targetSdk 37 / compileSdk 37").
+        // Der Sprung auf compileSdk 37 (v1.26.0) und auf targetSdk 37 haette in beiden Dateien sonst stillschweigend alt weiterbehauptet.
+        val gradle = read("app/build.gradle.kts")
+        val compile = Regex("""compileSdk = (\d+)""").find(gradle)?.groupValues?.get(1)
+        val target = Regex("""targetSdk = (\d+)""").find(gradle)?.groupValues?.get(1)
+        assertNotNull("compileSdk in build.gradle.kts", compile)
+        assertNotNull("targetSdk in build.gradle.kts", target)
+
+        val readme = read("README.md").lineSequence().first { it.contains("Aktuelle Version:") }
+        assertEquals("README targetSdk", target, Regex("""targetSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
+        assertEquals("README compileSdk", compile, Regex("""compileSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
+
+        val claude = Regex("""targetSdk (\d+) / compileSdk (\d+)""").find(read("CLAUDE.md"))
+        assertNotNull("CLAUDE.md braucht 'targetSdk N / compileSdk N' im Projekt-Kontext", claude)
+        assertEquals("CLAUDE.md targetSdk", target, claude!!.groupValues[1])
+        assertEquals("CLAUDE.md compileSdk", compile, claude.groupValues[2])
+    }
+
+    @Test
     fun `the newest release notes entry is the version of the build`() {
         val build = buildVersion()
         val header = read("RELEASE_NOTES.md").lineSequence().firstOrNull { it.startsWith("## Version ") }

@@ -1,5 +1,24 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.27.0 (versionCode 102)
+
+Die App zielt jetzt auf Android 17 (targetSdk 37). Dabei ist eine Lücke bei der Erkennung eines abgerissenen Bluetooth-Adapters geschlossen worden.
+
+### Verbindung
+
+- Ab Android 17 und targetSdk 37 meldet ein abgerissener Bluetooth-Socket das Ende der Verbindung mit „-1“ statt mit einer Fehlermeldung. Kam davor schon ein Teil der Antwort vom Adapter an, wurde diese halbe Antwort bisher als Ergebnis behandelt, und der Abriss fiel erst beim nächsten Befehl auf. Jetzt gilt: Endet der Datenstrom, bevor die Antwort mit dem Prompt `>` abgeschlossen ist, ist die Verbindung verloren — die Wiederverbindung greift sofort. Zwei neue Tests halten das fest.
+- Am echten Adapter ist das nicht geprüft; der Test bildet das „-1“ nach.
+
+### Zielplattform
+
+- targetSdk 36 → **37**. Die Änderungen von Android 17 für Apps mit Ziel 37 sind gegen den Quelltext geprüft: außer dem Bluetooth-Verhalten betrifft keine die App (keine Hintergrund-Activity-Starts, kein LAN-Verkehr, kein Hintergrund-Audio, keine Widgets, kein Klartext-Verkehr, keine feste Bildschirmausrichtung im Manifest). Ein Test hält jetzt README und CLAUDE.md gleich der Einstellung im Build.
+- Certificate Transparency ist ab Ziel 37 standardmäßig aktiv. Das Zertifikat des Wetterdienstes trägt eingebettete Nachweise mehrerer Logs. **Ein Abruf der Außentemperatur auf dem Gerät war nicht möglich** (das WLAN des Testgeräts hat keinen Internetzugang) und ist ungeprüft.
+
+### Tests
+
+- 1475 JVM-Tests (+3), 332 Instrumentation-Tests (1 Annahme-Test läuft nur vor Android 15). Lint: 0 Fehler, 1 Warnung (neuere Gradle-Version 9.8.1, bewusst nicht genommen); die Warnung zur Ziel-API ist weg.
+- Auf dem Pixel 8 Pro (Android 17) geprüft; ältere Android-Versionen (≤ 14) und das Verhalten am Fahrzeug bleiben ungeprüft wie bisher.
+
 ## Version 1.26.0 (versionCode 101)
 
 Das Toolchain-Release: neuer Build-Unterbau und der aktuelle Compose-Stand. An dem, was du in der App bedienst, ändert sich nichts.
