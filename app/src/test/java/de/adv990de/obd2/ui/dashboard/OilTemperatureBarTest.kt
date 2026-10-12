@@ -18,6 +18,11 @@ class OilTemperatureBarTest {
     }
 
     @Test
+    fun `just above 75C is already Yellow - the edge is exactly 75`() {
+        assertEquals(OilBarColor.Yellow, oilBarColor(75.1f, nowMillis = 0L, state = fresh))
+    }
+
+    @Test
     fun `above 75C without a running green timer is Yellow`() {
         assertEquals(OilBarColor.Yellow, oilBarColor(76f, nowMillis = 0L, state = fresh))
         assertEquals(OilBarColor.Yellow, oilBarColor(90f, nowMillis = 0L, state = fresh))
@@ -49,6 +54,25 @@ class OilTemperatureBarTest {
         val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L)
         val next = updateOilBarTimer(coolantTempC = 85f, nowMillis = 5000L, state = running)
         assertEquals(1000L, next.aboveGreenThresholdSinceMillis) // unchanged, not reset to 5000
+    }
+
+    @Test
+    fun `exactly 80C does not start the timer - it is the edge of the band, not above it`() {
+        val next = updateOilBarTimer(coolantTempC = 80f, nowMillis = 1000L, state = fresh)
+        assertNull(next.aboveGreenThresholdSinceMillis)
+    }
+
+    @Test
+    fun `80_1C starts the timer`() {
+        val next = updateOilBarTimer(coolantTempC = 80.1f, nowMillis = 1000L, state = fresh)
+        assertEquals(1000L, next.aboveGreenThresholdSinceMillis)
+    }
+
+    @Test
+    fun `exactly 80C keeps a running timer, just above 78C too`() {
+        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L)
+        assertEquals(1000L, updateOilBarTimer(80f, 5000L, running).aboveGreenThresholdSinceMillis)
+        assertEquals(1000L, updateOilBarTimer(78.1f, 5000L, running).aboveGreenThresholdSinceMillis)
     }
 
     @Test

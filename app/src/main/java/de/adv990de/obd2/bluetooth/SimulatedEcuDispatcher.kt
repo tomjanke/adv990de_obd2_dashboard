@@ -14,10 +14,14 @@ package de.adv990de.obd2.bluetooth
  * Hinweis fuer Tests: die Kuehlmittelrampe endet bei 90 °C, die Warn- und Kritisch-Schwellen
  * der Kachel liegen bei 110 bzw. 120 °C. Ueber den Simulator laesst sich der Statuswechsel
  * daher nur bei der Drehzahl ausloesen.
+ *
+ * [clockMs] ist die Uhr der Simulation (Standard: Wanduhr). Als Parameter, damit Tests die Kurven an festen Zeitpunkten pruefen statt
+ * mit `Thread.sleep` auf "irgendeine" Aenderung zu warten (TST-13); die Drehzahl haengt an der absoluten Zeit, die Kuehlmittelrampe an
+ * der Zeit seit der Konstruktion (= Verbindungsaufbau).
  */
-class SimulatedEcuDispatcher {
+class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTimeMillis) {
 
-    private val connectTimeMs = System.currentTimeMillis()
+    private val connectTimeMs = clockMs()
 
     private val BITMAP_0100 = buildBitmap(0x00, setOf(0x04, 0x05, 0x0B, 0x0C, 0x0D, 0x0E, 0x10, 0x11, 0x20))
     private val BITMAP_0120 = buildBitmap(0x20, setOf(0x2F, 0x40))
@@ -57,7 +61,7 @@ class SimulatedEcuDispatcher {
     // ── Animated helpers ─────────────────────────────────────────────────────
 
     private fun rpm(): Int {
-        val t = System.currentTimeMillis()
+        val t = clockMs()
         // Triangle wave: 900–8500 rpm over 20 s — varied city/highway driving
         val phase = (t % 20_000L) / 20_000.0          // 0.0 .. 1.0
         val triangle = if (phase < 0.5) 2 * phase else 2 * (1 - phase)  // 0.0 .. 1.0
@@ -75,7 +79,7 @@ class SimulatedEcuDispatcher {
     }
 
     private fun respondCoolant(): String {
-        val elapsed = ((System.currentTimeMillis() - connectTimeMs) / 1000.0).coerceAtMost(90.0)
+        val elapsed = ((clockMs() - connectTimeMs) / 1000.0).coerceAtMost(90.0)
         val temp = (20 + 70 * elapsed / 90.0).toInt()
         return "41 05 %02X".format(temp + 40)
     }

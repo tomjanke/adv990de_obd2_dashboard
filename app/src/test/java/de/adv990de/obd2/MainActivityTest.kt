@@ -91,9 +91,8 @@ class MainActivityTest {
 
     @Test
     fun `THEME_LIGHT resolves to the default M3 light color scheme`() {
-        // Documented as-is: this branch resolves to Material 3's default lightColorScheme(),
-        // which is at odds with the project's dark-only design rule (see CLAUDE.md). That is a
-        // separate design question for the project owner — this test only pins today's behavior.
+        // The "Default" color scheme deliberately offers light, dark and "like the system" (CLAUDE.md, design principle 2):
+        // light resolves to Material 3's own lightColorScheme(). The dark-only rule covers only the three cockpit schemes.
         assertColorSchemeEquals(lightColorScheme(), resolveColorScheme(AppPreferences.THEME_LIGHT, darkTheme = false))
     }
 

@@ -219,19 +219,25 @@ class DashboardScreenTest {
     }
 
     /**
-     * Smoke test: the dashboard renders without crashing when the OBD adapter is connected but
-     * no readings have arrived yet. The screen should show a CircularProgressIndicator while
-     * DashboardUiState.readings is still empty and isConnected is true.
-     * The test verifies no exception is thrown during composition and that the UI settles.
+     * Verbunden, aber noch kein Messwert (B24): das Band sagt "Verbunden · warte auf Werte" und NICHT "Vorschau · nicht verbunden".
+     * Die Sitzung ist gestubbt (VIN, Fehlercodes, ein Abfrage-Strom, der nie einen Wert liefert) — ein ungestubbter Mock liesse die
+     * Sitzung mit einem Fehler enden, und der Screen zeigte dann das Vorschau-Band mit Fehlertext statt des Warte-Bandes. Dieser
+     * Test hiess frueher `..._rendersWithoutCrash_whenConnected` und pruefte nichts (TST-16).
      */
     @Test
-    fun dashboard_rendersWithoutCrash_whenConnected() {
+    fun dashboard_showsTheWaitingBand_whenConnectedButNoValueYet() {
         every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        coEvery { obdRepository.readVin() } returns null
+        coEvery { obdRepository.readDtcs() } returns emptyList()
+        every { obdRepository.livePids(any()) } returns flow { awaitCancellation() }
         launchDashboardScreen()
-        // While connected and readings are empty, DashboardScreen shows a full-screen spinner.
-        // There is no assertable static text, so "no crash + idle" is the success criterion.
-        // The composeRule.waitForIdle() call inside launchDashboardScreen() ensures all
-        // coroutines launched by the ViewModel have settled before we return.
+        val waiting = composeRule.activity.getString(R.string.dashboard_waiting_banner).uppercase()
+        val offline = composeRule.activity.getString(R.string.dashboard_preview_banner).uppercase()
+
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText(waiting).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithText(waiting).assertIsDisplayed()
+        composeRule.onAllNodesWithText(offline).assertCountEquals(0)
     }
 
     /**

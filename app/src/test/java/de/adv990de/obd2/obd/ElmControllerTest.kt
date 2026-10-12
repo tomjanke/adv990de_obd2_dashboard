@@ -81,14 +81,11 @@ class ElmControllerTest {
         val controller = ElmController(input, output)
         controller.initialize()
         val sent = output.toString()
-        assertTrue(sent.contains("ATZ"))
-        assertTrue(sent.contains("ATE0"))
-        assertTrue(sent.contains("ATL0"))
-        // B9: Leerzeichen AN. Alle Parser (PIDs, Discovery, DTCs, Freeze-Frame) splitten an Leerzeichen; mit ATS0 lieferte
+        // Der ganze String, in dieser Reihenfolge: ATZ (Reset) muss ZUERST kommen, sonst setzt er die uebrigen Einstellungen wieder zurueck;
+        // ATSP0 (Protokollsuche) zuletzt. Ein "contains" je Befehl liesse eine Umstellung oder einen doppelten Befehl durch (TST-14).
+        // B9: ATS1 = Leerzeichen AN. Alle Parser (PIDs, Discovery, DTCs, Freeze-Frame) splitten an Leerzeichen; mit ATS0 lieferte
         // ein Adapter, der den Befehl befolgt, "410C1AF8" — und kein Parser haette es gelesen.
-        assertTrue(sent.contains("ATS1"))
-        assertFalse("ATS0 darf nicht mehr gesendet werden: $sent", sent.contains("ATS0"))
-        assertTrue(sent.contains("ATSP0"))
+        assertEquals("ATZ\rATE0\rATL0\rATS1\rATSP0\r", sent)
     }
 
     @Test(expected = ObdException.InitializationFailed::class)

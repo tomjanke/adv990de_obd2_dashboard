@@ -66,8 +66,8 @@ import javax.inject.Inject
  * `onNodeWithText` finds already carries the click action. The label text itself never depends on
  * `loggedPidIds`/checked state (only `latestReadings` affects it), so it is a stable, deterministic
  * click target independent of any StateFlow-arrival race — unlike the checked state itself, which
- * is not asserted here for that reason (see `DashboardConfigScreenTest`'s KDoc for the identical
- * `stateIn` default-vs-DataStore race).
+ * is not asserted here for that reason (a `stateIn` default-vs-DataStore race: the first value is
+ * the default, the stored one arrives later).
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)

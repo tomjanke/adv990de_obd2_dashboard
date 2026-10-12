@@ -1,6 +1,9 @@
 package de.adv990de.obd2.simulator
 
 import android.content.Context
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -24,6 +27,7 @@ import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.dashboard.DashboardScreen
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -112,13 +116,36 @@ class SimulatedDashboardTest {
 
     // --- Test 2 ---
 
+    /**
+     * Eine Kachel mit nur einem Label gibt es auch im Offline-Demo-Zustand (dort "--") — das Label allein beweist nichts. Hier steht
+     * eine konkrete Zahl aus dem Wertebereich des Simulators (0..120 km/h), und sie bewegt sich: die Drehzahlwelle aendert die
+     * Geschwindigkeit um rund 12 km/h je Sekunde, eine eingefrorene oder nie befuellte Kachel faellt damit durch (TST-13).
+     */
     @Test
-    fun the_speed_tile_is_filled_from_the_simulator() {
+    fun the_speed_tile_shows_a_number_from_the_simulator_and_it_moves() {
         launchDashboard()
         runBlocking { obdRepository.connect(simulator) }
         awaitLiveTiles()
 
-        composeRule.onNodeWithText(speedLabel()).assertIsDisplayed()
+        composeRule.waitUntil(TIMEOUT_MS) { speedKmhOrNull() != null }
+        val first = speedKmhOrNull()!!
+        assertTrue("Geschwindigkeit ausserhalb des Simulator-Bereichs 0..120 km/h: $first", first in 0..120)
+
+        composeRule.waitUntil(TIMEOUT_MS) { speedKmhOrNull().let { it != null && it != first } }
+    }
+
+    /**
+     * Die Zahl aus der Beschreibung der Geschwindigkeits-Kachel ("Geschwindigkeit: 63 km/h", s. `SensorCard`) oder `null`, solange die
+     * Kachel "--" zeigt oder nicht im Baum steht. Metrisch, weil der Test mit den Standardeinstellungen laeuft.
+     */
+    private fun speedKmhOrNull(): Int? {
+        val tile = Regex("^" + Regex.escape(composeRule.activity.getString(R.string.pid_speed) + ": ") + """(\d+) km/h$""")
+        return composeRule.onAllNodes(SemanticsMatcher("Geschwindigkeits-Kachel") { node ->
+            node.config.getOrNull(SemanticsProperties.ContentDescription)?.any(tile::matches) == true
+        }).fetchSemanticsNodes().firstNotNullOfOrNull { node ->
+            node.config.getOrNull(SemanticsProperties.ContentDescription)
+                ?.firstNotNullOfOrNull { tile.matchEntire(it)?.groupValues?.get(1)?.toInt() }
+        }
     }
 
     /**

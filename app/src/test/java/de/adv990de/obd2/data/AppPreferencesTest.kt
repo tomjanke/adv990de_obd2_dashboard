@@ -63,8 +63,8 @@ class AppPreferencesTest {
     fun `slotPids returns DEFAULT_SLOT_PIDS when nothing is stored`() = runTest {
         val prefs = makePreferences()
         val slots = prefs.slotPids.first()
-        // slotPids always pads to exactly 4 entries; DEFAULT_SLOT_PIDS may be shorter
-        // (currently 3). Verify each default entry appears in the matching slot.
+        // slotPids always pads to exactly 4 entries; DEFAULT_SLOT_PIDS may be shorter.
+        // Verify each default entry appears in the matching slot.
         AppPreferences.DEFAULT_SLOT_PIDS.forEachIndexed { i, id ->
             assertEquals("slot $i should match DEFAULT_SLOT_PIDS[$i]", id, slots[i])
         }

@@ -6,6 +6,11 @@ import org.junit.Test
 
 class SimulatedEcuDispatcherTest {
 
+    private companion object {
+        /** Ein Vielfaches der 20-s-Periode: dort beginnt die Drehzahlwelle bei 900 rpm. */
+        const val START_MS = 40_000L
+    }
+
     // ── AT commands ──────────────────────────────────────────────────────────
 
     @Test
@@ -117,13 +122,91 @@ class SimulatedEcuDispatcherTest {
         assertTrue("Coolant $temp°C not in 20..90", temp in 20..90)
     }
 
+    // ── Die Kurven an festen Zeitpunkten (eine Uhr von Hand statt Thread.sleep, TST-13) ─────────────────────────
+
+    /** Eine Uhr, die nur vorrueckt, wenn der Test es sagt. Beginnt bei einem Vielfachen der 20-s-Periode. */
+    private class FakeClock(var nowMs: Long = 40_000L) {
+        fun read(): Long = nowMs
+    }
+
+    private fun simulator(clock: FakeClock) = SimulatedEcuDispatcher(clock::read)
+
+    private fun rpmAt(clock: FakeClock, d: SimulatedEcuDispatcher, offsetMs: Long): Int {
+        clock.nowMs = START_MS + offsetMs
+        val parts = d.respond("010C").split(" ")
+        return (parts[2].toInt(16) * 256 + parts[3].toInt(16)) / 4
+    }
+
     @Test
-    fun `coolant temp increases after time passes`() {
+    fun `RPM follows a triangle wave with a period of 20 seconds`() {
+        val clock = FakeClock(); val d = simulator(clock)
+
+        assertEquals("Anfang der Periode", 900, rpmAt(clock, d, 0))
+        assertEquals("ein Viertel", 4_700, rpmAt(clock, d, 5_000))
+        assertEquals("Scheitel nach 10 s", 8_500, rpmAt(clock, d, 10_000))
+        assertEquals("abfallend", 4_700, rpmAt(clock, d, 15_000))
+        assertEquals("eine volle Periode spaeter", 900, rpmAt(clock, d, 20_000))
+        assertEquals("und es wiederholt sich", 4_700, rpmAt(clock, d, 25_000))
+    }
+
+    @Test
+    fun `speed is derived from RPM - 0 at the bottom, 120 at the top`() {
+        val clock = FakeClock(); val d = simulator(clock)
+
+        fun speedAt(offsetMs: Long): Int { clock.nowMs = START_MS + offsetMs; return d.respond("010D").split(" ")[2].toInt(16) }
+
+        assertEquals(0, speedAt(0))
+        assertEquals(60, speedAt(5_000))
+        assertEquals(120, speedAt(10_000))
+    }
+
+    @Test
+    fun `coolant ramps from 20 to 90 degrees over 90 seconds and stays there`() {
+        val clock = FakeClock(); val d = simulator(clock)
+
+        fun coolantAt(secondsSinceConnect: Long): Int {
+            clock.nowMs = START_MS + secondsSinceConnect * 1_000
+            return d.respond("0105").split(" ")[2].toInt(16) - 40
+        }
+
+        assertEquals("beim Verbinden", 20, coolantAt(0))
+        assertEquals("nach 45 s die Haelfte", 55, coolantAt(45))
+        assertEquals("nach 90 s oben", 90, coolantAt(90))
+        assertEquals("danach bleibt es", 90, coolantAt(300))
+    }
+
+    @Test
+    fun `the coolant ramp starts when the dispatcher is created, not at a fixed clock time`() {
+        val clock = FakeClock(nowMs = 123_456_789L); val d = simulator(clock)
+
+        clock.nowMs += 45_000L
+
+        assertEquals(55, d.respond("0105").split(" ")[2].toInt(16) - 40)
+    }
+
+    @Test
+    fun `load, throttle, MAP and MAF follow RPM at both ends of the wave`() {
+        val clock = FakeClock(); val d = simulator(clock)
+
+        clock.nowMs = START_MS          // 900 rpm
+        assertEquals("Last unten (20 % = 0x33)", "41 04 33", d.respond("0104"))
+        assertEquals("Drosselklappe unten", "41 11 00", d.respond("0111"))
+        assertEquals("MAP unten (30 kPa)", "41 0B 1E", d.respond("010B"))
+        assertEquals("MAF unten (0,50 g/s = 0x0032)", "41 10 00 32", d.respond("0110"))
+
+        clock.nowMs = START_MS + 10_000 // 8500 rpm
+        assertEquals("Last oben (95 % = 0xF2)", "41 04 F2", d.respond("0104"))
+        assertEquals("Drosselklappe oben", "41 11 FF", d.respond("0111"))
+        assertEquals("MAP oben (100 kPa)", "41 0B 64", d.respond("010B"))
+        assertEquals("MAF oben, auf 49,99 g/s begrenzt (0x1387)", "41 10 13 87", d.respond("0110"))
+    }
+
+    @Test
+    fun `a healthy ECU answers the fault code reads with no codes, not with NO DATA`() {
         val d = SimulatedEcuDispatcher()
-        val t1 = d.respond("0105").split(" ")[2].toInt(16) - 40
-        Thread.sleep(500)
-        val t2 = d.respond("0105").split(" ")[2].toInt(16) - 40
-        assertTrue("Coolant should not decrease: $t1 -> $t2", t2 >= t1)
+
+        assertEquals("43 00", d.respond("03"))
+        assertEquals("47 00", d.respond("07"))
     }
 
     @Test

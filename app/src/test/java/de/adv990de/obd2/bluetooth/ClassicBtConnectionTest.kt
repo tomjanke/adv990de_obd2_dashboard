@@ -41,6 +41,26 @@ class ClassicBtConnectionTest {
     }
 
     @Test
+    fun `connect opens the socket with the Serial Port Profile UUID`() {
+        // Die UUID des SPP (00001101-...): jeder ELM327-Adapter meldet seinen seriellen Dienst darunter. Mit `any()` wuerde auch eine
+        // falsche UUID bestehen — und erst am Adapter als "Verbindung abgelehnt" auffallen (TST-14).
+        val socket = mockk<BluetoothSocket>(relaxed = true) {
+            every { isConnected } returns true
+            every { inputStream } returns mockk<InputStream>(relaxed = true)
+            every { outputStream } returns mockk<OutputStream>(relaxed = true)
+        }
+        val device = mockk<BluetoothDevice> {
+            every { createRfcommSocketToServiceRecord(any()) } returns socket
+        }
+
+        runBlocking { ClassicBtConnection(device).connect() }
+
+        verify(exactly = 1) {
+            device.createRfcommSocketToServiceRecord(java.util.UUID.fromString("00001101-0000-1000-8000-00805f9b34fb"))
+        }
+    }
+
+    @Test
     fun `connect throws ConnectionFailed when socket creation throws IOException`() {
         val device = mockk<BluetoothDevice> {
             every { createRfcommSocketToServiceRecord(any()) } throws IOException("refused")
