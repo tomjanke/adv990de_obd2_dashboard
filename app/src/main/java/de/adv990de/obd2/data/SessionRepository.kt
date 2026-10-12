@@ -125,7 +125,8 @@ class SessionRepository @Inject constructor(
                 sessionId = sessionId,
                 timestamp = it.timestamp,
                 pidId = it.pid.id,
-                value = it.value
+                value = it.value,
+                source = it.source.name,
             )
         }
         db.sensorReadingDao().insertAll(entities)
@@ -157,9 +158,10 @@ class SessionRepository @Inject constructor(
      * Exports a session to a CSV file and returns a shareable [Uri].
      *
      * Cursor-based: rows are written as they are read, and the query ([EXPORT_QUERY_SQL]) needs no sort, so memory
-     * stays constant however long the trip is. Columns: `timestamp,pid,value,name` — the first three are the
+     * stays constant however long the trip is. Columns: `timestamp,pid,value,name,source` — the first three are the
      * original ones (a parser that reads by position keeps working), `name` is the stable English PID name: Excel
      * turns `0105` into the number 105 when the file is opened by double click, the name column still identifies the PID.
+     * `source` is `ECU` or `GPS` (the GPS speed has the same PID id as the vehicle's); empty for rows recorded before 1.25.0.
      *
      * Every export gets its own file (DAT-06: a fixed name was deleted under a share that was still reading it);
      * exports older than a day are removed first (DAT-07: they were never deleted). A failed export leaves no
@@ -175,10 +177,11 @@ class SessionRepository @Inject constructor(
             val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(sessionId))
             db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
                 file.bufferedWriter().use { writer ->
-                    writer.write(csvRow("timestamp", "pid", "value", "name"))
+                    writer.write(csvRow("timestamp", "pid", "value", "name", "source"))
                     val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
                     val colPid       = cursor.getColumnIndexOrThrow("pidId")
                     val colValue     = cursor.getColumnIndexOrThrow("value")
+                    val colSource    = cursor.getColumnIndexOrThrow("source")
                     while (cursor.moveToNext()) {
                         val pidId = cursor.getString(colPid).orEmpty()
                         writer.write(
@@ -187,6 +190,7 @@ class SessionRepository @Inject constructor(
                                 pidId,
                                 cursor.getFloat(colValue).toString(),
                                 PidRegistry.all[pidId]?.name.orEmpty(),
+                                cursor.getString(colSource).orEmpty(),
                             )
                         )
                     }

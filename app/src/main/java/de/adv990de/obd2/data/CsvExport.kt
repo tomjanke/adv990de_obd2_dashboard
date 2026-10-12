@@ -21,7 +21,7 @@ internal const val EXPORT_MAX_AGE_MS: Long = 24L * 60 * 60 * 1000
  * wahrheitsgemaesse: ein Uhrensprung waehrend der Fahrt wuerde sonst Zeilen umsortieren.
  */
 internal const val EXPORT_QUERY_SQL =
-    "SELECT timestamp, pidId, value FROM sensor_readings WHERE sessionId = ? ORDER BY id ASC"
+    "SELECT timestamp, pidId, value, source FROM sensor_readings WHERE sessionId = ? ORDER BY id ASC"
 
 /**
  * Ein CSV-Feld nach RFC 4180: nur bei Komma, Anfuehrungszeichen oder Zeilenumbruch in Anfuehrungszeichen, ein

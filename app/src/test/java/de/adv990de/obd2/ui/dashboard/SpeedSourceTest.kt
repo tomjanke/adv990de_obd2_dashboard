@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -62,5 +63,28 @@ class SpeedSourceTest {
         val result = mergeGpsSpeed(listOf(speed(Float.NaN)), gpsKmh = 30f)
 
         assertTrue(result.any { it.pid.id == PidRegistry.SPEED.id && it.value == 30f })
+    }
+
+    // --- Herkunft des Werts (QS: GPS/ECU) ---
+
+    @Test
+    fun `the speed GPS adds is marked as coming from the GPS`() {
+        // GPS_SPEED traegt dieselbe ID wie die Fahrzeug-Geschwindigkeit. Ohne diese Markierung waere in der Aufzeichnung und im
+        // CSV-Export nicht mehr zu erkennen, welche Quelle ein Wert hatte — fuer die Auswertung einer Testfahrt entscheidend.
+        val added = mergeGpsSpeed(listOf(rpm()), gpsKmh = 47f).single { it.pid.id == PidRegistry.SPEED.id }
+
+        assertEquals(ValueSource.GPS, added.source)
+    }
+
+    @Test
+    fun `a value from the vehicle is marked as coming from the ECU`() {
+        val kept = mergeGpsSpeed(listOf(rpm(), speed(50f)), gpsKmh = 47f).single { it.pid.id == PidRegistry.SPEED.id }
+
+        assertEquals(ValueSource.ECU, kept.source)
+    }
+
+    @Test
+    fun `a value is from the ECU unless said otherwise`() {
+        assertEquals(ValueSource.ECU, SensorValue(PidRegistry.RPM, 1000f).source)
     }
 }

@@ -3,11 +3,13 @@ package de.adv990de.obd2.ui.dashboard
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 
 /**
  * PID-Definition fuer die GPS-Geschwindigkeit. Sie traegt bewusst dieselbe ID wie [PidRegistry.SPEED],
  * damit der Wert in den Geschwindigkeits-Slot faellt und von Aufzeichnung und Fahrterkennung wie
- * eine Geschwindigkeit behandelt wird — aber ein eigenes Label, damit die Quelle sichtbar bleibt.
+ * eine Geschwindigkeit behandelt wird — aber ein eigenes Label, damit die Quelle sichtbar bleibt, und [ValueSource.GPS] am Wert, damit sie
+ * auch in der Aufzeichnung und im CSV-Export erkennbar bleibt.
  *
  * Bewusst *nicht* in `PidRegistry.all`: Der Wert wird nie ueber den OBD-Bus abgefragt und darf
  * deshalb weder im Sensor-Picker noch in der Polling-Liste auftauchen.
@@ -26,5 +28,5 @@ fun mergeGpsSpeed(readings: List<SensorValue>, gpsKmh: Float?): List<SensorValue
     }
     if (hasVehicleSpeed) return readings
     if (gpsKmh == null || gpsKmh.isNaN() || gpsKmh < 0f) return readings
-    return readings + SensorValue(GPS_SPEED, gpsKmh)
+    return readings + SensorValue(GPS_SPEED, gpsKmh, source = ValueSource.GPS)
 }

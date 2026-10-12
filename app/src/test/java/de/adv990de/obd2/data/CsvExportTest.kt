@@ -141,6 +141,7 @@ class CsvExportTest {
     @Test
     fun `the export query reads one trip in recording order, without a sort by timestamp`() {
         assertTrue(EXPORT_QUERY_SQL.contains("WHERE sessionId = ?"))
+        assertTrue("die Herkunft gehoert zum Export: $EXPORT_QUERY_SQL", EXPORT_QUERY_SQL.contains("source"))
         assertTrue("ORDER BY id (Index-Reihenfolge, kein Sortierlauf): $EXPORT_QUERY_SQL", EXPORT_QUERY_SQL.contains("ORDER BY id"))
         assertFalse("ORDER BY timestamp zwaenge SQLite zum Sortieren aller Zeilen (DAT-09)", EXPORT_QUERY_SQL.contains("ORDER BY timestamp"))
     }

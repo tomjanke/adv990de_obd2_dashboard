@@ -31,10 +31,20 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 }
 
 /**
+ * Die Herkunft eines Messwerts (`ECU`/`GPS`). Nullable und ohne Vorgabewert: bestehende Zeilen bleiben `NULL` = "unbekannt". Von Hand
+ * geschrieben wie [MIGRATION_1_2]; `AppDatabaseMigrationTest` validiert sie gegen das exportierte 4.json und prueft, dass Altdaten bleiben.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sensor_readings ADD COLUMN source TEXT")
+    }
+}
+
+/**
  * Die Version der Datenbank — die EINE Stelle (`@Database(version = …)` unten und die Pruefung in
  * `AppDatabaseMigrationsTest`, dass [ALL_MIGRATIONS] bis hierher reicht, lesen sie).
  */
-const val APP_DATABASE_VERSION = 3
+const val APP_DATABASE_VERSION = 4
 
 /**
  * Alle Migrationen, in der Reihenfolge ihrer Versionen. Produktion ([appDatabaseBuilder]) und Tests benutzen
@@ -42,7 +52,7 @@ const val APP_DATABASE_VERSION = 3
  * oder fehlt sie fuer eine neue Version, schlaegt `AppDatabaseMigrationsTest` auf dem JVM fehl, statt dass ein
  * Update-Nutzer beim ersten Start abstuerzt.
  */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
 /**
  * Der Produktions-Builder der Datenbank: Name und Migrationen. Kein destruktiver Fallback — ein Schema-Fehler

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 4,
-    "identityHash": "61021591bebacdb985788cd376f02fe7",
+    "identityHash": "958c12e44a8eb5f8f4e65907b90acbd6",
     "entities": [
       {
         "tableName": "sessions",
@@ -40,7 +40,7 @@
       },
       {
         "tableName": "sensor_readings",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `pidId` TEXT NOT NULL, `value` REAL NOT NULL, FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `pidId` TEXT NOT NULL, `value` REAL NOT NULL, `source` TEXT, FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -71,6 +71,11 @@
             "columnName": "value",
             "affinity": "REAL",
             "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -179,7 +184,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '61021591bebacdb985788cd376f02fe7')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '958c12e44a8eb5f8f4e65907b90acbd6')"
     ]
   }
 }

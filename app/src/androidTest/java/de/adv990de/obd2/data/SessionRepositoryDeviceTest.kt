@@ -137,8 +137,9 @@ class SessionRepositoryDeviceTest {
         val trip = repo.startSession()
         val other = repo.startSession()
         // Recording order differs from timestamp order (a clock jump during the trip): the file keeps the recording order.
-        for ((ts, pid) in listOf(300L to "010C", 100L to "0105", 200L to "01FF")) {
-            db.sensorReadingDao().insert(SensorReadingEntity(sessionId = trip, timestamp = ts, pidId = pid, value = 1.5f))
+        // The source column: ECU, GPS, and NULL for a row recorded before 1.25.0 (empty in the file, never guessed).
+        for ((ts, pid, source) in listOf(Triple(300L, "010C", "ECU"), Triple(100L, "0105", "GPS"), Triple(200L, "01FF", null))) {
+            db.sensorReadingDao().insert(SensorReadingEntity(sessionId = trip, timestamp = ts, pidId = pid, value = 1.5f, source = source))
         }
         db.sensorReadingDao().insert(SensorReadingEntity(sessionId = other, timestamp = 1L, pidId = "010C", value = 9f))
 
@@ -146,7 +147,7 @@ class SessionRepositoryDeviceTest {
 
         val file = exportDir.listFiles()!!.single()
         assertEquals(
-            "timestamp,pid,value,name\n300,010C,1.5,RPM\n100,0105,1.5,Coolant Temp\n200,01FF,1.5,\n",
+            "timestamp,pid,value,name,source\n300,010C,1.5,RPM,ECU\n100,0105,1.5,Coolant Temp,GPS\n200,01FF,1.5,,\n",
             file.readText()
         )
     }

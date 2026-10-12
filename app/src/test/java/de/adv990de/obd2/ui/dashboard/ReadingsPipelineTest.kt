@@ -13,6 +13,7 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -143,6 +144,37 @@ class ReadingsPipelineTest {
         val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
         assertTrue("Die GPS-Geschwindigkeit fehlt: $values", speed != null)
         assertEquals(42f, speed!!.value, 0.001f)
+    }
+
+    @Test
+    fun `a recorded speed says where it came from - GPS fill-in versus the vehicle`() = runTest {
+        // GPS_SPEED hat dieselbe PID-ID wie die Fahrzeug-Geschwindigkeit: ohne Herkunft waere die Aufzeichnung nicht auswertbar.
+        val gpsFilled = slot<List<SensorValue>>()
+        val sessionRepoGps = makeSessionRepo()
+        coEvery { sessionRepoGps.writeReadings(7L, capture(gpsFilled)) } just Runs
+        makePipeline(
+            makeRepo(connected = true),
+            sessionRepo = sessionRepoGps,
+            prefs = makePrefs(useGpsSpeed = true),
+            gps = makeGps(42f),
+        ).events(backgroundScope).take(1).toList()
+        val gpsSpeed = gpsFilled.captured.single { it.pid.id == PidRegistry.SPEED.id }
+        assertEquals(ValueSource.GPS, gpsSpeed.source)
+        assertEquals(ValueSource.ECU, gpsFilled.captured.single { it.pid.id == PidRegistry.RPM.id }.source)
+
+        val vehicleSpeed = SensorValue(pid = PidRegistry.SPEED, value = 55f, timestamp = 1000L)
+        val ecuRecorded = slot<List<SensorValue>>()
+        val sessionRepoEcu = makeSessionRepo()
+        coEvery { sessionRepoEcu.writeReadings(7L, capture(ecuRecorded)) } just Runs
+        makePipeline(
+            makeRepo(connected = true, readings = listOf(rpm, vehicleSpeed)),
+            sessionRepo = sessionRepoEcu,
+            prefs = makePrefs(useGpsSpeed = true),
+            gps = makeGps(42f),
+        ).events(backgroundScope).take(1).toList()
+        val ecuSpeed = ecuRecorded.captured.single { it.pid.id == PidRegistry.SPEED.id }
+        assertEquals("der Fahrzeugwert hat Vorrang", 55f, ecuSpeed.value, 0.001f)
+        assertEquals(ValueSource.ECU, ecuSpeed.source)
     }
 
     // --- Test 4 ---

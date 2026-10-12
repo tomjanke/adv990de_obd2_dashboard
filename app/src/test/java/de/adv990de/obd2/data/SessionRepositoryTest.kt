@@ -12,6 +12,7 @@ import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 import io.mockk.Runs
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
@@ -73,16 +74,24 @@ class SessionRepositoryTest {
     // Builds a Cursor stub over the given (timestamp, pidId, value) rows, matching the column
     // names and iteration pattern exportToCsv() actually reads (getColumnIndexOrThrow once per
     // column, then getLong/getString/getFloat per row while moveToNext() is true).
-    private fun makeCursor(rows: List<Triple<Long, String, Float>>): Cursor {
+    /** Eine Zeile des Exports: Zeit, PID, Wert und die Herkunft (`null` = eine Zeile aus der Zeit vor 1.25.0). */
+    private data class Row(val timestamp: Long, val pidId: String, val value: Float, val source: String?)
+
+    private fun makeCursor(rows: List<Triple<Long, String, Float>>): Cursor =
+        makeSourceCursor(rows.map { Row(it.first, it.second, it.third, source = null) })
+
+    private fun makeSourceCursor(rows: List<Row>): Cursor {
         var index = -1
         return mockk<Cursor> {
             every { getColumnIndexOrThrow("timestamp") } returns 0
             every { getColumnIndexOrThrow("pidId") } returns 1
             every { getColumnIndexOrThrow("value") } returns 2
+            every { getColumnIndexOrThrow("source") } returns 3
             every { moveToNext() } answers { index++; index < rows.size }
-            every { getLong(0) } answers { rows[index].first }
-            every { getString(1) } answers { rows[index].second }
-            every { getFloat(2) } answers { rows[index].third }
+            every { getLong(0) } answers { rows[index].timestamp }
+            every { getString(1) } answers { rows[index].pidId }
+            every { getFloat(2) } answers { rows[index].value }
+            every { getString(3) } answers { rows[index].source }
             every { close() } just Runs
         }
     }
@@ -185,6 +194,19 @@ class SessionRepositoryTest {
         assertEquals("010D", entities[1].pidId)
         assertEquals(80f,    entities[1].value)
         assertEquals(2_000L, entities[1].timestamp)
+    }
+
+    @Test
+    fun `writeReadings stores where each value came from`() = runTest {
+        // Die GPS-Geschwindigkeit hat dieselbe PID-ID wie die des Fahrzeugs; die Spalte `source` haelt sie auseinander.
+        val ecu = SensorValue(pid = makePid("010D"), value = 50f, timestamp = 1_000L)
+        val gps = SensorValue(pid = makePid("010D"), value = 49f, timestamp = 2_000L, source = ValueSource.GPS)
+        val inserted = slot<List<SensorReadingEntity>>()
+        coEvery { sensorReadingDao.insertAll(capture(inserted)) } just Runs
+
+        repo.writeReadings(sessionId = 5L, values = listOf(ecu, gps))
+
+        assertEquals(listOf("ECU", "GPS"), inserted.captured.map { it.source })
     }
 
     // ── active trip ───────────────────────────────────────────────────────────
@@ -493,8 +515,27 @@ class SessionRepositoryTest {
         assertEquals(1, files.size)
         assertTrue("name carries the trip id: ${files[0].name}", files[0].name.startsWith("session_7_"))
         assertEquals(
-            "timestamp,pid,value,name\n1000,010C,1200.0,RPM\n2000,010D,80.5,Speed\n",
+            "timestamp,pid,value,name,source\n1000,010C,1200.0,RPM,\n2000,010D,80.5,Speed,\n",
             files[0].readText()
+        )
+    }
+
+    @Test
+    fun `the export carries the source column - an old row without one stays empty, not guessed`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } returns makeSourceCursor(
+            listOf(
+                Row(1_000L, "010D", 50f, "ECU"),
+                Row(2_000L, "010D", 49f, "GPS"),
+                Row(3_000L, "010D", 48f, null), // aufgezeichnet vor 1.25.0: die Herkunft kennt niemand
+            )
+        )
+
+        repo.exportToCsv(sessionId = 7L)
+
+        assertEquals(
+            "timestamp,pid,value,name,source\n1000,010D,50.0,Speed,ECU\n2000,010D,49.0,Speed,GPS\n3000,010D,48.0,Speed,\n",
+            exportedFiles().single().readText(),
         )
     }
 
@@ -505,7 +546,7 @@ class SessionRepositoryTest {
 
         repo.exportToCsv(sessionId = 99L)
 
-        assertEquals("timestamp,pid,value,name\n", exportedFiles().single().readText())
+        assertEquals("timestamp,pid,value,name,source\n", exportedFiles().single().readText())
     }
 
     @Test
@@ -515,7 +556,7 @@ class SessionRepositoryTest {
 
         repo.exportToCsv(sessionId = 1L)
 
-        assertEquals("timestamp,pid,value,name\n5,01FF,1.0,\n", exportedFiles().single().readText())
+        assertEquals("timestamp,pid,value,name,source\n5,01FF,1.0,,\n", exportedFiles().single().readText())
     }
 
     @Test

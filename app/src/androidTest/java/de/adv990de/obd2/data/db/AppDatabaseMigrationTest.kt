@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 private const val TEST_DB = "migration-test"
 
 /**
- * Covers [MIGRATION_1_2] and [MIGRATION_2_3], which hand-write their `CREATE TABLE` statements
+ * Covers [MIGRATION_1_2], [MIGRATION_2_3] and [MIGRATION_3_4], which hand-write their `CREATE TABLE` statements
  * instead of relying on Room's generated migrations — a hand-written migration has no compile-time
  * guarantee of matching the exported schema, so this asserts the resulting table shape (Room validates
  * it against the exported JSON), that rows written before the migration survive it, and that the DAO
@@ -133,6 +133,75 @@ class AppDatabaseMigrationTest {
             assertEquals(1, rows.size)
             assertEquals("P0301", rows[0].code)
             assertEquals(5_000L, rows[0].firstSeen)
+        }
+    }
+
+    // ── 3 -> 4: where a reading came from ─────────────────────────────────────
+
+    @Test
+    fun migrate3To4_addsANullableSourceColumnWithoutADefault() {
+        helper.createDatabase(TEST_DB, 3).close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4)
+
+        migratedDb.query("PRAGMA table_info(sensor_readings)").use { cursor ->
+            val name = cursor.getColumnIndexOrThrow("name")
+            val notNull = cursor.getColumnIndexOrThrow("notnull")
+            val default = cursor.getColumnIndexOrThrow("dflt_value")
+            val source = generateSequence { if (cursor.moveToNext()) cursor else null }
+                .firstOrNull { it.getString(name) == "source" }
+            assertEquals("the column exists", true, source != null)
+            assertEquals("nullable: an old row has no known source", 0, source!!.getInt(notNull))
+            assertEquals("no default: nothing is guessed", true, source.isNull(default))
+        }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate3To4_keepsReadingsWrittenBeforeTheUpdate_andTheirSourceStaysUnknown() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL("INSERT INTO sessions (id, startTime, endTime, vehicleVin) VALUES (1, 1000, 2000, 'VIN123')")
+            execSQL("INSERT INTO sensor_readings (id, sessionId, timestamp, pidId, value) VALUES (1, 1, 1500, '010D', 80.0)")
+            execSQL("INSERT INTO dtc_history (code, firstSeen, lastSeen, lastWasPending) VALUES ('P0301', 10, 20, 0)")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4)
+
+        migratedDb.query("SELECT pidId, value, source FROM sensor_readings WHERE sessionId = 1").use {
+            assertEquals(1, it.count); it.moveToFirst()
+            assertEquals("010D", it.getString(0))
+            assertEquals(80.0f, it.getFloat(1), 0.001f)
+            assertEquals("a row recorded before the update has no known source", true, it.isNull(2))
+        }
+        migratedDb.query("SELECT code FROM dtc_history").use { assertEquals(1, it.count) }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate3To4_newReadingsCarryTheirSourceThroughTheDao() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL("INSERT INTO sessions (id, startTime, endTime, vehicleVin) VALUES (1, 1000, 2000, NULL)")
+            close()
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4).close()
+
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
+        helper.closeWhenFinished(db)
+
+        runBlocking {
+            db.sensorReadingDao().insertAll(
+                listOf(
+                    de.adv990de.obd2.data.db.entity.SensorReadingEntity(sessionId = 1, timestamp = 1, pidId = "010D", value = 50f, source = "ECU"),
+                    de.adv990de.obd2.data.db.entity.SensorReadingEntity(sessionId = 1, timestamp = 2, pidId = "010D", value = 49f, source = "GPS"),
+                    de.adv990de.obd2.data.db.entity.SensorReadingEntity(sessionId = 1, timestamp = 3, pidId = "010D", value = 48f),
+                )
+            )
+            val sources = mutableListOf<String?>()
+            db.openHelper.readableDatabase.query("SELECT source FROM sensor_readings ORDER BY id").use { c ->
+                while (c.moveToNext()) sources.add(if (c.isNull(0)) null else c.getString(0))
+            }
+            assertEquals(listOf("ECU", "GPS", null), sources)
         }
     }
 }
