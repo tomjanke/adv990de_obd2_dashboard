@@ -1,5 +1,35 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.25.2 (versionCode 99)
+
+Die Aufzeichnungsauswahl vergisst keinen später ergänzten PID mehr, jede Vorschau wird auf dem Gerät gerendert, die Testhilfen stehen nur noch einmal da, und acht Bibliotheken sind aktualisiert.
+
+### Aufzeichnung
+
+- Die Auswahl der aufgezeichneten PIDs speichert jetzt, was du **abgewählt** hast, nicht, was du behalten willst. Eine gespeicherte Positivliste ließ jeden PID aus, den es beim Speichern noch nicht gab — wer einmal einen Haken entfernt hatte, zeichnete später ergänzte PIDs nie auf, ohne es zu merken.
+- Deine bisherige Auswahl bleibt unverändert: der alte Eintrag wird weiter gelesen (was darin fehlt, gilt als abgewählt) und beim ersten Ändern abgelöst. Es gibt heute keinen neuen PID; die Änderung wirkt erst, wenn einer dazukommt.
+
+### Vorschauen
+
+- Jede der 63 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen (`PreviewsRenderDeviceTest`); eine Prüfung im JVM-Test hält fest, dass jede Vorschau die gefundene Form hat und die Zahl stimmt. Beide Prüfungen sind per Mutation geprüft (eine werfende und eine leere Vorschau werden erkannt).
+- Das Rendern zeigte zwei falsche Vorschauen: die Kachel füllte das ganze Fenster und verdrängte die zweite Kachel und das Vorschau-Band, und die Einstellungszeilen hatten keinen Seitenrand. Beide sind behoben. Sieben Hilfs-Composables, die nur so hießen wie Vorschauen, heißen jetzt `…PreviewContent`.
+
+### Tests
+
+- TST-17: `fakeAppPreferences` ersetzt sieben `makePrefs` und vier Inline-Mocks (ein Test vergleicht jeden Flow mit der echten Klasse), `fakeObdRepository` ersetzt 60 Stub-Blöcke (`DashboardViewModelTest` 3078 → 2666 Zeilen), `idleObdRepository` ersetzt den gleichen Inhalt in 35 Instrumentation-Klassen (`@BindValue` bleibt je Klasse, Hilt lässt kein Überschreiben zu).
+- 1471 JVM-Tests (+15), 332 Instrumentation-Tests (+1, 1 übersprungen wie bisher).
+
+### Bibliotheken
+
+- Aktualisiert: navigation-compose 2.8.5 → 2.9.8, lifecycle 2.8.7 → 2.10.0, datastore 1.1.1 → 1.2.1, appcompat 1.7.0 → 1.8.0, paging 3.3.4 → 3.5.2, core-ktx 1.15.0 → 1.18.0, activity-compose 1.9.3 → 1.13.0, hilt-navigation-compose 1.2.0 → 1.3.0 (`hiltViewModel` wechselte das Paket). Die Prüfsummen (`gradle/verification-metadata.xml`, 789 Komponenten) sind mit `--refresh-dependencies` neu geschrieben.
+- **Nicht möglich unter compileSdk 36:** navigation-compose 2.10.x, lifecycle 2.11.0, core-ktx 1.19.x, hilt-navigation-compose 1.4.0 — sie warten mit dem Compose-BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6). Nicht Teil der Freigabe: androidx.test, Sentry, coroutines, mockk, kotlinx-serialization, Kotlin.
+- Auf dem Pixel 8 Pro (Android 17) geprüft; die älteren Android-Versionen (≤ 14) bleiben ungeprüft wie bisher.
+
+### Nicht Teil dieses Releases
+
+- Am Fahrzeug: A8, A9 Teil 2, Lese-Hänger auf Classic, Dienst-Typ im Betrieb, Verwerfen von Altbytes, PRO-11 im echten Wechsel zwischen zwei Adaptern.
+- Compose-BOM 2026.09 und die vier oben genannten Bibliotheken (Toolchain-Release nach der Testfahrt).
+
 ## Version 1.25.1 (versionCode 98)
 
 Fehlercode-Texte in beiden Sprachen, eine Verbindung, die ein alter Leser nicht mehr einreißt, und die letzten großen Dateien aufgeteilt.
