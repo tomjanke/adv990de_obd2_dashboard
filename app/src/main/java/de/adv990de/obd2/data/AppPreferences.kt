@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -53,6 +54,9 @@ class AppPreferences @Inject constructor(
         private val KEY_SLOT_PIDS      = stringPreferencesKey("slot_pids")
         private val KEY_LOG_ONLY_DTC   = booleanPreferencesKey("log_only_dtc_sessions")
         private val KEY_LOG_ONLY_DISC  = booleanPreferencesKey("log_only_discovered_pids")
+        /** Die Abwahl (seit 1.25.2). Die Namen beider Schluessel sind gespeicherter Zustand — nie umbenennen. */
+        private val KEY_UNLOGGED_PIDS  = stringSetPreferencesKey("unlogged_pid_ids")
+        /** Nur noch zum Lesen: die Positivliste bis 1.25.1, s. [loggedPidIds]. */
         private val KEY_LOGGED_PIDS    = stringSetPreferencesKey("logged_pid_ids")
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         private val KEY_CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
@@ -164,8 +168,27 @@ class AppPreferences @Inject constructor(
         prefs[KEY_LOG_ONLY_DISC] ?: false
     }
 
-    val loggedPidIds: Flow<Set<String>> = data.map { prefs ->
-        prefs[KEY_LOGGED_PIDS] ?: ALL_PID_IDS
+    /**
+     * Die aufzuzeichnenden PIDs: alle bekannten ausser den vom Nutzer **abgewaehlten**. Gespeichert wird die Abwahl
+     * ([KEY_UNLOGGED_PIDS]), nicht die Auswahl: Eine Positivliste (bis 1.25.1) laesst jeden PID aus, den es beim Speichern noch nicht gab —
+     * wer einmal einen Haken entfernt hatte, zeichnete spaeter ergaenzte PIDs nie auf, ohne es zu merken. Unbekannte IDs in der
+     * Abwahl wirken nicht (sie liegen ausserhalb von [ALL_PID_IDS]).
+     */
+    val loggedPidIds: Flow<Set<String>> = data.map { prefs -> ALL_PID_IDS - unloggedPidIds(prefs) }
+
+    /**
+     * Die Abwahl. Fehlt der neue Schluessel, gilt die Positivliste einer frueheren Version ([KEY_LOGGED_PIDS]): was darin fehlt, ist
+     * abgewaehlt — der Nutzer sieht seine Auswahl unveraendert, und PIDs, die schon damals fehlten, bleiben weg, wie sie es
+     * bisher taten. Der alte Schluessel wird beim ersten Schreiben abgeloest ([writeUnloggedPids]).
+     */
+    private fun unloggedPidIds(prefs: Preferences): Set<String> =
+        prefs[KEY_UNLOGGED_PIDS]
+            ?: prefs[KEY_LOGGED_PIDS]?.let { legacyLogged -> ALL_PID_IDS - legacyLogged }
+            ?: emptySet()
+
+    private fun MutablePreferences.writeUnloggedPids(unlogged: Set<String>) {
+        this[KEY_UNLOGGED_PIDS] = unlogged
+        remove(KEY_LOGGED_PIDS)
     }
 
     suspend fun setLogOnlyDtcSessions(enabled: Boolean) {
@@ -178,13 +201,13 @@ class AppPreferences @Inject constructor(
 
     suspend fun toggleLoggedPid(id: String) {
         dataStore.edit { prefs ->
-            val current = prefs[KEY_LOGGED_PIDS] ?: ALL_PID_IDS
-            prefs[KEY_LOGGED_PIDS] = if (id in current) current - id else current + id
+            val unlogged = unloggedPidIds(prefs)
+            prefs.writeUnloggedPids(if (id in unlogged) unlogged - id else unlogged + id)
         }
     }
 
     suspend fun setLoggedPids(ids: Set<String>) {
-        dataStore.edit { it[KEY_LOGGED_PIDS] = ids }
+        dataStore.edit { prefs -> prefs.writeUnloggedPids(ALL_PID_IDS - ids) }
     }
 
     // ── Drive state preferences ───────────────────────────────────────────────

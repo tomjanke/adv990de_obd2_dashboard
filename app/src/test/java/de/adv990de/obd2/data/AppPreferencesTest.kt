@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.PidRegistry
@@ -248,6 +249,94 @@ class AppPreferencesTest {
         val prefs = makePreferences()
         prefs.setLoggedPids(emptySet())
         assertEquals(emptySet<String>(), prefs.loggedPidIds.first())
+    }
+
+    // Gespeichert wird, was der Nutzer ABGEWAEHLT hat, nicht, was er behalten will: Ein PID, den es beim Speichern noch nicht gab,
+    // ist so nicht abgewaehlt und wird aufgezeichnet (vorher blieb er fuer jeden, der einmal einen Haken entfernt hatte, unbemerkt aus).
+    private val unloggedKey = stringSetPreferencesKey("unlogged_pid_ids")
+    private val legacyLoggedKey = stringSetPreferencesKey("logged_pid_ids")
+
+    @Test
+    fun `deselecting one PID stores only that PID, not the complement`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+
+        prefs.toggleLoggedPid(PidRegistry.RPM.id)
+
+        assertEquals(setOf(PidRegistry.RPM.id), dataStore.data.first()[unloggedKey])
+        assertEquals(AppPreferences.ALL_PID_IDS - PidRegistry.RPM.id, prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `a PID that is not in the stored deselection is logged`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        // Der Nutzer hat nur RPM abgewaehlt; alles andere, auch ein spaeter ergaenzter PID, gilt als gewollt.
+        dataStore.edit { it[unloggedKey] = setOf(PidRegistry.RPM.id) }
+
+        val logged = prefs.loggedPidIds.first()
+
+        assertEquals(AppPreferences.ALL_PID_IDS - PidRegistry.RPM.id, logged)
+        assertTrue(PidRegistry.SPEED.id in logged)
+    }
+
+    @Test
+    fun `a stored deselection that names an unknown PID does not make it logged`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        dataStore.edit { it[unloggedKey] = setOf("FFFF") }
+
+        assertEquals(AppPreferences.ALL_PID_IDS, prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `setLoggedPids with all PIDs clears the deselection`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        prefs.setLoggedPids(setOf(PidRegistry.RPM.id))
+
+        prefs.setLoggedPids(AppPreferences.ALL_PID_IDS)
+
+        assertEquals(emptySet<String>(), dataStore.data.first()[unloggedKey])
+        assertEquals(AppPreferences.ALL_PID_IDS, prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `setLoggedPids ignores a PID that does not exist`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setLoggedPids(setOf(PidRegistry.RPM.id, "FFFF"))
+
+        assertEquals(setOf(PidRegistry.RPM.id), prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `the list of an earlier version is still honoured`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        // Bis 1.25.1 stand hier die Positivliste: nur diese zwei PIDs wurden aufgezeichnet.
+        dataStore.edit { it[legacyLoggedKey] = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id) }
+
+        assertEquals(setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id), prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `the new deselection wins over the list of an earlier version`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        dataStore.edit {
+            it[legacyLoggedKey] = setOf(PidRegistry.RPM.id)
+            it[unloggedKey] = setOf(PidRegistry.SPEED.id)
+        }
+
+        assertEquals(AppPreferences.ALL_PID_IDS - PidRegistry.SPEED.id, prefs.loggedPidIds.first())
+    }
+
+    @Test
+    fun `toggling on top of the list of an earlier version keeps its meaning and replaces it`() = runTest {
+        val (prefs, dataStore) = makePreferencesWithDataStore()
+        dataStore.edit { it[legacyLoggedKey] = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id) }
+
+        prefs.toggleLoggedPid(PidRegistry.SPEED.id)
+
+        assertEquals(setOf(PidRegistry.RPM.id), prefs.loggedPidIds.first())
+        val stored = dataStore.data.first()
+        assertNull("der alte Schluessel ist abgeloest", stored[legacyLoggedKey])
+        assertEquals(AppPreferences.ALL_PID_IDS - PidRegistry.RPM.id, stored[unloggedKey])
     }
 
     // ── showAllBtDevices ──────────────────────────────────────────────────────
