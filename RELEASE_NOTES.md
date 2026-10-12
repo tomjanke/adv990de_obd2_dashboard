@@ -1,5 +1,27 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.13 (versionCode 95)
+
+Der Tacho-Sweep läuft nur noch einmal je App-Start. Dazu die Entscheidungen vom 2026-10-12 (Doku) und eine verschärfte Freigabeliste der Entwicklungssitzung (nicht Teil der App).
+
+### Tacho-Sweep: einmal je App-Start
+
+- Die Demo-Animation des Drehzahlbalkens (0 → 10 000 → 0 rpm, rund 6,7 s) lief bei **jedem** Betreten des Dashboards ohne Drehzahl — nach jedem Tabwechsel, bei jeder Rückkehr aus den Einstellungen und bei jeder Drehung des Geräts. Jetzt läuft sie **einmal je App-Start**.
+- `DashboardViewModel.consumeDemoSweepOffer()` liefert `true` nur beim ersten Aufruf. `DashboardScreen` verknüpft es mit `shouldStartRpmDemoSweep` (Drehzahl nach 400 ms noch 0?). Beide Fragen sind getrennt und einzeln getestet.
+- „App-Start“ ist die Lebensdauer des `DashboardViewModel`: Tabwechsel und Drehung spielen nichts neu ab; Wegwischen und Neustart spielen den Sweep ab. Ein Systemkill mit Wiederherstellung zählt als neuer Start (das Feld liegt bewusst nicht im `SavedStateHandle`).
+- Das Angebot ist mit der **ersten Prüfung** verbraucht, nicht erst mit dem Abspielen: lag beim Start schon eine echte Drehzahl an, wird der Sweep nicht später mitten in der Sitzung nachgeholt.
+- **Folge:** Ohne gesetzte Blinkgrenze zeigt der Sweep die Schaltblitz-Vorschau über 7 000 rpm — sie erscheint nur noch beim Start.
+- **Nicht am Gerät geprüft:** die Drehung des Geräts (wird vom Nutzer physisch gedreht).
+
+### Entscheidungen und Doku
+
+- Neues Entscheidungsprotokoll `docs/qa/2026-10-12-decisions.md`: Navigationsübergänge bleiben beim Standard von `NavHost` (CLAUDE.md nennt ihn jetzt als Vorgabe, die 220-ms-Forderung entfällt, UID-10), die Drehzahlskala bleibt bei 10 000 (UID-21), Polling und Aufzeichnung bleiben im ViewModel, Compose-BOM 2026.09 erst nach der Testfahrt, die Seriennummer des Testgeräts wird erst vor einer Veröffentlichung des Repositorys aus der Historie getilgt, die Keystore-Zweitkopie legt der Nutzer selbst an.
+- Die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert, nicht Teil der App) wurde verschärft: 116 → 106 Einträge, `git push` nur noch auf `origin main` und Tags, Deny-Regeln für den Keystore-Ordner und `gradle.properties`. Beschreibung und Grenzen in der CLAUDE.md.
+
+### Tests
+
+1334 JVM-Unit-Tests (+3: einmaliges Angebot, neues ViewModel bekommt es wieder, Verbindungswechsel setzen es nicht zurück; zwei Mutationen erkannt).
+
 ## Version 1.24.12 (versionCode 94)
 
 Kleine Anzeige-Fixes aus dem QS-Bericht (UID-15, UID-16, UID-19, UID-20, DAT-13) und das Verbindungsversuch-Band aus dem Backlog; dazu zwei Kleinigkeiten (Standort-Hardware optional, Smoke-Test im Repo).
