@@ -149,7 +149,7 @@ class DtcScreenTest {
     @Test
     fun dtcScreen_showsFaultCode_whenDtcListNonEmpty() {
         coEvery { obdRepository.readDtcs() } returns listOf(
-            DtcEntry(code = "P0300", description = "Random Misfire", isPending = false)
+            DtcEntry(code = "P0300", isPending = false)
         )
         launchDtcScreen()
         composeRule.waitForIdle()
@@ -186,7 +186,7 @@ class DtcScreenTest {
     @Test
     fun dtcScreen_errorState_offersARetryButton_thatReadsAgain() {
         coEvery { obdRepository.readDtcs() } throws RuntimeException("boom") andThen
-            listOf(DtcEntry(code = "P0300", description = "Random Misfire", isPending = false))
+            listOf(DtcEntry(code = "P0300", isPending = false))
         launchDtcScreen()
         waitForText(string(R.string.retry))
 
@@ -224,7 +224,7 @@ class DtcScreenTest {
     @Test
     fun dtcScreen_showsPendingBadge_forPendingDtc() {
         coEvery { obdRepository.readDtcs() } returns listOf(
-            DtcEntry(code = "P0301", description = "Cylinder 1 Misfire", isPending = true)
+            DtcEntry(code = "P0301", isPending = true)
         )
         launchDtcScreen()
         composeRule.waitForIdle()
@@ -237,7 +237,7 @@ class DtcScreenTest {
     fun dtcScreen_navigatesToFreezeFrame_whenLinkClicked() {
         // The freeze-frame link only renders once the DTC list is non-empty.
         coEvery { obdRepository.readDtcs() } returns listOf(
-            DtcEntry(code = "P0300", description = "Random Misfire", isPending = false)
+            DtcEntry(code = "P0300", isPending = false)
         )
         // DtcScreen navigates via the real NavController it is given (navController.navigate(...)),
         // not a callback lambda, so a real NavHost with both routes is needed here: navigating
@@ -295,7 +295,7 @@ class DtcScreenTest {
     @Test
     fun theLiveCodesAreRecordedInTheHistory() {
         coEvery { obdRepository.readDtcs() } returns listOf(
-            DtcEntry(code = "P0300", description = "Random Misfire", isPending = true)
+            DtcEntry(code = "P0300", isPending = true)
         )
         launchDtcScreen()
         waitForText("P0300")
@@ -320,7 +320,7 @@ class DtcScreenTest {
         record("P0420", seenP0420, pending = true)
         // The live read re-sights P0301 the moment the page opens, so its "last seen" becomes TODAY —
         // the intended meaning of "last seen" (latest sighting). P0420 is not in the live read.
-        coEvery { obdRepository.readDtcs() } returns listOf(DtcEntry("P0301", "Cylinder 1 Misfire Detected", false))
+        coEvery { obdRepository.readDtcs() } returns listOf(DtcEntry("P0301", false))
         launchDtcScreen()
         waitForText(string(R.string.dtc_tab_history))
 
@@ -333,8 +333,9 @@ class DtcScreenTest {
         // Wait for the text instead of asserting at once: the recording of the live read re-composes the row.
         waitForText(dates(firstSeenP0301, now))
         composeRule.onNodeWithText("P0301").assertIsDisplayed()
-        composeRule.onNodeWithText("Cylinder 1 Misfire Detected").assertIsDisplayed()
-        composeRule.onNodeWithText("Catalyst System Efficiency Below Threshold (Bank 1)").assertIsDisplayed()
+        // Die Beschreibung folgt der Sprache des Geraets (Ressource), nicht einem festen Text.
+        composeRule.onNodeWithText(string(R.string.dtc_p0301)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.dtc_p0420)).assertIsDisplayed()
         composeRule.onNodeWithText(dates(firstSeenP0301, now)).assertIsDisplayed()
         composeRule.onNodeWithText(dates(seenP0420, seenP0420)).assertIsDisplayed()
         // P0301 is in the last live read (active), P0420 was last seen as pending.

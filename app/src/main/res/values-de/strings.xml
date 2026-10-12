@@ -111,6 +111,46 @@
         <item quantity="other">%1$d Einträge gelöscht</item>
     </plurals>
 
+    <!-- Beschreibungen der Fehlercodes (deutsche Fassung der SAE-J2012-Namen, eigene Übersetzung; der Code selbst steht immer daneben). Codes außerhalb dieser Liste zeigen dtc_unknown. -->
+    <string name="dtc_p0100">Luftmassen-/Luftmengenmesser: Fehler im Stromkreis</string>
+    <string name="dtc_p0101">Luftmassen-/Luftmengenmesser: Messbereich/Leistung unplausibel</string>
+    <string name="dtc_p0102">Luftmassen-/Luftmengenmesser: Signal zu niedrig</string>
+    <string name="dtc_p0103">Luftmassen-/Luftmengenmesser: Signal zu hoch</string>
+    <string name="dtc_p0110">Ansauglufttemperatur-Sensor: Fehler im Stromkreis</string>
+    <string name="dtc_p0115">Kühlmitteltemperatur-Sensor: Fehler im Stromkreis</string>
+    <string name="dtc_p0120">Drosselklappen-/Fahrpedalstellungssensor A: Fehler im Stromkreis</string>
+    <string name="dtc_p0130">Lambdasonde: Fehler im Stromkreis (Bank 1, Sensor 1)</string>
+    <string name="dtc_p0171">Gemisch zu mager (Bank 1)</string>
+    <string name="dtc_p0172">Gemisch zu fett (Bank 1)</string>
+    <string name="dtc_p0175">Gemisch zu fett (Bank 2)</string>
+    <string name="dtc_p0200">Einspritzventil: Fehler im Stromkreis</string>
+    <string name="dtc_p0300">Zufällige oder mehrere Zylinder: Zündaussetzer erkannt</string>
+    <string name="dtc_p0301">Zylinder 1: Zündaussetzer erkannt</string>
+    <string name="dtc_p0302">Zylinder 2: Zündaussetzer erkannt</string>
+    <string name="dtc_p0303">Zylinder 3: Zündaussetzer erkannt</string>
+    <string name="dtc_p0304">Zylinder 4: Zündaussetzer erkannt</string>
+    <string name="dtc_p0305">Zylinder 5: Zündaussetzer erkannt</string>
+    <string name="dtc_p0306">Zylinder 6: Zündaussetzer erkannt</string>
+    <string name="dtc_p0325">Klopfsensor 1: Fehler im Stromkreis (Bank 1)</string>
+    <string name="dtc_p0335">Kurbelwellenstellungssensor A: Fehler im Stromkreis</string>
+    <string name="dtc_p0340">Nockenwellenstellungssensor A: Fehler im Stromkreis (Bank 1)</string>
+    <string name="dtc_p0400">Abgasrückführung: Durchfluss fehlerhaft</string>
+    <string name="dtc_p0401">Abgasrückführung: Durchfluss unzureichend</string>
+    <string name="dtc_p0420">Katalysator: Wirkungsgrad unter dem Schwellwert (Bank 1)</string>
+    <string name="dtc_p0421">Katalysator im Warmlauf: Wirkungsgrad unter dem Schwellwert (Bank 1)</string>
+    <string name="dtc_p0430">Katalysator: Wirkungsgrad unter dem Schwellwert (Bank 2)</string>
+    <string name="dtc_p0440">Tankentlüftungssystem: Fehlfunktion</string>
+    <string name="dtc_p0442">Tankentlüftungssystem: Leck erkannt (klein)</string>
+    <string name="dtc_p0455">Tankentlüftungssystem: Leck erkannt (groß)</string>
+    <string name="dtc_p0500">Fahrzeuggeschwindigkeitssensor: Fehlfunktion</string>
+    <string name="dtc_p0505">Leerlaufregelung: Fehlfunktion</string>
+    <string name="dtc_p0600">Serielle Kommunikationsverbindung: Fehlfunktion</string>
+    <string name="dtc_p0700">Getriebesteuerung: Fehlfunktion</string>
+    <string name="dtc_p0711">Getriebeöltemperatur-Sensor: Messbereich/Leistung unplausibel</string>
+    <string name="dtc_p0730">Falsche Getriebeübersetzung</string>
+    <string name="dtc_p0740">Wandlerüberbrückungskupplung: Fehler im Stromkreis</string>
+    <string name="dtc_unknown">Unbekannter Fehlercode</string>
+
     <!-- Freeze Frame screen -->
     <string name="freeze_frame_title">Freeze Frame</string>
     <string name="freeze_frame_empty">Keine Freeze Frame Daten verfügbar.</string>

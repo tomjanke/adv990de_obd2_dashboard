@@ -60,6 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.DtcHistoryEntry
+import de.adv990de.obd2.obd.dtcDescriptionRes
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
@@ -290,7 +291,7 @@ private fun HistoryContent(
 fun DtcRow(dtc: DtcEntry) {
     ListItem(
         headlineContent = { Text(dtc.code) },
-        supportingContent = { Text(dtc.description) },
+        supportingContent = { Text(stringResource(dtcDescriptionRes(dtc.code))) },
         trailingContent = {
             if (dtc.isPending) Badge { Text(stringResource(R.string.dtc_badge_pending)) }
         }
@@ -306,7 +307,7 @@ private fun DtcHistoryRow(item: DtcHistoryItem, onDelete: () -> Unit) {
         headlineContent = { Text(item.entry.code) },
         supportingContent = {
             Column {
-                Text(item.entry.description)
+                Text(stringResource(dtcDescriptionRes(item.entry.code)))
                 Text(
                     stringResource(
                         R.string.dtc_history_dates,
@@ -334,12 +335,11 @@ private fun DtcHistoryRow(item: DtcHistoryItem, onDelete: () -> Unit) {
 //
 // DtcScreen selbst braucht `hiltViewModel()` und hat deshalb keine Vorschau; die zustandslosen Bausteine schon.
 
-private val PREVIEW_CONFIRMED = DtcEntry(code = "P0301", description = "Cylinder 1 Misfire Detected", isPending = false)
-private val PREVIEW_PENDING = DtcEntry(code = "P0420", description = "Catalyst System Efficiency Below Threshold (Bank 1)", isPending = true)
+private val PREVIEW_CONFIRMED = DtcEntry(code = "P0301", isPending = false)
+private val PREVIEW_PENDING = DtcEntry(code = "P0420", isPending = true)
 private val PREVIEW_HISTORY = DtcHistoryItem(
     entry = DtcHistoryEntry(
         code = "P0301",
-        description = "Cylinder 1 Misfire Detected",
         firstSeen = 1_791_000_000_000L,
         lastSeen = 1_791_500_000_000L,
         lastWasPending = false,

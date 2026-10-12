@@ -1,5 +1,6 @@
 package de.adv990de.obd2.obd
 
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import org.junit.Assert.*
 import org.junit.Test
@@ -42,24 +43,13 @@ class DtcParserTest {
         assertEquals("U0003", dtcs[2].code)
     }
 
-    // "43 01 00 07 40" → 0x01,0x00 → P0100; 0x07,0x40 → P0740 (both in the lookup table)
+    // "43 01 00 07 40" → 0x01,0x00 → P0100; 0x07,0x40 → P0740. Die Beschreibung steht nicht im Eintrag, sie folgt aus dem Code
+    // (dtcDescriptionRes, DtcDescriptionTest) — der Parser liefert nur den Code und ob er ausstehend ist.
     @Test
-    fun `parse resolves known descriptions from the lookup table`() {
+    fun `parse returns the code and the pending flag of each entry`() {
         val dtcs = parser.parse("43 01 00 07 40", isPending = false)
-        assertEquals(2, dtcs.size)
-        assertEquals("P0100", dtcs[0].code)
-        assertEquals("Mass or Volume Air Flow Circuit Malfunction", dtcs[0].description)
-        assertEquals("P0740", dtcs[1].code)
-        assertEquals("Torque Converter Clutch Circuit Malfunction", dtcs[1].description)
-    }
-
-    // "43 09 99" → 0x09,0x99 → P0999, which is not in the lookup table
-    @Test
-    fun `parse falls back to Unknown DTC for a code not in the lookup table`() {
-        val dtcs = parser.parse("43 09 99", isPending = false)
-        assertEquals(1, dtcs.size)
-        assertEquals("P0999", dtcs[0].code)
-        assertEquals("Unknown DTC", dtcs[0].description)
+        assertEquals(listOf(DtcEntry("P0100", isPending = false), DtcEntry("P0740", isPending = false)), dtcs)
+        assertEquals(listOf(DtcEntry("P0100", isPending = true)), parser.parse("47 01 00", isPending = true))
     }
 
     @Test(expected = ObdException.UnknownResponse::class)

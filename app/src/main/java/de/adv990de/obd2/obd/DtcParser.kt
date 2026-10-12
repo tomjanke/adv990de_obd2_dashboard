@@ -53,7 +53,7 @@ class DtcParser {
             val numericPart = String.format("%04X", ((high and 0x3F) shl 8) or low)
             val code = "$typeChar$numericPart"
 
-            dtcs.add(DtcEntry(code = code, description = dtcDescription(code), isPending = isPending))
+            dtcs.add(DtcEntry(code = code, isPending = isPending))
         }
         return dtcs
     }

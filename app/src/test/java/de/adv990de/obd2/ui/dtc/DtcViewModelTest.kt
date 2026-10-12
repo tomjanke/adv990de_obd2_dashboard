@@ -57,7 +57,7 @@ class DtcViewModelTest {
     )
 
     private fun entry(code: String, lastSeen: Long = 2_000L, pending: Boolean = false) =
-        DtcHistoryEntry(code, "text of $code", firstSeen = 1_000L, lastSeen = lastSeen, lastWasPending = pending)
+        DtcHistoryEntry(code, firstSeen = 1_000L, lastSeen = lastSeen, lastWasPending = pending)
 
     private fun fixture(
         connected: Boolean = true,
@@ -100,7 +100,7 @@ class DtcViewModelTest {
 
     @Test
     fun `refresh sets dtcs on success`() = runTest {
-        val dtcs = listOf(DtcEntry("P0301", "Misfire cylinder 1", false))
+        val dtcs = listOf(DtcEntry("P0301", false))
         val f = fixture(live = dtcs)
 
         f.vm.refresh()
@@ -202,7 +202,7 @@ class DtcViewModelTest {
 
     @Test
     fun `refresh without a connection reads nothing and records nothing`() = runTest {
-        val f = fixture(connected = false, live = listOf(DtcEntry("P0301", "x", false)))
+        val f = fixture(connected = false, live = listOf(DtcEntry("P0301", false)))
 
         f.vm.refresh()
         advanceUntilIdle()
@@ -216,7 +216,7 @@ class DtcViewModelTest {
 
     @Test
     fun `a stale live list is cleared when refresh finds no connection`() = runTest {
-        val f = fixture(live = listOf(DtcEntry("P0301", "x", false)))
+        val f = fixture(live = listOf(DtcEntry("P0301", false)))
         f.vm.refresh(); advanceUntilIdle()
         assertEquals(1, f.vm.uiState.value.dtcs.size)
 
@@ -230,7 +230,7 @@ class DtcViewModelTest {
 
     @Test
     fun `refresh with a connection records what it read`() = runTest {
-        val dtcs = listOf(DtcEntry("P0301", "x", false), DtcEntry("P0420", "y", true))
+        val dtcs = listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
         val f = fixture(live = dtcs)
 
         f.vm.refresh()
@@ -266,7 +266,7 @@ class DtcViewModelTest {
         val f = fixture(
             connected = true,
             stored = listOf(entry("P0301"), entry("P0420")),
-            live = listOf(DtcEntry("P0301", "x", false)),
+            live = listOf(DtcEntry("P0301", false)),
         )
         val job = collect(f.vm); runCurrent()
         assertEquals("nothing is active before the first read", listOf(false, false), f.vm.history.value.map { it.isActive })
@@ -279,7 +279,7 @@ class DtcViewModelTest {
 
     @Test
     fun `nothing is active any more once the connection drops`() = runTest {
-        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", "x", false)))
+        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", false)))
         val job = collect(f.vm); runCurrent()
         f.vm.refresh(); runCurrent()
         assertTrue(f.vm.history.value.single().isActive)
@@ -295,7 +295,7 @@ class DtcViewModelTest {
     fun `after a drop and a reconnect nothing is active until the next read - the old list says nothing about the new connection`() = runTest {
         // Sichtbar, wenn die DTC-Seite nicht offen war, waehrend die Verbindung wegbrach und zurueckkam: die Liste aus dem
         // alten Auslesen galt sonst wieder als "Aktiv", obwohl nach dem Wiederverbinden niemand das Fahrzeug gefragt hat.
-        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", "x", false)))
+        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", false)))
         val job = collect(f.vm); runCurrent()
         f.vm.refresh(); runCurrent()
         assertTrue("aktiv nach dem Auslesen", f.vm.history.value.single().isActive)
@@ -314,8 +314,8 @@ class DtcViewModelTest {
     fun `a slow older read cannot overwrite the result of a newer one`() = runTest {
         val f = fixture(stored = listOf(entry("A"), entry("B")))
         val gate = CompletableDeferred<Unit>()
-        val older = listOf(DtcEntry("A", "old", false))
-        val newer = listOf(DtcEntry("B", "new", false))
+        val older = listOf(DtcEntry("A", false))
+        val newer = listOf(DtcEntry("B", false))
         coEvery { f.obd.readDtcs() } coAnswers { gate.await(); older } andThen newer
         val job = collect(f.vm); runCurrent()
 
@@ -338,7 +338,7 @@ class DtcViewModelTest {
     fun `a slow older read that fails cannot replace a newer successful result with an error`() = runTest {
         val f = fixture(stored = listOf(entry("B")))
         val gate = CompletableDeferred<Unit>()
-        val newer = listOf(DtcEntry("B", "new", false))
+        val newer = listOf(DtcEntry("B", false))
         coEvery { f.obd.readDtcs() } coAnswers { gate.await(); throw IllegalStateException("late failure") } andThen newer
 
         f.vm.refresh(); runCurrent()
@@ -353,7 +353,7 @@ class DtcViewModelTest {
     fun `a superseded read is still recorded - it was a real sighting`() = runTest {
         val f = fixture(stored = listOf(entry("A")))
         val gate = CompletableDeferred<Unit>()
-        val older = listOf(DtcEntry("A", "old", false))
+        val older = listOf(DtcEntry("A", false))
         coEvery { f.obd.readDtcs() } coAnswers { gate.await(); older } andThen emptyList()
 
         f.vm.refresh(); runCurrent()
@@ -377,7 +377,7 @@ class DtcViewModelTest {
 
     @Test
     fun `a failed read after a successful one clears the active marks`() = runTest {
-        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", "x", false)))
+        val f = fixture(stored = listOf(entry("P0301")), live = listOf(DtcEntry("P0301", false)))
         val job = collect(f.vm); runCurrent()
         f.vm.refresh(); runCurrent()
         assertTrue("active after the successful read", f.vm.history.value.single().isActive)

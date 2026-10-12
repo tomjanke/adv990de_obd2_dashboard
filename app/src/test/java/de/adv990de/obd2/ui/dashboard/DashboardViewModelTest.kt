@@ -490,7 +490,7 @@ class DashboardViewModelTest {
 
     @Test
     fun `active DTCs on connect are logged as WARN`() = runTest {
-        val dtc = mockk<DtcEntry>()
+        val dtc = DtcEntry("P0301", isPending = false)
         val isConnectedFlow = MutableStateFlow(false)
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
@@ -611,7 +611,7 @@ class DashboardViewModelTest {
     @Test
     fun `logOnlyDtcSessions=true, DTCs present - session is kept`() = runTest {
         val isConnectedFlow = MutableStateFlow(false)
-        val dtc = mockk<DtcEntry>()
+        val dtc = DtcEntry("P0301", isPending = false)
         val obdRepo = mockk<ObdRepository> {
             every { setMoving(any()) } just Runs
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
@@ -1019,7 +1019,7 @@ class DashboardViewModelTest {
     }
 
     // ── makeVm() helper — used by foreground-service tests ────────────────────
-    // Wraps the full 7-parameter constructor so new tests can be written concisely.
+    // Wraps makeVmFrom(), which builds the ViewModel with its collaborators, so new tests can be written concisely.
     // Parameters that are not relevant to a specific test keep their defaults.
     private fun makeVm(
         obdRepo: ObdRepository = mockk<ObdRepository> {

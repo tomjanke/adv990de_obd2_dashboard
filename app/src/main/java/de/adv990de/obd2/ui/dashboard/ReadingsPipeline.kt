@@ -291,7 +291,7 @@ class ReadingsPipeline @Inject constructor(
             null
         }
         if (dtcList?.isNotEmpty() == true) {
-            appLogRepository.log(LogLevel.WARN, "Active DTCs on connect: ${dtcList.joinToString()}")
+            appLogRepository.log(LogLevel.WARN, "Active DTCs on connect: ${dtcList.joinToString { if (it.isPending) "${it.code} (pending)" else it.code }}")
         }
         // Lokale Fehlerhistorie: jede Fahrt fuellt sie passiv. Nur nach einem erfolgreichen Auslesen
         // (null = Lesefehler: nichts aufzeichnen). record() ist selbst "best effort" — die Absicherung

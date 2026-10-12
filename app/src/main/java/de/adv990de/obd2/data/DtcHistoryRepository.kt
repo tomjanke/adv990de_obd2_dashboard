@@ -1,7 +1,6 @@
 package de.adv990de.obd2.data
 
 import de.adv990de.obd2.data.db.DtcHistoryDao
-import de.adv990de.obd2.obd.dtcDescription
 import de.adv990de.obd2.obd.model.DtcEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -26,10 +25,10 @@ class DtcHistoryRepository @Inject constructor(
     private val appLogRepository: AppLogRepository,
 ) {
 
-    /** Newest sighting first. The description is resolved for display, not stored. */
+    /** Newest sighting first. Only the code is stored; the description is resolved from it for display. */
     val history: Flow<List<DtcHistoryEntry>> by lazy {
         dao.observeAll().map { rows ->
-            rows.map { DtcHistoryEntry(it.code, dtcDescription(it.code), it.firstSeen, it.lastSeen, it.lastWasPending) }
+            rows.map { DtcHistoryEntry(it.code, it.firstSeen, it.lastSeen, it.lastWasPending) }
         }
     }
 

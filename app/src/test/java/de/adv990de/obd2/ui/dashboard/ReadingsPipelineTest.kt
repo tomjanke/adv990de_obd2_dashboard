@@ -842,7 +842,7 @@ class ReadingsPipelineTest {
 
     @Test
     fun `the DTCs read at connect are recorded in the fault history`() = runTest {
-        val dtcs = listOf(DtcEntry("P0301", "Cylinder 1 Misfire Detected", false), DtcEntry("P0420", "Catalyst", true))
+        val dtcs = listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
         val repo = makeRepo(connected = true)
         coEvery { repo.readDtcs() } returns dtcs
         val history = mockk<DtcHistoryRepository>(relaxed = true)
@@ -850,6 +850,17 @@ class ReadingsPipelineTest {
         makePipeline(repo, dtcHistory = history).events(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { history.record(dtcs, any()) }
+    }
+
+    @Test
+    fun `the active DTCs are written to the app log by code, pending ones marked`() = runTest {
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, "Active DTCs on connect: P0301, P0420 (pending)") }
     }
 
     @Test
@@ -875,7 +886,7 @@ class ReadingsPipelineTest {
     @Test
     fun `a throwing fault history does not stop the session`() = runTest {
         val repo = makeRepo(connected = true)
-        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", "x", false))
+        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", false))
         val history = mockk<DtcHistoryRepository> {
             coEvery { record(any(), any()) } throws IllegalStateException("history exploded")
         }

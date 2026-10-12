@@ -27,7 +27,7 @@ class DtcHistoryRepositoryTest {
     private val appLog = mockk<AppLogRepository>(relaxed = true)
     private val repo = DtcHistoryRepository(dao, appLog)
 
-    private fun dtc(code: String, pending: Boolean = false) = DtcEntry(code, "text of $code", pending)
+    private fun dtc(code: String, pending: Boolean = false) = DtcEntry(code, pending)
 
     // ── record ────────────────────────────────────────────────────────────────
 
@@ -138,8 +138,8 @@ class DtcHistoryRepositoryTest {
 
         assertEquals(
             listOf(
-                DtcHistoryEntry("P0301", "Cylinder 1 Misfire Detected", 1_000L, 3_000L, false),
-                DtcHistoryEntry("P9999", "Unknown DTC", 2_000L, 2_000L, true),
+                DtcHistoryEntry("P0301", 1_000L, 3_000L, false),
+                DtcHistoryEntry("P9999", 2_000L, 2_000L, true),
             ),
             entries,
         )
