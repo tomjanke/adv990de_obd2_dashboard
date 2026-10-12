@@ -395,6 +395,9 @@ PIDs, Aufgezeichnete PIDs →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wa
 - **Eltern-Tab:** `parentTab(route)` (`ui/navigation/ParentTab.kt`, rein) ordnet jeder Unterseite ihren Tab zu; `BottomNav`
   markiert ihn, die Leiste steht auf Unterseiten also nie ohne Auswahl. Ein neuer `Screen` zwingt `ParentTabTest` (exhaustives
   `when`) zu einer Entscheidung. Die Zurück-Beschreibung der Pfeile ist überall `R.string.nav_back_desc`.
+- **Erneuter Tipp auf den hervorgehobenen Reiter (seit v1.24.14):** `bottomNavAction(currentRoute, tappedTab)` (`ui/navigation/BottomNavAction.kt`, rein) entscheidet: auf der Startseite des Reiters `Ignore`, auf einer seiner Unterseiten `PopToTabRoot`
+  (`popBackStack(route, inclusive = false)`, scheitert das, weil die Startseite nicht auf dem Stapel liegt, wie ein Wechsel), anderer Reiter `SwitchTab` (Zustand sichern/wiederherstellen wie bisher). Vorher tat der Tipp auf einer Unterseite nichts — `restoreState = true`
+  stellte genau den Stapel wieder her, den der Tipp gerade gesichert hatte (am Pixel mit der App-Info nachgestellt). Nie wieder `navigate(…)` allein für einen Reiter-Tipp.
 
 ### Lösch-Vertrag für lokale Daten (seit 2026-10-04, v1.20.0; Verlauf ergänzt mit Phase 3)
 
@@ -446,6 +449,9 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 
 ### Fehlerzustände ehrlich anzeigen (seit v1.24.1)
 
+- **Ein Fehler gilt nur, solange seine Ursache besteht (seit v1.24.14).** `SettingsViewModel.error` hat zwei Ursachen, die sich nicht gegenseitig aufräumen: ein Fehler beim Laden der Geräteliste (fehlende Bluetooth-Berechtigung; `errorFromDeviceList`)
+  endet mit dem nächsten **erfolgreichen** `loadDevices()`; ein Verbindungsfehler endet, sobald eine Verbindung steht — **auf jedem Weg**, auch bei der Wiederverbindung des Dashboards, die `connect()` dieser Seite gar nicht durchläuft (vorher blieb „Verbindung
+  fehlgeschlagen“ neben einer stehenden Verbindung stehen). Ein neuer Verbindungsversuch ersetzt beides. Neue Fehlerzustände fragen sich, wer sie wieder löscht.
 - **Ein Fehler hat immer einen sichtbaren Text.** Fehlerzustände in ViewModels sind `UiText?` und kommen aus
   `ObdErrorMapper.toUiText(e)` — **nie** aus `e.message`: Eine Ausnahme ohne Meldung (`null`) sah die Oberfläche als „kein Fehler“,
   die DTC-Seite zeigte dann das grüne „Keine Fehlercodes“. Der Mapper lokalisiert bekannte Ursachen (`ObdException`,
@@ -730,6 +736,10 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 - **Instrumentation-DataStore:** `TestAppModule` gibt jedem Test einen **eigenen** DataStore (Temp-Datei, produktiver Korruptions-Handler). Tests starten bei den
   Standardwerten und hinterlassen nichts; die Einstellungen der Debug-App auf dem Gerät bleiben unberührt. Nie wieder `ctx.dataStore` in einem Test-Modul.
 - **Benachrichtigungskanal:** `createObdNotificationChannel(context)` (`ObdForegroundService.kt`) — die Application und der Service-Test benutzen dieselbe Funktion.
+- **Projektverzeichnis in Tests:** `projectRoot` (`app/src/test/java/de/adv990de/obd2/ProjectRoot.kt`, `internal`, lazy) — eine Stelle für alle Tests, die Quelltext, Doku oder Skripte lesen (`import de.adv990de.obd2.projectRoot`). Zehn Kopien der Suche nach `settings.gradle.kts`
+  trugen je eine Compilerwarnung (`System.getProperty` ist nullable); die JVM-Tests laufen jetzt ohne Kompilerwarnung. **Test-Falle:** `docs/*` in einem KDoc beginnt einen verschachtelten Kommentar (`/*`) — „Unclosed comment“; im Kommentar umschreiben.
+- **Wetter-Uhr:** `timeSourceFrom(readNanos)` (`WeatherViewModel.kt`) baut die `TimeSource` auf einer vorgegebenen Uhr; `TimeSourceFromTest` hält fest, dass nur diese Uhr gelesen wird (eine eingefrorene Uhr lässt keine Zeit vergehen, auch wenn die JVM-Zeit läuft) und dass ein Sprung von
+  Stunden ankommt. Die echte Verdrahtung `elapsedRealtimeSource` (`SystemClock.elapsedRealtimeNanos()`, zählt Tiefschlaf mit) prüft `ElapsedRealtimeSourceDeviceTest` auf dem Gerät. Ein echter Tiefschlaf lässt sich im Test nicht herbeiführen.
 - **Locale:** Die JVM-Tests laufen unter `de_DE` (`app/build.gradle.kts`). Eine Anzeigeformatierung wird mit `withDefaultLocale(Locale.US)`/`(Locale.GERMANY)` getestet,
   beide Schreibweisen, exakt statt `contains`.
 - **`ElmController`:** Das Lese-Zeitlimit ist ein Konstruktor-Parameter (`readTimeoutMs`, Standard 5 s) — Timeout-Tests nehmen 100 ms (echte Zeit; `withTimeout` in
@@ -864,8 +874,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1334 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 316 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1349 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 321 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

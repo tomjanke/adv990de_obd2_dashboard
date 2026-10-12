@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -14,10 +15,6 @@ import java.io.File
  *    Datei, die so eine Komponente nutzt, ruft deshalb `ProvideMinTouchTarget` in deren Slots auf.
  */
 class UiRulesSourceTest {
-
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden")
 
     private val mainSources: List<File> = File(projectRoot, "app/src/main/java").walkTopDown().filter { it.extension == "kt" }.toList()
 

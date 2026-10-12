@@ -278,6 +278,50 @@ class BottomNavTest {
     }
 
     @Test
+    fun reTappingTheSettingsItem_onASubPage_returnsToTheSettingsStartPage() {
+        // Gefunden am Pixel 8 Pro (2026-10-12): auf der App-Info tat der Tipp auf den hervorgehobenen Reiter nichts,
+        // weil restoreState genau den eben gesicherten Stapel wiederherstellte.
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Settings.route)
+        composeRule.runOnUiThread { navController.navigate(Screen.AppLogs.route) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(APP_LOGS_MARKER).assertIsDisplayed()
+
+        composeRule.onNodeWithText(label(R.string.settings_title)).performClick()
+        composeRule.waitForIdle()
+
+        assertTrue(
+            "expected ${Screen.Settings.route}, was ${navController.currentDestination?.route}",
+            navController.currentDestination?.route == Screen.Settings.route,
+        )
+        composeRule.onNodeWithText(SETTINGS_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.settings_title)).assertIsSelected()
+    }
+
+    @Test
+    fun reTappingTheDtcItem_onTheFreezeFramePage_returnsToTheDtcStartPage() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+        composeRule.runOnUiThread { navController.navigate(Screen.FreezeFrame.route) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(FREEZE_FRAME_MARKER).assertIsDisplayed()
+
+        composeRule.onNodeWithText(label(R.string.nav_dtcs)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(DTC_MARKER).assertIsDisplayed()
+    }
+
+    @Test
+    fun reTappingTheSelectedItem_atItsStartPage_staysThere() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+
+        composeRule.onNodeWithText(label(R.string.nav_dtcs)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(DTC_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsSelected()
+    }
+
+    @Test
     fun clickingNavItem_navigatesToItsRoute() {
         launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dashboard.route)
 

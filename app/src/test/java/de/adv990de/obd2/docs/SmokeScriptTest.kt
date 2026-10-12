@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -13,9 +14,6 @@ import java.util.concurrent.TimeUnit
  * ein Skript, das nie laeuft, verrottet sonst unbemerkt.
  */
 class SmokeScriptTest {
-
-    private val projectRoot: File = generateSequence(File(requireNotNull(System.getProperty("user.dir"))).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("settings.gradle.kts nicht gefunden")
 
     private val script = File(projectRoot, "scripts/smoke.py")
 

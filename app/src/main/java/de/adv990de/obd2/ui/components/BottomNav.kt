@@ -46,7 +46,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
+import de.adv990de.obd2.ui.navigation.BottomNavAction
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.bottomNavAction
 import de.adv990de.obd2.ui.navigation.parentTab
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.theme.AppTypography
@@ -152,10 +154,20 @@ fun BottomNav(
                             // parentTab(): a sub-page keeps the tab it was opened from highlighted.
                             selected = parentTab(currentRoute) == screen,
                             onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+                                val switchTab = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                                when (bottomNavAction(currentRoute, screen)) {
+                                    BottomNavAction.Ignore -> Unit
+                                    // Re-tap on the highlighted tab from one of its sub-pages: back to the tab's start page.
+                                    // popBackStack() is false when that page is not on the stack — then navigate as usual.
+                                    BottomNavAction.PopToTabRoot ->
+                                        if (!navController.popBackStack(screen.route, inclusive = false)) switchTab()
+                                    BottomNavAction.SwitchTab -> switchTab()
                                 }
                             },
                             icon = { Icon(icon, contentDescription = label) },

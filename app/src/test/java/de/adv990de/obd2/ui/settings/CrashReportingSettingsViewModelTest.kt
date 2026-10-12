@@ -36,7 +36,7 @@ class CrashReportingSettingsViewModelTest {
 
     private fun prefs(enabled: MutableStateFlow<Boolean>): AppPreferences = mockk {
         every { crashReportsEnabled } returns enabled
-        coEvery { setCrashReportsEnabled(any()) } answers { enabled.value = firstArg(); Unit }
+        coEvery { setCrashReportsEnabled(any()) } answers { enabled.value = firstArg() }
     }
 
     private fun controller(available: Boolean): CrashReportingController =

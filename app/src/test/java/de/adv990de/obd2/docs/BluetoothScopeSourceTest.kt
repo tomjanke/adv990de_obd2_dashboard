@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,10 +13,6 @@ import java.io.File
  * README-Versprechen.
  */
 class BluetoothScopeSourceTest {
-
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden")
 
     private fun read(relative: String) = File(projectRoot, relative).readText()
 

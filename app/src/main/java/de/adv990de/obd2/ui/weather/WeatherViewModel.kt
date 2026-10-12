@@ -33,8 +33,15 @@ private const val POLL_INTERVAL_MS = 60_000L
  * Anwendungsfall richtig — er misst Luecken nur waehrend aktiven Pollings, nie ueber ein
  * hintergrundgeschicktes Activity/App hinweg, also nie ueber einen Tiefschlaf von realer Dauer.
  */
-private val elapsedRealtimeSource: TimeSource = object : AbstractLongTimeSource(DurationUnit.NANOSECONDS) {
-    override fun read(): Long = SystemClock.elapsedRealtimeNanos()
+internal val elapsedRealtimeSource: TimeSource = timeSourceFrom { SystemClock.elapsedRealtimeNanos() }
+
+/**
+ * Eine [TimeSource] auf einer beliebigen Nanosekunden-Uhr [readNanos]. Eigene Funktion, damit Tests die Uhr vorgeben koennen
+ * (die echte, [elapsedRealtimeSource], braucht Android und hat einen Geraetetest): geprueft ist, dass die Zeitquelle AUSSCHLIESSLICH
+ * die gelieferte Uhr liest und die verstrichene Zeit korrekt daraus bildet.
+ */
+internal fun timeSourceFrom(readNanos: () -> Long): TimeSource = object : AbstractLongTimeSource(DurationUnit.NANOSECONDS) {
+    override fun read(): Long = readNanos()
 }
 
 /**

@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.licenses
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,10 +12,6 @@ import java.io.File
  * einem Eintrag, damit eine Bibliothek nicht still ohne Lizenzhinweis ausgeliefert wird.
  */
 class LicenseCatalogTest {
-
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden")
 
     private fun read(relative: String) = File(projectRoot, relative).readText()
 

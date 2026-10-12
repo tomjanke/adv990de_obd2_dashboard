@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -15,10 +16,6 @@ import java.io.File
 class ReleaseDocsConsistencyTest {
 
     /** Das Projektverzeichnis: von der Arbeitsverzeichnis des Test-JVM (Gradle: das Modul `app/`) nach oben bis `settings.gradle.kts`. */
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden, ausgehend von ${System.getProperty("user.dir")}")
-
     private fun read(relative: String): String = File(projectRoot, relative).readText()
 
     private data class Version(val name: String, val code: Int)

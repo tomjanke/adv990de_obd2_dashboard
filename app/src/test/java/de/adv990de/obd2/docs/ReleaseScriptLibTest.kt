@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,10 +20,6 @@ import java.util.concurrent.TimeUnit
  * (z. B. nach dem Umzug des Keystores) wuerde ein Update erzeugen, das sich ueber die installierte App nicht einspielen laesst.
  */
 class ReleaseScriptLibTest {
-
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden")
 
     private lateinit var tmp: File
 

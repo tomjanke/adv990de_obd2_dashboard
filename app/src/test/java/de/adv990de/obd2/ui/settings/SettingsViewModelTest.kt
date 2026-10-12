@@ -471,6 +471,87 @@ class SettingsViewModelTest {
         assertNull(vm.uiState.value.error)
     }
 
+    // --- veralteter Fehlertext (QS SCR, 2026-10-12): ein Fehler gilt nur, solange seine Ursache besteht ------------------
+
+    @Test
+    fun `a device list error goes away when the list loads again - the permission was granted meanwhile`() = runTest {
+        val devices = listOf(ScannedDevice(device = null, type = BtType.CLASSIC, name = "ELM327"))
+        var permissionGranted = false
+        val scanner = mockk<BluetoothDeviceScanner> {
+            every { bondedDevices(any()) } answers {
+                if (permissionGranted) devices else throw BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+            }
+        }
+        val vm = makeVm(scanner = scanner)
+        advanceUntilIdle()
+        vm.loadDevices()
+        assertNotNull("precondition: the denied permission is reported", vm.uiState.value.error)
+
+        permissionGranted = true
+        vm.loadDevices()
+
+        assertNull("the cause is gone, so is the message", vm.uiState.value.error)
+        assertEquals(devices, vm.uiState.value.bondedDevices)
+    }
+
+    @Test
+    fun `a failed connect stays visible when the device list is reloaded - only its own cause clears it`() = runTest {
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            coEvery { connect(any()) } throws Exception("connection refused")
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+        vm.connect(device)
+        advanceUntilIdle()
+        assertNotNull("precondition", vm.uiState.value.error)
+
+        vm.loadDevices() // default scanner: an empty list, no failure
+
+        assertEquals(UiText.DynamicString("connection refused"), vm.uiState.value.error)
+    }
+
+    @Test
+    fun `a failed connect is cleared when the connection comes up on another path - the dashboard reconnects`() = runTest {
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327" }
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+            coEvery { connect(any()) } throws Exception("connection refused")
+        }
+        val vm = makeVm(obdRepo = obdRepo)
+        vm.connect(device)
+        advanceUntilIdle()
+        assertNotNull("precondition", vm.uiState.value.error)
+
+        isConnectedFlow.value = true // the ConnectionCoordinator's reconnect, not this screen's connect()
+        advanceUntilIdle()
+
+        assertNull("the connection stands, an old 'connect failed' must not stay on screen", vm.uiState.value.error)
+    }
+
+    @Test
+    fun `a device list error is not cleared by a connection coming up - the permission is still missing`() = runTest {
+        val isConnectedFlow = MutableStateFlow(false)
+        val obdRepo = mockk<ObdRepository> {
+            every { this@mockk.isConnectedFlow } returns isConnectedFlow
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+        }
+        val scanner = mockk<BluetoothDeviceScanner> {
+            every { bondedDevices(any()) } throws BluetoothException.PermissionDenied("BLUETOOTH_CONNECT")
+        }
+        val vm = makeVm(obdRepo = obdRepo, scanner = scanner)
+        advanceUntilIdle()
+        vm.loadDevices()
+        assertNotNull("precondition", vm.uiState.value.error)
+
+        isConnectedFlow.value = true
+        advanceUntilIdle()
+
+        assertEquals(UiText.StringResource(R.string.obd_err_bluetooth_permission), vm.uiState.value.error)
+    }
+
     @Test
     fun `toggleShowAllBtDevices flips false to true and persists`() = runTest {
         val prefs = mockk<AppPreferences> {

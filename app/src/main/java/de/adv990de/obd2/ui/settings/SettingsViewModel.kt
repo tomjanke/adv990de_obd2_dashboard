@@ -70,6 +70,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { appPreferences.setReconnectBaseDelaySeconds(value) }
     }
 
+    /**
+     * Ob der angezeigte [SettingsUiState.error] vom Laden der Geraeteliste stammt (statt von einem Verbindungsversuch).
+     * Ein Fehler gilt nur, solange seine Ursache besteht: der Listenfehler endet mit dem naechsten erfolgreichen Laden
+     * (die Berechtigung wurde inzwischen erteilt), der Verbindungsfehler mit der naechsten Verbindung — keiner raeumt den anderen ab.
+     */
+    private var errorFromDeviceList = false
+
     init {
         viewModelScope.launch {
             appPreferences.lastDevice.collect { device ->
@@ -109,6 +116,13 @@ class SettingsViewModel @Inject constructor(
                     // observes isConnecting=true and skips the DataStore read. connect() then
                     // sets connectedDevice directly after returning. The SettingsViewModelTest
                     // verifies this ordering assumption via yield() inside the mock.
+
+                    // The connection stands — by whatever path (this screen, the dashboard's reconnect). A "connect
+                    // failed" message from an earlier attempt would now contradict the screen. A device-list error
+                    // (missing Bluetooth permission) is a different cause and stays until the list loads again.
+                    if (!errorFromDeviceList && _uiState.value.error != null) {
+                        _uiState.value = _uiState.value.copy(error = null)
+                    }
                 } else {
                     _uiState.value = _uiState.value.copy(connectedDevice = null, connectedDeviceAddress = null)
                 }
@@ -119,16 +133,25 @@ class SettingsViewModel @Inject constructor(
     fun loadDevices() {
         // Die Bluetooth-Berechtigung kann ab Android 12 auch nach dem PermissionGate wegfallen.
         // Dann bleibt die Geraeteliste leer statt die App mit einer SecurityException zu beenden.
+        var failed = false
         val devices = try {
             scanner.bondedDevices(showAllBtDevices.value)
         } catch (e: BluetoothException.PermissionDenied) {
+            failed = true
             _uiState.value = _uiState.value.copy(error = ObdErrorMapper.toUiText(e))
             emptyList()
         } catch (e: SecurityException) {
+            failed = true
             _uiState.value = _uiState.value.copy(error = ObdErrorMapper.toUiText(e))
             emptyList()
         }
-        _uiState.value = _uiState.value.copy(bondedDevices = devices)
+        if (failed) errorFromDeviceList = true
+        _uiState.value = if (!failed && errorFromDeviceList) {
+            errorFromDeviceList = false
+            _uiState.value.copy(bondedDevices = devices, error = null)
+        } else {
+            _uiState.value.copy(bondedDevices = devices)
+        }
     }
 
     fun disconnect() {
@@ -137,6 +160,7 @@ class SettingsViewModel @Inject constructor(
 
     fun connect(device: ScannedDevice) {
         viewModelScope.launch {
+            errorFromDeviceList = false // the attempt replaces whatever was shown
             _uiState.value = _uiState.value.copy(isConnecting = true, error = null)
             appLogRepository.log(LogLevel.INFO, "Connecting to ${device.name}…")
             try {

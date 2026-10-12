@@ -1,5 +1,6 @@
 package de.adv990de.obd2.docs
 
+import de.adv990de.obd2.projectRoot
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -10,10 +11,6 @@ import java.io.File
  * Namenstabelle; der Vermerk in `docs/licenses/` ist der lesbare.
  */
 class LicenseFilesTest {
-
-    private val projectRoot: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").isFile }
-        ?: error("settings.gradle.kts nicht gefunden")
 
     /** Schrift-Familie (Praefix der Dateien in `res/font`) -> erwartete Lizenzdatei. */
     private val licenseOfFamily = mapOf(
