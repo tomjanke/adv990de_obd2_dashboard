@@ -1,5 +1,31 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.24.14 (versionCode 96)
+
+Zwei kleine Fehler aus dem QS-Backlog (Reiter-Tipp auf einer Unterseite, veralteter Fehlertext in den Einstellungen) und Aufräumen der Tests.
+
+### Erneuter Tipp auf den hervorgehobenen Reiter führt zur Startseite
+
+- Auf einer Unterseite (App-Info, Getriebe, App-Logs, Freeze-Frame …) ist ihr Reiter hervorgehoben — ein erneuter Tipp darauf **tat nichts**: `navigate(…, restoreState = true)` stellte genau den Stapel wieder her, den der Tipp gerade gesichert hatte. Am Pixel mit der App-Info nachgestellt.
+- Jetzt entscheidet die reine Funktion `bottomNavAction(currentRoute, tappedTab)`: auf der Startseite des Reiters passiert nichts, auf einer seiner Unterseiten geht es zur Startseite des Reiters, bei einem anderen Reiter wird wie bisher gewechselt (Zustand sichern/wiederherstellen). Liegt die Startseite nicht auf dem Stapel, wird wie ein Wechsel navigiert.
+- Abgesichert durch 5 JVM-Tests der Entscheidung und 3 Geräte-Tests in `BottomNavTest`; auf dem Gerät mit dem alten Verhalten nachgewiesen (beide Re-Tap-Tests schlugen fehl).
+
+### Fehlertext in den Einstellungen bleibt nicht mehr stehen
+
+- `SettingsViewModel.error` hat zwei Ursachen: ein Fehler beim Laden der Geräteliste (fehlende Bluetooth-Berechtigung) und ein fehlgeschlagener Verbindungsversuch. Beide blieben stehen, auch wenn die Ursache längst weg war.
+- Der Listenfehler endet mit dem nächsten **erfolgreichen** Laden der Liste. Der Verbindungsfehler endet, sobald eine Verbindung steht — **auf jedem Weg**, auch bei der Wiederverbindung des Dashboards, die `connect()` dieser Seite gar nicht durchläuft. Keiner räumt den anderen ab; ein neuer Verbindungsversuch ersetzt beides.
+- 4 neue JVM-Tests (alle Mutationen der Fehlertext-Logik erkannt).
+
+### Tests
+
+- Die Sleep-sichere Uhr der Außentemperatur-Haltefrist (`SystemClock.elapsedRealtimeNanos()`) war ungetestet. Neu: `timeSourceFrom(readNanos)` (4 JVM-Tests: nur die gelieferte Uhr wird gelesen, ein Sprung von Stunden kommt an) und `ElapsedRealtimeSourceDeviceTest` (2 Geräte-Tests gegen die echte Uhr). Ein echter Tiefschlaf lässt sich im Test nicht herbeiführen.
+- **Test-Compilerwarnungen 10 → 0:** zehn Kopien der `projectRoot`-Suche wurden durch eine gemeinsame, getestete `projectRoot` ersetzt (neun davon trugen eine Warnung, weil `System.getProperty` nullable ist), dazu ein unbenutzter Ausdruck in `CrashReportingSettingsViewModelTest`.
+- 1349 JVM-Tests (+15), 321 Instrumentation-Tests (+5, 1 übersprungen wie bisher).
+
+### Nicht Teil dieses Releases
+
+Aus der Fehlerliste bewusst nicht angefasst: die 62 `collectAsState`-Aufrufe, fehlende `@Preview`s, `ObdResult.kt` (toter Code), englische DTC-Texte — Pflege bzw. Produktentscheidungen, keine Fehler.
+
 ## Version 1.24.13 (versionCode 95)
 
 Der Tacho-Sweep läuft nur noch einmal je App-Start. Dazu die Entscheidungen vom 2026-10-12 (Doku) und eine verschärfte Freigabeliste der Entwicklungssitzung (nicht Teil der App).
