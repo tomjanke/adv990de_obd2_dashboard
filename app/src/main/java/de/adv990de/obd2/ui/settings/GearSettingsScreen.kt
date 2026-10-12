@@ -19,10 +19,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -43,11 +44,11 @@ fun GearSettingsScreen(
     navController: NavController,
     vm: GearSettingsViewModel = hiltViewModel(),
 ) {
-    val wheelCircumferenceMm by vm.wheelCircumferenceMm.collectAsState()
-    val primaryRatio by vm.primaryRatio.collectAsState()
-    val secondaryRatio by vm.secondaryRatio.collectAsState()
-    val gearRatios by vm.gearRatios.collectAsState()
-    val gearRatioConflicts by vm.gearRatioConflicts.collectAsState()
+    val wheelCircumferenceMm by vm.wheelCircumferenceMm.collectAsStateWithLifecycle()
+    val primaryRatio by vm.primaryRatio.collectAsStateWithLifecycle()
+    val secondaryRatio by vm.secondaryRatio.collectAsStateWithLifecycle()
+    val gearRatios by vm.gearRatios.collectAsStateWithLifecycle()
+    val gearRatioConflicts by vm.gearRatioConflicts.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -187,7 +188,7 @@ internal fun formatLimit(value: Float): String =
  * ueberschreiben.
  *
  * [value] kommt aus einem StateFlow, das per `stateIn(..., WhileSubscribed(5_000), DEFAULT_*)`
- * gebaut ist (s. `GearSettingsViewModel`): `collectAsState()` liest bei der ersten Komposition
+ * gebaut ist (s. `GearSettingsViewModel`): `collectAsStateWithLifecycle()` liest bei der ersten Komposition
  * synchron den DEFAULT_*-Konstantenwert, waehrend der echte, in AppPreferences/DataStore
  * gespeicherte Wert erst asynchron nachtraeglich eintrifft. Der lokale Puffer wird deshalb per
  * `LaunchedEffect(value)` mit dem Upstream-Wert nachgezogen — aber NUR, bis der Nutzer das erste
@@ -207,8 +208,11 @@ internal fun GearRatioField(
     range: ClosedFloatingPointRange<Float> = Float.MIN_VALUE..Float.MAX_VALUE,
     allowZero: Boolean = false,
 ) {
-    var text by remember { mutableStateOf(value.toString()) }
-    var hasBeenEdited by remember { mutableStateOf(false) }
+    // rememberSaveable (UID-23): Eine Drehung zerstoert die Activity — mit `remember` verschwand der Text samt seiner Eingabe, auch eine
+    // halb getippte ("2,0"), und der Puffer wurde wieder aus dem gespeicherten Wert gebaut. `hasBeenEdited` muss mit, sonst
+    // ueberschriebe das LaunchedEffect unten den wiederhergestellten Text gleich wieder.
+    var text by rememberSaveable { mutableStateOf(value.toString()) }
+    var hasBeenEdited by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(value) {
         if (!hasBeenEdited) {

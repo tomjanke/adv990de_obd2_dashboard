@@ -29,7 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -137,13 +137,13 @@ fun SettingsScreen(
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
 ) {
-    val state by vm.uiState.collectAsState()
-    val logOnlyDtc by recordingVm.logOnlyDtc.collectAsState()
-    val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsState()
-    val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsState()
-    val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
-    val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsState()
-    val weatherLocationPrompted by displayVm.weatherLocationPrompted.collectAsState()
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
+    val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsStateWithLifecycle()
+    val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
+    val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
+    val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsStateWithLifecycle()
+    val weatherLocationPrompted by displayVm.weatherLocationPrompted.collectAsStateWithLifecycle()
 
     // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS-Geschwindigkeit oder das
     // Ausblenden des Hauptmenues (dort fuer die Aussentemperatur) einschaltet — nicht beim Start
@@ -243,14 +243,14 @@ fun SettingsScreen(
             )
         }
     }
-    val useImperial by displayVm.useImperial.collectAsState()
-    val theme by displayVm.theme.collectAsState()
-    val showAllBtDevices by vm.showAllBtDevices.collectAsState()
+    val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
+    val theme by displayVm.theme.collectAsStateWithLifecycle()
+    val showAllBtDevices by vm.showAllBtDevices.collectAsStateWithLifecycle()
     LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
-    val rpmBlinkThreshold by displayVm.rpmBlinkThreshold.collectAsState()
-    val rpmDynamicThreshold by displayVm.rpmDynamicThreshold.collectAsState()
-    val watchdogTimeoutSeconds by vm.obdWatchdogTimeoutSeconds.collectAsState()
-    val reconnectBaseDelaySeconds by vm.reconnectBaseDelaySeconds.collectAsState()
+    val rpmBlinkThreshold by displayVm.rpmBlinkThreshold.collectAsStateWithLifecycle()
+    val rpmDynamicThreshold by displayVm.rpmDynamicThreshold.collectAsStateWithLifecycle()
+    val watchdogTimeoutSeconds by vm.obdWatchdogTimeoutSeconds.collectAsStateWithLifecycle()
+    val reconnectBaseDelaySeconds by vm.reconnectBaseDelaySeconds.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
@@ -493,7 +493,7 @@ fun SettingsScreen(
             // Nur in einer Version mit eingebautem DSN: ohne ihn gibt es nichts, was dieser Schalter abschalten koennte (QS B33).
             if (crashVm.available) {
                 item {
-                    val crashReportsEnabled by crashVm.enabled.collectAsState()
+                    val crashReportsEnabled by crashVm.enabled.collectAsStateWithLifecycle()
                     SettingsSwitchRow(
                         title = stringResource(R.string.settings_crash_reports_title),
                         summary = stringResource(R.string.settings_crash_reports_summary),

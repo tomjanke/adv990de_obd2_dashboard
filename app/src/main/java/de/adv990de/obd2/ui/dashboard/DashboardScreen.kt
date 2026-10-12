@@ -25,11 +25,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,15 +58,16 @@ fun DashboardScreen(
     vm: DashboardViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel()
 ) {
-    val state by vm.uiState.collectAsState()
-    val placeholderReadings by vm.placeholderReadings.collectAsState()
-    val useImperial by displayVm.useImperial.collectAsState()
-    val useGpsSpeed by displayVm.useGpsSpeed.collectAsState()
-    val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsState()
-    val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsState()
-    val slotPids by vm.slotPids.collectAsState()
-    val availablePids by vm.availablePids.collectAsState()
-    var pickerSlot: Int? by remember { mutableStateOf(null) }
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val placeholderReadings by vm.placeholderReadings.collectAsStateWithLifecycle()
+    val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
+    val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
+    val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsStateWithLifecycle()
+    val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsStateWithLifecycle()
+    val slotPids by vm.slotPids.collectAsStateWithLifecycle()
+    val availablePids by vm.availablePids.collectAsStateWithLifecycle()
+    // rememberSaveable (UID-23): eine Drehung mit offener Auswahl schloss sie bisher.
+    var pickerSlot: Int? by rememberSaveable { mutableStateOf(null) }
     // Vier Zustaende statt verstreuter Einzelabfragen (s. dashboardPhase): Kacheln, Drehzahlbalken und Band
     // zeigen nie widerspruechliches. Nur "Live" zeigt echte Zahlen; sonst "--" bzw. leer (Waiting, Stale,
     // Offline). Der Verbindungs-Punkt haengt weiter am Verbindungsstatus (der Adapter ist ja da).
@@ -135,7 +137,7 @@ fun DashboardScreen(
         // Fahrzeug nicht liefert, blieb er fuer immer stehen — ohne Weg zum Slot-Picker. "Warte auf Werte" zeigt jetzt das
         // Band unter dem Drehzahlbalken, die Kacheln bleiben sichtbar und per Long-Press bedienbar.
         val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val supportedPidIds by vm.supportedPidIds.collectAsState()
+        val supportedPidIds by vm.supportedPidIds.collectAsStateWithLifecycle()
         // Slot order is driven by slotPids; always exactly 4 entries.
         val slots: List<SensorValue?> = remember(displayReadings, slotPids) {
             List(4) { i ->

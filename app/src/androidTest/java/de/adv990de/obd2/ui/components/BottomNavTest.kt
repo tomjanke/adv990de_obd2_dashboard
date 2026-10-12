@@ -4,6 +4,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -117,6 +119,7 @@ import org.junit.runner.RunWith
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class BottomNavTest {
 
     @get:Rule(order = 0)
@@ -191,8 +194,9 @@ class BottomNavTest {
         startDestination: String = Screen.Dashboard.route,
         outsideTempC: Float? = 20f,
         useImperial: Boolean = false,
+        restoration: StateRestorationTester? = null,
     ) {
-        composeRule.setContent {
+        val content: @androidx.compose.runtime.Composable () -> Unit = {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
             weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
             val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
@@ -215,6 +219,7 @@ class BottomNavTest {
                 exitAppVm = exitAppVm,
             )
         }
+        if (restoration != null) restoration.setContent(content) else composeRule.setContent(content)
         composeRule.waitForIdle()
     }
 
@@ -413,5 +418,31 @@ class BottomNavTest {
 
         composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
         coVerify(exactly = 0) { exitAppObdRepo.disconnectByUser() }
+    }
+
+    @Test
+    fun theOpenExitDialog_survivesRecreation() {
+        // UID-23: `remember` schloss den Dialog bei einer Drehung. Die Neuerstellung wird hier ueber den StateRestorationTester
+        // nachgestellt, nicht ueber eine echte Rotation des Geraets.
+        val restoration = StateRestorationTester(composeRule)
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, restoration = restoration)
+        composeRule.onNodeWithText(label(R.string.nav_exit)).performClick()
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertIsDisplayed()
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aClosedExitDialog_staysClosedAfterRecreation() {
+        val restoration = StateRestorationTester(composeRule)
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, restoration = restoration)
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
     }
 }

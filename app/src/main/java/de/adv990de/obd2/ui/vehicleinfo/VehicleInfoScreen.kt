@@ -17,7 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,10 +31,10 @@ import de.adv990de.obd2.ui.theme.asLiveValue
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = hiltViewModel()) {
-    val vin by vm.vin.collectAsState()
-    val error by vm.error.collectAsState()
-    val isLoading by vm.isLoading.collectAsState()
-    val isConnected by vm.isConnected.collectAsState()
+    val vin by vm.vin.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     // Reads when the page opens and again whenever the connection changes: connect -> read, drop -> clear.
     // Without a connection load() reads nothing.
     LaunchedEffect(isConnected) { vm.load() }

@@ -29,7 +29,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,13 +59,13 @@ import de.adv990de.obd2.ui.formatDateTime
 @Composable
 fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewModel()) {
     val sessions = vm.sessions.collectAsLazyPagingItems()
-    val shareUri by vm.shareUri.collectAsState()
-    val exportError by vm.exportError.collectAsState()
-    val activeSessionId by vm.activeSessionId.collectAsState()
-    val canDeleteAll by vm.canDeleteAll.collectAsState()
-    val undoBatchId by vm.undoBatchId.collectAsState()
-    val undoCount by vm.undoCount.collectAsState()
-    val deleteAllConfirmationVisible by vm.deleteAllConfirmationVisible.collectAsState()
+    val shareUri by vm.shareUri.collectAsStateWithLifecycle()
+    val exportError by vm.exportError.collectAsStateWithLifecycle()
+    val activeSessionId by vm.activeSessionId.collectAsStateWithLifecycle()
+    val canDeleteAll by vm.canDeleteAll.collectAsStateWithLifecycle()
+    val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
+    val undoCount by vm.undoCount.collectAsStateWithLifecycle()
+    val deleteAllConfirmationVisible by vm.deleteAllConfirmationVisible.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()

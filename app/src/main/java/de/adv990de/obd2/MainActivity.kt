@@ -10,7 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
@@ -37,10 +37,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Das gewaehlte Farbschema VOR der ersten Komposition lesen (~3 ms, am Pixel gemessen): Die Einstellung wird sonst
         // erst waehrend der ersten Komposition abonniert, das erste Bild zeigte kurz das Standard-Theme, dann sprang es auf
-        // Blau/Amber/Gruen (UID-12). Der gelesene Wert ist nur der Startwert; `collectAsState` folgt danach jeder Aenderung.
+        // Blau/Amber/Gruen (UID-12). Der gelesene Wert ist nur der Startwert; `collectAsStateWithLifecycle` folgt danach jeder Aenderung.
         val initialTheme = seedBlocking(AppPreferences.THEME_SYSTEM, source = appPreferences.theme)
         setContent {
-            val theme by appPreferences.theme.collectAsState(initial = initialTheme)
+            val theme by appPreferences.theme.collectAsStateWithLifecycle(initialValue = initialTheme)
             // Der System-Splash entsteht vor jedem App-Code und kennt nur Ressourcen: das Splash-Theme zum gewaehlten
             // Farbschema merkt sich das System fuer den NAECHSTEN Start (ui/theme/SplashTheme.kt).
             LaunchedEffect(theme) { rememberSplashThemeFor(theme) }

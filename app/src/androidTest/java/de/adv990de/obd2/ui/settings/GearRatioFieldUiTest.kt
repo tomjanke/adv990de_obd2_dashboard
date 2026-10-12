@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -39,6 +41,7 @@ import org.junit.runner.RunWith
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class GearRatioFieldUiTest {
 
     @get:Rule(order = 0)
@@ -104,5 +107,19 @@ class GearRatioFieldUiTest {
         // field back to the value's default toString() representation ("2200.0") mid-edit, and
         // must not have reverted to the pre-edit value.
         composeRule.onNodeWithText("2200").assertIsDisplayed()
+    }
+
+    // --- UID-23: die Eingabe ueberlebt die Neuerstellung der Activity (Drehung) ---
+
+    @Test
+    fun aTypedValue_survivesRecreation_evenAnInvalidOne() {
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { GearRatioField(label = "Radumfang", value = 2096f, onValueChange = {}) }
+        composeRule.onNodeWithText("2096.0").performTextReplacement("2,0x")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        // Mit `remember` stuende hier wieder "2096.0": die halb getippte Eingabe waere verloren.
+        composeRule.onNodeWithText("2,0x").assertIsDisplayed()
     }
 }

@@ -6,6 +6,8 @@ import android.view.WindowManager
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
@@ -74,6 +76,7 @@ import javax.inject.Inject
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class DashboardScreenTest {
 
     @get:Rule(order = 0)
@@ -473,6 +476,34 @@ class DashboardScreenTest {
         composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG)
             .performScrollToNode(hasText("$coolantLabel: 90 (°C)"))
         composeRule.onNodeWithText("$coolantLabel: 90 (°C)").assertIsDisplayed()
+    }
+
+    /**
+     * UID-23: Die Slot-Auswahl bleibt bei der Neuerstellung der Activity (Drehung) offen. `pickerSlot` war `remember` — eine Drehung mit
+     * offener Auswahl schloss sie. Nachgestellt ueber den [StateRestorationTester], nicht ueber eine echte Rotation.
+     */
+    @Test
+    fun dashboard_slotPicker_staysOpenAfterRecreation() {
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(true)
+        stubConnectedSessionWithRealReadings()
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent {
+            val navController = rememberNavController()
+            DashboardScreen(navController = navController)
+        }
+        composeRule.waitForIdle()
+        val rpmLabel = composeRule.activity.getString(R.string.pid_rpm)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG).assertIsDisplayed()
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG).assertIsDisplayed()
     }
 
     /**

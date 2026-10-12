@@ -39,7 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.adv990de.obd2.crash.CrashReportingStatus
@@ -82,7 +82,7 @@ fun AppInfoScreen(
     crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val crashStatus by crashVm.status.collectAsState()
+    val crashStatus by crashVm.status.collectAsStateWithLifecycle()
     val packageInfo = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }

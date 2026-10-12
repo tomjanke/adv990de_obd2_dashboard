@@ -25,7 +25,7 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -48,9 +48,9 @@ fun AppLogsScreen(
     navController: NavController,
     vm: AppLogsViewModel = hiltViewModel()
 ) {
-    val logs by vm.logs.collectAsState()
-    val undoBatchId by vm.undoBatchId.collectAsState()
-    val confirmationVisible by vm.clearConfirmationVisible.collectAsState()
+    val logs by vm.logs.collectAsStateWithLifecycle()
+    val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
+    val confirmationVisible by vm.clearConfirmationVisible.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // The shared local-delete contract: trash icon -> confirmation -> the entries disappear at once

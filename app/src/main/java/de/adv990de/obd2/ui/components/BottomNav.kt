@@ -25,11 +25,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -92,11 +92,12 @@ fun BottomNav(
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     exitAppVm: ExitAppViewModel = hiltViewModel(),
 ) {
-    val isNavHidden by vm.isNavHidden.collectAsState()
-    val useImperial by displayVm.useImperial.collectAsState()
+    val isNavHidden by vm.isNavHidden.collectAsStateWithLifecycle()
+    val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    var showExitConfirmation by remember { mutableStateOf(false) }
+    // rememberSaveable (UID-23): eine Drehung mit offenem Dialog schloss ihn bisher (Beenden bleibt eine bewusste Handlung).
+    var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 

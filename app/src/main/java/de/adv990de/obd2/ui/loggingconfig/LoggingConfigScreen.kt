@@ -21,7 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -46,9 +46,9 @@ fun LoggingConfigScreen(
     vm: LoggingConfigViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel()
 ) {
-    val loggedPidIds by vm.loggedPidIds.collectAsState()
-    val latestReadings by vm.latestReadings.collectAsState()
-    val useImperial by displayVm.useImperial.collectAsState()
+    val loggedPidIds by vm.loggedPidIds.collectAsStateWithLifecycle()
+    val latestReadings by vm.latestReadings.collectAsStateWithLifecycle()
+    val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {

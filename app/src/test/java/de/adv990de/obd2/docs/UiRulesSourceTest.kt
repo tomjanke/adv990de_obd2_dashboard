@@ -59,7 +59,7 @@ class UiRulesSourceTest {
         val source = File(projectRoot, "app/src/main/java/de/adv990de/obd2/MainActivity.kt").readText()
 
         assertTrue("seedBlocking vor setContent", source.indexOf("seedBlocking(") in 0 until source.indexOf("setContent {"))
-        assertTrue("der Startwert geht in collectAsState", source.contains("collectAsState(initial = initialTheme)"))
+        assertTrue("der Startwert geht in collectAsStateWithLifecycle", source.contains("collectAsStateWithLifecycle(initialValue = initialTheme)"))
     }
 
     @Test

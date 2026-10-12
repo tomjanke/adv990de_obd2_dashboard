@@ -34,7 +34,7 @@ import de.adv990de.obd2.ui.theme.blueColorScheme
  *
  * [rpmBlinkThreshold] und [rpmDynamicThreshold] kommen aus StateFlows, die per
  * `stateIn(viewModelScope, WhileSubscribed(5_000), DEFAULT)` gebaut sind (s.
- * `DisplaySettingsViewModel`): `collectAsState()` liest bei der ersten Komposition synchron den
+ * `DisplaySettingsViewModel`): `collectAsStateWithLifecycle()` liest bei der ersten Komposition synchron den
  * Default (0 / false), waehrend der echte, in AppPreferences/DataStore gespeicherte Wert erst
  * asynchron nachtraeglich eintrifft.
  *

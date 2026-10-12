@@ -41,7 +41,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,12 +102,12 @@ internal fun dtcHistoryRowTestTag(code: String) = "dtc_history_row_$code"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) {
-    val state by vm.uiState.collectAsState()
-    val isConnected by vm.isConnected.collectAsState()
-    val history by vm.history.collectAsState()
-    val undoBatchId by vm.undoBatchId.collectAsState()
-    val undoCount by vm.undoCount.collectAsState()
-    val confirmationVisible by vm.deleteAllConfirmationVisible.collectAsState()
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val isConnected by vm.isConnected.collectAsStateWithLifecycle()
+    val history by vm.history.collectAsStateWithLifecycle()
+    val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
+    val undoCount by vm.undoCount.collectAsStateWithLifecycle()
+    val confirmationVisible by vm.deleteAllConfirmationVisible.collectAsStateWithLifecycle()
     var view by rememberSaveable { mutableStateOf(DtcView.Current) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }

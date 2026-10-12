@@ -97,6 +97,9 @@ private fun Context.isGranted(permission: String): Boolean =
 fun PermissionGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
 
+    // Bewusst `remember`, nicht `rememberSaveable` (UID-23): der Wert ist KEIN Zustand der Oberflaeche, sondern eine Momentaufnahme des
+    // Systems. Er wird bei jedem ON_RESUME neu gelesen; ein gespeicherter Wert wuerde nach einer Drehung eine inzwischen entzogene
+    // Berechtigung als erteilt zeigen.
     var allGranted by remember { mutableStateOf(allRequiredGranted(isGranted = context::isGranted)) }
 
     val launcher = rememberLauncherForActivityResult(

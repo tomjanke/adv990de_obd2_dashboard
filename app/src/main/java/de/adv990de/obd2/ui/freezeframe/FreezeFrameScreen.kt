@@ -20,7 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,10 +42,10 @@ internal const val FREEZE_FRAME_LOADING_TEST_TAG = "freeze_frame_loading_indicat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = hiltViewModel()) {
-    val data by vm.data.collectAsState()
-    val error by vm.error.collectAsState()
-    val isLoading by vm.isLoading.collectAsState()
-    val isConnected by vm.isConnected.collectAsState()
+    val data by vm.data.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     // Reads when the page opens and again whenever the connection changes: connect -> read, drop -> clear.
     // Without a connection load() reads nothing.
     LaunchedEffect(isConnected) { vm.load() }
