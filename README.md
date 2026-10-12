@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.25.3** (versionCode 100) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **36**
+> Aktuelle Version: **1.26.0** (versionCode 101) · minSdk **26** (Android 8.0) · targetSdk **36** (Android 16) · compileSdk **37**
 
 ---
 
@@ -58,7 +58,7 @@ Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
 
 ### Prüfsummen (Lieferkette)
 Die Gradle-Distribution ist per `distributionSha256Sum` (`gradle/wrapper/gradle-wrapper.properties`) festgelegt, Abhängigkeiten und Plugins per
-`gradle/verification-metadata.xml` (SHA-256, 855 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
+`gradle/verification-metadata.xml` (SHA-256, 998 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
 Abhängigkeit → Metadaten neu schreiben** — Befehl und Fallstrick (`--refresh-dependencies`) stehen in der [`CLAUDE.md`](CLAUDE.md). Das JDK lädt Gradle nie von selbst herunter (`org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchains gibt es keine Prüfsumme, und ein unbemerkt
 nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt es, bricht der Build mit „No matching toolchains found“ ab; dann einmal selbst installieren oder bewusst per
 `./gradlew -Porg.gradle.java.installations.auto-download=true help` nachladen.
@@ -340,14 +340,14 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 | Bereich | Bibliothek / Version |
 |---|---|
 | Sprache | Kotlin 2.4.21 |
-| Build | Android Gradle Plugin 9.3.0 (built-in Kotlin) · Gradle 9.5.0 · KSP 2.3.11 |
-| UI | Jetpack Compose (BOM 2026.05.00, Compose 1.11.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
+| Build | Android Gradle Plugin 9.4.1 (built-in Kotlin) · Gradle 9.6.1 · KSP 2.3.11 |
+| UI | Jetpack Compose (BOM 2026.09.00, Compose 1.12.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
 | Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
-| Navigation | androidx.navigation:navigation-compose 2.9.8 |
+| Navigation | androidx.navigation:navigation-compose 2.10.2 |
 | DI | Hilt 2.60.1 |
 | Persistenz | Room 2.8.5 (mit Paging-3-Integration) · DataStore Preferences 1.2.1 |
 | Coroutines | kotlinx-coroutines 1.11.0 |
-| Lifecycle | androidx.lifecycle 2.10.0 |
+| Lifecycle | androidx.lifecycle 2.11.0 |
 | Crash-Reporting | Sentry Android 8.60.0 |
 | Tests | JUnit 4 · MockK 1.14.11 · Compose UI Test · Room Testing · Hilt Testing |
 

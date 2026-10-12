@@ -4,7 +4,7 @@
 
 ## Projekt-Kontext
 
-Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
+Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.4), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 37. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
 ---
 
@@ -781,9 +781,9 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 
 ### Build-Integrität: Prüfsummen (seit v1.24.9)
 
-- **Gradle-Distribution:** `distributionSha256Sum` in `gradle/wrapper/gradle-wrapper.properties` (Gradle 9.5.0-bin: `553c78f5…6b746`, von services.gradle.org und gradle.org/release-checksums bestätigt und selbst gehasht). Wird die Version angehoben, Summe und
+- **Gradle-Distribution:** `distributionSha256Sum` in `gradle/wrapper/gradle-wrapper.properties` (Gradle 9.6.1-bin: `9c0f7fae…c9e14`, von downloads.gradle.org und gradle.org/release-checksums bestätigt, beim Laden vom Wrapper geprüft — das Archiv bleibt danach nicht liegen). Wird die Version angehoben, Summe und
   `BuildIntegrityTest` gemeinsam ändern.
-- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 855 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
+- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 998 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
   `./gradlew --refresh-dependencies --write-verification-metadata sha256 --continue :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest :app:lintAnalyzeDebugAndroidTest help`.
   Ohne `--refresh-dependencies` fehlen Einträge, die nur beim frischen Auflösen gebraucht werden (gemessen: `guava-parent 33.4.0-jre`); das zeigt erst ein späterer frischer Build. Geprüft mit einem Build + `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). `BuildIntegrityTest` hält
   Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Das JDK lädt Gradle nie von selbst** (seit v1.25.0: `org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchain-Downloads (Daemon-JVM-Kriterien, foojay-Resolver) gibt es keine Prüfsumme, ein unbemerkt nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; die JBR von Android Studio und `~/.gradle/jdks` werden gefunden. Bewusst nachladen: `./gradlew -Porg.gradle.java.installations.auto-download=true help`. **Nicht am Gerät der Entwicklung nachgestellt, dass ein fehlendes JDK wirklich abbricht** (ein Gegenversuch hätte einen Download ausgelöst); belegt ist, dass der Build mit der Einstellung läuft, und die Einstellung steht in Gradles Dokumentation.
@@ -797,6 +797,12 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
   vier Bibliotheken, AGP, Ziel-API); die 16-KB-Meldung zu MockK aus dem Bericht vom 2026-10-04 taucht nicht mehr auf. **Kotlin hat zwei Stellen:** `kotlin` im Catalog (Compose-Compiler-Plugin, `kotlin-test`) und der `kotlin-gradle-plugin`-Pin im `buildscript`-Block des Root-`build.gradle.kts` — der `buildscript`-Block kann den Catalog nicht lesen.
   Wer nur eine anhebt, merkt nichts (Gradle nimmt die höhere), aber niemand weiß mehr, welche Version übersetzt; `BuildIntegrityTest` hält beide gleich. Der Pin stand beim ersten Versuch noch auf 2.4.10 und wurde erst durch diesen Test aufgedeckt. **Eine Aussage aus dem Backlog war falsch:** „Kotlin geht nicht losgelöst“ stimmt nicht —
   AGP 9.3 verträgt Kotlin 2.4.21 mit KSP 2.3.11 und Hilt 2.60.1 ohne weitere Änderung. Wie bei allen Bibliotheken: nur auf dem Pixel 8 Pro (API 37) geprüft. Ohne eingebauten DSN ist Sentry in den Releases weiter nicht aktiv; die neue Version steckt trotzdem im APK.
+- **Toolchain-Release (v1.26.0, Auftrag des Nutzers 2026-10-12, Downloads freigegeben):** Gradle 9.5.0 → **9.6.1**, AGP 9.3.0 → **9.4.1**, compileSdk 36 → **37** (das Paket `platforms;android-37.0` lud AGP selbst nach; `targetSdk` bleibt **36** — der Wechsel bringt Verhaltensänderungen und ist eine eigene Entscheidung, die Lint-Warnung `OldTargetApi` bleibt),
+  Compose-BOM 2026.05.00 → **2026.09.00** (Compose 1.12.1; **Material3 bleibt bei 1.4.0**, die BOM hebt es nicht), navigation-compose 2.9.8 → 2.10.2, lifecycle 2.10.0 → 2.11.0, core-ktx 1.18.0 → 1.19.1, hilt-navigation-compose 1.3.0 → 1.4.0. **Gradle 9.6.1 und nicht neuer:** AGP 9.4 verlangt mindestens 9.6.0, Kotlin 2.4.21 ist offiziell nur bis Gradle 9.7.0 freigegeben
+  (kotlinlang.org, Abfrage 2026-10-12; Lint meldet 9.8.1 als neuer — gewollt ignoriert). **AGP 9.4 liegt über dem, was Kotlin 2.4.21 listet** (AGP 8.5.2–9.3.1): es lief ohne Warnung im Build und ohne Fehler in allen Tests, die Freigabe kommt voraussichtlich mit dem nächsten Kotlin. Gradle-Prüfsumme: zwei Quellen stimmen überein
+  (downloads.gradle.org/.sha256, gradle.org/release-checksums) und der Wrapper hat die Distribution damit geprüft; `services.gradle.org/.sha256` leitet auf `downloads.gradle.org` um. **Neu mit AGP 9.4:** das Protokoll der Geräte-Tests schreibt einen Annahme-Test (`StatusBarIconsTest.beforeAndroid15…`, läuft nur vor API 35) als `<failure>` mit `AssumptionViolatedException`
+  statt als `<skipped>` (Gradle zählt ihn weiter als bestanden, Exit-Code 0) — wer das XML auswertet, rechnet ihn heraus; die laufende Ausgabe zeigt keine Test-für-Test-Zeilen mehr. Vorschau-Bilder (59) und der Rendertest liefen unverändert (ein Bild, `PreviewSlotComponentsLight`, ist Byte für Byte gleich dem vom Release 1.25.2). 0 Lint-Fehler, 2 Warnungen (Ziel-API, neuere Gradle-Version).
+  **Nur auf dem Pixel 8 Pro (API 37) geprüft**, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -865,7 +871,7 @@ lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
 
 - **Werte-Updates:** `AnimatedContent` mit `slideInVertically + fadeIn` über 180 ms, `EaseOutCubic`. **Nie Spring/Bouncy** — das ist Toy-Aesthetic.
 - **Connection-Status:** Pulsierender Dot via `infiniteRepeatable` `tween(600)` für „connecting"; statisch für „connected"/„disconnected".
-- **Screen-Transitions (entschieden 2026-10-12, UID-10):** `AppNavHost` setzt keine eigenen Übergänge — es gilt der Standard von `NavHost` (Überblendung, laut früherer Prüfung 700 ms; am Gerät nicht gemessen).
+- **Screen-Transitions (entschieden 2026-10-12, UID-10):** `AppNavHost` setzt keine eigenen Übergänge — es gilt der Standard von `NavHost` (Überblendung, 700 ms — in `DefaultNavTransitions` von navigation-compose 2.10.2 am Bytecode nachgelesen; am Gerät nicht gemessen).
   Das ist die **Vorgabe**, kein offener Mangel: die frühere Forderung „`slideIntoContainer` 220 ms“ entfällt. Wer eigene Übergänge ergänzen will, braucht eine neue Entscheidung des Nutzers
   (Kandidat war der 220-ms-Slide; **nicht** `fadeIn` allein — zu unbestimmt) und trägt sie hier ein.
 - **Verboten:** parallax scroll, decorative particle effects, anything that draws attention away from data.

@@ -1,5 +1,27 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.26.0 (versionCode 101)
+
+Das Toolchain-Release: neuer Build-Unterbau und der aktuelle Compose-Stand. An dem, was du in der App bedienst, ändert sich nichts.
+
+### Toolchain
+
+- Gradle 9.5.0 → **9.6.1**, Android Gradle Plugin 9.3.0 → **9.4.1**, compileSdk 36 → **37** (targetSdk bleibt 36: der Wechsel bringt Verhaltensänderungen und ist eine eigene Entscheidung).
+- Compose-BOM 2026.05.00 → **2026.09.00** (Compose 1.12.1; Material3 bleibt bei 1.4.0), navigation-compose 2.9.8 → 2.10.2, lifecycle 2.10.0 → 2.11.0, core-ktx 1.18.0 → 1.19.1, hilt-navigation-compose 1.3.0 → 1.4.0.
+- Gradle 9.6.1 und nicht neuer: AGP 9.4 verlangt mindestens 9.6.0, Kotlin 2.4.21 ist offiziell nur bis Gradle 9.7.0 freigegeben. AGP 9.4 liegt über der Liste von Kotlin 2.4.21 (bis AGP 9.3.1); der Build läuft ohne Warnung und alle Tests sind grün.
+- Die Prüfsumme der Gradle-Distribution stammt aus zwei offiziellen Quellen, die übereinstimmen; die Prüfsummen der Abhängigkeiten (`gradle/verification-metadata.xml`, 998 Komponenten) sind mit `--refresh-dependencies` neu geschrieben.
+
+### Tests
+
+- 1472 JVM-Tests, 332 Instrumentation-Tests (1 Annahme-Test läuft nur vor Android 15 und wird auf dem Pixel nicht ausgeführt). Lint: 0 Fehler, 2 Warnungen (Ziel-API 36 statt 37, neuere Gradle-Version 9.8.1 bewusst nicht genommen).
+- Alle 63 Vorschauen rendern auf dem Gerät; die geprüften Bilder (Kacheln, Drehzahlbalken, Einstellungszeilen, Auswahlsegmente) sehen unverändert aus, eines ist Byte für Byte gleich dem des Vorgängers.
+- Neu mit AGP 9.4: das Testprotokoll führt den Annahme-Test als „failure“ statt „skipped“ (Gradle wertet ihn weiter als bestanden).
+- Auf dem Pixel 8 Pro (Android 17) geprüft; ältere Android-Versionen (≤ 14) und das Verhalten am Fahrzeug bleiben ungeprüft wie bisher.
+
+### Bewusst nicht Teil dieses Releases
+
+- targetSdk 37, Gradle 9.7/9.8 und AGP 9.5: warten auf eine Kotlin-Version, die sie freigibt bzw. auf eine eigene Entscheidung.
+
 ## Version 1.25.3 (versionCode 100)
 
 Sieben weitere Bibliotheken und Kotlin sind aktualisiert; an der App selbst ändert sich nichts, was du bedienst.
