@@ -131,16 +131,17 @@ class ElmController(
      */
     private fun readResponse(cancelled: () -> Boolean): String {
         val sb = StringBuilder()
-        var gotAny = false
         try {
             while (true) {
                 // Refill buffer if needed
                 if (bufferPos >= bufferEnd) {
                     bufferEnd = inputStream.read(readBuffer)
                     bufferPos = 0
-                    if (bufferEnd == -1) break
+                    // Ende des Datenstroms VOR dem Prompt: die Verbindung ist weg, auch wenn schon ein Teil der Antwort da war. Ab Android 17
+                    // (targetSdk 37) liefert read() auf einem RFCOMM-Socket dafuer -1 statt einer IOException; vorher wurde die halbe Antwort
+                    // als Ergebnis zurueckgegeben, und der Abriss fiel erst beim naechsten Befehl auf.
+                    if (bufferEnd == -1) throw ObdException.ConnectionLost()
                 }
-                gotAny = true
                 // Process one byte from the buffer
                 val b = readBuffer[bufferPos++].toInt().toChar()
                 if (b == '>') {
@@ -159,8 +160,6 @@ class ElmController(
             if (cancelled()) throw InterruptedException("Lesen durch Abbruch unterbrochen")
             throw ObdException.ConnectionLost()
         }
-        if (!gotAny) throw ObdException.ConnectionLost()
-        return buildResult(sb)
     }
 
     private fun buildResult(sb: StringBuilder): String =

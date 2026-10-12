@@ -151,6 +151,25 @@ class ElmControllerTest {
         ElmController(emptyInput, ByteArrayOutputStream()).sendCommand("010C")
     }
 
+    @Test(expected = ObdException.ConnectionLost::class)
+    fun `sendCommand throws ConnectionLost when the stream ends before the prompt`() = runTest {
+        // Android 17 (targetSdk 37): read() auf einem RFCOMM-Socket liefert beim Abriss der Verbindung -1 statt einer IOException (BluetoothSocket,
+        // „Bluetooth RFCOMM read() returns -1“). Kam davor schon ein Teil der Antwort an, hielt readResponse die halbe Antwort fuer eine ganze
+        // und meldete keinen Verlust — der Abriss fiel erst beim naechsten Befehl auf. Eine Antwort endet mit dem Prompt '>'; Ende des
+        // Datenstroms davor ist nie eine Antwort.
+        // ScriptedAdapter statt eines vorab gefuellten ByteArrayInputStream: der Controller verwirft Altbytes vor dem Befehl (PRO-13), ein fertig
+        // gefuellter Eingang wuerde mit weggeworfen und der Test bestuende aus dem falschen Grund.
+        val adapter = ScriptedAdapter(listOf("41 0C 1A".toByteArray())) // keine Prompt-Zeile; danach liefert read() -1
+        ElmController(adapter.input, adapter.output).sendCommand("010C")
+    }
+
+    @Test
+    fun `an answer that is complete before the stream ends is still an answer`() = runTest {
+        // Gegenprobe zum Test davor: das Ende des Datenstroms HINTER dem Prompt ist keine Stoerung der Antwort.
+        val adapter = ScriptedAdapter(listOf("41 0C 1A F8\r>".toByteArray()))
+        assertEquals("41 0C 1A F8", ElmController(adapter.input, adapter.output).sendCommand("010C"))
+    }
+
     // B38: Die Zeitueberschreitung ist pruefbar, seit das Lese-Timeout ein Konstruktor-Parameter ist. Sie laeuft in
     // ECHTER Zeit (withTimeout in withContext(Dispatchers.IO) kennt die virtuelle Uhr nicht) — mit 100 ms statt der
     // 5 s der Produktion kostet der Test eine Zehntelsekunde statt die Suite zu verlangsamen.
