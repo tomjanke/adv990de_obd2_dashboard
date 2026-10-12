@@ -5,7 +5,7 @@ import de.adv990de.obd2.R
 
 /**
  * Die Lizenztexte, die in der App stehen. Die Dateien liegen in `docs/licenses/` und werden von Gradle als Assets
- * eingebunden (`assets.srcDir`) — eine Quelle fuer Repository und APK.
+ * eingebunden (`assets.directories`) — eine Quelle fuer Repository und APK.
  */
 enum class LicenseKind(val label: String, val assetName: String) {
     APACHE_2("Apache License 2.0", "Apache-2.0.txt"),

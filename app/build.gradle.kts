@@ -63,7 +63,7 @@ android {
     }
 
     // Die Lizenztexte (docs/licenses) sind zugleich die Assets der Lizenzseite — eine Quelle fuer Repository und APK.
-    sourceSets["main"].assets.srcDir(rootProject.file("docs/licenses"))
+    sourceSets["main"].assets.directories.add(rootProject.file("docs/licenses").path)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

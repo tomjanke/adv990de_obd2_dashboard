@@ -81,7 +81,7 @@ class LicenseCatalogTest {
         val gradle = read("app/build.gradle.kts")
         assertTrue(
             "docs/licenses muss als Asset-Verzeichnis eingebunden sein, sonst fehlen die Texte in der App",
-            gradle.contains("""assets.srcDir(rootProject.file("docs/licenses"))"""),
+            gradle.contains("""assets.directories.add(rootProject.file("docs/licenses").path)"""),
         )
     }
 }
