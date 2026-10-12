@@ -1,5 +1,21 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.25.3 (versionCode 100)
+
+Sieben weitere Bibliotheken und Kotlin sind aktualisiert; an der App selbst ändert sich nichts, was du bedienst.
+
+### Bibliotheken
+
+- Aktualisiert: Kotlin 2.4.10 → 2.4.21, kotlinx-coroutines 1.9.0 → 1.11.0, kotlinx-serialization 1.8.1 → 1.11.0, Sentry 8.29.0 → 8.60.0 (ohne eingebauten DSN weiter nicht aktiv), Testbibliotheken MockK 1.13.12 → 1.14.11 und androidx.test runner 1.7.0 / ext-junit 1.3.0 / rules 1.7.0. Die Prüfsummen (`gradle/verification-metadata.xml`, 855 Komponenten) sind mit `--refresh-dependencies` neu geschrieben.
+- Der Kotlin-Pin im Root-Build stand zweimal (Version-Catalog und `buildscript`-Block); ein neuer Test hält beide gleich. Beim Anheben fiel auf, dass der Pin nachhinkte, weil Gradle still die höhere Version nimmt.
+- Eine Aussage der Backlog-Liste war falsch: Kotlin ließ sich sehr wohl losgelöst vom Toolchain-Release anheben (AGP 9.3, KSP 2.3.11 und Hilt 2.60.1 verlangten nichts weiter).
+- Weiter zurückgestellt, weil sie compileSdk 37 brauchen: Compose-BOM 2026.09, navigation-compose 2.10.x, lifecycle 2.11.0, core-ktx 1.19.x, hilt-navigation-compose 1.4.0, dazu AGP 9.4 und Gradle 9.6 (Toolchain-Release nach der Testfahrt).
+
+### Tests
+
+- 1472 JVM-Tests (+1: Kotlin-Pin), 332 Instrumentation-Tests (1 übersprungen wie bisher), Lint 0 Fehler / 10 Warnungen (nur die Toolchain-Punkte).
+- Auf dem Pixel 8 Pro (Android 17) geprüft; die älteren Android-Versionen (≤ 14) bleiben ungeprüft wie bisher, ebenso das Verhalten am Fahrzeug.
+
 ## Version 1.25.2 (versionCode 99)
 
 Die Aufzeichnungsauswahl vergisst keinen später ergänzten PID mehr, jede Vorschau wird auf dem Gerät gerendert, die Testhilfen stehen nur noch einmal da, und acht Bibliotheken sind aktualisiert.

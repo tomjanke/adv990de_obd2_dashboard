@@ -4,7 +4,7 @@
 
 ## Projekt-Kontext
 
-Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.10 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
+Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.3), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 36 / compileSdk 36. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
 ---
 
@@ -783,16 +783,20 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 
 - **Gradle-Distribution:** `distributionSha256Sum` in `gradle/wrapper/gradle-wrapper.properties` (Gradle 9.5.0-bin: `553c78f5…6b746`, von services.gradle.org und gradle.org/release-checksums bestätigt und selbst gehasht). Wird die Version angehoben, Summe und
   `BuildIntegrityTest` gemeinsam ändern.
-- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 789 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
+- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 855 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
   `./gradlew --refresh-dependencies --write-verification-metadata sha256 --continue :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest :app:lintAnalyzeDebugAndroidTest help`.
   Ohne `--refresh-dependencies` fehlen Einträge, die nur beim frischen Auflösen gebraucht werden (gemessen: `guava-parent 33.4.0-jre`); das zeigt erst ein späterer frischer Build. Geprüft mit einem Build + `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). `BuildIntegrityTest` hält
   Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Das JDK lädt Gradle nie von selbst** (seit v1.25.0: `org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchain-Downloads (Daemon-JVM-Kriterien, foojay-Resolver) gibt es keine Prüfsumme, ein unbemerkt nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; die JBR von Android Studio und `~/.gradle/jdks` werden gefunden. Bewusst nachladen: `./gradlew -Porg.gradle.java.installations.auto-download=true help`. **Nicht am Gerät der Entwicklung nachgestellt, dass ein fehlendes JDK wirklich abbricht** (ein Gegenversuch hätte einen Download ausgelöst); belegt ist, dass der Build mit der Einstellung läuft, und die Einstellung steht in Gradles Dokumentation.
 
 - **Bibliotheks-Updates (v1.25.2, Freigabe des Nutzers 2026-10-12: nur Bibliotheken, ohne AGP/Kotlin/Gradle/BOM):** navigation-compose 2.8.5 → 2.9.8, lifecycle 2.8.7 → 2.10.0, datastore 1.1.1 → 1.2.1, appcompat 1.7.0 → 1.8.0, paging 3.3.4 → 3.5.2, core-ktx 1.15.0 → 1.18.0,
   activity-compose 1.9.3 → 1.13.0, hilt-navigation-compose 1.2.0 → 1.3.0 (`hiltViewModel` liegt jetzt in `androidx.hilt.lifecycle.viewmodel.compose`; der alte Import ist deprecated). **Nicht möglich unter compileSdk 36** (der Build meldet es in `checkDebugAarMetadata`):
-  navigation-compose 2.10.x, lifecycle 2.11.0, core-ktx 1.19.x, hilt-navigation-compose 1.4.0 — sie warten mit dem BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6). Nicht Teil der Freigabe, also unverändert: androidx.test (runner/ext/rules), Sentry, coroutines,
-  mockk, kotlinx-serialization, Kotlin/KSP. **Falle:** `lintAnalyzeDebugAndroidTest` und `lintAnalyzeDebugUnitTest` scheitern gelegentlich im großen Sammellauf der Prüfsummen-Neuberechnung mit einem internen Lint-Fehler („Error while resolving … FirRegularClassImpl“) —
+  navigation-compose 2.10.x, lifecycle 2.11.0, core-ktx 1.19.x, hilt-navigation-compose 1.4.0 — sie warten mit dem BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6). Die übrigen Bibliotheken folgten in v1.25.3 (s. u.). **Falle:** `lintAnalyzeDebugAndroidTest` und `lintAnalyzeDebugUnitTest` scheitern gelegentlich im großen Sammellauf der Prüfsummen-Neuberechnung mit einem internen Lint-Fehler („Error while resolving … FirRegularClassImpl“) —
   eine Verdichtung paralleler Tasks, kein Fehler der Bibliotheken: allein bzw. mit `--no-parallel` laufen sie durch. Die Prüfsummen-Neuberechnung braucht deshalb die Lint-Tasks nicht (separat laufen lassen).
+- **Bibliotheks-Updates, zweite Runde (v1.25.3, Auftrag des Nutzers 2026-10-12: die Bibliotheken aus Abschnitt 3 des Backlogs):** Sentry 8.29.0 → 8.60.0, kotlinx-coroutines 1.9.0 → 1.11.0, kotlinx-serialization 1.8.1 → 1.11.0, MockK 1.13.12 → 1.14.11, androidx.test runner 1.6.2 → 1.7.0 /
+  ext-junit 1.2.1 → 1.3.0 / rules 1.6.1 → 1.7.0 und **Kotlin 2.4.10 → 2.4.21** (Compose-Compiler-Plugin und `kotlin-test` folgen `kotlin` im Catalog). KSP (2.3.11), Hilt, Room, AGP und Gradle blieben. Gebaut und getestet wurde mit `--refresh-dependencies` (855 Komponenten); Lint: 0 Fehler, 10 Warnungen — genau die Toolchain-Punkte (BOM, compileSdk, die
+  vier Bibliotheken, AGP, Ziel-API); die 16-KB-Meldung zu MockK aus dem Bericht vom 2026-10-04 taucht nicht mehr auf. **Kotlin hat zwei Stellen:** `kotlin` im Catalog (Compose-Compiler-Plugin, `kotlin-test`) und der `kotlin-gradle-plugin`-Pin im `buildscript`-Block des Root-`build.gradle.kts` — der `buildscript`-Block kann den Catalog nicht lesen.
+  Wer nur eine anhebt, merkt nichts (Gradle nimmt die höhere), aber niemand weiß mehr, welche Version übersetzt; `BuildIntegrityTest` hält beide gleich. Der Pin stand beim ersten Versuch noch auf 2.4.10 und wurde erst durch diesen Test aufgedeckt. **Eine Aussage aus dem Backlog war falsch:** „Kotlin geht nicht losgelöst“ stimmt nicht —
+  AGP 9.3 verträgt Kotlin 2.4.21 mit KSP 2.3.11 und Hilt 2.60.1 ohne weitere Änderung. Wie bei allen Bibliotheken: nur auf dem Pixel 8 Pro (API 37) geprüft. Ohne eingebauten DSN ist Sentry in den Releases weiter nicht aktiv; die neue Version steckt trotzdem im APK.
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -955,7 +959,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1471 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1472 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 332 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
