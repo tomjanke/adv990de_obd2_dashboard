@@ -54,7 +54,7 @@ class GearRatioFieldUiTest {
      * Required for every @HiltAndroidTest class in this module, not just this test: Hilt
      * validates the full app graph (incl. ObdForegroundService's entry point) per test class, and
      * ObdRepository's real constructor needs Bluetooth/connection dependencies not available in
-     * tests. See the identical binding + rationale in SettingsScreenTest.
+     * tests. See the identical binding + rationale in SettingsScreenDeviceTest.
      */
     @BindValue
     @JvmField

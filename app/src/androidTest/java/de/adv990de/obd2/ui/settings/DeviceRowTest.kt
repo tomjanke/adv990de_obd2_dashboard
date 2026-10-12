@@ -25,7 +25,7 @@ import org.junit.runner.RunWith
 
 /**
  * Compose UI tests for [DeviceRow] — the composable behind every row of `SettingsScreen`'s
- * paired-devices list. Documented gap (see this class's origin task): `SettingsScreenTest` covers
+ * paired-devices list. Documented gap (see this class's origin task): `SettingsScreenDeviceTest` covers
  * the GPS-speed switch and background-location escalation in detail, and its
  * `emptyState_noPairedDevicesMessage_isVisible` only exercises the *empty*-list path — `DeviceRow`
  * itself, and its three-way trailing-content branch, had zero coverage anywhere (JVM or

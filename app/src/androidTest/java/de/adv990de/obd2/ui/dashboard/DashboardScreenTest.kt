@@ -407,7 +407,7 @@ class DashboardScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        // Long-Press auf die RPM-Kachel (Slot 0) — dasselbe Gestenmuster wie LiveValueTileTest
+        // Long-Press auf die RPM-Kachel (Slot 0) — dasselbe Gestenmuster wie LiveValueTileDeviceTest
         // (performTouchInput { longClick() }), hier gegen die echte Verdrahtung in DashboardScreen
         // statt gegen eine isoliert instanziierte LiveValueTile.
         composeRule.onNodeWithText(rpmLabel.uppercase()).performTouchInput { longClick() }

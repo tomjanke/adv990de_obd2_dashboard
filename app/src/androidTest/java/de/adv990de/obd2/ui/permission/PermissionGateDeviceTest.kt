@@ -85,11 +85,11 @@ import org.junit.runner.RunWith
  *   carries the same shared-device risk.
  *
  * These four items remain a documented gap, matching this project's own established precedent in
- * `SettingsScreenTest` ("there is no established pattern in this codebase for driving or
+ * `SettingsScreenDeviceTest` ("there is no established pattern in this codebase for driving or
  * dismissing [a system permission dialog] mid-test, and a lingering dialog would risk breaking
  * whichever test runs next").
  *
- * Hilt/HiltTestActivity setup mirrored from `SectionLabelTest`/`SparklineTest` in this module:
+ * Hilt/HiltTestActivity setup mirrored from `SectionLabelTest`/`SparklineDeviceTest` in this module:
  * `@HiltAndroidTest` + `createAndroidComposeRule<HiltTestActivity>()` is required for every Compose
  * UI test class here (Hilt validates the full app graph per test class, incl.
  * `ObdForegroundService`'s entry point), even though `PermissionGate` itself needs no Hilt object —
@@ -98,7 +98,7 @@ import org.junit.runner.RunWith
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class PermissionGateTest {
+class PermissionGateDeviceTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)

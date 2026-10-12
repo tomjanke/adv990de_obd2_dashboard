@@ -42,7 +42,7 @@ import org.junit.runner.RunWith
  * `ui-test-manifest` test activity simply never got a composition attached under this project's
  * test Application. So this class uses the same `@HiltAndroidTest` +
  * `createAndroidComposeRule<HiltTestActivity>()` pattern as every other Compose UI test in this
- * module (e.g. `LiveValueTileTest`), confirmed necessary rather than assumed — including the
+ * module (e.g. `LiveValueTileDeviceTest`), confirmed necessary rather than assumed — including the
  * `@BindValue` mock `ObdRepository` below: without it, `hiltJavaCompileDebugAndroidTest` fails to
  * even compile (`Dagger/MissingBinding` on `ConnectionFactory`/`PidParser`/`DtcParser`, reached
  * through `ObdForegroundService`'s Hilt entry point), regardless of `SectionLabel` needing none of

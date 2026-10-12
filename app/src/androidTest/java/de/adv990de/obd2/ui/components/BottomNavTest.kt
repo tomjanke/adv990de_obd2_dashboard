@@ -50,7 +50,7 @@ import org.junit.runner.RunWith
  *   [androidx.compose.ui.test.assertIsSelected]/[androidx.compose.ui.test.assertIsNotSelected] —
  *   `NavigationBarItem`'s `selectable()` modifier merges its icon+label semantics upward onto one
  *   node (the same "clickable/selectable merges descendants" convention documented in
- *   [LiveValueTileTest]), so `onNodeWithText(label)` resolves to the item's own selectable node
+ *   [LiveValueTileDeviceTest]), so `onNodeWithText(label)` resolves to the item's own selectable node
  *   and carries its `selected` semantics property.
  * - Visibility gating via `vm.isNavHidden` (`AnimatedContent(targetState = isNavHidden)`, formerly
  *   `AnimatedVisibility` before [AmbientStatusRow] existed as the alternate content).
@@ -82,7 +82,7 @@ import org.junit.runner.RunWith
  *
  * `@HiltAndroidTest` + `createAndroidComposeRule<HiltTestActivity>` + the `@BindValue`
  * `ObdRepository` mock are still required boilerplate per this project's established convention
- * ([LiveValueTileTest], [SectionLabelTest]): Hilt validates the whole app graph per test class
+ * ([LiveValueTileDeviceTest], [SectionLabelTest]): Hilt validates the whole app graph per test class
  * (reached through `ObdForegroundService`'s entry point) regardless of what the composable under
  * test itself resolves via Hilt — `BottomNav` here resolves nothing via Hilt at all once `vm` is
  * supplied explicitly.

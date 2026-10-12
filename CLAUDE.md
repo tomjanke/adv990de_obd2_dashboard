@@ -599,7 +599,7 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   TalkBack nicht zum Dauersprechen bringt; ohne Verbindung „Drehzahl nicht verfügbar“.
 - **Eine Stelle für Messwert-Zahlen:** `formatSensorNumber(value, rawUnit)` (`obd/UnitConverter.kt`): Volt mit einer Nachkommastelle, sonst ganze Zahl, Gerätelocale; **ein negativer Wert, der auf 0 rundet, zeigt kein Vorzeichen** (`"%.0f".format(-0.4f)` ergibt „-0“).
   Kachel, Slot-Auswahl und Aufzeichnungs-Liste nutzen sie; die Prüfung ist numerisch (|Wert| < halbe letzte Stelle), nicht textuell.
-- **Test-Fallen:** (1) Der Inhalt von `AppInfoScreen` scrollt (mit der Zeile „Absturzberichte“ passt er im Querformat nicht mehr auf den Schirm) — Tests scrollen mit `performScrollTo()` zur Zeile. (2) `SettingsScreenTest.scrollToClearView` schiebt eine Zeile am **Listenende** per
+- **Test-Fallen:** (1) Der Inhalt von `AppInfoScreen` scrollt (mit der Zeile „Absturzberichte“ passt er im Querformat nicht mehr auf den Schirm) — Tests scrollen mit `performScrollTo()` zur Zeile. (2) `SettingsScreenDeviceTest.scrollToClearView` schiebt eine Zeile am **Listenende** per
   Rückwärts-Scroll wieder aus dem Sichtbereich — dort genügt `performScrollToNode` (`waitUntilBottomSwitchIs`); eine nicht komponierte LazyColumn-Zeile gibt es im Baum nicht.
 
 ### CSV-Export (seit v1.24.8)

@@ -18,7 +18,7 @@ import org.junit.Test
  * `REQUEST_PERMISSION` outcome actually wires to `locationPermissionLauncher.launch(...)`. Driving
  * either real trigger through `SettingsScreenTest` (androidTest) would fire a real system
  * permission dialog — this project's only precedent for permission-gated instrumentation tests
- * (`ObdForegroundServiceTest`, `GearRatioFieldUiTest`) is `GrantPermissionRule`, which only
+ * (`ObdForegroundServiceDeviceTest`, `GearRatioFieldUiTest`) is `GrantPermissionRule`, which only
  * *pre-grants* permissions before a test starts; there is no established pattern here for
  * driving or dismissing a live system permission dialog mid-test, and inventing one (e.g. via
  * UiAutomator) was explicitly out of scope. The androidTest suite instead covers the "does NOT

@@ -81,4 +81,13 @@ class CodeHygieneSourceTest {
         assertTrue("Ausnahmen, die nicht mehr gelten (Datei fehlt oder hat eine Vorschau): $stale", stale.isEmpty())
         assertTrue("jede Ausnahme nennt einen Grund", previewExempt.values.all { it.isNotBlank() })
     }
+
+    @Test
+    fun `no test class has the same name in test and androidTest`() {
+        // Sieben Klassen hiessen auf dem JVM und auf dem Geraet gleich (SettingsScreenTest, SparklineTest ...): in Berichten, im Filter
+        // `--tests` und in der IDE-Suche nicht zu unterscheiden. Was ein Geraet braucht, endet auf `DeviceTest` (wie SessionRepositoryDeviceTest).
+        fun names(dir: String) = File(projectRoot, dir).walkTopDown().filter { it.extension == "kt" }.map { it.nameWithoutExtension }.toSet()
+        val clashes = names("app/src/test/java").intersect(names("app/src/androidTest/java"))
+        assertTrue("gleiche Namen in test und androidTest: $clashes - die Geraete-Klasse bekommt das Suffix DeviceTest", clashes.isEmpty())
+    }
 }

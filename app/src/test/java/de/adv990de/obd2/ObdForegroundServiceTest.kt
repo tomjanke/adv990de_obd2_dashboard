@@ -20,7 +20,7 @@ import org.junit.Test
  * reach on this project's test device (Pixel 8 Pro, always API 34+): the pre-API-34
  * `startForeground` fallback, and `onDestroy()`'s `scope.cancel()`. The API-34+ path and the
  * `resolveForegroundServiceType` type-flag computation already have coverage in
- * `ObdForegroundServiceTest` (androidTest) and `ObdForegroundServiceTypeTest` (JVM) respectively.
+ * `ObdForegroundServiceDeviceTest` (androidTest) and `ObdForegroundServiceTypeTest` (JVM) respectively.
  *
  * `resolveForegroundStartMode` is the pure, sdkInt-parameterized extraction of the decision
  * `onStartCommand` makes between the typed 3-arg `startForeground(id, notification, type)`

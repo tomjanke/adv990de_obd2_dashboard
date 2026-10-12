@@ -62,7 +62,7 @@ class RpmThresholdSectionTest {
      * Required for every @HiltAndroidTest class in this module, not just this test: Hilt
      * validates the full app graph per test class, and ObdRepository's real constructor needs
      * Bluetooth/connection dependencies not available in tests. See the identical binding +
-     * rationale in GearRatioFieldUiTest / SettingsScreenTest. [RpmThresholdSection] itself does
+     * rationale in GearRatioFieldUiTest / SettingsScreenDeviceTest. [RpmThresholdSection] itself does
      * not touch ObdRepository at all.
      */
     @BindValue

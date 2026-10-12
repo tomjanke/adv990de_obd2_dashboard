@@ -39,7 +39,7 @@ import org.junit.runner.RunWith
  * not asserting pixel-level `Canvas` output (s. paragraph below).
  *
  * Deliberately NOT covered (matching this project's established ceiling elsewhere, e.g.
- * `SlotPickerSheetTest`/`LiveValueTileTest`/`SectionLabelTest`, none of which assert pixel- or
+ * `SlotPickerSheetTest`/`LiveValueTileDeviceTest`/`SectionLabelTest`, none of which assert pixel- or
  * frame-level state): the blink toggle's actual timing/frequency. `visible` in `RpmBar` is driven by
  * a `produceState` coroutine calling `delay(blinkPeriodMs)` in a `while(true)` loop — asserting *when*
  * it flips would need either idling-resource plumbing or a real-time wait, neither of which exists
@@ -48,7 +48,7 @@ import org.junit.runner.RunWith
  * asserted — no `captureToImage`/pixel-level assertion exists anywhere in this project's test suite.
  *
  * Hilt/HiltTestActivity setup mirrored from [SlotPickerSheetTest] in this same package (and
- * `de.adv990de.obd2.ui.components.LiveValueTileTest`): `@HiltAndroidTest` is required for every test class
+ * `de.adv990de.obd2.ui.components.LiveValueTileDeviceTest`): `@HiltAndroidTest` is required for every test class
  * in this module (Hilt validates the full app graph, incl. `ObdForegroundService`'s entry point, per
  * test class) even though `RpmBar` itself needs no Hilt object — `ObdRepository` still needs a
  * `@BindValue` mock because its real constructor needs Bluetooth/connection dependencies unavailable

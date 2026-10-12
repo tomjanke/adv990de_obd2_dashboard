@@ -43,7 +43,7 @@ import org.junit.runner.RunWith
  * `SegmentedButton` merges its icon+label composable's semantics upward onto one selectable node
  * (the same "clickable/selectable merges descendants" convention documented in
  * [de.adv990de.obd2.ui.components.BottomNavTest] for `NavigationBarItem` and
- * [de.adv990de.obd2.ui.components.LiveValueTileTest] for `combinedClickable`), so
+ * [de.adv990de.obd2.ui.components.LiveValueTileDeviceTest] for `combinedClickable`), so
  * `onNodeWithText(label)` resolves to the button's own node and carries both its `selected` state
  * and its click action — `assertIsSelected()`/`assertIsNotSelected()`/`performClick()` all work
  * directly against it, exactly like [de.adv990de.obd2.ui.components.BottomNavTest] already established
@@ -55,7 +55,7 @@ import org.junit.runner.RunWith
  *
  * `@HiltAndroidTest` + `createAndroidComposeRule<HiltTestActivity>` + the `@BindValue`
  * `ObdRepository` mock are required boilerplate per this project's established convention
- * ([GearRatioFieldUiTest], [de.adv990de.obd2.ui.components.LiveValueTileTest],
+ * ([GearRatioFieldUiTest], [de.adv990de.obd2.ui.components.LiveValueTileDeviceTest],
  * [de.adv990de.obd2.ui.components.BottomNavTest]): Hilt validates the whole app graph per test class
  * (reached through `ObdForegroundService`'s entry point) even though `ThemePickerItem` itself
  * resolves nothing via Hilt.
@@ -81,7 +81,7 @@ class ThemePickerItemTest {
      * Required for every @HiltAndroidTest class in this module, not just this test: Hilt
      * validates the full app graph (incl. ObdForegroundService's entry point) per test class, and
      * ObdRepository's real constructor needs Bluetooth/connection dependencies not available in
-     * tests. See the identical binding + rationale in GearRatioFieldUiTest/LiveValueTileTest.
+     * tests. See the identical binding + rationale in GearRatioFieldUiTest/LiveValueTileDeviceTest.
      */
     @BindValue
     @JvmField

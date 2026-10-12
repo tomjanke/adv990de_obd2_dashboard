@@ -60,7 +60,7 @@ import javax.inject.Inject
  *
  * GPS-speed switch / background-location escalation tests below pre-grant ACCESS_FINE_LOCATION
  * and ACCESS_BACKGROUND_LOCATION via [GrantPermissionRule] (the same precedent
- * `ObdForegroundServiceTest`/`GearRatioFieldUiTest` use for permission-gated instrumentation
+ * `ObdForegroundServiceDeviceTest`/`GearRatioFieldUiTest` use for permission-gated instrumentation
  * tests) so that toggling the switch to "on" never has to open a real system permission dialog —
  * there is no established pattern in this codebase for driving or dismissing one mid-test, and a
  * lingering dialog would risk breaking whichever test runs next. That constraint means the
@@ -71,7 +71,7 @@ import javax.inject.Inject
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class SettingsScreenTest {
+class SettingsScreenDeviceTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -246,7 +246,7 @@ class SettingsScreenTest {
     //
     // permissionRule pre-grants ACCESS_FINE_LOCATION, so shouldRequestLocationForWeather() is false
     // here and no system dialog can open — the "request launched" branch is covered by the JVM
-    // SettingsScreenTest (see class KDoc for why it cannot be driven end-to-end).
+    // SettingsScreenDeviceTest (see class KDoc for why it cannot be driven end-to-end).
 
     @Test
     fun hideNavOnDriveSwitch_turnsOn_withoutPrompt_whenLocationIsAlreadyGranted() = runBlocking {

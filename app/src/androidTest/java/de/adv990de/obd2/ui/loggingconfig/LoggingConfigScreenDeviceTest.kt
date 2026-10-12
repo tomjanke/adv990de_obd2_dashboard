@@ -45,7 +45,7 @@ import javax.inject.Inject
  * row's label+value text assembly (`stringResource(pid.labelRes)` + `formatLoggingRowValue`) — had
  * zero instrumentation coverage before this file.
  *
- * Strategy, mirroring `SettingsScreenTest`/`SimulatedDashboardTest`: [AppPreferences] is a concrete
+ * Strategy, mirroring `SettingsScreenDeviceTest`/`SimulatedDashboardTest`: [AppPreferences] is a concrete
  * `@Singleton @Inject constructor` class backed by the real, on-device DataStore that
  * [de.adv990de.obd2.di.TestAppModule] provides — it is therefore never mocked, but injected directly
  * (`@Inject lateinit var`) so tests can pre-seed `loggedPidIds` before rendering and read the real
@@ -71,7 +71,7 @@ import javax.inject.Inject
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class LoggingConfigScreenTest {
+class LoggingConfigScreenDeviceTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -90,7 +90,7 @@ class LoggingConfigScreenTest {
 
     /**
      * The DataStore-backed instance (a per-test store, see `TestAppModule`) — same direct-injection precedent
-     * as `SettingsScreenTest.appPreferences`/`SimulatedDashboardTest.appPreferences`. Used to
+     * as `SettingsScreenDeviceTest.appPreferences`/`SimulatedDashboardTest.appPreferences`. Used to
      * pre-seed `loggedPidIds`/`useImperial` to a known state before each test and to read back
      * `loggedPidIds` afterwards, since the DataStore file persists across test runs on a real
      * device and must not be trusted to already be at its default.
@@ -111,7 +111,7 @@ class LoggingConfigScreenTest {
         composeRule.waitForIdle()
     }
 
-    /** Polls the real DataStore-backed flow, like `SettingsScreenTest.waitUntilGpsSpeedSwitchIsOn`,
+    /** Polls the real DataStore-backed flow, like `SettingsScreenDeviceTest.waitUntilGpsSpeedSwitchIsOn`,
      *  instead of a single `waitForIdle()`: the write goes through `vm`'s `viewModelScope.launch`,
      *  which is not guaranteed to have completed by the time the click's own frame settles. */
     private fun waitUntilLoggedPidIds(predicate: (Set<String>) -> Boolean) {
@@ -210,7 +210,7 @@ class LoggingConfigScreenTest {
         launchLoggingConfigScreen()
 
         // formatLoggingRowValue(87f, "°C", useImperial = false) -> "87 (°C)" (JVM-verified in the
-        // existing LoggingConfigScreenTest); this pins down the Composable actually combines that
+        // existing JVM LoggingConfigScreenTest); this pins down the Composable actually combines that
         // with stringResource(pid.labelRes), which the JVM test cannot exercise on its own.
         //
         // Root cause found 2026-09-29 (unrelated to any app-code change — confirmed via `git stash`

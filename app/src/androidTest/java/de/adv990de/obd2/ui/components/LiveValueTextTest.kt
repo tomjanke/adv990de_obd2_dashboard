@@ -53,12 +53,12 @@ import org.junit.runner.RunWith
  * `composeRule.waitForIdle()` afterwards is confirmed necessary: it drives both the 180 ms
  * `tween(EaseOutCubic)` slide+fade transition to completion (this project's Compose test
  * synchronization treats a running animation clock as busy, per the same mechanism
- * [LiveValueTileTest]/[BottomNavTest] rely on for gesture/navigation settling) and the
+ * [LiveValueTileDeviceTest]/[BottomNavTest] rely on for gesture/navigation settling) and the
  * recomposition itself to a stable state before assertions run.
  *
  * `@HiltAndroidTest` + `createAndroidComposeRule<HiltTestActivity>` + the `@BindValue`
  * `ObdRepository` mock are the same required boilerplate as every other Compose UI test in this
- * module ([LiveValueTileTest], [SectionLabelTest], [BottomNavTest]): Hilt validates the whole app
+ * module ([LiveValueTileDeviceTest], [SectionLabelTest], [BottomNavTest]): Hilt validates the whole app
  * graph per test class (reached through `ObdForegroundService`'s entry point) regardless of what
  * the composable under test itself resolves via Hilt — `LiveValueText` resolves nothing via Hilt
  * at all.
