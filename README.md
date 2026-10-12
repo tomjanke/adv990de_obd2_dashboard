@@ -58,7 +58,7 @@ Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
 
 ### Prüfsummen (Lieferkette)
 Die Gradle-Distribution ist per `distributionSha256Sum` (`gradle/wrapper/gradle-wrapper.properties`) festgelegt, Abhängigkeiten und Plugins per
-`gradle/verification-metadata.xml` (SHA-256, 711 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
+`gradle/verification-metadata.xml` (SHA-256, 789 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
 Abhängigkeit → Metadaten neu schreiben** — Befehl und Fallstrick (`--refresh-dependencies`) stehen in der [`CLAUDE.md`](CLAUDE.md). Das JDK lädt Gradle nie von selbst herunter (`org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchains gibt es keine Prüfsumme, und ein unbemerkt
 nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt es, bricht der Build mit „No matching toolchains found“ ab; dann einmal selbst installieren oder bewusst per
 `./gradlew -Porg.gradle.java.installations.auto-download=true help` nachladen.
@@ -135,7 +135,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1456 Tests, < 30 Sekunden)
+# JVM Unit Tests (1471 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -144,12 +144,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1456 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1471 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 258 (Dashboard, Preview Banner, RpmBar, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Logging Config, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 52 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
+| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 63 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
 
 ---
@@ -302,7 +303,7 @@ Ein Export (Verlauf → Teilen) schreibt `session_<Fahrt>_<UTC-Zeit>.csv` in den
 Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - **Verbindung:** gekoppeltes Gerät (Auto-Connect zum letzten Gerät), „Alle gekoppelten Geräte“ anzeigen, Reconnect bei eingefrorenen Werten (OBD-Watchdog), Reconnect-Basisverzögerung
 - **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
-- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“, „Nur ECU-bestätigte PIDs aufzeichnen“, Auswahl der aufgezeichneten PIDs
+- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“, „Nur ECU-bestätigte PIDs aufzeichnen“, Auswahl der aufgezeichneten PIDs (gespeichert wird, was du abwählst — ein später ergänzter PID wird also aufgezeichnet)
 - **Fahrzeug:** Fahrzeuginfo (FIN)
 - **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte; von dort die Open-Source-Lizenzen)
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
@@ -342,11 +343,11 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 | Build | Android Gradle Plugin 9.3.0 (built-in Kotlin) · Gradle 9.5.0 · KSP 2.3.11 |
 | UI | Jetpack Compose (BOM 2026.05.00, Compose 1.11.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
 | Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
-| Navigation | androidx.navigation:navigation-compose 2.8.5 |
+| Navigation | androidx.navigation:navigation-compose 2.9.8 |
 | DI | Hilt 2.60.1 |
-| Persistenz | Room 2.8.5 (mit Paging-3-Integration) · DataStore Preferences 1.1.1 |
+| Persistenz | Room 2.8.5 (mit Paging-3-Integration) · DataStore Preferences 1.2.1 |
 | Coroutines | kotlinx-coroutines 1.9.0 |
-| Lifecycle | androidx.lifecycle 2.8.7 |
+| Lifecycle | androidx.lifecycle 2.10.0 |
 | Crash-Reporting | Sentry Android 8.29.0 |
 | Tests | JUnit 4 · MockK 1.13.12 · Compose UI Test · Room Testing · Hilt Testing |
 
@@ -363,8 +364,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1456) |
-| `app/src/androidTest/` | Instrumented Tests (331, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1471) |
+| `app/src/androidTest/` | Instrumented Tests (332, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |

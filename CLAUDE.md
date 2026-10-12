@@ -447,6 +447,11 @@ bereits abgebrochener Aufrufer legt keine Fahrt an, und wird er während des Ins
 verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs“ legt bei DTC-freiem Fahrzeug **gar keine Fahrt** mehr an
 (statt aufzuzeichnen und am Ende zu verwerfen).
 
+**Die Aufzeichnungsauswahl ist eine Abwahl (seit v1.25.2).** `AppPreferences.loggedPidIds` = alle bekannten PIDs **ohne** die vom Nutzer abgewählten; gespeichert wird die Abwahl (`unlogged_pid_ids`), nicht die Auswahl.
+Eine Positivliste (`logged_pid_ids`, bis 1.25.1) lässt jeden PID aus, den es beim Speichern noch nicht gab — wer einmal einen Haken entfernt hatte, zeichnete später ergänzte PIDs nie auf, ohne es zu merken. Der alte Schlüssel wird weiter
+**gelesen** (was darin fehlt, gilt als abgewählt: der Nutzer sieht seine Auswahl unverändert, und PIDs, die schon damals fehlten, bleiben weg wie bisher) und beim ersten Schreiben abgelöst; der neue gewinnt, wenn beide stehen. Unbekannte IDs in
+der Abwahl wirken nicht. **Beide Schlüsselnamen sind gespeicherter Zustand — nie umbenennen.** `loggedPidIds`/`toggleLoggedPid`/`setLoggedPids` behielten ihre Signaturen; die Umstellung liegt allein in `AppPreferences` (`AppPreferencesTest`).
+
 ### Fehlerzustände ehrlich anzeigen (seit v1.24.1)
 
 - **Ein Fehler gilt nur, solange seine Ursache besteht (seit v1.24.14).** `SettingsViewModel.error` hat zwei Ursachen, die sich nicht gegenseitig aufräumen: ein Fehler beim Laden der Geräteliste (fehlende Bluetooth-Berechtigung; `errorFromDeviceList`)
@@ -718,6 +723,13 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   Laden der Klasse gebaut (eine Sprachänderung erreichte es nie). Die Kopfzeile des Dashboards (`formatDashboardHeader`, „Mo 12.10. · 14:30“) ist ein eigenes, kompaktes Format. Geräte-Tests vergleichen mit denselben Funktionen, die Funktionen selbst haben JVM-Tests mit festen Erwartungen.
 - **`@Preview` (CLAUDE.md „Bei UI-Änderungen IMMER“) ist jetzt prüfbar:** `CodeHygieneSourceTest` verlangt für jede Datei mit Composables eine `@Preview` **oder** einen Eintrag mit Begründung in `previewExempt` (ViewModel-gebundene Screens, reine Effekte, Fenster); ein Eintrag, der inzwischen eine Vorschau hat, muss wieder raus. Rahmen:
   `PreviewTheme(dark)` (`ui/theme/PreviewSupport.kt`: helles Standard-Schema und dunkles Cockpit-Blau). Vorschauen für ViewModel-Screens gibt es nicht — ihre zustandslosen Bausteine tragen sie (`DtcRow`, `SessionRow`, `DeviceRow`, …).
+- **Die Vorschauen werden auf dem Gerät gerendert (seit v1.25.2):** `PreviewsRenderDeviceTest` komponiert jede `@Preview`-Funktion in einer eigenen Test-Umgebung (`runAndroidComposeUiTest`, Uhr angehalten wegen endloser Animationen) und
+  verlangt, dass sie weder wirft noch nichts zeichnet (Fenster-Vorschauen = Dialoge: eine zweite Wurzel mit Inhalt). **Gefunden werden sie nach Form**, nicht nach der Annotation (BINARY, zur Laufzeit nicht lesbar): statische Methode
+  `Preview…(Composer, int)` in einer `…Kt`-Klasse des APK (`DexFile`, `getDeclaredComposableMethod`). `CodeHygieneSourceTest` erzwingt die Form (**`private fun Preview…()` ohne Parameter**; umgekehrt heißt eine parameterlose Funktion, die keine
+  Vorschau ist, **nicht** `Preview…` — Hilfs-Composables `…PreviewContent`) und dass `PREVIEW_COUNT` im Geräte-Test (63) die Zahl der Quelltexte ist: wer eine Vorschau ergänzt oder entfernt, zieht die Zahl dort nach.
+  Mit dem Instrumentation-Argument `previewShots=true` schreibt der Test je Vorschau ein Bild nach `files/preview_shots/` der Debug-App (nicht für Dialoge). **Falle:** `connectedDebugAndroidTest` deinstalliert die Debug-App danach, die Bilder sind
+  weg — direkt laufen lassen: beide APKs per `adb install -r -t` (`app-debug.apk`, `app-debug-androidTest.apk`), dann `adb shell am instrument -w -e class de.adv990de.obd2.ui.PreviewsRenderDeviceTest -e previewShots true de.adv990de.obd2.debug.test/de.adv990de.obd2.HiltTestRunner`,
+  Bilder per `adb exec-out run-as de.adv990de.obd2.debug cat files/preview_shots/<Name>.png`. Das Rendern fand zwei falsche Vorschauen (Kachel ohne Höhe füllte das Fenster und verdrängte die zweite Kachel und das Band; Einstellungszeilen ohne Seitenrand) — beide behoben.
 - **Wo was liegt (große Dateien aufgeteilt, v1.25.0, reine Verschiebungen im selben Paket):** `RpmBarLogic.kt` (Blinkperiode, Segmentfarbe, Temperaturbänder, Öl-Balken- und Gangfarbe), `DashboardComponents.kt` (`RpmBar`, `OilTemperatureBarStrip`), `SlotComponents.kt` (Kachel, Vorschau-Band, Slot-Auswahl),
   `DashboardUiState.kt`, `SessionEvent.kt` (+ `OBD_STALE_AFTER_MS`), `SettingsScreenSupport.kt` (Test-Tags, reine Entscheidungen), `SettingsSections.kt` (Gruppen Aufzeichnung/Fahrzeug/Info als `LazyListScope`-Erweiterungen), `DeviceRow.kt`, `ThemePickerItem.kt`, `data/PidDiscovery.kt`.
   **Die drei letzten Dateien über 400 Zeilen sind danach aufgeteilt worden** (v1.25.1, s. „Aufteilung der großen Klassen“): keine Datei ist mehr länger als 400 Zeilen.
@@ -771,10 +783,16 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 
 - **Gradle-Distribution:** `distributionSha256Sum` in `gradle/wrapper/gradle-wrapper.properties` (Gradle 9.5.0-bin: `553c78f5…6b746`, von services.gradle.org und gradle.org/release-checksums bestätigt und selbst gehasht). Wird die Version angehoben, Summe und
   `BuildIntegrityTest` gemeinsam ändern.
-- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 711 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
+- **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 789 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
   `./gradlew --refresh-dependencies --write-verification-metadata sha256 --continue :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest :app:lintAnalyzeDebugAndroidTest help`.
   Ohne `--refresh-dependencies` fehlen Einträge, die nur beim frischen Auflösen gebraucht werden (gemessen: `guava-parent 33.4.0-jre`); das zeigt erst ein späterer frischer Build. Geprüft mit einem Build + `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). `BuildIntegrityTest` hält
   Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Das JDK lädt Gradle nie von selbst** (seit v1.25.0: `org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchain-Downloads (Daemon-JVM-Kriterien, foojay-Resolver) gibt es keine Prüfsumme, ein unbemerkt nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; die JBR von Android Studio und `~/.gradle/jdks` werden gefunden. Bewusst nachladen: `./gradlew -Porg.gradle.java.installations.auto-download=true help`. **Nicht am Gerät der Entwicklung nachgestellt, dass ein fehlendes JDK wirklich abbricht** (ein Gegenversuch hätte einen Download ausgelöst); belegt ist, dass der Build mit der Einstellung läuft, und die Einstellung steht in Gradles Dokumentation.
+
+- **Bibliotheks-Updates (v1.25.2, Freigabe des Nutzers 2026-10-12: nur Bibliotheken, ohne AGP/Kotlin/Gradle/BOM):** navigation-compose 2.8.5 → 2.9.8, lifecycle 2.8.7 → 2.10.0, datastore 1.1.1 → 1.2.1, appcompat 1.7.0 → 1.8.0, paging 3.3.4 → 3.5.2, core-ktx 1.15.0 → 1.18.0,
+  activity-compose 1.9.3 → 1.13.0, hilt-navigation-compose 1.2.0 → 1.3.0 (`hiltViewModel` liegt jetzt in `androidx.hilt.lifecycle.viewmodel.compose`; der alte Import ist deprecated). **Nicht möglich unter compileSdk 36** (der Build meldet es in `checkDebugAarMetadata`):
+  navigation-compose 2.10.x, lifecycle 2.11.0, core-ktx 1.19.x, hilt-navigation-compose 1.4.0 — sie warten mit dem BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6). Nicht Teil der Freigabe, also unverändert: androidx.test (runner/ext/rules), Sentry, coroutines,
+  mockk, kotlinx-serialization, Kotlin/KSP. **Falle:** `lintAnalyzeDebugAndroidTest` und `lintAnalyzeDebugUnitTest` scheitern gelegentlich im großen Sammellauf der Prüfsummen-Neuberechnung mit einem internen Lint-Fehler („Error while resolving … FirRegularClassImpl“) —
+  eine Verdichtung paralleler Tasks, kein Fehler der Bibliotheken: allein bzw. mit `--no-parallel` laufen sie durch. Die Prüfsummen-Neuberechnung braucht deshalb die Lint-Tasks nicht (separat laufen lassen).
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -784,6 +802,11 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
   (`AppDatabaseBootstrapTest` weist es am Gerät nach); Tests bauen keinen Callback nach.
 - **Instrumentation-DataStore:** `TestAppModule` gibt jedem Test einen **eigenen** DataStore (Temp-Datei, produktiver Korruptions-Handler). Tests starten bei den
   Standardwerten und hinterlassen nichts; die Einstellungen der Debug-App auf dem Gerät bleiben unberührt. Nie wieder `ctx.dataStore` in einem Test-Modul.
+- **Attrappen stehen einmal (TST-17, seit v1.25.2):** JVM: `fakeAppPreferences(…)` (`app/src/test/java/de/adv990de/obd2/FakeAppPreferences.kt`) — jeder Lese-Flow mit den Standardwerten der echten Klasse, ein Test nennt nur, was für ihn zählt (Parameter heißen wie die Properties);
+  `FakeAppPreferencesTest` vergleicht jeden Flow der echten `AppPreferences` (per Reflexion) mit der Attrappe, ein neuer Flow macht ihn rot, bis die Attrappe ihn kennt. `fakeObdRepository { … }` (`FakeObdRepository.kt`) — streng, mit den Stubs jeder Sitzung
+  (nicht verbunden, keine PIDs, keine FIN, keine Codes); `configure` überschreibt (ein späteres `every` gewinnt), darin heißt der Bezug `this@fakeObdRepository`. Gerät: `idleObdRepository { … }` (`androidTest/…/IdleObdRepository.kt`, relaxed) ersetzt den Inhalt des
+  `@BindValue`-Blocks. **`@BindValue` selbst bleibt in jeder Klasse** — Hilt erlaubt ein Überschreiben nur dort, kein Basistyp und kein Modul kann es übernehmen. Neue Tests nehmen diese Fabriken, keine eigene `makePrefs`/`mockk<ObdRepository> { … }`-Kopie.
+  **Test-Falle bei automatischen Umbauten:** ein „unbenutzte Imports entfernen“-Skript darf `androidx.compose.runtime.getValue`/`setValue` nicht löschen (`by`-Delegate, kein Name im Text) — erst der Compiler zeigt es.
 - **Benachrichtigungskanal:** `createObdNotificationChannel(context)` (`ObdForegroundService.kt`) — die Application und der Service-Test benutzen dieselbe Funktion.
 - **Projektverzeichnis in Tests:** `projectRoot` (`app/src/test/java/de/adv990de/obd2/ProjectRoot.kt`, `internal`, lazy) — eine Stelle für alle Tests, die Quelltext, Doku oder Skripte lesen (`import de.adv990de.obd2.projectRoot`). Zehn Kopien der Suche nach `settings.gradle.kts`
   trugen je eine Compilerwarnung (`System.getProperty` ist nullable); die JVM-Tests laufen jetzt ohne Kompilerwarnung. **Test-Falle:** `docs/*` in einem KDoc beginnt einen verschachtelten Kommentar (`/*`) — „Unclosed comment“; im Kommentar umschreiben.
@@ -932,8 +955,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1456 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 331 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1471 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 332 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

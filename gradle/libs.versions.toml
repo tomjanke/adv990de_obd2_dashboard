@@ -6,6 +6,8 @@ sentry = "8.29.0"
 # Bewusst auf dem mit 1.7.0 ausgelieferten Stand belassen — das Toolchain-Upgrade
 # soll nicht zugleich den Compose-Stack anheben.
 compose-bom = "2026.05.00"
+# Stand v1.25.2: unter compileSdk 36 nicht weiter moeglich (checkDebugAarMetadata meldet es): navigation-compose 2.10.x, lifecycle 2.11.0,
+# core-ktx 1.19.x, hilt-navigation-compose 1.4.0. Sie warten mit der BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6).
 hilt = "2.60.1"
 room = "2.8.5"
 navigation = "2.9.8"
