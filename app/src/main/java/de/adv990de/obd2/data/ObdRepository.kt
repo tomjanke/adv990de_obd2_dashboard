@@ -8,7 +8,6 @@ import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
-import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -29,7 +28,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,7 +55,8 @@ private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCH
  *  - **Live-Abfrage** ([livePids]): den PID ueberspringen, der [Watchdog][isReadingsStale] eskaliert nach `watchdogTimeoutMs` — eine einzelne
  *    langsame Antwort ist im Betrieb normal und darf die Verbindung nicht kosten.
  *  - **Fehlercodes** ([readDtcs]) und **Freeze-Frame** ([readFreezeFrame]): beim ersten Zeitlimit abbrechen, trennen, weiterreichen. Es sind
- *    Folgen mehrerer Befehle, jede verschobene Antwort verfaelschte das Ergebnis; getrennt wird, damit der Reconnect den Strom zuruecksetzt.
+ *    Folgen mehrerer Befehle, jede verschobene Antwort verfaelschte das Ergebnis; getrennt wird, damit der Reconnect den Strom zuruecksetzt —
+ *    aber nur, wenn der Lesevorgang noch auf der AKTUELLEN Verbindung lief ([disconnectIfCurrent], PRO-11); ein ersetzter Leser reisst keine neue ein.
  *  - **FIN** ([readVin]): das Zeitlimit wird gemeldet, die Verbindung bleibt. Die Pipeline fragt sie bei JEDEM Verbinden; ein Motorrad, das auf
  *    Modus 09 schweigt, geriete bei "trennen" in eine Schleife aus Verbinden, Zeitlimit, Trennen. Ein einzelner Befehl kann ausserdem keine Folge
  *    verschieben, und der naechste Befehl verwirft Altbytes ([de.adv990de.obd2.obd.ElmController]).
@@ -67,8 +66,10 @@ private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCH
 class ObdRepository @Inject constructor(
     private val connectionFactory: ConnectionFactory,
     private val pidParser: PidParser,
-    private val dtcParser: DtcParser
+    dtcParser: DtcParser
 ) {
+
+    private val diagnostics = DiagnosticReads(pidParser, dtcParser, onLinkBroken = ::disconnectIfCurrent)
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
@@ -144,7 +145,23 @@ class ObdRepository @Inject constructor(
         disconnect()
     }
 
-    suspend fun disconnect() = connectMutex.withLock {
+    suspend fun disconnect() = connectMutex.withLock { resetLocked() }
+
+    /**
+     * Trennt nur, wenn [controller] noch die aktuelle Verbindung ist (PRO-11) — fuer die LESEPFADE, deren Fehler die Verbindung
+     * beendet (Link-Verlust, Watchdog, ein Zeitlimit, das den Datenstrom in unbekanntem Zustand laesst). Ein Leser, der auf einer
+     * inzwischen ERSETZTEN Verbindung scheitert — typisch: "Verbinden" zu einem anderen Adapter schliesst die alte, das blockierte
+     * Lesen scheitert —, wartet mit seinem Trennen hinter [connectMutex], bis der neue Aufbau fertig ist. Ein unbedingtes
+     * [disconnect] risse dann die frische Verbindung ein und loeste einen Verlust samt Reconnect aus. Ist die Verbindung schon
+     * ersetzt oder weg, ist nichts mehr zu tun: [connectLocked] hat ihren Zustand beim Ersetzen bereits zurueckgesetzt.
+     * Der WUNSCH des Nutzers bleibt das unbedingte [disconnect] bzw. [disconnectByUser].
+     */
+    private suspend fun disconnectIfCurrent(controller: ElmController) = connectMutex.withLock {
+        if (elm === controller) resetLocked()
+    }
+
+    /** Schliesst die Verbindung und setzt alles zurueck, was zu ihr gehoerte. Must only be called while [connectMutex] is held. */
+    private fun resetLocked() {
         _isConnected.value = false
         _isMoving.value = false
         _supportedPidIds.value = null
@@ -188,11 +205,9 @@ class ObdRepository @Inject constructor(
 
     /** Must only be called while [connectMutex] is held. */
     private suspend fun connectLocked(device: ScannedDevice) {
-        // Close any existing connection before replacing it
-        connection?.close()
-        _isConnected.value = false
-        connection = null
-        elm = null
+        // Close any existing connection before replacing it — and drop what belonged to it: a reader of the old
+        // connection that fails later does not disconnect any more once it is no longer the current one (PRO-11).
+        resetLocked()
 
         val conn = connectionFactory.create(device)
         connecting = conn
@@ -326,7 +341,7 @@ class ObdRepository @Inject constructor(
                     // that mutex (i.e., is mid-BT-connect), this NonCancellable block will
                     // suspend until reconnect() releases the lock. Self-resolving, not a true
                     // deadlock, but the NonCancellable section may run longer than expected.
-                    withContext(NonCancellable) { disconnect() }
+                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
                     throw e  // fatal — propagate to ViewModel
                 }
             }
@@ -335,7 +350,7 @@ class ObdRepository @Inject constructor(
                 // After 5 consecutive BusInit errors the bus is stuck — escalate to ConnectionLost
                 // so the ViewModel triggers auto-reconnect instead of polling silently forever.
                 if (consecutiveBusInitErrors >= 5) {
-                    withContext(NonCancellable) { disconnect() }
+                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
                     throw ObdException.ConnectionLost()
                 }
             } else {
@@ -352,7 +367,7 @@ class ObdRepository @Inject constructor(
                 // The watchdog. A NoData from another PID in the same cycle does not offset the
                 // Timeout/UnknownResponse. BusInit keeps its own 5-strike counter above.
                 if (isReadingsStale(lastSuccessMark.elapsedNow().inWholeMilliseconds, watchdogTimeoutMs)) {
-                    withContext(NonCancellable) { disconnect() }
+                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
                     throw ObdException.ConnectionLost()
                 }
             } else if (!busInitOccurred) {
@@ -367,84 +382,10 @@ class ObdRepository @Inject constructor(
         }
     }
 
-    suspend fun readDtcs(): List<DtcEntry> {
-        val controller = elm ?: return emptyList()
-        return try {
-            // Modus 03 (bestaetigt) ist die massgebliche Frage: bleibt sie ohne positive Antwort, wirft der Parser
-            // (NO DATA, Busfehler, Unverstaendliches — A9) und die Seite sagt es, statt "keine Fehlercodes" zu behaupten.
-            val confirmed = dtcParser.parse(controller.sendCommand("03"), isPending = false)
-            // Modus 07 (ausstehend) ist optional: Viele Steuergeraete schweigen darauf, wenn nichts ansteht. Diese Stille
-            // ist keine Aussage "nichts ausstehend", aber auch kein Grund, die bestaetigten Codes zu verwerfen. Ein
-            // Busfehler oder Muell im selben Zug bleibt ein Fehler.
-            val pending = try {
-                dtcParser.parse(controller.sendCommand("07"), isPending = true)
-            } catch (_: ObdException.NoData) {
-                emptyList()
-            }
-            // Ein Code kann in beiden Antworten stehen (bestaetigt UND noch ausstehend) oder von zwei
-            // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
-            // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
-            (confirmed + pending).distinctBy { it.code }
-        } catch (e: ObdException.Timeout) {
-            // A timeout leaves the serial stream in an unknown state: the stale response may
-            // arrive during the next sendCommand and corrupt it. Disconnect now so the stream
-            // is fully reset before the next caller sends anything.
-            withContext(NonCancellable) { disconnect() }
-            throw e
-        } catch (e: ObdException.ConnectionLost) {
-            // Wie livePids() und readFreezeFrame(): ein verlorener Link wird nie als "verbunden" stehen
-            // gelassen — sonst haelt isConnectedFlow einen toten Adapter fuer lebendig.
-            withContext(NonCancellable) { disconnect() }
-            throw e
-        }
-    }
+    // Die einmaligen Lesevorgaenge (Fehlercodes, Freeze-Frame, FIN) stehen in [DiagnosticReads]; ohne Verbindung liefern sie "nichts".
+    suspend fun readDtcs(): List<DtcEntry> = elm?.let { diagnostics.readDtcs(it) } ?: emptyList()
 
-    /**
-     * Reads freeze frame data (mode 02) for all known PIDs.
-     * Mode 02 uses the same PID bytes as mode 01; responses carry "42" prefix.
-     * Returns a map of PID id → formatted value, or empty map if no freeze frame is stored.
-     * Keyed by id (not the English PidDefinition.name) so the UI can resolve the localized
-     * label via PidRegistry, the same pattern used for sparklines and slot assignment.
-     */
-    suspend fun readFreezeFrame(): Map<String, String> {
-        val controller = elm ?: return emptyMap()
-        val result = mutableMapOf<String, String>()
-        for (pid in PidRegistry.all.values) {
-            val pidByte = pid.id.takeLast(2)
-            // ELM327 mode-02 command: space-separated "02 <PID> <FF>" for widest clone
-            // compatibility — many clones reject packed form "02<PID><FF>" without spaces.
-            // NO DATA / UnknownResponse / BusInit ueberspringen den PID (der Adapter HAT geantwortet): ein einmaliger Diagnose-Lesevorgang
-            // eskaliert voruebergehende Busfehler nicht zu ConnectionLost. Ein ZEITLIMIT bricht dagegen ab (s. unten).
-            val raw = try {
-                controller.sendCommand("02 ${pidByte} 00")
-            } catch (_: ObdException.NoData)          { null }
-              catch (_: ObdException.UnknownResponse) { null }
-              catch (_: ObdException.BusInit)         { null }
-              catch (e: ObdException.Timeout)         {
-                  // Zeitlimit-Richtlinie (PRO-13), wie in readDtcs(): ein Zeitlimit laesst den Datenstrom in unbekanntem Zustand, die
-                  // verspaetete Antwort kaeme beim naechsten Befehl an. Frueher lief die Schleife mit allen ~40 PIDs weiter (bei einem
-                  // stillen Adapter 40 x 5 s) und meldete am Ende "keine Daten", obwohl der Adapter nie geantwortet hatte.
-                  withContext(NonCancellable) { disconnect() }
-                  throw e
-              }
-              catch (e: ObdException.ConnectionLost)  {
-                  withContext(NonCancellable) { disconnect() }
-                  throw e
-              } ?: continue
-            val value = pidParser.parseFreezeFrame(pid, raw) ?: continue
-            // Die Einheit gehoert NICHT in den Formatstring: "%" (Last, Gaspedal, Trims, Tank) waere sonst ein
-            // unvollstaendiger Platzhalter und wirft UnknownFormatConversionException.
-            result[pid.id] = String.format(Locale.getDefault(), "%.1f", value) + " ${pid.unit}"
-        }
-        return result
-    }
+    suspend fun readFreezeFrame(): Map<String, String> = elm?.let { diagnostics.readFreezeFrame(it) } ?: emptyMap()
 
-    /**
-     * Die Fahrgestellnummer (17 Zeichen) oder `null`, wenn das Fahrzeug keine liefert (viele
-     * Motorraeder kennen Modus 09 nicht) oder die Antwort keine FIN ist — nie der rohe Adaptertext.
-     */
-    suspend fun readVin(): String? {
-        val controller = elm ?: return null
-        return VinDecoder.decode(controller.sendCommand("0902"))
-    }
+    suspend fun readVin(): String? = elm?.let { diagnostics.readVin(it) }
 }

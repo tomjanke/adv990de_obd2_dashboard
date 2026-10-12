@@ -529,6 +529,99 @@ class ObdRepositoryTest {
         assertFalse("danach ist die Verbindung wieder getrennt", repo.isConnectedFlow.value)
     }
 
+    // ── PRO-11: ein veralteter Leser darf eine neuere Verbindung nicht trennen ─
+
+    /**
+     * Ein Lesevorgang wartet auf der Verbindung A auf eine Antwort, waehrend B aufgebaut wird (ein manuelles "Verbinden" zu einem
+     * anderen Adapter schliesst A — das laesst das blockierte Lesen auf A scheitern). [read] ruft den Lesepfad; er scheitert mit
+     * [failure], NACHDEM B den Lock haelt, und will dann trennen. Rueckgabe: das Repository, B und ob der Leser den Fehler sah.
+     */
+    private suspend fun TestScope.readOnReplacedConnection(
+        failure: ObdException,
+        read: suspend (ObdRepository) -> Unit,
+    ): Triple<ObdRepository, ObdConnection, Boolean> {
+        val deviceA = mockk<ScannedDevice>()
+        val deviceB = mockk<ScannedDevice>()
+        val (factory, connA, connB) = twoConnections()
+        coEvery { factory.create(deviceA) } returns connA
+        coEvery { factory.create(deviceB) } returns connB
+        val elmA = stubElm(connA)
+        val repo = makeRepo(factory)
+        repo.connect(deviceA)
+        // Erst NACH der Discovery von A: ab jetzt wartet jeder Befehl auf A, bis A "geschlossen" wird.
+        val connAClosed = CompletableDeferred<Unit>()
+        coEvery { elmA.sendCommand(any()) } coAnswers { connAClosed.await(); throw failure }
+        val holdB = CompletableDeferred<Unit>()
+        val elmB = mockk<ElmController>()
+        coEvery { connB.connect() } coAnswers { holdB.await(); elmB }
+        coEvery { elmB.initialize() } just Runs
+        coEvery { elmB.sendCommand(any()) } throws ObdException.NoData("x")
+
+        var readerSawFailure = false
+        val reader = launch {
+            try { read(repo) } catch (e: ObdException) { if (e::class == failure::class) readerSawFailure = true }
+        }
+        runCurrent()                       // der Leser wartet auf A
+        val switching = launch { repo.connect(deviceB) }
+        runCurrent()                       // B haelt den Lock, haengt in connect()
+        connAClosed.complete(Unit)
+        runCurrent()                       // der Leser scheitert und will trennen: er steht hinter dem Lock
+        holdB.complete(Unit)
+        switching.join(); reader.join()
+        return Triple(repo, connB, readerSawFailure)
+    }
+
+    @Test
+    fun `a poll on the replaced connection that loses its link leaves the new connection up`() = runTest {
+        val (repo, connB, readerSawFailure) = readOnReplacedConnection(ObdException.ConnectionLost()) {
+            it.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 10L).collect { }
+        }
+
+        assertTrue("der alte Leser meldet den Verlust weiter", readerSawFailure)
+        assertTrue("die neue Verbindung steht weiter", repo.isConnectedFlow.value)
+        verify(exactly = 0) { connB.close() }
+    }
+
+    @Test
+    fun `a fault-code read on the replaced connection that times out leaves the new connection up`() = runTest {
+        val (repo, connB, readerSawFailure) = readOnReplacedConnection(ObdException.Timeout("03")) { it.readDtcs() }
+
+        assertTrue("der alte Leser meldet den Fehler weiter", readerSawFailure)
+        assertTrue("die neue Verbindung steht weiter", repo.isConnectedFlow.value)
+        verify(exactly = 0) { connB.close() }
+    }
+
+    @Test
+    fun `a freeze-frame read on the replaced connection that loses its link leaves the new connection up`() = runTest {
+        val (repo, connB, readerSawFailure) = readOnReplacedConnection(ObdException.ConnectionLost()) { it.readFreezeFrame() }
+
+        assertTrue("der alte Leser meldet den Fehler weiter", readerSawFailure)
+        assertTrue("die neue Verbindung steht weiter", repo.isConnectedFlow.value)
+        verify(exactly = 0) { connB.close() }
+    }
+
+    @Test
+    fun `a connect that replaces a connection and then fails leaves nothing of the old one behind`() = runTest {
+        // Der alte Leser trennt nicht mehr (er ist nicht mehr der aktuelle) — dann muss das Ersetzen selbst aufraeumen.
+        val deviceA = ScannedDevice(device = null, type = BtType.CLASSIC, name = "A")
+        val deviceB = ScannedDevice(device = null, type = BtType.CLASSIC, name = "B")
+        val (factory, connA, connB) = twoConnections()
+        coEvery { factory.create(deviceA) } returns connA
+        coEvery { factory.create(deviceB) } returns connB
+        stubElm(connA)
+        coEvery { connB.connect() } throws ObdException.ConnectionLost()
+        val repo = makeRepo(factory)
+        repo.connect(deviceA)
+        repo.setMoving(true)
+        repo.updateLatestReadings(listOf(SensorValue(PidRegistry.RPM, 1f)))
+
+        try { repo.connect(deviceB) } catch (_: ObdException.ConnectionLost) { }
+
+        assertFalse(repo.isConnectedFlow.value)
+        assertFalse("die Fahrterkennung der alten Verbindung gilt nicht weiter", repo.isMovingFlow.value)
+        assertTrue("die Werte der alten Verbindung sind weg", repo.latestReadings.value.isEmpty())
+    }
+
     // ── DTC read ─────────────────────────────────────────────────────────────
 
     @Test
@@ -855,17 +948,22 @@ class ObdRepositoryTest {
     }
 
     @Test
-    fun `livePids escalates to ConnectionLost after 5 consecutive BusInit cycles`() = runTest {
+    fun `livePids escalates to ConnectionLost after exactly 5 consecutive BusInit cycles`() = runTest {
         val elmCtrl = mockk<ElmController>()
+        val pid = PidRegistry.defaults.first()
+        var pidCommands = 0
         coEvery { elmCtrl.sendCommand(any()) } throws ObdException.BusInit()
+        coEvery { elmCtrl.sendCommand(pid.id) } answers { pidCommands++; throw ObdException.BusInit() }
         val repo = makeConnectedRepo(elmCtrl)
 
         var threw = false
         try {
-            repo.livePids(listOf(PidRegistry.defaults.first()), pollIntervalMs = 0).collect {}
+            repo.livePids(listOf(pid), pollIntervalMs = 0).collect {}
         } catch (_: ObdException.ConnectionLost) { threw = true }
 
         assertTrue(threw)
+        // Nach unten stuetzt der Test "bleibt unter der Schwelle" (4 genuegen nicht); hier die Obergrenze: nicht erst nach 6 oder 50.
+        assertEquals("ein PID je Zyklus, fuenf Zyklen", 5, pidCommands)
     }
 
     @Test
