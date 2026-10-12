@@ -97,13 +97,17 @@ fun DashboardScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         // ── RPM demo animation ────────────────────────────────────────────
-        // Runs once per navigation to this screen when rpmValue is 0 (engine off / no data).
+        // Runs once per app start (DashboardViewModel.consumeDemoSweepOffer), not on every visit of this
+        // screen — and only if rpmValue is still 0 after the start delay (engine off / no data).
         // Sweeps 0 → 10 000 → 0 to demonstrate bar fill and threshold blinking.
         val rpmDemo = remember { Animatable(0f) }
         val rpmValueRef = rememberUpdatedState(state.rpmValue)
         LaunchedEffect(Unit) {
             delay(400) // allow first ECU readings to arrive before deciding to demo
-            if (shouldStartRpmDemoSweep(rpmValueRef.value)) {
+            // Consume the offer first: it is spent by the first check even if real RPM already arrived,
+            // so the sweep is never caught up in the middle of a session.
+            val offered = vm.consumeDemoSweepOffer()
+            if (offered && shouldStartRpmDemoSweep(rpmValueRef.value)) {
                 // EaseOut: bar rises quickly at first, then slows near max — spends more
                 // time above the blink threshold, making the gradual speed-up clearly visible.
                 rpmDemo.animateTo(10000f, tween(durationMillis = 4000, easing = EaseOut))

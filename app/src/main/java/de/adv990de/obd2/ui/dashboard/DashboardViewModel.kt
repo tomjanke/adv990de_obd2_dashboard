@@ -182,6 +182,25 @@ class DashboardViewModel @Inject constructor(
         lastSparklineTimestamp.clear()
     }
 
+    /** Ob der Tacho-Sweep dieses App-Starts schon angeboten wurde — s. [consumeDemoSweepOffer]. Bewusst nicht im `SavedStateHandle`. */
+    private var demoSweepOffered = false
+
+    /**
+     * Der Tacho-Sweep (`DashboardScreen`) ist eine Start-Animation: er wird **einmal je App-Start** angeboten, nicht bei jedem Betreten
+     * des Dashboards (Entscheidung 2026-10-12). Liefert `true` genau beim ersten Aufruf, danach immer `false`. "App-Start" ist die
+     * Lebensdauer dieses ViewModels — es bleibt ueber Tabwechsel und Drehung bestehen (der Dashboard-Eintrag liegt auf dem Back-Stack,
+     * s. `BottomNav`) und endet mit der Activity. Ein Systemkill mit Wiederherstellung zaehlt als neuer Start (kein `SavedStateHandle`).
+     *
+     * Das Angebot ist mit der ersten PRUEFUNG verbraucht, nicht erst mit dem Abspielen: lief die Animation beim Start nicht, weil schon eine
+     * echte Drehzahl anlag, soll sie nicht spaeter mitten in der Sitzung nachgeholt werden. Ob sie dann wirklich laeuft, entscheidet
+     * weiterhin [shouldStartRpmDemoSweep] (Drehzahl noch 0?).
+     */
+    fun consumeDemoSweepOffer(): Boolean {
+        val firstOffer = !demoSweepOffered
+        demoSweepOffered = true
+        return firstOffer
+    }
+
     /** Beginn des Widerspruchs "ECU steht, GPS faehrt" ([standstillConflictSince]); gehoert wie die Sparkline zu einer Verbindung. */
     private var standstillConflictSinceMs: Long? = null
 

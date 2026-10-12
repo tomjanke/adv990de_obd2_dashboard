@@ -138,12 +138,11 @@ internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when (engineTem
 }
 
 /**
- * Ob die einmalige RPM-Demo-Sweep-Animation in `DashboardScreen` (`LaunchedEffect(Unit)`, das per
- * `Unit`-Key nur einmal pro Bildschirmbetreten laeuft) nach der 400ms-Anlaufverzoegerung starten
- * soll: nur, wenn bis dahin noch keine plausible echte Drehzahl eingetroffen ist. Die Einmaligkeit
- * selbst ist Compose-Runtime-Verhalten (`LaunchedEffect(Unit)` startet nie neu, unabhaengig vom
- * Ergebnis dieser Funktion) — dieses Gate ist die einzige Entscheidungslogik darin und damit der
- * testbare Teil.
+ * Ob die RPM-Demo-Sweep-Animation in `DashboardScreen` nach der 400ms-Anlaufverzoegerung starten
+ * soll: nur, wenn bis dahin noch keine plausible echte Drehzahl eingetroffen ist. Die Frage "schon
+ * gezeigt?" beantwortet diese Funktion NICHT — der Sweep laeuft einmal je App-Start, das entscheidet
+ * `DashboardViewModel.consumeDemoSweepOffer()` (der Aufrufer verknuepft beide). Dieses Gate ist die
+ * Entscheidung "Drehzahl schon da?" und damit der testbare Teil.
  *
  * Reine Funktion ohne Compose-Bezug (vgl. [rpmThresholdTempScale]).
  */

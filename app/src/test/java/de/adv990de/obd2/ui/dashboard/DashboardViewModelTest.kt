@@ -2091,6 +2091,38 @@ class DashboardViewModelTest {
         assertEquals("nur der neue Punkt, nicht der alte Verlauf davor", listOf(900f), d.vm.uiState.value.sparklines[PidRegistry.RPM.id])
     }
 
+    // --- Tacho-Sweep: einmal je App-Start (Entscheidung 2026-10-12) ---------------------------------------------------
+
+    @Test
+    fun `the demo sweep is offered once - the first call gets it, every later call does not`() {
+        val vm = makeVm()
+
+        assertEquals("first visit of the dashboard", true, vm.consumeDemoSweepOffer())
+        assertEquals("second visit (tab switch)", false, vm.consumeDemoSweepOffer())
+        assertEquals("third visit", false, vm.consumeDemoSweepOffer())
+    }
+
+    @Test
+    fun `a new view model gets the demo sweep again - that is what an app start is`() {
+        assertEquals(true, makeVm().consumeDemoSweepOffer())
+        assertEquals(true, makeVm().consumeDemoSweepOffer())
+    }
+
+    @Test
+    fun `connection changes do not bring the demo sweep back`() = runTest {
+        val d = driven()
+        advanceUntilIdle()
+        assertEquals(true, d.vm.consumeDemoSweepOffer())
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+        d.cycle(rpmAt(1_000L, 900f))
+        d.events.emit(SessionEvent.Failed(UiText.DynamicString("link lost")))
+        advanceUntilIdle()
+
+        assertEquals("a reconnect is not an app start", false, d.vm.consumeDemoSweepOffer())
+    }
+
     @Test
     fun `a lost connection clears the sparklines at once and the buffer for the next session (UID-16)`() = runTest {
         val d = driven()

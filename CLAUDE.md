@@ -683,10 +683,20 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   Die übrigen Einstellungs-Flows, die nur Anzeige speisen, sind `StateFlow`s (fassen gleiche Werte selbst zusammen) und blieben unverändert.
 - **Standort-Hardware ist optional:** `uses-feature android.hardware.location` und `….gps` mit `required="false"` — die Standort-Berechtigungen deklarieren sie sonst implizit als Pflicht (`aapt2 dump badging`: `uses-implied-feature`).
 - **Smoke-Test im Repo:** `scripts/smoke.py <versionName> <versionCode>` (uiautomator, Gerät entsperrt; `SmokeScriptTest` hält ihn vorhanden, übersetzbar und im Release-Ablauf genannt). Er lag bis 1.24.11 nur im Scratchpad einer Sitzung und ging verloren.
-- **Entschieden am 2026-10-12 (`docs/qa/2026-10-12-decisions.md`):** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen) **bleibt**, keine neue Einstellung; der Tacho-Sweep (`DashboardScreen`, `shouldStartRpmDemoSweep`) soll künftig
-  **nur einmal je App-Start** laufen — **noch nicht umgesetzt** (bis dahin läuft er bei jedem Betreten des Dashboards ohne Drehzahl); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
+- **Entschieden am 2026-10-12 (`docs/qa/2026-10-12-decisions.md`):** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen) **bleibt**, keine neue Einstellung; der Tacho-Sweep (`DashboardScreen`, `shouldStartRpmDemoSweep`) läuft
+  **nur einmal je App-Start** (umgesetzt in v1.24.13, s. „Tacho-Sweep“ unten); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
 - **Bewusst nicht umgesetzt:** PRO-11 (der Einzelbefund
   „`disconnect()` unbedingt“ ist im Bericht nur ein Stichwort; Protokollschicht, ohne Adapter nicht prüfbar).
+
+### Tacho-Sweep: einmal je App-Start (seit v1.24.13)
+
+- **Die Demo-Animation 0 → 10 000 → 0 rpm ist eine Start-Animation** (Entscheidung 2026-10-12). `DashboardViewModel.consumeDemoSweepOffer()` liefert `true` genau beim ersten Aufruf, danach `false`; `DashboardScreen` ruft es nach der 400-ms-Anlaufzeit und
+  spielt nur ab, wenn zusätzlich `shouldStartRpmDemoSweep(rpm)` gilt (Drehzahl noch 0). Die beiden Fragen sind getrennt und einzeln getestet: „schon gezeigt?“ (ViewModel) und „Drehzahl schon da?“ (reine Funktion).
+- **„App-Start“ = Lebensdauer des `DashboardViewModel`:** Tabwechsel und Drehung spielen nichts neu ab (der Dashboard-Eintrag bleibt wegen `popUpTo(start) { saveState = true }` auf dem Back-Stack; vorher lief der Sweep bei jedem Betreten und jeder Drehung, weil er an der Komposition hing).
+  Wegwischen und Neustart spielen ihn ab; ein Systemkill mit Wiederherstellung zählt als neuer Start — das Feld liegt bewusst **nicht** im `SavedStateHandle`. Verbindungswechsel (Idle, Verlust, Fehler) setzen es nicht zurück (Test).
+- **Verbraucht ist das Angebot mit der ersten Prüfung, nicht erst mit dem Abspielen:** lag beim Start schon eine echte Drehzahl an, wird der Sweep nicht später mitten in der Sitzung nachgeholt (Motor aus, Zündung an, Rückkehr zum Dashboard).
+  Verlässt der Nutzer das Dashboard innerhalb der 400 ms, ist noch nichts geprüft; dann läuft er beim nächsten Betreten.
+- **Folge:** Ohne gesetzte Drehzahl-Blinkgrenze (0) zeigt der Sweep die Schaltblitz-Vorschau über 7 000 rpm — die sieht man jetzt nur noch beim Start. Nicht am Gerät geprüft: die Drehung (das Testgerät wird vom Nutzer physisch gedreht).
 
 ### Fehlerhistorie: Randfälle (seit v1.24.9)
 
@@ -854,7 +864,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1331 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1334 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 316 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
