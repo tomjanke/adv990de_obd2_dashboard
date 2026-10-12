@@ -40,7 +40,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 ## Build & Run
 
 ### Voraussetzungen
-- JDK **17** (Android Gradle Plugin 9.3 setzt mindestens JVM 17 voraus)
+- JDK **21** von JetBrains (die Daemon-JVM-Kriterien in `gradle/gradle-daemon-jvm.properties`; Android Studio bringt die JetBrains Runtime mit, auch `~/.gradle/jdks` wird gefunden). Gradle lädt **kein** JDK nach — s. „Prüfsummen“
 - Android Studio Ladybug oder neuer (für Compose Preview / Layout Inspector)
 - Optional: ADB im `PATH` für Command-Line-Installation
 
@@ -59,8 +59,9 @@ Voraussetzung: USB-Debugging aktiviert, Gerät verbunden (`adb devices`).
 ### Prüfsummen (Lieferkette)
 Die Gradle-Distribution ist per `distributionSha256Sum` (`gradle/wrapper/gradle-wrapper.properties`) festgelegt, Abhängigkeiten und Plugins per
 `gradle/verification-metadata.xml` (SHA-256, 711 Komponenten): passt ein Artefakt nicht oder fehlt es, bricht der Build ab. **Neue oder aktualisierte
-Abhängigkeit → Metadaten neu schreiben** — Befehl und Fallstrick (`--refresh-dependencies`) stehen in der [`CLAUDE.md`](CLAUDE.md). Nicht geprüft ist das JDK:
-den Download übernimmt der foojay-Resolver, und Gradle kennt dafür keine Prüfsumme.
+Abhängigkeit → Metadaten neu schreiben** — Befehl und Fallstrick (`--refresh-dependencies`) stehen in der [`CLAUDE.md`](CLAUDE.md). Das JDK lädt Gradle nie von selbst herunter (`org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchains gibt es keine Prüfsumme, und ein unbemerkt
+nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt es, bricht der Build mit „No matching toolchains found“ ab; dann einmal selbst installieren oder bewusst per
+`./gradlew -Porg.gradle.java.installations.auto-download=true help` nachladen.
 
 ### Debug- und Release-Build parallel
 

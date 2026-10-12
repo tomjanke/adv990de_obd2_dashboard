@@ -15,8 +15,9 @@ import java.io.File
  *    nicht passt. Neue oder aktualisierte Abhaengigkeiten brauchen einen Lauf von
  *    `./gradlew --write-verification-metadata sha256 <Aufgaben>` (s. CLAUDE.md).
  *
- * Bekannte Grenze: Das JDK holt der foojay-Resolver (Daemon-JVM-Kriterien in `gradle/gradle-daemon-jvm.properties`);
- * Gradle kennt dafuer keine Pruefsumme.
+ * Das JDK laedt Gradle nie von selbst: Der foojay-Resolver loest die Daemon-JVM-Kriterien (`gradle/gradle-daemon-jvm.properties`)
+ * auf, aber Gradle kennt fuer Toolchain-Downloads keine Pruefsumme. `org.gradle.java.installations.auto-download=false` macht aus
+ * einem stillen, ungeprueften Download einen Abbruch mit klarer Meldung (QS-Pflege, v1.25.0).
  */
 class BuildIntegrityTest {
 
@@ -38,6 +39,15 @@ class BuildIntegrityTest {
         assertTrue("distributionUrl nennt 9.5.0-bin", props.contains("gradle-9.5.0-bin.zip"))
         assertTrue(
             props.contains("distributionSha256Sum=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746"),
+        )
+    }
+
+    @Test
+    fun `Gradle never downloads a JDK on its own - there is no checksum for it`() {
+        val props = read("gradle.properties")
+        assertTrue(
+            "org.gradle.java.installations.auto-download=false fehlt in gradle.properties",
+            Regex("""^org\.gradle\.java\.installations\.auto-download=false$""", RegexOption.MULTILINE).containsMatchIn(props),
         )
     }
 
