@@ -61,7 +61,7 @@ simulierte Öl-Temperatur-Balken unter der RPM-Segmentanzeige (`OilTemperatureBa
 `ui/dashboard/DashboardComponents.kt`) nutzt **invertierte** Rot/Gelb/Grün-Semantik statt der
 üblichen App-Farb-Logik: Rot = zu kalt (≤75 °C), nicht gefährlich/heiß. `oilBarColor()`
 (`ui/dashboard/OilTemperatureBar.kt`) liefert den Zustand, `oilBarStripColor()`
-(`DashboardComponents.kt`, reine Funktion, JVM-getestet) ordnet ihm die Farbe zu:
+(`RpmBarLogic.kt`, reine Funktion, JVM-getestet) ordnet ihm die Farbe zu:
 - `Red` (≤75 °C) → `StatusColors.Critical` (Rot)
 - `Yellow` (>75 °C, unter dem Grün-Schwellwert) → `StatusColors.Warning` (Gelb)
 - `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 78–80 °C) → `StatusColors.TrafficLightGreen` (`#22C55E`, dasselbe Grün wie der Bluetooth-Dot oben)
@@ -84,7 +84,7 @@ Steht das Fahrzeug und läuft der Motor, zeigt die Gang-Box neben dem RPM-Balken
 **grünes „N“** statt des „–“. Das Grün ist in jedem Farbschema `StatusColors.TrafficLightGreen`
 (`#22C55E`, dasselbe wie Bluetooth-Dot und Öl-Balken) — wie die grüne Leerlauf-Kontrollleuchte am
 Motorrad; Theme-`tertiary` scheidet aus, weil es nur im grünen Cockpit-Schema grün ist. Die
-Farbzuordnung steckt in `gearBoxColor()` (`ui/dashboard/DashboardComponents.kt`, reine Funktion,
+Farbzuordnung steckt in `gearBoxColor()` (`ui/dashboard/RpmBarLogic.kt`, reine Funktion,
 JVM-getestet). Kontrast: auf den drei dunklen Cockpit-Schemata ≈ 8:1; auf dem hellen Default-Schema
 nur ≈ 2,3:1, dort wegen der großen Ziffer (53 sp) und der gesättigten Farbe aber klar lesbar
 (Screenshot-Prüfung auf dem Pixel 8 Pro, 2026-10-04). Falls das je bemängelt wird: dunkleres Grün für
@@ -554,7 +554,7 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 
 - **Sparkline:** Ein Punkt je PID nur für einen NEUEN Messwert (`shouldAppendSparklineSample`: neuerer Zeitstempel, mind. `SPARKLINE_MIN_INTERVAL_MS` = 800 ms; ein Zeitstempel vor dem letzten gilt als neu).
   Die GPS-Zwischenupdates wiederholen die letzten OBD-Werte — ohne diese Regel entstanden Duplikate (Treppenkurve, Fenster ~12 s).
-- **Dynamische Drehzahl-Schwelle:** `engineTempC` hält die letzte Temperatur, wenn ein Zyklus keine liefert (`rpmThresholdTempScale(null)` fiele auf den Kaltwert); `applyStale()` setzt sie auf null.
+- **Dynamische Drehzahl-Schwelle:** `engineTempC` hält die letzte Temperatur, wenn ein Zyklus keine liefert (`rpmThresholdTempScale(null)` fiele auf den Kaltwert); `applyStale()` setzt sie auf null. Die Bänder (`< 50 °C` → 0,50 · `< 70` → 0,75 · `< 85` → 0,90 · sonst 1,00) sind seit v1.25.0 **lückenlos** (`<`-Grenzen statt Float-Bereichen `..49.9f`/`50f..69.9f`, deren Zwischenwerte 49,95/69,95/84,95 in den 1,00-Zweig fielen); NaN gilt als „kein plausibler Wert“ (0,50). Die Blink-Schleife der `RpmBar` läuft nur noch, **solange geblinkt wird** (vorher weckte ein `delay(50)` sie dauerhaft mit 20 Hz).
 - **Getriebe-Eingaben:** Grenzen in `GearLimits` (Radumfang 1000–4000 mm, Primär 0,5–10, Sekundär 0,5–15, Gang 0,2–8); `parseGearValue` lehnt „2.096“ bei einem Radumfang ab statt zu raten.
   **Gang-Übersetzung `0` = Gang aus** (`determineGear` und `closeGearPairs` überspringen jeden Wert ≤ 0 — auch einen negativen Altwert aus einer Version ohne Eingabegrenzen, dessen Abweichung `|a − t| / t` sonst negativ und damit „die kleinste“ wäre). Das `GearSettingsViewModel` verwirft unplausible Werte zusätzlich (App-Log WARN).
 - **Kachelwert:** `LiveValueText(minFontSize)` schrumpft den Text per `TextAutoSize.StepBased`, bis er passt (Kachel: bis `MIN_VALUE_FONT_SIZE` = 20 sp); die Einheit wird zuerst gemessen
@@ -581,6 +581,10 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   schadet nicht). **Zurück am Root ab API 31 beendet NICHT:** die Aufgabe geht in den Hintergrund, die Activity lebt, der Dienst trägt den Prozess — Aufzeichnung läuft weiter (gewollt).
   Das Antippen der Benachrichtigung öffnet die App (`openAppIntent`: `NEW_TASK | CLEAR_TOP | SINGLE_TOP` → die laufende `MainActivity` kommt nach vorn, keine zweite Instanz mit leerem ViewModel).
   **Bewusst nicht gebaut:** Polling/Aufzeichnung in den Dienst zu verlegen, damit sie das Wegwischen überleben — das wäre ein großer Umbau und eine Produktentscheidung („Wegwischen heißt fertig“ ist die jetzige).
+- **Der Dienst-Typ folgt der Einstellung auch bei stehender Verbindung (seit v1.25.0).** Der Typ (`connectedDevice`, mit GPS-Geschwindigkeit + „Immer“ zusätzlich `location`) wurde nur beim Start gewählt; schaltete der Nutzer GPS-Geschwindigkeit ein oder erteilte „Immer“, während
+  die Verbindung stand, behielt der Dienst den alten Typ bis zur nächsten Verbindung. `ObdServiceController.refreshServiceType()` ruft `start()` erneut, wenn `shouldRefreshServiceType(laufender Typ, gewünschter Typ, Modus)` es verlangt: nur ein **laufender** Dienst (`ObdForegroundService.runningIncludesLocation != null` — gesetzt nach
+  angenommenem `startForeground()`, geleert in `onDestroy`), nur ab API 34 (davor gilt der Manifest-Typ), nie von selbst für einen nicht laufenden. Auslöser: die Einstellung (`keepServiceTypeCurrent`, aus `Obd2Application`, nur bei geändertem Wert) und `MainActivity.onResume` (die Berechtigung hat keinen Flow und ändert sich ausserhalb der App).
+  **Eine abgelehnte Aufwertung beendet einen laufenden Dienst nicht** (er läuft mit dem alten Typ weiter, WARN im App-Log); nur eine abgelehnte erste Anforderung ruft `stopSelf()`. **Am Fahrzeug nicht geprüft** — der Wechsel im laufenden Betrieb ist per JVM-Tests der Entscheidung und Geräte-Tests des gemerkten Typs abgesichert.
 - **Test-Falle:** Arbeit im `backgroundScope` eines `runTest` läuft mit `runCurrent()`, **nicht** mit `advanceUntilIdle()` — das hört auf, sobald nur noch Hintergrundaufgaben übrig sind, und führt sie nicht aus.
 
 ### Touch-Ziele und Barrierefreiheit (seit v1.24.8)
@@ -604,11 +608,11 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 
 ### CSV-Export (seit v1.24.8)
 
-`SessionRepository.exportToCsv` (reine Teile in `data/CsvExport.kt`): **Spalten `timestamp,pid,value,name`** — die ersten drei unverändert (Positions-Parser laufen weiter), `name` = stabiler englischer PID-Name (`PidRegistry`, leer bei unbekanntem PID), angehängt, weil Excel aus `0105`
+`SessionRepository.exportToCsv` (reine Teile in `data/CsvExport.kt`): **Spalten `timestamp,pid,value,name,source`** — die ersten drei unverändert (Positions-Parser laufen weiter), `name` = stabiler englischer PID-Name (`PidRegistry`, leer bei unbekanntem PID), angehängt, weil Excel aus `0105`
 beim Doppelklick-Öffnen 105 macht (Anführungszeichen verhindern das nicht; bekannte Grenze, README). **`ORDER BY id`** (`EXPORT_QUERY_SQL`) statt `ORDER BY timestamp`: der Index auf `sessionId` liefert die Einfügereihenfolge ohne Sortierlauf (konstanter Speicher, wie die KDoc behauptete;
 `SessionRepositoryDeviceTest` prüft `EXPLAIN QUERY PLAN` auf „kein TEMP B-TREE“); es ist zugleich die Aufzeichnungsreihenfolge. **Jeder Export eine eigene Datei** `session_<id>_<UTC-Zeit auf die Millisekunde>.csv` (`createExportFile`, atomar via `createNewFile`, bei Kollision `-1`, `-2` …) —
 vorher löschte ein zweiter Export derselben Fahrt die Datei unter einer noch laufenden Weitergabe. **Aufräumen:** Exporte älter als 24 h (`EXPORT_MAX_AGE_MS`, nur Dateien `session_*.csv`) löscht jeder Export vorab und `DataRetention` einmal je App-Start (`purgeStaleExports`). Ein fehlgeschlagener Export hinterlässt keine halbe Datei.
-Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilenumbruch gequotet).
+Felder gehen durch `csvField` (RFC 4180, nur bei Komma/Anführungszeichen/Zeilenumbruch gequotet). `source` (seit v1.25.0) s. „Herkunft eines Messwerts“.
 
 ### Absturzberichte (Sentry) zur Laufzeit abschaltbar (seit v1.24.8, B33)
 
@@ -679,6 +683,42 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **`uses-feature android.hardware.bluetooth` (`required="true"`, DAT-17):** ohne Bluetooth liefert `getSystemService(BLUETOOTH_SERVICE)` null, und `AppModule.provideBluetoothAdapter` wirft beim Aufbau des Hilt-Graphen. Die Deklaration hält solche Geräte aus Stores und Installern heraus
   (`BluetoothScopeSourceTest`). **Bekannte Grenze:** ein von Hand (adb) installiertes Exemplar auf einem Gerät ohne Bluetooth stürzt weiter beim Start ab — die App ist dort ohnehin nutzlos; ein nullbarer Adapter durch drei Verbraucher wäre mehr Code als Nutzen.
 
+### Herkunft eines Messwerts (seit v1.25.0)
+
+- **Die GPS-Geschwindigkeit trägt dieselbe PID-ID wie die des Fahrzeugs** (`GPS_SPEED` = `PidRegistry.SPEED` mit eigenem Label, damit sie in den Geschwindigkeits-Slot fällt). Ohne weitere Angabe war in Aufzeichnung und CSV nicht mehr zu erkennen, welche Quelle ein Wert hatte — für die
+  Auswertung einer Testfahrt (Gang-Toleranzen, Vergleich ECU gegen GPS) entscheidend. `SensorValue.source: ValueSource` (`ECU` als Standard, `GPS`); `mergeGpsSpeed` markiert, was es ergänzt.
+- **Datenbank v4:** `sensor_readings.source` (`TEXT`, **nullable, ohne Vorgabewert**), `MIGRATION_3_4` = `ALTER TABLE … ADD COLUMN source TEXT` (von Hand, in `ALL_MIGRATIONS`; `AppDatabaseMigrationTest` prüft Form, Erhalt der Altdaten und das Schreiben über das DAO). Zeilen aus der Zeit vor 1.25.0 bleiben
+  `NULL` = **unbekannt**: ihre Herkunft kennt niemand, `ECU` zu raten wäre eine Behauptung. Der CSV-Export schreibt für sie ein leeres Feld. Ein früher exportiertes, nie ausgeliefertes `4.json` (Kopie von 3.json, Commit 84e35f6) wurde vom echten Schema ersetzt.
+- **Die Namen `ECU`/`GPS` stehen als Text in Datenbank und CSV — nie umbenennen** (`ValueSource.name`). Das CSV hat jetzt fünf Spalten `timestamp,pid,value,name,source`; die ersten vier sind unverändert, ein Parser nach Position läuft weiter.
+- **Rückweg auf ältere APKs:** wie schon seit v1.23.0 (Datenbank v3) gibt es keinen Downgrade-Pfad — ein APK ≤ 1.24.x kann eine v4-Datenbank nicht öffnen; nur mit gelöschten App-Daten.
+
+### Zeitlimit-Richtlinie und Altbytes (seit v1.25.0, PRO-13)
+
+- **Ein Zeitlimit lässt den Datenstrom in unbekanntem Zustand:** die Antwort kann später eintreffen und würde beim nächsten Befehl für dessen Antwort gehalten (der ELM327 kennt keine Antwort-Kennung), jede weitere wäre um eins verschoben. Die Richtlinie je Lesepfad steht **einmal**, als KDoc an
+  `ObdRepository`: Live-Abfrage überspringt den PID (Watchdog), **Fehlercodes und Freeze-Frame** brechen beim ersten Zeitlimit ab, **trennen** und reichen es weiter, die **FIN** trennt bewusst nicht (die Pipeline fragt sie bei jedem Verbinden — ein Motorrad, das auf Modus 09 schweigt, geriete in
+  eine Schleife aus Verbinden, Zeitlimit, Trennen). Vorher lief die Freeze-Frame-Schleife mit allen ~40 PIDs weiter (bei einem stillen Adapter 40 × 5 s) und meldete „keine Daten“. Ein neuer Lesepfad entscheidet sich für eine der drei Formen und schreibt sie in diese KDoc.
+- **`ElmController.sendCommand` verwirft vor jedem Befehl Altbytes** (`discardStaleInput`): den Rest des eigenen Lesepuffers hinter dem letzten Prompt und alles, was `available()` meldet — der ELM327 antwortet nur auf Befehle, was schon da ist, gehört zu einem früheren. Ein Fehler beim Fragen nach `available()` wird dort
+  nicht gemeldet (der folgende Schreibzugriff tut es als `ConnectionLost`). **Grenze:** Bytes, die erst NACH dem Absenden eintreffen, erwischt das nicht (Protokollgrenze); dort fängt die Auswertung das Echo des PID-Bytes ab. **Am Fahrzeug nicht geprüft** — nur per Test (Mutation: ohne das Verwerfen scheitern zwei Tests).
+- **Test-Falle:** Ein Adapter-Fake, der alle Antworten schon VOR dem ersten Befehl im Eingang liegen hat (`ByteArrayInputStream` mit allem), verträgt das Verwerfen nicht. `ElmControllerTest.ScriptedAdapter` gibt eine Antwort erst frei, wenn ein Befehl geschrieben und geflusht wurde — wie der echte Adapter;
+  `stale =` legt die verspätete Antwort eines früheren Befehls vorab in den Eingang.
+
+### Zustand sammeln, Drehung und Vorschauen (seit v1.25.0)
+
+- **Die Oberfläche sammelt mit `collectAsStateWithLifecycle`, nie mit `collectAsState`** (`CodeHygieneSourceTest`): sie sammelt nur zwischen STARTED und STOPPED. Das ist zulässig, **weil kein ViewModel dieser App für seine Arbeit auf einen Sammler der Oberfläche angewiesen ist** — Polling und Aufzeichnung laufen im
+  `viewModelScope` bzw. im `@ApplicationScope`, die `stateIn(…, WhileSubscribed(5_000), …)`-Flüsse speisen nur Anzeige, und das Wetter-Polling war schon lifecycle-bewusst (`BottomNav`). Wer Arbeit an `WhileSubscribed` hängt, hängt sie an einen Sammler: dort gehört `Eagerly` bzw. ein eigener Scope hin, nicht ein Rückfall auf
+  `collectAsState`. Wirkung: im Hintergrund keine Neukomposition mehr durch Zustandsänderungen.
+- **Eingaben und Dialoge überleben eine Drehung (UID-23):** `rememberSaveable` für `pickerSlot` (Slot-Auswahl), `showExitConfirmation` (Beenden-Dialog) und beide Zustände von `GearRatioField` (`text`, `hasBeenEdited` — nur zusammen, sonst überschriebe das `LaunchedEffect` den wiederhergestellten Text). Bewusst **`remember`** bleibt
+  `PermissionGate.allGranted`: es ist eine Momentaufnahme des Systems, bei jedem `ON_RESUME` neu gelesen; ein gespeicherter Wert zeigte nach einer Drehung eine inzwischen entzogene Berechtigung als erteilt. Geprüft per `StateRestorationTester` (nicht per echter Rotation): `GearRatioFieldUiTest`, `BottomNavTest`, `DashboardScreenTest`.
+  Die Rotation selbst baut das Gerät nicht von Hand: der Nutzer dreht physisch.
+- **Datum und Uhrzeit in Listen (SCR):** `ui/DateTimeFormats.kt` — `formatDate` (`12.10.2026`), `formatDateTime` (ohne Sekunden, Verlauf), `formatDateTimeSeconds` (App-Logs), nach der Sprache des Geräts (`FormatStyle`), Sprache und Zeitzone als Parameter. Vorher standen drei feste `dd.MM.yyyy`-Muster nebeneinander, eines einmal beim
+  Laden der Klasse gebaut (eine Sprachänderung erreichte es nie). Die Kopfzeile des Dashboards (`formatDashboardHeader`, „Mo 12.10. · 14:30“) ist ein eigenes, kompaktes Format. Geräte-Tests vergleichen mit denselben Funktionen, die Funktionen selbst haben JVM-Tests mit festen Erwartungen.
+- **`@Preview` (CLAUDE.md „Bei UI-Änderungen IMMER“) ist jetzt prüfbar:** `CodeHygieneSourceTest` verlangt für jede Datei mit Composables eine `@Preview` **oder** einen Eintrag mit Begründung in `previewExempt` (ViewModel-gebundene Screens, reine Effekte, Fenster); ein Eintrag, der inzwischen eine Vorschau hat, muss wieder raus. Rahmen:
+  `PreviewTheme(dark)` (`ui/theme/PreviewSupport.kt`: helles Standard-Schema und dunkles Cockpit-Blau). Vorschauen für ViewModel-Screens gibt es nicht — ihre zustandslosen Bausteine tragen sie (`DtcRow`, `SessionRow`, `DeviceRow`, …).
+- **Wo was liegt (große Dateien aufgeteilt, v1.25.0, reine Verschiebungen im selben Paket):** `RpmBarLogic.kt` (Blinkperiode, Segmentfarbe, Temperaturbänder, Öl-Balken- und Gangfarbe), `DashboardComponents.kt` (`RpmBar`, `OilTemperatureBarStrip`), `SlotComponents.kt` (Kachel, Vorschau-Band, Slot-Auswahl),
+  `DashboardUiState.kt`, `SessionEvent.kt` (+ `OBD_STALE_AFTER_MS`), `SettingsScreenSupport.kt` (Test-Tags, reine Entscheidungen), `SettingsSections.kt` (Gruppen Aufzeichnung/Fahrzeug/Info als `LazyListScope`-Erweiterungen), `DeviceRow.kt`, `ThemePickerItem.kt`, `data/PidDiscovery.kt`.
+  **Drei Dateien bleiben über 400 Zeilen** (`DashboardViewModel` 483, `ObdRepository` 450, `ReadingsPipeline` 445): je eine Klasse mit ausführlicher KDoc — sie weiter zu teilen hieße Logik umbauen, nicht verschieben.
+- **Test-Klassen:** Was ein Gerät braucht, endet auf `DeviceTest`; kein Klassenname kommt in `test` und `androidTest` doppelt vor (`CodeHygieneSourceTest`). Die Pläne und Spezifikationen umgesetzter Funktionen liegen in `docs/superpowers/archive/`.
+
 ### Anzeige-Fixes (seit v1.24.12)
 
 - **Sparkline gehört zu einer Verbindung (UID-16):** `DashboardViewModel.clearSparklines()` leert Puffer **und** Zeitmarken bei Idle, Verbindungsverlust (`startReconnecting`) und Sitzungsfehler — vorher hängte der erste Punkt nach einem Reconnect
@@ -725,7 +765,7 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 - **Abhängigkeiten und Plugins:** `gradle/verification-metadata.xml` (SHA-256, 711 Komponenten). Gradle bricht ab, wenn ein Artefakt nicht passt oder **fehlt**. **Neue oder aktualisierte Abhängigkeit → Metadaten neu schreiben, und zwar MIT `--refresh-dependencies`:**
   `./gradlew --refresh-dependencies --write-verification-metadata sha256 --continue :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest :app:lintAnalyzeDebugAndroidTest help`.
   Ohne `--refresh-dependencies` fehlen Einträge, die nur beim frischen Auflösen gebraucht werden (gemessen: `guava-parent 33.4.0-jre`); das zeigt erst ein späterer frischer Build. Geprüft mit einem Build + `--refresh-dependencies` (alle Downloads frisch gegen die Hashes). `BuildIntegrityTest` hält
-  Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Bekannte Grenze:** das JDK holt der foojay-Resolver (`gradle/gradle-daemon-jvm.properties`); Gradle kennt für Toolchain-Downloads keine Prüfsumme.
+  Summe, Verifikation an und dass jede direkte Abhängigkeit verifizierte Artefakte hat. **Das JDK lädt Gradle nie von selbst** (seit v1.25.0: `org.gradle.java.installations.auto-download=false` in `gradle.properties`): für Toolchain-Downloads (Daemon-JVM-Kriterien, foojay-Resolver) gibt es keine Prüfsumme, ein unbemerkt nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; die JBR von Android Studio und `~/.gradle/jdks` werden gefunden. Bewusst nachladen: `./gradlew -Porg.gradle.java.installations.auto-download=true help`. **Nicht am Gerät der Entwicklung nachgestellt, dass ein fehlendes JDK wirklich abbricht** (ein Gegenversuch hätte einen Download ausgelöst); belegt ist, dass der Build mit der Einstellung läuft, und die Einstellung steht in Gradles Dokumentation.
 
 ### Test-Infrastruktur: Produktion statt Nachbau (seit v1.24.5)
 
@@ -745,14 +785,14 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 - **`ElmController`:** Das Lese-Zeitlimit ist ein Konstruktor-Parameter (`readTimeoutMs`, Standard 5 s) — Timeout-Tests nehmen 100 ms (echte Zeit; `withTimeout` in
   `Dispatchers.IO` kennt die virtuelle Uhr nicht). Ein IO-Fehler **nach** dem Abbruch ist der eigene Interrupt und wird zu Timeout bzw. Abbruch, nie zu `ConnectionLost`
   (Kotlin stuft eine echte Ausnahme über die Abbruchursache — sonst überstimmt `InterruptedIOException` das Zeitlimit). Die Discovery sucht `41 <Bereich>` irgendwo in der
-  Antwort (`ObdRepository.rangeDataBytes`), weil der ELM327 „SEARCHING...“ / „BUS INIT: OK“ davorstellt.
+  Antwort (`rangeDataBytes`, `data/PidDiscovery.kt`), weil der ELM327 „SEARCHING...“ / „BUS INIT: OK“ davorstellt.
 
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
 **Rein lokal; das Fahrzeug bleibt rein lesend:** Quelle sind die bestehenden Modus-03/07-Lesezugriffe, „Historie löschen“ löscht nur die
 lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
-- **Datenmodell:** Room-Tabelle `dtc_history` (Datenbank **v3**), eine Zeile je Code: `code` (PK), `firstSeen` (nie überschrieben), `lastSeen`
+- **Datenmodell:** Room-Tabelle `dtc_history` (eingeführt mit Datenbank **v3**; seit v1.25.0 ist die Datenbank **v4**, s. „Herkunft eines Messwerts“), eine Zeile je Code: `code` (PK), `firstSeen` (nie überschrieben), `lastSeen`
   (nur vorwärts), `lastWasPending`. Die Beschreibung wird zur Anzeige per `dtcDescription(code)` (öffentlich, rein, aus `DtcParser` extrahiert)
   aufgelöst, nicht gespeichert. `MIGRATION_2_3` ist von Hand geschrieben, `app/schemas/…/3.json` liegt im Repo, `AppDatabaseMigrationTest` prüft
   2→3 und 1→3 gegen das exportierte Schema und dass Altdaten (Fahrten, Messwerte, Logs) erhalten bleiben. Es ist **kein destruktiver Fallback**
@@ -874,8 +914,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1349 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 321 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1387 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 331 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

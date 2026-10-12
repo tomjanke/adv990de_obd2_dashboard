@@ -1,5 +1,62 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.25.0 (versionCode 97)
+
+Der Rest des QS-Backlogs, der kein Fahrzeug braucht: zwei Funktionen (Herkunft der Geschwindigkeit in der Aufzeichnung, Dienst-Typ bei laufender Verbindung), verspätete Adapterantworten, Drehung und Lebenszyklus der Oberfläche sowie Pflege (Vorschauen, große Dateien, Testklassen, JDK).
+
+### Herkunft der Geschwindigkeit in Aufzeichnung und CSV
+
+- Die GPS-Geschwindigkeit trägt dieselbe PID-ID wie die des Fahrzeugs (`010D`), damit sie in den Geschwindigkeits-Slot fällt. In einer Aufzeichnung war deshalb nicht mehr zu erkennen, welche Quelle ein Wert hatte — für die Auswertung der Testfahrt (Gang-Toleranzen, ECU gegen GPS) entscheidend.
+- Neu: `SensorValue.source` (`ECU` oder `GPS`), gespeichert in `sensor_readings.source` (**Datenbank v4**, `MIGRATION_3_4`, nullable und ohne Vorgabewert). **Bereits aufgezeichnete Fahrten bleiben „unbekannt“** (leeres Feld) — ihre Herkunft kennt niemand, `ECU` zu raten wäre eine Behauptung.
+- Der CSV-Export hat eine **fünfte Spalte `source`**; die ersten vier Spalten sind unverändert.
+- **Rückweg:** eine Datenbank v4 kann ein APK ≤ 1.24.x nicht öffnen (kein Downgrade-Pfad, wie schon seit v1.23.0) — nur mit gelöschten App-Daten.
+
+### Dienst-Typ bei laufender Verbindung
+
+- Der Typ des Vordergrunddienstes (`connectedDevice`, mit GPS-Geschwindigkeit und „Immer“ zusätzlich `location`) wurde nur beim Start gewählt. Schaltete man GPS-Geschwindigkeit ein oder erteilte „Immer“, während die Verbindung stand, behielt der Dienst den alten Typ bis zur nächsten Verbindung.
+- Jetzt gleicht `refreshServiceType()` den Typ eines **laufenden** Dienstes ab — bei einer Änderung der Einstellung und beim Zurückkehren in die App. Nur ab Android 14 (davor gilt der Typ aus dem Manifest), nie für einen nicht laufenden Dienst, und eine abgelehnte Aufwertung beendet den laufenden Dienst nicht.
+- **Am Fahrzeug nicht geprüft.** Abgesichert sind die Entscheidung (JVM) und das Merken des Typs im Dienst (Gerät).
+
+### Verspätete Adapterantworten und Zeitlimits (PRO-13)
+
+- Der ELM327 kennt keine Antwort-Kennung: Die verspätete Antwort eines Befehls, der ins Zeitlimit lief, wurde für die Antwort auf den **nächsten** gehalten, und jede weitere war um eins verschoben. `ElmController` verwirft jetzt vor jedem Befehl, was ungelesen im Puffer und im Eingang liegt. Bytes, die erst nach dem Absenden eintreffen, erwischt das nicht (Grenze des Protokolls).
+- **Freeze-Frame** bricht beim ersten Zeitlimit ab, trennt und meldet den Fehler (wie die Fehlercodes). Vorher lief die Schleife mit allen rund 40 PIDs weiter — bei einem stillen Adapter 40 × 5 s — und meldete am Ende „keine Daten“, obwohl der Adapter nie geantwortet hatte.
+- Die **FIN trennt bewusst nicht**: Die Sitzung fragt sie bei jedem Verbinden, und ein Motorrad, das auf Modus 09 schweigt, geriete sonst in eine Schleife aus Verbinden, Zeitlimit und Trennen.
+- Die Richtlinie je Lesepfad steht einmal als KDoc an `ObdRepository`. **Am Fahrzeug nicht geprüft**; ein absichtlich eingebauter Fehler (ohne das Verwerfen) lässt zwei Tests scheitern.
+
+### Drehung und Lebenszyklus
+
+- **Eingaben und Dialoge überleben eine Drehung:** die Slot-Auswahl, der Beenden-Dialog und die Getriebe-Eingabefelder (auch halb getippte oder ungültige Eingaben) waren `remember` und verschwanden mit der Activity. Jetzt `rememberSaveable`. Die Berechtigungsprüfung bleibt bewusst `remember`: sie ist eine Momentaufnahme des Systems und wird bei jedem Zurückkehren neu gelesen.
+- **Alle 62 `collectAsState` sind `collectAsStateWithLifecycle`:** die Oberfläche sammelt nur noch zwischen Start und Stopp der Activity. Das ist zulässig, weil kein ViewModel für seine Arbeit auf einen Sammler der Oberfläche angewiesen ist — Polling und Aufzeichnung laufen im `viewModelScope` bzw. im Anwendungs-Scope. Ein Test hält die Regel fest.
+- Die **Drehung selbst** wurde nicht am Gerät ausgeführt (der Nutzer dreht physisch); nachgestellt ist die Wiederherstellung des Zustands.
+
+### Kleinere Korrekturen
+
+- **Drehzahl-Schwelle nach Motortemperatur (UID-22):** die Bänder hatten Lücken (49,95 / 69,95 / 84,95 °C fielen auf den vollen Faktor 1,00). Jetzt lückenlos; NaN gilt als „kein Wert“ (0,50). Die Temperaturen kommen als ganze Grad vom Steuergerät, im Betrieb war das nicht erreichbar.
+- **`RpmBar`:** die Blink-Schleife läuft nur noch, solange geblinkt wird (vorher weckte ein `delay(50)` die Coroutine dauerhaft mit 20 Hz).
+- **Datum und Uhrzeit** in Verlauf, Fehlerhistorie und App-Logs folgen der Sprache des Geräts (`ui/DateTimeFormats.kt`); vorher drei feste Muster `dd.MM.yyyy …`, eines beim Laden der Klasse gebaut (eine Sprachänderung erreichte es nie). Die Verlaufszeile zeigt jetzt „12.10.2026, 14:30“ (mit Komma).
+- Ein Bluetooth-Gerät ohne Namen heißt in der Liste „Unbenanntes Gerät“ bzw. „Unnamed device“ statt fest „Unknown“.
+- Der reguläre Ausdruck der Parser wird einmal gebaut statt bei jeder Antwort; die KDoc von `DtcDescriptions` nennt keine driftende Zahl mehr; `ObdResult.kt` (toter Code) ist entfernt.
+
+### Pflege
+
+- **`@Preview`** für die zustandslosen Bausteine (Sparkline, Fehlercode-Zeilen, Fahrtzeile, Log-Zeile, Geräte-Zeile, Berechtigungsseite, Kachel/Band, Farbschema-Auswahl). Ein Test verlangt für jede Datei mit Composables eine Vorschau oder eine Ausnahme mit Begründung (ViewModel-gebundene Screens, reine Effekte).
+- **Große Dateien:** `DashboardComponents` (692 Zeilen), `SettingsScreen` (558), `SettingsComponents` (423) sind aufgeteilt (reine Verschiebungen im selben Paket, Zeile für Zeile geprüft); `SessionEvent`, `DashboardUiState` und die PID-Erkennung haben eigene Dateien. **Drei Dateien bleiben über 400 Zeilen** (`DashboardViewModel` 483, `ObdRepository` 450, `ReadingsPipeline` 445) — je eine Klasse; weiteres Teilen hieße Logik umbauen.
+- **Testklassen:** sieben Klassen hießen auf dem JVM und auf dem Gerät gleich; die Geräte-Klassen enden jetzt auf `DeviceTest`, ein Test hält die Namen auseinander.
+- **Pläne und Spezifikationen** umgesetzter Funktionen (11 + 3) liegen in `docs/superpowers/archive/` (nichts gelöscht).
+- **JDK:** Gradle lädt kein JDK mehr von selbst (`org.gradle.java.installations.auto-download=false`) — für Toolchain-Downloads gibt es keine Prüfsumme. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; das vorhandene unter `~/.gradle/jdks` wird gefunden. Dass ein fehlendes JDK wirklich abbricht, wurde nicht nachgestellt (der Gegenversuch hätte einen Download ausgelöst).
+
+### Tests
+
+- 1387 JVM-Tests (+38), 331 Instrumentation-Tests (+10, 1 übersprungen wie bisher).
+- Neu u. a.: `DateTimeFormatsTest`, `CodeHygieneSourceTest`; erweitert `ObdServiceControllerTest`, `ElmControllerTest` (Adapter-Fake, der erst auf einen Befehl antwortet), `ObdRepositoryTest`, `SessionRepositoryTest`, `SpeedSourceTest`, `ReadingsPipelineTest`, `DashboardComponentsTest`; Gerät: Migration 3→4, Dienst-Typ, Wiederherstellung nach Drehung.
+- Der Kompilierlauf der Tests bleibt ohne Warnung (eine neue, ein Testname mit Anführungszeichen, wurde behoben); Lint (Debug, offline) 0 Fehler / 9 Warnungen, unverändert. Fünf absichtlich eingebaute Fehler (Temperaturband, Herkunft GPS, Schreiben der Herkunft, Dienst-Typ-Entscheidung, Datumsformat) wurden von jeweils mindestens einem Test erkannt.
+
+### Nicht Teil dieses Releases
+
+- Entscheidungen des Nutzers stehen aus: englische DTC-Beschreibungen (Übersetzung), weitere Einheiten bei „imperial“, Ganganzeige (Profile, Kalibrierung, Zähnezahl).
+- Am Fahrzeug: A8, A9 Teil 2, Lese-Hänger auf Classic, der Dienst-Typ im laufenden Betrieb, das Verwerfen von Altbytes.
+
 ## Version 1.24.14 (versionCode 96)
 
 Zwei kleine Fehler aus dem QS-Backlog (Reiter-Tipp auf einer Unterseite, veralteter Fehlertext in den Einstellungen) und Aufräumen der Tests.

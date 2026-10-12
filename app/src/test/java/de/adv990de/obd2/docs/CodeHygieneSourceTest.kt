@@ -61,7 +61,7 @@ class CodeHygieneSourceTest {
     private fun hasPreview(f: File) = Regex("""(?m)^\s*@Preview\b""").containsMatchIn(f.readText())
 
     @Test
-    fun `every file with composables has a preview or a written reason not to (UI rule 3 of "Bei UI-Aenderungen IMMER")`() {
+    fun `every file with composables has a preview or a written reason not to - UI rule 3 of the always-list`() {
         val composableFiles = mainSources.filter { it.readText().contains("@Composable") }
         val missing = composableFiles
             .filter { !hasPreview(it) && it.relativeTo(mainPackageRoot).path !in previewExempt }
