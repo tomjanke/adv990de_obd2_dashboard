@@ -41,7 +41,7 @@ import androidx.core.net.toUri
 import androidx.navigation.NavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import de.adv990de.obd2.crash.CrashReportingStatus
 import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
