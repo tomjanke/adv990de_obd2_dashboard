@@ -482,7 +482,7 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   `ConnectionCoordinator` (Auto-Connect, Reconnect-Schleife) nutzen nur diese beiden; das manuelle `connect()` aus den Einstellungen
   bleibt unbedingt. Ein Test, der „reconnect baut eine neue Verbindung“ prüft, muss vorher `disconnect()` rufen (so wie es
   Link-Verlust und Watchdog tun, bevor sie melden).
-- **Ein Lesepfad trennt nur die Verbindung, auf der er las (PRO-11, nach v1.25.0).** `disconnectIfCurrent(controller)` (privat, `ObdRepository`) tut nichts, wenn `elm` inzwischen ein anderer Controller ist; die Lesepfade (`livePids`: Link-Verlust, 5× BusInit, Watchdog; `DiagnosticReads`: Zeitlimit und Link-Verlust bei Fehlercodes und Freeze-Frame)
+- **Ein Lesepfad trennt nur die Verbindung, auf der er las (PRO-11, seit v1.25.1).** `disconnectIfCurrent(controller)` (privat, `ObdRepository`) tut nichts, wenn `elm` inzwischen ein anderer Controller ist; die Lesepfade (`livePids`: Link-Verlust, 5× BusInit, Watchdog; `DiagnosticReads`: Zeitlimit und Link-Verlust bei Fehlercodes und Freeze-Frame)
   rufen es mit dem Controller, über den sie lasen. Grund: „Verbinden“ zu einem anderen Adapter schließt die alte Verbindung (`connectLocked`) — das blockierte Lesen auf ihr scheitert, will trennen und steht hinter dem Lock; bis es ihn bekam, stand die neue Verbindung, und ein unbedingtes `disconnect()` hätte sie
   wieder eingerissen (Verlust-Meldung, Reconnect). Deshalb setzt `connectLocked` beim Ersetzen **den ganzen Zustand** zurück (`resetLocked()`: Verbindungsstatus, Fahrterkennung, unterstützte PIDs, letzte Werte), denn der alte Leser räumt nicht mehr hinterher auf. Das WUNSCH-Trennen (`disconnect()`, `disconnectByUser()`) bleibt bedingungslos.
   Test-Rahmen: `ObdRepositoryTest.readOnReplacedConnection` baut die Lage nach (Leser wartet auf A, B hält den Lock, A „schließt“, der Leser scheitert, B wird fertig).
@@ -720,8 +720,8 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   `PreviewTheme(dark)` (`ui/theme/PreviewSupport.kt`: helles Standard-Schema und dunkles Cockpit-Blau). Vorschauen für ViewModel-Screens gibt es nicht — ihre zustandslosen Bausteine tragen sie (`DtcRow`, `SessionRow`, `DeviceRow`, …).
 - **Wo was liegt (große Dateien aufgeteilt, v1.25.0, reine Verschiebungen im selben Paket):** `RpmBarLogic.kt` (Blinkperiode, Segmentfarbe, Temperaturbänder, Öl-Balken- und Gangfarbe), `DashboardComponents.kt` (`RpmBar`, `OilTemperatureBarStrip`), `SlotComponents.kt` (Kachel, Vorschau-Band, Slot-Auswahl),
   `DashboardUiState.kt`, `SessionEvent.kt` (+ `OBD_STALE_AFTER_MS`), `SettingsScreenSupport.kt` (Test-Tags, reine Entscheidungen), `SettingsSections.kt` (Gruppen Aufzeichnung/Fahrzeug/Info als `LazyListScope`-Erweiterungen), `DeviceRow.kt`, `ThemePickerItem.kt`, `data/PidDiscovery.kt`.
-  **Die drei letzten Dateien über 400 Zeilen sind danach aufgeteilt worden** (nach v1.25.0, s. „Aufteilung der großen Klassen“): keine Datei ist mehr länger als 400 Zeilen.
-- **Aufteilung der großen Klassen (nach v1.25.0, keine Datei > 400 Zeilen):** `ObdRepository` (391) hält Verbindung, Zustand und die laufende Abfrage; die einmaligen Lesepfade (Fehlercodes, Freeze-Frame, FIN) stehen in `data/DiagnosticReads.kt` (`internal`, bekommt den `ElmController` je Aufruf und meldet
+  **Die drei letzten Dateien über 400 Zeilen sind danach aufgeteilt worden** (v1.25.1, s. „Aufteilung der großen Klassen“): keine Datei ist mehr länger als 400 Zeilen.
+- **Aufteilung der großen Klassen (v1.25.1, keine Datei > 400 Zeilen):** `ObdRepository` (391) hält Verbindung, Zustand und die laufende Abfrage; die einmaligen Lesepfade (Fehlercodes, Freeze-Frame, FIN) stehen in `data/DiagnosticReads.kt` (`internal`, bekommt den `ElmController` je Aufruf und meldet
   Fehler an `onLinkBroken`), das Repository reicht sie durch — die öffentliche Signatur ist unverändert. `ReadingsPipeline` (378): die Aufzeichnung einer Sitzung ist `SessionRecorder` (Fahrt anlegen, schreiben, beenden; ein Datenbankfehler wird einmal je Sitzung gemeldet), die PID-Auswahl die reine Funktion `selectPids` (`PidSelection.kt`).
   `DashboardViewModel` (367): `SparklineBuffer` (Fenster, Mindestabstand, Leeren je Verbindung), `OilBarTracker` (Öl-Balken samt Timer-Zustand im `SavedStateHandle` — **die Schlüsselnamen sind persistierter Zustand, nie umbenennen**) und `GearTracker` (Gang, Anzeige-Persistenz, „N“, 5-s-Gegenprobe mit dem GPS; `GearReading`).
   Die Begründungen, die vorher als Kommentare im ViewModel standen, wanderten mit. Alle haben eigene Tests (`SessionRecorderTest`, `PidSelectionTest`, `SparklineBufferTest`, `OilBarTrackerTest`, `GearTrackerTest`); die bestehenden ViewModel-/Pipeline-/Repository-Tests liefen unverändert grün.
@@ -741,7 +741,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   **nur einmal je App-Start** (umgesetzt in v1.24.13, s. „Tacho-Sweep“ unten); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
 - **Produktentscheidungen, zweite Runde (2026-10-12, `docs/qa/2026-10-12-decisions.md`, Punkte 9–13):** die Beschreibungen der Fehlercodes werden übersetzt (s. „Fehlercode-Texte“); „imperial“ bleibt bei km/h → mph und °C → °F; die Ganganzeige bleibt bei **einem** Satz Getriebedaten;
   die Toleranzen 4 % / 6 % und die Eingabeart der Übersetzungen blieben ohne Präferenz und sind **unverändert** (Toleranzen: Auswertung der Testfahrt abwarten).
-- **PRO-11 ist umgesetzt** (nach v1.25.0, s. „Verbindungs-Entscheidungen gehören unter den Lock“): Lesepfade trennen nur die Verbindung, auf der sie lasen. Das bewusste „ein Zeitlimit bei Fehlercodes/Freeze-Frame trennt“ bleibt.
+- **PRO-11 ist umgesetzt** (v1.25.1, s. „Verbindungs-Entscheidungen gehören unter den Lock“): Lesepfade trennen nur die Verbindung, auf der sie lasen. Das bewusste „ein Zeitlimit bei Fehlercodes/Freeze-Frame trennt“ bleibt.
 
 ### Tacho-Sweep: einmal je App-Start (seit v1.24.13)
 
@@ -798,7 +798,7 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
   (Kotlin stuft eine echte Ausnahme über die Abbruchursache — sonst überstimmt `InterruptedIOException` das Zeitlimit). Die Discovery sucht `41 <Bereich>` irgendwo in der
   Antwort (`rangeDataBytes`, `data/PidDiscovery.kt`), weil der ELM327 „SEARCHING...“ / „BUS INIT: OK“ davorstellt.
 
-### Fehlercode-Texte (nach v1.25.0, Entscheidung 2026-10-12)
+### Fehlercode-Texte (seit v1.25.1, Entscheidung 2026-10-12)
 
 - **Die Beschreibung eines Fehlercodes ist eine String-Ressource**, kein Text im Code: `dtcDescriptionRes(code)` (`obd/DtcDescriptions.kt`, rein) liefert `R.string.dtc_pXXXX` für die 37 bekannten SAE-J2012-Codes, sonst `R.string.dtc_unknown`. `DtcEntry` und `DtcHistoryEntry` tragen **nur den Code**; die Oberfläche löst
   den Text bei der Anzeige auf (`stringResource(dtcDescriptionRes(code))`). Das App-Log nennt die Codes, nicht die Texte.

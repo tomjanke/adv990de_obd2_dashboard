@@ -1,5 +1,42 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.25.1 (versionCode 98)
+
+Fehlercode-Texte in beiden Sprachen, eine Verbindung, die ein alter Leser nicht mehr einreißt, und die letzten großen Dateien aufgeteilt.
+
+### Fehlercode-Texte in deiner Sprache
+
+- Die Beschreibung der 37 bekannten Fehlercodes und der Platzhalter „Unbekannter Fehlercode“ kommen jetzt aus den String-Ressourcen: **deutsch** in `values-de/`, englisch in `values/`. Vorher standen sie fest englisch im Code.
+- Die deutschen Texte sind eine **eigene Übersetzung** der SAE-J2012-Namen, kein amtlicher Wortlaut; der Code steht immer daneben.
+- `DtcEntry` und `DtcHistoryEntry` tragen nur noch den Code, die Beschreibung folgt daraus (`dtcDescriptionRes`). Das App-Log nennt die Codes (ausstehende markiert), nicht mehr den Text.
+
+### Ein alter Leser reißt keine neue Verbindung mehr ein (PRO-11)
+
+- „Verbinden“ zu einem anderen Adapter schließt die alte Verbindung. Das blockierte Lesen auf ihr scheitert, will trennen und wartet hinter dem Lock; bis es ihn bekam, stand die neue Verbindung — und das bedingungslose `disconnect()` riss sie wieder ein (Verlust-Meldung, Wiederverbindung).
+- Die Lesepfade (Live-Abfrage bei Link-Verlust, fünfmal BusInit und Watchdog; Fehlercodes und Freeze-Frame bei Zeitlimit und Link-Verlust) trennen jetzt nur noch, wenn sie noch auf der **aktuellen** Verbindung lasen (`disconnectIfCurrent`). Das Trennen auf Wunsch des Nutzers bleibt bedingungslos, ebenso „ein Zeitlimit bei Fehlercodes/Freeze-Frame trennt“.
+- Beim Ersetzen einer Verbindung wird deren ganzer Zustand zurückgesetzt (Verbindungsstatus, Fahrterkennung, unterstützte PIDs, letzte Werte) — der alte Leser räumt nicht mehr hinterher auf.
+- **Am Fahrzeug nicht geprüft**; die Lage ist mit Test-Verbindungen nachgestellt (drei Tests rot vor dem Fix, beide Schutzmechanismen per Mutation geprüft).
+
+### Aufräumen
+
+- **Keine Datei mehr über 400 Zeilen:** `ObdRepository` (450 → 391, die einmaligen Lesepfade in `DiagnosticReads`), `ReadingsPipeline` (445 → 378, `SessionRecorder` und die reine Funktion `selectPids`), `DashboardViewModel` (483 → 367, `SparklineBuffer`, `OilBarTracker`, `GearTracker`). Die Begründungen wanderten als KDoc mit; die Schlüssel des gespeicherten Öl-Balken-Zustands sind unverändert.
+- In `selectPids` konnte der Rückfall auf die Standard-PIDs seit der Pflicht-Abfrage von Drehzahl und Kühlmittel nie greifen; er ist entfernt.
+
+### Tests
+
+- Der ECU-Simulator bekommt eine injizierbare Uhr: Die Kurven (Drehzahlwelle, Kühlmittelrampe, Last/Drossel/Ansaugdruck/Luftmasse an den Rändern) sind an festen Zeitpunkten geprüft statt per `Thread.sleep`. Der Geräte-Test der Geschwindigkeits-Kachel verlangt eine Zahl aus 0–120 km/h, die sich bewegt (vorher nur das Label).
+- Überlebende Mutanten festgenagelt: BusInit-Schwelle genau 5, Init-Reihenfolge `ATZ … ATSP0` als ganzer String, SPP-UUID, Kanten der Statusschwellen und des Öl-Balkens (15 Mutationen, alle erkannt). Ein Geräte-Test ohne Prüfung prüft jetzt das Warte-Band; vier veraltete Testkommentare sind korrigiert.
+- 1456 JVM-Tests (+69), 331 Instrumentation-Tests (±0; ein Geräte-Test ersetzt, einer neu gefasst; 1 übersprungen wie bisher). Neu: `DiagnosticReads` (über `ObdRepositoryTest`), `SessionRecorderTest`, `PidSelectionTest`, `SparklineBufferTest`, `OilBarTrackerTest`, `GearTrackerTest`; `DtcDescriptionTest` prüft Liste, Ressourcen und beide Sprachen. Der Kompilierlauf der Tests bleibt ohne Warnung.
+
+### Entschieden, nicht umgesetzt (2026-10-12)
+
+- „Imperial“ bleibt bei km/h → mph und °C → °F; die Ganganzeige bleibt bei einem Satz Getriebedaten; die Toleranzen 4 % / 6 % und die Eingabeart der Übersetzungen bleiben unverändert (Toleranzen: Auswertung der Testfahrt abwarten).
+
+### Nicht Teil dieses Releases
+
+- Am Fahrzeug: A8, A9 Teil 2, Lese-Hänger auf Classic, Dienst-Typ im Betrieb, Verwerfen von Altbytes, PRO-11 im echten Wechsel zwischen zwei Adaptern.
+- Duplikate in Testhilfen (TST-17).
+
 ## Version 1.25.0 (versionCode 97)
 
 Der Rest des QS-Backlogs, der kein Fahrzeug braucht: zwei Funktionen (Herkunft der Geschwindigkeit in der Aufzeichnung, Dienst-Typ bei laufender Verbindung), verspätete Adapterantworten, Drehung und Lebenszyklus der Oberfläche sowie Pflege (Vorschauen, große Dateien, Testklassen, JDK).
