@@ -80,6 +80,7 @@ class ElmController(
                     // verlorenen Verbindung (s. readResponse).
                     val scopeJob = coroutineContext.job
                     runInterruptible {
+                        discardStaleInput()
                         // Ein Schreibfehler heisst dasselbe wie ein Lesefehler: Die Verbindung ist weg (der
                         // Adapter oder das Funkmodul hat sie waehrend der Pause des Pollers geschlossen,
                         // naechster Schreibzugriff: "Broken pipe"). Als rohe IOException entkaeme das der
@@ -96,6 +97,32 @@ class ElmController(
             } catch (e: TimeoutCancellationException) {
                 throw ObdException.Timeout(command)
             }
+        }
+    }
+
+    /**
+     * Verwirft alles, was beim Absenden eines Befehls noch ungelesen ist (PRO-13): den Rest unseres Lesepuffers hinter dem letzten Prompt und
+     * alle Bytes, die inzwischen im Eingang liegen. Der ELM327 antwortet nur auf Befehle — was jetzt schon da ist, gehoert zu einem FRUEHEREN:
+     * die verspaetete Antwort eines Befehls, der in ein Zeitlimit lief, oder unaufgeforderter Text. Ohne dieses Verwerfen hielte [readResponse]
+     * es fuer die Antwort auf den NEUEN Befehl, und jede weitere Antwort waere um eins verschoben (der ELM327 kennt keine Antwort-Kennung).
+     *
+     * Verspaetete Bytes, die erst NACH dem Absenden eintreffen, erwischt das nicht — das ist eine Grenze des Protokolls, nicht dieser Funktion;
+     * dort faengt die Auswertung (PID-Byte im Echo) und der Abbruch der einmaligen Lesevorgaenge das Schlimmste ab.
+     * Ein Fehler beim Fragen nach `available()` (toter Link) wird hier nicht gemeldet: der folgende Schreib- bzw. Lesezugriff tut es als [ObdException.ConnectionLost].
+     */
+    private fun discardStaleInput() {
+        bufferPos = 0
+        bufferEnd = 0
+        try {
+            var waiting = inputStream.available()
+            while (waiting > 0) {
+                // available() > 0 heisst: dieser Aufruf blockiert nicht.
+                val read = inputStream.read(readBuffer, 0, minOf(waiting, readBuffer.size))
+                if (read <= 0) break
+                waiting = inputStream.available()
+            }
+        } catch (_: IOException) {
+            // s. KDoc
         }
     }
 

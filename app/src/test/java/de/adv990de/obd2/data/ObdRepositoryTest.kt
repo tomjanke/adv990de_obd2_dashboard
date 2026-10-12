@@ -754,6 +754,56 @@ class ObdRepositoryTest {
         assertEquals(false, repo.isConnectedFlow.value)
     }
 
+    // ── Timeout-Richtlinie der einmaligen Lesevorgaenge (PRO-13) ──────────────
+    //
+    // Ein Zeitlimit laesst den Datenstrom in unbekanntem Zustand (die verspaetete Antwort kann beim naechsten Befehl eintreffen).
+    // Fehlercodes UND Freeze-Frame brechen deshalb beim ersten Zeitlimit ab und trennen (der Reconnect setzt den Strom zurueck); die
+    // Live-Abfrage ueberspringt den PID und wird vom Watchdog ueberwacht; die FIN trennt bewusst NICHT (s. unten).
+
+    @Test
+    fun `readFreezeFrame stops at the first timeout, disconnects and rethrows - like readDtcs`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.Timeout("02 xx 00")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try { repo.readFreezeFrame() } catch (_: ObdException.Timeout) { threw = true }
+
+        assertTrue("das Zeitlimit wird gemeldet, nicht als leeres Ergebnis verschluckt", threw)
+        assertEquals(false, repo.isConnectedFlow.value)
+        // Vorher lief die Schleife mit jedem der ~40 PIDs weiter — bei einem stillen Adapter 40 x 5 s, und jede spaete Antwort
+        // landete beim naechsten Befehl.
+        // (Die drei Befehle der Discovery beim Verbinden zaehlen nicht mit.)
+        coVerify(exactly = 1) { elmCtrl.sendCommand(match { it.startsWith("02 ") }) }
+    }
+
+    @Test
+    fun `readFreezeFrame still skips a PID the ECU answers with NO DATA - only a timeout aborts`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
+        coEvery { elmCtrl.sendCommand("02 0C 00") } returns "42 0C 1A F8"
+        val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
+
+        assertTrue(repo.readFreezeFrame().containsKey("010C"))
+        assertEquals("der Adapter hat geantwortet: die Verbindung bleibt", true, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `readVin does not disconnect when the adapter stays silent - the session asks for it at every connect`() = runTest {
+        // Die Pipeline liest die FIN bei JEDEM Verbinden. Ein Motorrad, das auf Modus 09 schweigt, wuerde bei "trennen" in eine
+        // Schleife aus Verbinden, Zeitlimit und Trennen geraten; die FIN ist ausserdem der erste Befehl nach der Initialisierung,
+        // vor dem es keine verspaetete Antwort geben kann. Das Zeitlimit wird gemeldet, die Verbindung bleibt.
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("0902") } throws ObdException.Timeout("0902")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        var threw = false
+        try { repo.readVin() } catch (_: ObdException.Timeout) { threw = true }
+
+        assertTrue(threw)
+        assertEquals(true, repo.isConnectedFlow.value)
+    }
+
     // ── BusInit escalation ────────────────────────────────────────────────────
 
     private suspend fun makeConnectedRepo(

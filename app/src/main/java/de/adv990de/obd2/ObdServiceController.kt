@@ -11,6 +11,7 @@ import de.adv990de.obd2.location.LocationPermissions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,6 +24,21 @@ import javax.inject.Inject
  */
 internal fun shouldIncludeLocationServiceType(useGpsSpeed: Boolean, hasBackgroundLocation: Boolean): Boolean =
     useGpsSpeed && hasBackgroundLocation
+
+/**
+ * Ob der laufende Dienst neu gestartet werden muss, weil sich der gewuenschte Typ geaendert hat.
+ *
+ * Der Typ wird beim Start gewaehlt ([ObdServiceController.start]). Schaltet der Nutzer die GPS-Geschwindigkeit ein oder erteilt "Immer",
+ * waehrend die Verbindung steht, behielt der Dienst den alten Typ bis zur naechsten Verbindung. Ein erneuter Start mit dem neuen Typ
+ * aktualisiert ihn (`startForeground()` darf mehrfach gerufen werden).
+ *  - Nur ein LAUFENDER Dienst ([runningIncludesLocation] != null): ein abgelehnter oder beendeter wird nicht von selbst wieder gestartet.
+ *  - Nur ab API 34 ([ForegroundStartMode.TYPED]): davor kennt `startForeground()` keinen Typ, es gilt der aus dem Manifest.
+ */
+internal fun shouldRefreshServiceType(
+    runningIncludesLocation: Boolean?,
+    wantsLocation: Boolean,
+    startMode: ForegroundStartMode,
+): Boolean = startMode == ForegroundStartMode.TYPED && runningIncludesLocation != null && runningIncludesLocation != wantsLocation
 
 /**
  * Fuehrt [block] aus, das den Vordergrunddienst anfordert, und liefert die Ausnahme zurueck, wenn Android den
@@ -71,14 +87,52 @@ class ObdServiceController @Inject constructor(
      * mit `connectedDevice`.
      */
     suspend fun start() {
-        val includeLocation = shouldIncludeLocationServiceType(
-            useGpsSpeed = appPreferences.useGpsSpeed.first(),
-            hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
-        )
+        requestStart(wantsLocationType())
+    }
+
+    /** Ob der Dienst JETZT den Typ `location` braucht: GPS-Geschwindigkeit an UND Hintergrund-Standort erteilt. */
+    private suspend fun wantsLocationType(): Boolean = shouldIncludeLocationServiceType(
+        useGpsSpeed = appPreferences.useGpsSpeed.first(),
+        hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
+    )
+
+    private suspend fun requestStart(includeLocation: Boolean) {
         val refused = catchingForegroundStart {
             appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
         }
         if (refused != null) appLogRepository.log(LogLevel.WARN, startFailureMessage(refused))
+    }
+
+    /**
+     * Gleicht den Typ eines LAUFENDEN Dienstes mit dem jetzt gewuenschten ab (s. [shouldRefreshServiceType]). Ruft [start]-Logik nur, wenn
+     * sich etwas geaendert hat; sonst passiert nichts — es ist billig und darf oft gerufen werden.
+     */
+    internal suspend fun refreshServiceType(startMode: ForegroundStartMode = ObdForegroundService.resolveForegroundStartMode()) {
+        val wantsLocation = wantsLocationType()
+        if (shouldRefreshServiceType(ObdForegroundService.runningIncludesLocation, wantsLocation, startMode)) requestStart(wantsLocation)
+    }
+
+    /** Wie [refreshServiceType], aber ein Fehler steht im App-Log statt als Ausnahme beim Aufrufer (nur die Abbruch-Ausnahme wird weitergereicht). */
+    private suspend fun refreshServiceTypeSafely(startMode: ForegroundStartMode) {
+        try {
+            refreshServiceType(startMode)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            appLogRepository.log(LogLevel.WARN, "Updating the service type failed: ${e.javaClass.simpleName}: ${e.message ?: "-"}")
+        }
+    }
+
+    /** Fuer Aufrufer ohne eigene Coroutine (`MainActivity.onResume`: eine Berechtigung kann sich ausserhalb der App geaendert haben). Wirft nie. */
+    internal fun refreshServiceTypeInBackground(startMode: ForegroundStartMode = ObdForegroundService.resolveForegroundStartMode()) {
+        scope.launch { refreshServiceTypeSafely(startMode) }
+    }
+
+    /**
+     * Haelt den Typ des Dienstes aktuell, solange die Sammlung laeuft: bei jeder Aenderung der Einstellung "GPS-Geschwindigkeit" (nicht bei
+     * gleichem Wert). Die Berechtigung hat keinen Flow — sie prueft [refreshServiceTypeInBackground] beim Zurueckkehren in die App.
+     */
+    internal suspend fun keepServiceTypeCurrent(startMode: ForegroundStartMode = ObdForegroundService.resolveForegroundStartMode()) {
+        appPreferences.useGpsSpeed.distinctUntilChanged().collect { refreshServiceTypeSafely(startMode) }
     }
 
     /** Beendet den Dienst (und damit die Benachrichtigung). Trennt die Verbindung NICHT. */

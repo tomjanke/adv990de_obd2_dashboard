@@ -74,18 +74,24 @@ class ObdForegroundService : Service() {
                 // startForeground() kann ablehnen (SecurityException: dem Typ fehlt eine Berechtigung; ab API 31
                 // IllegalStateException, wenn die App im Hintergrund nicht mehr starten darf). Unbehandelt beendete das
                 // den Prozess aus onStartCommand heraus (B4). Jetzt: ins App-Log, Dienst beenden — die Verbindung bleibt.
+                val includeLocationType = intent.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false)
+                val wasRunning = runningIncludesLocation != null
                 val refused = catchingForegroundStart {
                     when (resolveForegroundStartMode()) {
-                        ForegroundStartMode.TYPED -> {
-                            val includeLocationType = intent.getBooleanExtra(EXTRA_INCLUDE_LOCATION, false)
-                            startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
-                        }
+                        ForegroundStartMode.TYPED -> startForegroundTyped(notification, resolveForegroundServiceType(includeLocationType))
                         ForegroundStartMode.LEGACY -> startForeground(NOTIF_ID, notification)
                     }
                 }
-                if (refused != null) {
+                if (refused == null) {
+                    runningIncludesLocation = includeLocationType
+                } else {
                     serviceController.onServiceStartFailed(refused)
-                    stopSelf()
+                    // Ein Dienst, der schon LAEUFT (Typ-Wechsel bei stehender Verbindung, s. ObdServiceController.refreshServiceType),
+                    // laeuft mit seinem alten Typ weiter: die abgelehnte Aufwertung darf ihn nicht beenden.
+                    if (!wasRunning) {
+                        runningIncludesLocation = null
+                        stopSelf()
+                    }
                 }
             }
             ACTION_STOP -> scope.launch { serviceController.endSession() }
@@ -108,6 +114,7 @@ class ObdForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        runningIncludesLocation = null
         super.onDestroy()
         scope.cancel()
     }
@@ -130,6 +137,15 @@ class ObdForegroundService : Service() {
         const val CHANNEL_ID   = "obd2_connection"
         const val EXTRA_INCLUDE_LOCATION = "de.adv990de.obd2.extra.INCLUDE_LOCATION"
         private const val NOTIF_ID = 1
+
+        /**
+         * Mit welchem Typ der Dienst gerade laeuft: `true` = `connectedDevice` UND `location`, `false` = nur `connectedDevice`, `null` = er laeuft
+         * nicht. Gesetzt, sobald `startForeground()` angenommen wurde, geleert in `onDestroy()` und nach einer abgelehnten ersten Anforderung.
+         * Nur dafuer da, dass [ObdServiceController.refreshServiceType] sieht, ob sich der Typ geaendert hat — ein Dienst pro Prozess, daher
+         * ein Wert im Companion statt eines Singletons.
+         */
+        @Volatile
+        internal var runningIncludesLocation: Boolean? = null
 
         fun startIntent(context: Context, includeLocationType: Boolean = false): Intent =
             Intent(context, ObdForegroundService::class.java).apply {

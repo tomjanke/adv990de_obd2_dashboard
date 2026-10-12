@@ -65,7 +65,18 @@ class ObdForegroundServiceTest {
         coJustRun { disconnectByUser() }
     }
 
+    @javax.inject.Inject lateinit var serviceController: ObdServiceController
+
+    @javax.inject.Inject lateinit var appPreferences: de.adv990de.obd2.data.AppPreferences
+
     private val ctx: Context get() = ApplicationProvider.getApplicationContext()
+
+    /** Wartet, bis `runningIncludesLocation` den erwarteten Wert hat — der Dienst setzt ihn auf dem Main-Thread nach `startForeground()`. */
+    private fun awaitRunningType(expected: Boolean?, what: String) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (ObdForegroundService.runningIncludesLocation != expected && System.currentTimeMillis() < deadline) Thread.sleep(50)
+        assertEquals(what, expected, ObdForegroundService.runningIncludesLocation)
+    }
 
     // Ab API 26 darf ein Prozess im Hintergrund kein startService() aufrufen. Die Activity
     // holt den Testprozess in den Vordergrund und macht den Aufruf damit zulaessig.
@@ -189,5 +200,43 @@ class ObdForegroundServiceTest {
         // MainActivity mit leerem ViewModel (sie bekommt onNewIntent).
         val required = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         assertEquals(required, intent.flags and required)
+    }
+
+    // --- Dienst-Typ bei laufender Verbindung ---
+
+    @Test
+    fun theServiceRemembersWhichTypeItRunsWith_andForgetsItWhenItEnds() {
+        awaitRunningType(null, "Ausgangslage: der Dienst laeuft nicht")
+
+        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = false))
+        awaitRunningType(false, "gestartet ohne Standort-Typ")
+
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+        awaitRunningType(null, "nach dem Stopp laeuft er nicht mehr")
+    }
+
+    @Test
+    fun aSecondStartWithTheLocationTypeUpgradesTheRunningService() {
+        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = false))
+        awaitRunningType(false, "gestartet ohne Standort-Typ")
+
+        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = true))
+        awaitRunningType(true, "der zweite Start hat den Typ aktualisiert, ohne den Dienst zu beenden")
+
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+        awaitRunningType(null, "nach dem Stopp laeuft er nicht mehr")
+    }
+
+    @Test
+    fun refreshServiceType_givesARunningServiceTheLocationTypeOnceGpsSpeedIsSwitchedOn() {
+        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = false))
+        awaitRunningType(false, "gestartet ohne Standort-Typ")
+        kotlinx.coroutines.runBlocking { appPreferences.setUseGpsSpeed(true) }
+
+        kotlinx.coroutines.runBlocking { serviceController.refreshServiceType() }
+
+        awaitRunningType(true, "GPS-Geschwindigkeit an und Hintergrund-Standort erteilt: der laufende Dienst bekommt den Typ")
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+        awaitRunningType(null, "nach dem Stopp laeuft er nicht mehr")
     }
 }

@@ -49,6 +49,21 @@ private const val CONNECT_TIMEOUT_MS = 60_000L
  *  Werte gleich sind. */
 private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS * 1_000L
 
+/**
+ * Die Verbindung zum Adapter und alle Lesevorgaenge darueber.
+ *
+ * **Zeitlimit-Richtlinie (PRO-13).** Ein Zeitlimit (`ObdException.Timeout`, 5 s ohne Prompt) laesst den Datenstrom in unbekanntem Zustand: die
+ * Antwort kann spaeter eintreffen und wuerde beim naechsten Befehl fuer dessen Antwort gehalten (der ELM327 kennt keine Antwort-Kennung).
+ * Je Lesepfad gilt deshalb, und zwar mit Absicht verschieden:
+ *  - **Live-Abfrage** ([livePids]): den PID ueberspringen, der [Watchdog][isReadingsStale] eskaliert nach `watchdogTimeoutMs` — eine einzelne
+ *    langsame Antwort ist im Betrieb normal und darf die Verbindung nicht kosten.
+ *  - **Fehlercodes** ([readDtcs]) und **Freeze-Frame** ([readFreezeFrame]): beim ersten Zeitlimit abbrechen, trennen, weiterreichen. Es sind
+ *    Folgen mehrerer Befehle, jede verschobene Antwort verfaelschte das Ergebnis; getrennt wird, damit der Reconnect den Strom zuruecksetzt.
+ *  - **FIN** ([readVin]): das Zeitlimit wird gemeldet, die Verbindung bleibt. Die Pipeline fragt sie bei JEDEM Verbinden; ein Motorrad, das auf
+ *    Modus 09 schweigt, geriete bei "trennen" in eine Schleife aus Verbinden, Zeitlimit, Trennen. Ein einzelner Befehl kann ausserdem keine Folge
+ *    verschieben, und der naechste Befehl verwirft Altbytes ([de.adv990de.obd2.obd.ElmController]).
+ *  - **Discovery** (beim Verbinden): ein Bereich ohne Antwort wird uebersprungen; der Aufbau steht unter einer eigenen Obergrenze.
+ */
 @Singleton
 class ObdRepository @Inject constructor(
     private val connectionFactory: ConnectionFactory,
@@ -459,15 +474,20 @@ class ObdRepository @Inject constructor(
             val pidByte = pid.id.takeLast(2)
             // ELM327 mode-02 command: space-separated "02 <PID> <FF>" for widest clone
             // compatibility — many clones reject packed form "02<PID><FF>" without spaces.
-            // BUS INIT / NO DATA responses are not thrown here; sendCommand returns the raw
-            // string which parseFreezeFrame will reject (returning null). This is intentional:
-            // a one-shot diagnostic read does not escalate transient bus errors to ConnectionLost.
+            // NO DATA / UnknownResponse / BusInit ueberspringen den PID (der Adapter HAT geantwortet): ein einmaliger Diagnose-Lesevorgang
+            // eskaliert voruebergehende Busfehler nicht zu ConnectionLost. Ein ZEITLIMIT bricht dagegen ab (s. unten).
             val raw = try {
                 controller.sendCommand("02 ${pidByte} 00")
             } catch (_: ObdException.NoData)          { null }
-              catch (_: ObdException.Timeout)         { null }
               catch (_: ObdException.UnknownResponse) { null }
               catch (_: ObdException.BusInit)         { null }
+              catch (e: ObdException.Timeout)         {
+                  // Zeitlimit-Richtlinie (PRO-13), wie in readDtcs(): ein Zeitlimit laesst den Datenstrom in unbekanntem Zustand, die
+                  // verspaetete Antwort kaeme beim naechsten Befehl an. Frueher lief die Schleife mit allen ~40 PIDs weiter (bei einem
+                  // stillen Adapter 40 x 5 s) und meldete am Ende "keine Daten", obwohl der Adapter nie geantwortet hatte.
+                  withContext(NonCancellable) { disconnect() }
+                  throw e
+              }
               catch (e: ObdException.ConnectionLost)  {
                   withContext(NonCancellable) { disconnect() }
                   throw e

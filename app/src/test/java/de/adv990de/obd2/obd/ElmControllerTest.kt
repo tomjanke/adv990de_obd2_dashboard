@@ -15,10 +15,52 @@ import java.io.PipedOutputStream
 
 class ElmControllerTest {
 
-    private fun makeStreams(responses: List<String>): Pair<ByteArrayInputStream, ByteArrayOutputStream> {
+    /**
+     * Ein Adapter, der nur ANTWORTET: Eine Antwort wird erst freigegeben, wenn ein Befehl geschrieben (geflusht) wurde — wie beim echten
+     * ELM327. Frueher stand der ganze Antwort-Text schon vor dem ersten Befehl im Eingang; seit der Controller Altbytes vor jedem Befehl
+     * verwirft (PRO-13), wuerde das die Antworten mit wegwerfen. [stale] steht von Anfang an im Eingang: die verspaetete Antwort auf
+     * einen frueheren Befehl.
+     */
+    private class ScriptedAdapter(responses: List<ByteArray>, stale: ByteArray = ByteArray(0)) {
+        private val lock = Any()
+        private val queue = ArrayDeque(responses)
+        private var buffer = stale
+        private var position = 0
+
+        val input: InputStream = object : InputStream() {
+            override fun read(): Int = synchronized(lock) {
+                if (position < buffer.size) buffer[position++].toInt() and 0xFF else -1
+            }
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int = synchronized(lock) {
+                if (position >= buffer.size) return@synchronized -1
+                val n = minOf(len, buffer.size - position)
+                System.arraycopy(buffer, position, b, off, n)
+                position += n
+                n
+            }
+
+            override fun available(): Int = synchronized(lock) { buffer.size - position }
+        }
+
+        val output: ByteArrayOutputStream = object : ByteArrayOutputStream() {
+            override fun flush() {
+                super.flush()
+                release()
+            }
+        }
+
+        private fun release() = synchronized(lock) {
+            val next = queue.removeFirstOrNull() ?: return@synchronized
+            buffer = buffer.copyOfRange(position, buffer.size) + next
+            position = 0
+        }
+    }
+
+    private fun makeStreams(responses: List<String>): Pair<InputStream, ByteArrayOutputStream> {
         // Simulate ELM327: each response ends with ">" prompt
-        val combined = responses.joinToString("") { "$it\r>" }
-        return ByteArrayInputStream(combined.toByteArray()) to ByteArrayOutputStream()
+        val adapter = ScriptedAdapter(responses.map { "$it\r>".toByteArray() })
+        return adapter.input to adapter.output
     }
 
     @Test
@@ -203,5 +245,53 @@ class ElmControllerTest {
         val response = controller.sendCommand("0902")
 
         assertEquals("$frame1 $frame2", response)
+    }
+
+    // ── Altbytes vor einem Befehl (PRO-13) ────────────────────────────────────
+    //
+    // Der ELM327 kennt keine Antwort-Kennung: Wer nach einem Zeitlimit die verspaetete Antwort des alten Befehls erst beim NAECHSTEN
+    // Befehl liest, haelt sie fuer dessen Antwort — und jede weitere ist dann um eins verschoben.
+
+    @Test
+    fun `a late answer to an earlier command is discarded, not taken for the answer to this one`() = runTest {
+        // Die Antwort auf "010C" kam erst nach dem Zeitlimit — jetzt steht sie im Eingang, bevor "010D" gesendet wird.
+        val adapter = ScriptedAdapter(listOf("41 0D 28\r>".toByteArray()), stale = "41 0C 1F 40\r>".toByteArray())
+
+        val response = ElmController(adapter.input, adapter.output).sendCommand("010D")
+
+        assertEquals("41 0D 28", response)
+    }
+
+    @Test
+    fun `bytes the adapter sent behind a prompt do not leak into the next answer`() = runTest {
+        val adapter = ScriptedAdapter(listOf("41 0D 28\r>JUNK\r".toByteArray(), "41 0C 1F 40\r>".toByteArray()))
+        val controller = ElmController(adapter.input, adapter.output)
+
+        assertEquals("41 0D 28", controller.sendCommand("010D"))
+        assertEquals("ohne das Verwerfen stuende hier \"JUNK 41 0C 1F 40\"", "41 0C 1F 40", controller.sendCommand("010C"))
+    }
+
+    @Test
+    fun `an input that cannot say how much is waiting does not fail the command`() = runTest {
+        val adapter = ScriptedAdapter(listOf("41 0D 28\r>".toByteArray()))
+        val noAvailable = object : InputStream() {
+            override fun read(): Int = adapter.input.read()
+            override fun read(b: ByteArray, off: Int, len: Int): Int = adapter.input.read(b, off, len)
+            override fun available(): Int = throw IOException("closed")
+        }
+
+        // Ein toter Link zeigt sich beim Schreiben/Lesen als ConnectionLost, nicht schon beim Aufraeumen davor.
+        assertEquals("41 0D 28", ElmController(noAvailable, adapter.output).sendCommand("010D"))
+    }
+
+    @Test
+    fun `the answer to the command itself is never thrown away`() = runTest {
+        // Das Verwerfen geschieht VOR dem Schreiben: alles, was danach eintrifft, gehoert zur Antwort — auch eine lange.
+        val long = "49 02 01 57 41 55 5A 5A 5A\r49 02 02 30 30 30 30 30 30 30 30 30 30 30 30\r49 02 03 31 31 31"
+        val adapter = ScriptedAdapter(listOf("$long\r>".toByteArray()))
+
+        val response = ElmController(adapter.input, adapter.output).sendCommand("0902")
+
+        assertEquals(long.replace("\r", " "), response)
     }
 }

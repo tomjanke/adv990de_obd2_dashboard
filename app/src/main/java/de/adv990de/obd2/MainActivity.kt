@@ -64,6 +64,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = true) }
+        // Eine Berechtigung (Hintergrund-Standort) kann sich ausserhalb der App geaendert haben; steht der Dienst schon, bekommt er
+        // den dazu passenden Typ (ObdServiceController.refreshServiceType). Ohne laufenden Dienst oder bei gleichem Typ tut das nichts.
+        serviceController.refreshServiceTypeInBackground()
     }
 
     override fun onPause() {

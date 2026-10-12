@@ -26,6 +26,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -267,5 +268,125 @@ class ObdServiceControllerTest {
         runCurrent()
 
         coVerify { log.log(LogLevel.WARN, match { "SecurityException" in it && "type not allowed" in it }) }
+    }
+
+    // ── Dienst-Typ bei laufender Verbindung ────────────────────────────────
+    //
+    // Der Typ wird beim Start des Dienstes gewaehlt (`start()`). Schaltet der Nutzer die GPS-Geschwindigkeit ein oder erteilt er
+    // "Immer", waehrend die Verbindung steht, behielt der Dienst bisher den alten Typ bis zur naechsten Verbindung. Jetzt ruft
+    // `refreshServiceType()` den Start erneut, wenn der laufende Dienst einen anderen Typ hat als der jetzt gewuenschte.
+
+    @After
+    fun resetRunningServiceType() {
+        ObdForegroundService.runningIncludesLocation = null
+    }
+
+    @Test
+    fun `a refresh is due only when a running service has a different type than the one wanted now`() {
+        val typed = ForegroundStartMode.TYPED
+        // laeuft ohne Standort-Typ, jetzt waere er gewuenscht -> neu starten
+        assertTrue(shouldRefreshServiceType(runningIncludesLocation = false, wantsLocation = true, startMode = typed))
+        // laeuft mit Standort-Typ, GPS ist inzwischen aus -> neu starten (der Typ darf wieder entfallen)
+        assertTrue(shouldRefreshServiceType(runningIncludesLocation = true, wantsLocation = false, startMode = typed))
+        // gleich -> nichts tun
+        assertFalse(shouldRefreshServiceType(runningIncludesLocation = false, wantsLocation = false, startMode = typed))
+        assertFalse(shouldRefreshServiceType(runningIncludesLocation = true, wantsLocation = true, startMode = typed))
+        // laeuft nicht (abgelehnt, beendet): ein Refresh startet ihn nicht von sich aus
+        assertFalse(shouldRefreshServiceType(runningIncludesLocation = null, wantsLocation = true, startMode = typed))
+        assertFalse(shouldRefreshServiceType(runningIncludesLocation = null, wantsLocation = false, startMode = typed))
+        // vor API 34 gilt der Typ aus dem Manifest, startForeground() kennt keinen Typ
+        assertFalse(shouldRefreshServiceType(runningIncludesLocation = false, wantsLocation = true, startMode = ForegroundStartMode.LEGACY))
+    }
+
+    @Test
+    fun `refreshServiceType restarts a running service whose type no longer matches`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = false
+        // GPS-Geschwindigkeit an; Hintergrund-Standort gilt im JVM-Test (SDK_INT 0 < Q) als erteilt
+        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 1) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType does nothing when the running service already has the wanted type`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = true
+        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType never starts a service that is not running`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = null
+        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType drops the location type again when GPS speed is switched off`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = true
+        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = false))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 1) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType leaves the service alone before API 34`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = false
+        val c = controller(backgroundScope, context = context, prefs = makePrefs(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.LEGACY)
+
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceTypeInBackground never crashes the process - a failure goes to the log`() = runTest {
+        val context = mockk<Context>(relaxed = true) {
+            every { startForegroundService(any()) } throws NullPointerException("bug")
+        }
+        val log = mockk<AppLogRepository>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = false
+        val c = controller(backgroundScope, context = context, log = log, prefs = makePrefs(useGpsSpeed = true))
+
+        c.refreshServiceTypeInBackground(ForegroundStartMode.TYPED)
+        runCurrent()   // ein ungefangener Fehler im Scope wuerde hier den Test (und in der App den Prozess) beenden
+
+        coVerify { log.log(LogLevel.WARN, match { "NullPointerException" in it }) }
+    }
+
+    @Test
+    fun `keepServiceTypeCurrent refreshes whenever the GPS speed setting changes - and only then`() = runTest {
+        val gps = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val prefs: AppPreferences = mockk { every { useGpsSpeed } returns gps }
+        val context = mockk<Context>(relaxed = true)
+        ObdForegroundService.runningIncludesLocation = false
+        val c = controller(backgroundScope, context = context, prefs = prefs)
+
+        backgroundScope.launch { c.keepServiceTypeCurrent(ForegroundStartMode.TYPED) }
+        runCurrent()
+        verify(exactly = 0) { context.startForegroundService(any()) }   // GPS aus, Dienst ohne Standort-Typ: passt
+
+        gps.value = true
+        runCurrent()
+        verify(exactly = 1) { context.startForegroundService(any()) }   // GPS an: der Dienst bekommt den Typ
+
+        gps.value = true                                                 // derselbe Wert: kein weiterer Start
+        runCurrent()
+        verify(exactly = 1) { context.startForegroundService(any()) }
     }
 }

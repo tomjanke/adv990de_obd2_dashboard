@@ -16,6 +16,8 @@ class Obd2Application : Application() {
 
     @Inject lateinit var crashReporting: CrashReportingController
 
+    @Inject lateinit var serviceController: ObdServiceController
+
     @Inject @ApplicationScope lateinit var applicationScope: CoroutineScope
 
     override fun onCreate() {
@@ -29,5 +31,8 @@ class Obd2Application : Application() {
         // Sentry startet nicht von selbst (auto-init=false), sondern erst, wenn die Einstellung des Nutzers gelesen ist,
         // und folgt dem Schalter danach (QS B33). Ohne DSN im Build passiert hier nichts.
         applicationScope.launch { crashReporting.run() }
+
+        // Der Typ des Vordergrunddienstes folgt der Einstellung "GPS-Geschwindigkeit", auch bei stehender Verbindung.
+        applicationScope.launch { serviceController.keepServiceTypeCurrent() }
     }
 }
