@@ -482,6 +482,10 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
   `ConnectionCoordinator` (Auto-Connect, Reconnect-Schleife) nutzen nur diese beiden; das manuelle `connect()` aus den Einstellungen
   bleibt unbedingt. Ein Test, der „reconnect baut eine neue Verbindung“ prüft, muss vorher `disconnect()` rufen (so wie es
   Link-Verlust und Watchdog tun, bevor sie melden).
+- **Ein Lesepfad trennt nur die Verbindung, auf der er las (PRO-11, nach v1.25.0).** `disconnectIfCurrent(controller)` (privat, `ObdRepository`) tut nichts, wenn `elm` inzwischen ein anderer Controller ist; die Lesepfade (`livePids`: Link-Verlust, 5× BusInit, Watchdog; `DiagnosticReads`: Zeitlimit und Link-Verlust bei Fehlercodes und Freeze-Frame)
+  rufen es mit dem Controller, über den sie lasen. Grund: „Verbinden“ zu einem anderen Adapter schließt die alte Verbindung (`connectLocked`) — das blockierte Lesen auf ihr scheitert, will trennen und steht hinter dem Lock; bis es ihn bekam, stand die neue Verbindung, und ein unbedingtes `disconnect()` hätte sie
+  wieder eingerissen (Verlust-Meldung, Reconnect). Deshalb setzt `connectLocked` beim Ersetzen **den ganzen Zustand** zurück (`resetLocked()`: Verbindungsstatus, Fahrterkennung, unterstützte PIDs, letzte Werte), denn der alte Leser räumt nicht mehr hinterher auf. Das WUNSCH-Trennen (`disconnect()`, `disconnectByUser()`) bleibt bedingungslos.
+  Test-Rahmen: `ObdRepositoryTest.readOnReplacedConnection` baut die Lage nach (Leser wartet auf A, B hält den Lock, A „schließt“, der Leser scheitert, B wird fertig).
 - **Nutzer-Trennen ≠ Verbindungsverlust.** `disconnectByUser()` (Benachrichtigung „Trennen“, Einstellungen, „Beenden“) erhöht
   `userDisconnectCount` VOR dem Warten auf den Lock und trennt dann; das interne `disconnect()` (Link-Verlust, Watchdog, Lesefehler)
   zählt nicht. Wer wiederverbindet oder einen Verlust meldet, merkt sich den Zählerstand und vergleicht: Der Reconnect-Trigger trägt den
@@ -716,7 +720,11 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   `PreviewTheme(dark)` (`ui/theme/PreviewSupport.kt`: helles Standard-Schema und dunkles Cockpit-Blau). Vorschauen für ViewModel-Screens gibt es nicht — ihre zustandslosen Bausteine tragen sie (`DtcRow`, `SessionRow`, `DeviceRow`, …).
 - **Wo was liegt (große Dateien aufgeteilt, v1.25.0, reine Verschiebungen im selben Paket):** `RpmBarLogic.kt` (Blinkperiode, Segmentfarbe, Temperaturbänder, Öl-Balken- und Gangfarbe), `DashboardComponents.kt` (`RpmBar`, `OilTemperatureBarStrip`), `SlotComponents.kt` (Kachel, Vorschau-Band, Slot-Auswahl),
   `DashboardUiState.kt`, `SessionEvent.kt` (+ `OBD_STALE_AFTER_MS`), `SettingsScreenSupport.kt` (Test-Tags, reine Entscheidungen), `SettingsSections.kt` (Gruppen Aufzeichnung/Fahrzeug/Info als `LazyListScope`-Erweiterungen), `DeviceRow.kt`, `ThemePickerItem.kt`, `data/PidDiscovery.kt`.
-  **Drei Dateien bleiben über 400 Zeilen** (`DashboardViewModel` 483, `ObdRepository` 450, `ReadingsPipeline` 445): je eine Klasse mit ausführlicher KDoc — sie weiter zu teilen hieße Logik umbauen, nicht verschieben.
+  **Die drei letzten Dateien über 400 Zeilen sind danach aufgeteilt worden** (nach v1.25.0, s. „Aufteilung der großen Klassen“): keine Datei ist mehr länger als 400 Zeilen.
+- **Aufteilung der großen Klassen (nach v1.25.0, keine Datei > 400 Zeilen):** `ObdRepository` (391) hält Verbindung, Zustand und die laufende Abfrage; die einmaligen Lesepfade (Fehlercodes, Freeze-Frame, FIN) stehen in `data/DiagnosticReads.kt` (`internal`, bekommt den `ElmController` je Aufruf und meldet
+  Fehler an `onLinkBroken`), das Repository reicht sie durch — die öffentliche Signatur ist unverändert. `ReadingsPipeline` (378): die Aufzeichnung einer Sitzung ist `SessionRecorder` (Fahrt anlegen, schreiben, beenden; ein Datenbankfehler wird einmal je Sitzung gemeldet), die PID-Auswahl die reine Funktion `selectPids` (`PidSelection.kt`).
+  `DashboardViewModel` (367): `SparklineBuffer` (Fenster, Mindestabstand, Leeren je Verbindung), `OilBarTracker` (Öl-Balken samt Timer-Zustand im `SavedStateHandle` — **die Schlüsselnamen sind persistierter Zustand, nie umbenennen**) und `GearTracker` (Gang, Anzeige-Persistenz, „N“, 5-s-Gegenprobe mit dem GPS; `GearReading`).
+  Die Begründungen, die vorher als Kommentare im ViewModel standen, wanderten mit. Alle haben eigene Tests (`SessionRecorderTest`, `PidSelectionTest`, `SparklineBufferTest`, `OilBarTrackerTest`, `GearTrackerTest`); die bestehenden ViewModel-/Pipeline-/Repository-Tests liefen unverändert grün.
 - **Test-Klassen:** Was ein Gerät braucht, endet auf `DeviceTest`; kein Klassenname kommt in `test` und `androidTest` doppelt vor (`CodeHygieneSourceTest`). Die Pläne und Spezifikationen umgesetzter Funktionen liegen in `docs/superpowers/archive/`.
 
 ### Anzeige-Fixes (seit v1.24.12)
@@ -731,8 +739,9 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **Smoke-Test im Repo:** `scripts/smoke.py <versionName> <versionCode>` (uiautomator, Gerät entsperrt; `SmokeScriptTest` hält ihn vorhanden, übersetzbar und im Release-Ablauf genannt). Er lag bis 1.24.11 nur im Scratchpad einer Sitzung und ging verloren.
 - **Entschieden am 2026-10-12 (`docs/qa/2026-10-12-decisions.md`):** UID-21 (RPM-Skala fest 10 000 — die Blinkgrenze lässt sich nur bis 10 000 einstellen) **bleibt**, keine neue Einstellung; der Tacho-Sweep (`DashboardScreen`, `shouldStartRpmDemoSweep`) läuft
   **nur einmal je App-Start** (umgesetzt in v1.24.13, s. „Tacho-Sweep“ unten); Polling und Aufzeichnung **bleiben im ViewModel** („Wegwischen heißt fertig“, s. „Sitzung und Vordergrunddienst“).
-- **Bewusst nicht umgesetzt:** PRO-11 (der Einzelbefund
-  „`disconnect()` unbedingt“ ist im Bericht nur ein Stichwort; Protokollschicht, ohne Adapter nicht prüfbar).
+- **Produktentscheidungen, zweite Runde (2026-10-12, `docs/qa/2026-10-12-decisions.md`, Punkte 9–13):** die Beschreibungen der Fehlercodes werden übersetzt (s. „Fehlercode-Texte“); „imperial“ bleibt bei km/h → mph und °C → °F; die Ganganzeige bleibt bei **einem** Satz Getriebedaten;
+  die Toleranzen 4 % / 6 % und die Eingabeart der Übersetzungen blieben ohne Präferenz und sind **unverändert** (Toleranzen: Auswertung der Testfahrt abwarten).
+- **PRO-11 ist umgesetzt** (nach v1.25.0, s. „Verbindungs-Entscheidungen gehören unter den Lock“): Lesepfade trennen nur die Verbindung, auf der sie lasen. Das bewusste „ein Zeitlimit bei Fehlercodes/Freeze-Frame trennt“ bleibt.
 
 ### Tacho-Sweep: einmal je App-Start (seit v1.24.13)
 
@@ -778,6 +787,8 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
 - **Benachrichtigungskanal:** `createObdNotificationChannel(context)` (`ObdForegroundService.kt`) — die Application und der Service-Test benutzen dieselbe Funktion.
 - **Projektverzeichnis in Tests:** `projectRoot` (`app/src/test/java/de/adv990de/obd2/ProjectRoot.kt`, `internal`, lazy) — eine Stelle für alle Tests, die Quelltext, Doku oder Skripte lesen (`import de.adv990de.obd2.projectRoot`). Zehn Kopien der Suche nach `settings.gradle.kts`
   trugen je eine Compilerwarnung (`System.getProperty` ist nullable); die JVM-Tests laufen jetzt ohne Kompilerwarnung. **Test-Falle:** `docs/*` in einem KDoc beginnt einen verschachtelten Kommentar (`/*`) — „Unclosed comment“; im Kommentar umschreiben.
+- **Simulator-Uhr:** `SimulatedEcuDispatcher(clockMs)` nimmt die Uhr als Parameter (Standard: Wanduhr). Tests prüfen die Kurven an festen Zeitpunkten (`FakeClock` in `SimulatedEcuDispatcherTest`, Beginn bei einem Vielfachen der 20-s-Periode) — nie wieder mit `Thread.sleep` auf „irgendeine“ Änderung warten.
+  **Test-Falle (Mutationsproben):** Eine von Hand zurückgesetzte (`mv`/`cp`) Quelldatei sieht der inkrementelle Kotlin-Compiler nicht als geändert — die mutierte Klasse bleibt kompiliert, bis die Datei angefasst wird (`touch`). Nach jeder Mutation die Datei anfassen, und vor dem Schlusslauf einmal sauber bauen.
 - **Wetter-Uhr:** `timeSourceFrom(readNanos)` (`WeatherViewModel.kt`) baut die `TimeSource` auf einer vorgegebenen Uhr; `TimeSourceFromTest` hält fest, dass nur diese Uhr gelesen wird (eine eingefrorene Uhr lässt keine Zeit vergehen, auch wenn die JVM-Zeit läuft) und dass ein Sprung von
   Stunden ankommt. Die echte Verdrahtung `elapsedRealtimeSource` (`SystemClock.elapsedRealtimeNanos()`, zählt Tiefschlaf mit) prüft `ElapsedRealtimeSourceDeviceTest` auf dem Gerät. Ein echter Tiefschlaf lässt sich im Test nicht herbeiführen.
 - **Locale:** Die JVM-Tests laufen unter `de_DE` (`app/build.gradle.kts`). Eine Anzeigeformatierung wird mit `withDefaultLocale(Locale.US)`/`(Locale.GERMANY)` getestet,
@@ -787,14 +798,21 @@ Eine neue Lizenzart: Datei in `docs/licenses/`, `LicenseKind`, Komponente.
   (Kotlin stuft eine echte Ausnahme über die Abbruchursache — sonst überstimmt `InterruptedIOException` das Zeitlimit). Die Discovery sucht `41 <Bereich>` irgendwo in der
   Antwort (`rangeDataBytes`, `data/PidDiscovery.kt`), weil der ELM327 „SEARCHING...“ / „BUS INIT: OK“ davorstellt.
 
+### Fehlercode-Texte (nach v1.25.0, Entscheidung 2026-10-12)
+
+- **Die Beschreibung eines Fehlercodes ist eine String-Ressource**, kein Text im Code: `dtcDescriptionRes(code)` (`obd/DtcDescriptions.kt`, rein) liefert `R.string.dtc_pXXXX` für die 37 bekannten SAE-J2012-Codes, sonst `R.string.dtc_unknown`. `DtcEntry` und `DtcHistoryEntry` tragen **nur den Code**; die Oberfläche löst
+  den Text bei der Anzeige auf (`stringResource(dtcDescriptionRes(code))`). Das App-Log nennt die Codes, nicht die Texte.
+- **Die deutschen Texte sind eine eigene Übersetzung** der SAE-Namen, kein amtlicher Wortlaut; der Code steht immer daneben. Ein neuer Code: Eintrag in der `when`-Liste **und** je ein String in `values/` und `values-de/` — `DtcDescriptionTest` hält Liste, Ressourcen und beide Sprachen zusammen (gleiche Namen, deutscher Text nicht leer und nicht der englische).
+- **Bewusst nicht gebaut:** mehr als diese Auswahl an Codes (es gibt tausende; alles andere zeigt „Unbekannter Fehlercode“ plus den Code).
+
 ### Lokale Fehlerhistorie (seit 2026-10-04, v1.23.0)
 
 Die App merkt sich, welche Fehlercodes (DTCs) das Fahrzeug gemeldet hat — auch nachdem es sie nicht mehr meldet und offline.
 **Rein lokal; das Fahrzeug bleibt rein lesend:** Quelle sind die bestehenden Modus-03/07-Lesezugriffe, „Historie löschen“ löscht nur die
 lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
 - **Datenmodell:** Room-Tabelle `dtc_history` (eingeführt mit Datenbank **v3**; seit v1.25.0 ist die Datenbank **v4**, s. „Herkunft eines Messwerts“), eine Zeile je Code: `code` (PK), `firstSeen` (nie überschrieben), `lastSeen`
-  (nur vorwärts), `lastWasPending`. Die Beschreibung wird zur Anzeige per `dtcDescription(code)` (öffentlich, rein, aus `DtcParser` extrahiert)
-  aufgelöst, nicht gespeichert. `MIGRATION_2_3` ist von Hand geschrieben, `app/schemas/…/3.json` liegt im Repo, `AppDatabaseMigrationTest` prüft
+  (nur vorwärts), `lastWasPending`. Die Beschreibung wird zur Anzeige per `dtcDescriptionRes(code)` (öffentlich, rein, eine String-Ressource)
+  aufgelöst, nicht gespeichert — `DtcEntry` und `DtcHistoryEntry` tragen nur den Code. `MIGRATION_2_3` ist von Hand geschrieben, `app/schemas/…/3.json` liegt im Repo, `AppDatabaseMigrationTest` prüft
   2→3 und 1→3 gegen das exportierte Schema und dass Altdaten (Fahrten, Messwerte, Logs) erhalten bleiben. Es ist **kein destruktiver Fallback**
   konfiguriert: ein falsches SQL würde jeden Update-Nutzer beim ersten Öffnen crashen. Ein Rückweg auf ältere APKs ist voraussichtlich nur mit
   gelöschten App-Daten möglich (kein Downgrade-Pfad, nicht ausprobiert).
@@ -914,7 +932,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1387 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1456 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 331 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
