@@ -64,10 +64,8 @@ import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
+import de.adv990de.obd2.ui.formatDate
 import de.adv990de.obd2.ui.navigation.Screen
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /** The two views of the DTC page: what the vehicle reports now, and what it has reported before. */
 private enum class DtcView(@StringRes val labelRes: Int) {
@@ -301,7 +299,6 @@ fun DtcRow(dtc: DtcEntry) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DtcHistoryRow(item: DtcHistoryItem, onDelete: () -> Unit) {
-    val fmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     ListItem(
         headlineContent = { Text(item.entry.code) },
         supportingContent = {
@@ -310,8 +307,8 @@ private fun DtcHistoryRow(item: DtcHistoryItem, onDelete: () -> Unit) {
                 Text(
                     stringResource(
                         R.string.dtc_history_dates,
-                        fmt.format(Date(item.entry.firstSeen)),
-                        fmt.format(Date(item.entry.lastSeen)),
+                        formatDate(item.entry.firstSeen),
+                        formatDate(item.entry.lastSeen),
                     ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

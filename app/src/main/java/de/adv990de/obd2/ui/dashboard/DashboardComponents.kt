@@ -129,12 +129,14 @@ internal fun rpmSegmentColor(
  * vgl. [rpmBlinkPeriodMs]/[rpmSegmentColor]). Aus `DashboardScreen` extrahiert, das den
  * Rueckgabewert mit dem konfigurierten `rpmBlinkThreshold` multipliziert.
  */
-internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when (engineTempC) {
-    null                               -> 0.50f   // no plausible value → conservative fallback
-    in Float.NEGATIVE_INFINITY..49.9f  -> 0.50f
-    in 50f..69.9f                      -> 0.75f
-    in 70f..84.9f                      -> 0.90f
-    else                               -> 1.00f
+internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when {
+    // Kein plausibler Wert (null, NaN) → konservativ. Mit `<`-Grenzen statt Float-Bereichen (`..49.9f`, `50f..69.9f`): zwischen
+    // zwei Bereichen blieben Luecken (49.95, 69.95, 84.95), die in den "else"-Zweig fielen und den vollen Faktor 1.00 bekamen (UID-22).
+    engineTempC == null || engineTempC.isNaN() -> 0.50f
+    engineTempC < 50f                          -> 0.50f
+    engineTempC < 70f                          -> 0.75f
+    engineTempC < 85f                          -> 0.90f
+    else                                       -> 1.00f
 }
 
 /**
@@ -232,16 +234,19 @@ internal fun RpmBar(
     // without restarting the effect — crucial during animated RPM sweeps where blinkPeriodMs
     // changes every frame and a key-based restart would prevent the delay from ever firing.
     val blinkPeriodRef = rememberUpdatedState(blinkPeriodMs)
-    val visible by produceState(initialValue = true) {
+    // Der Effekt haengt nur an "blinkt ueberhaupt?", nicht an der Periode: sie aendert sich bei der Demo-Bewegung in jedem Frame,
+    // ein Neustart je Aenderung liesse das delay nie ablaufen. Ohne Blinken laeuft gar keine Schleife — vorher weckte ein
+    // `delay(50)` die Coroutine dauerhaft mit 20 Hz, um `value = true` zu wiederholen (UID-22).
+    val blinking = blinkPeriodMs > 0L
+    val visible by produceState(initialValue = true, blinking) {
+        value = true
+        if (!blinking) return@produceState
         while (true) {
             val period = blinkPeriodRef.value
-            if (period > 0L) {
-                delay(period)
-                value = !value
-            } else {
-                value = true
-                delay(50) // idle poll — keeps loop alive without busy-spinning
-            }
+            // Die Periode kann zwischen Komposition und Coroutine auf 0 gefallen sein; der Schluessel startet den Effekt gleich neu.
+            if (period <= 0L) return@produceState
+            delay(period)
+            value = !value
         }
     }
 

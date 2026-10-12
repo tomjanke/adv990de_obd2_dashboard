@@ -40,8 +40,7 @@ import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
-
-private val timestampFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
+import de.adv990de.obd2.ui.formatDateTimeSeconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,10 +129,7 @@ private fun LogEntryRow(entry: AppLogEntity) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                java.time.LocalDateTime.ofInstant(
-                    java.time.Instant.ofEpochMilli(entry.timestamp),
-                    java.time.ZoneId.systemDefault()
-                ).format(timestampFormatter),
+                formatDateTimeSeconds(entry.timestamp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

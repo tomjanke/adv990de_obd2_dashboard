@@ -9,6 +9,7 @@ import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.VinDecoder
+import de.adv990de.obd2.obd.WHITESPACE
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -264,7 +265,7 @@ class ObdRepository @Inject constructor(
      * Zu kurze Antworten ergeben null statt geratener Bytes.
      */
     internal fun rangeDataBytes(raw: String, base: Int): List<String>? {
-        val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+        val tokens = raw.trim().uppercase().split(WHITESPACE)
         val rangeToken = "%02X".format(base)
         val header = tokens.indices.firstOrNull { i ->
             tokens[i] == "41" && tokens.getOrNull(i + 1) == rangeToken

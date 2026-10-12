@@ -24,7 +24,7 @@ class DtcParser {
     fun parse(raw: String, isPending: Boolean): List<DtcEntry> {
         val text = BANNER.replace(raw.trim().uppercase(), "").trim()
         if (text.isEmpty()) throw ObdException.UnknownResponse(raw)
-        val tokens = text.split("\\s+".toRegex())
+        val tokens = text.split(WHITESPACE)
 
         // Validate mode byte: "43" for confirmed DTCs (mode 03), "47" for pending (mode 07)
         val expectedPrefix = if (isPending) "47" else "43"

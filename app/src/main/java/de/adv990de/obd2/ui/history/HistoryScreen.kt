@@ -53,9 +53,7 @@ import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import de.adv990de.obd2.ui.formatDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,9 +195,8 @@ fun SessionRow(
     onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     ListItem(
-        headlineContent = { Text(fmt.format(Date(session.startTime))) },
+        headlineContent = { Text(formatDateTime(session.startTime)) },
         // Aeltere Fahrten (bis v1.23.1) tragen die rohe Antwort auf Modus 09 ("NO DATA", Hexdump): nur eine
         // echte FIN wird angezeigt, alles andere gilt als unbekannt.
         supportingContent = { Text(session.vehicleVin?.takeIf(VinDecoder::isValidVin) ?: stringResource(R.string.history_vin_unknown)) },

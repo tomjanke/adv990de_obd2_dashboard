@@ -22,7 +22,7 @@ class PidParser {
             trimmed.isBlank() -> throw ObdException.UnknownResponse(raw)
         }
 
-        val tokens = trimmed.split("\\s+".toRegex())
+        val tokens = trimmed.split(WHITESPACE)
 
         // Response starts with "41" (mode 01 response) + PID byte, then data bytes
         val dataStart = 2
@@ -62,7 +62,7 @@ class PidParser {
      * one-shot diagnostic read that does not escalate transient bus errors to ConnectionLost.
      */
     fun parseFreezeFrame(pid: PidDefinition, raw: String): Float? {
-        val tokens = raw.trim().uppercase().split("\\s+".toRegex())
+        val tokens = raw.trim().uppercase().split(WHITESPACE)
         val pidByte = pid.id.takeLast(2)
         if (tokens.size < 3 || tokens[0] != "42" || !tokens[1].equals(pidByte, ignoreCase = true)) return null
         val dataBytes = try {

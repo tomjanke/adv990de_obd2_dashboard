@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.theme.StatusColors
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -216,6 +217,39 @@ class DashboardComponentsTest {
     @Test
     fun `a representative value well above the fourth boundary stays at 1_00`() {
         assertEquals(1.00f, rpmThresholdTempScale(120f))
+    }
+
+    @Test
+    fun `the bands have no gaps between two representable temperatures (UID-22)`() {
+        // Die Baender waren Float-Bereiche (..49.9, 50..69.9, 70..84.9): alles dazwischen (49.95, 69.95, 84.95) fiel
+        // in den "else"-Zweig und hatte den Faktor 1.00 — ein Schwellwert, der von der kaeltesten Bande schlagartig
+        // auf den vollen Wert sprang. Jede Temperatur gehoert jetzt zu genau einer Bande.
+        assertEquals(0.50f, rpmThresholdTempScale(49.95f))
+        assertEquals(0.75f, rpmThresholdTempScale(69.95f))
+        assertEquals(0.90f, rpmThresholdTempScale(84.95f))
+    }
+
+    @Test
+    fun `the factor never decreases as the engine warms up`() {
+        var previous = 0f
+        var t = -40f
+        while (t <= 150f) {
+            val scale = rpmThresholdTempScale(t)
+            assertTrue("scale fell from $previous to $scale at $t C", scale >= previous)
+            previous = scale
+            t += 0.05f
+        }
+    }
+
+    @Test
+    fun `NaN is not a plausible temperature and gets the conservative scale`() {
+        assertEquals(0.50f, rpmThresholdTempScale(Float.NaN))
+    }
+
+    @Test
+    fun `an infinite temperature stays in the outermost band`() {
+        assertEquals(0.50f, rpmThresholdTempScale(Float.NEGATIVE_INFINITY))
+        assertEquals(1.00f, rpmThresholdTempScale(Float.POSITIVE_INFINITY))
     }
 
     // --- shouldStartRpmDemoSweep ---

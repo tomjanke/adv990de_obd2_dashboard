@@ -2,7 +2,9 @@ package de.adv990de.obd2.bluetooth
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Context
 import de.adv990de.obd2.BuildConfig
+import de.adv990de.obd2.R
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -18,7 +20,13 @@ import kotlin.test.assertFailsWith
 class BluetoothDeviceScannerTest {
 
     private val btAdapter = mockk<BluetoothAdapter>()
-    private val scanner = BluetoothDeviceScanner(mockk(relaxed = true), btAdapter)
+
+    // Der Platzhalter fuer ein Geraet ohne Namen kommt aus den String-Ressourcen (SEC-12: vorher fest "Unknown" im Code,
+    // egal in welcher Sprache die Oberflaeche steht) — der Test stellt eine erkennbare Zeichenfolge bereit.
+    private val context = mockk<Context>(relaxed = true) {
+        every { getString(R.string.bluetooth_device_unnamed) } returns UNNAMED
+    }
+    private val scanner = BluetoothDeviceScanner(context, btAdapter)
 
     private fun makeDevice(name: String?): BluetoothDevice = mockk {
         every { this@mockk.name } returns name
@@ -76,7 +84,7 @@ class BluetoothDeviceScannerTest {
     // --- Test 4 ---
 
     @Test
-    fun `bondedDevices uses Unknown for device with null name`() {
+    fun `bondedDevices uses the unnamed-device label for a device with null name`() {
         val nullNameDevice = makeDevice(null)
         every { btAdapter.bondedDevices } returns setOf(nullNameDevice)
 
@@ -84,7 +92,7 @@ class BluetoothDeviceScannerTest {
 
         val classicDevices = result.filter { it.type == BtType.CLASSIC }
         assertEquals(1, classicDevices.size)
-        assertEquals("Unknown", classicDevices[0].name)
+        assertEquals(UNNAMED, classicDevices[0].name)
     }
 
     // --- Test 5 ---
@@ -123,7 +131,7 @@ class BluetoothDeviceScannerTest {
     // --- Test 7 ---
 
     @Test
-    fun `bondedDevices falls back to Unknown when the name is denied and showAll is true`() {
+    fun `bondedDevices falls back to the unnamed-device label when the name is denied and showAll is true`() {
         val denied = mockk<BluetoothDevice> { every { name } throws SecurityException("permission denied") }
         every { btAdapter.bondedDevices } returns setOf(denied)
 
@@ -131,7 +139,7 @@ class BluetoothDeviceScannerTest {
 
         val classicDevices = result.filter { it.type == BtType.CLASSIC }
         assertEquals(1, classicDevices.size)
-        assertEquals("Unknown", classicDevices[0].name)
+        assertEquals(UNNAMED, classicDevices[0].name)
     }
 
     // --- Test 8 ---
@@ -157,5 +165,9 @@ class BluetoothDeviceScannerTest {
             scanner.bondedDevices()
         }
         assertTrue(ex.message!!.contains("BLUETOOTH_CONNECT"))
+    }
+
+    private companion object {
+        const val UNNAMED = "Unnamed device (test)"
     }
 }

@@ -29,7 +29,6 @@ object VinDecoder {
     /** Meldungen, die der Adapter vor der eigentlichen Antwort ausgeben darf (K-Line-Initialisierung, Protokollsuche). */
     private val BENIGN_WORDS = setOf("SEARCHING...", "BUS", "INIT:", "OK")
 
-    private val WHITESPACE = Regex("\\s+")
     private val FRAME_MARKER = Regex("^[0-9A-F]:")
     private val HEX = Regex("^[0-9A-F]+$")
     private val THREE_HEX_DIGITS = Regex("^[0-9A-F]{3}$")

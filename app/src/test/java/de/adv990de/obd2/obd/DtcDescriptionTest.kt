@@ -18,7 +18,7 @@ class DtcDescriptionTest {
     }
 
     @Test
-    fun `a code outside the 35 known ones is reported as unknown`() {
+    fun `a code outside the known ones is reported as unknown`() {
         assertEquals("Unknown DTC", dtcDescription("P1234"))
         assertEquals("Unknown DTC", dtcDescription("U0100"))
         assertEquals("Unknown DTC", dtcDescription(""))

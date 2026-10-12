@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import androidx.annotation.RequiresPermission
 import de.adv990de.obd2.BuildConfig
+import de.adv990de.obd2.R
 
 class BluetoothDeviceScanner(
     private val context: Context,
@@ -26,7 +27,7 @@ class BluetoothDeviceScanner(
         }
         val real = bonded
             .filter { showAll || it.isObdLike() }
-            .map { ScannedDevice(it, BtType.CLASSIC, it.safeName() ?: "Unknown") }
+            .map { ScannedDevice(it, BtType.CLASSIC, it.safeName() ?: context.getString(R.string.bluetooth_device_unnamed)) }
         return if (BuildConfig.DEBUG) {
             listOf(ScannedDevice(device = null, type = BtType.SIMULATOR, name = "OBD Sim")) + real
         } else {

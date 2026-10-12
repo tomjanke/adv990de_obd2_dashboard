@@ -2,7 +2,7 @@ package de.adv990de.obd2.obd
 
 /**
  * Returns a human-readable description for common DTC codes.
- * Coverage is intentionally partial (35 SAE J2012 codes).
+ * Coverage is intentionally partial (a selection of common SAE J2012 codes; no count is stated here, it drifted from 35 to 37).
  * Codes outside this set return "Unknown DTC".
  *
  * A pure function on purpose (it used to be a private helper of [DtcParser]): the fault history stores

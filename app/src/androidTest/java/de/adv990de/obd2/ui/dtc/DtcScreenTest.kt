@@ -28,6 +28,7 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.db.DtcHistoryDao
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
+import de.adv990de.obd2.ui.formatDate
 import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -41,9 +42,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -86,8 +84,6 @@ class DtcScreenTest {
 
     @Inject
     lateinit var dtcHistoryDao: DtcHistoryDao
-
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
 
     @Before
     fun setup() {
@@ -331,7 +327,7 @@ class DtcScreenTest {
         showHistory()
 
         fun dates(first: Long, last: Long) = composeRule.activity.getString(
-            R.string.dtc_history_dates, dateFormat.format(Date(first)), dateFormat.format(Date(last))
+            R.string.dtc_history_dates, formatDate(first), formatDate(last)
         )
         waitForText("P0420")
         // Wait for the text instead of asserting at once: the recording of the live read re-composes the row.

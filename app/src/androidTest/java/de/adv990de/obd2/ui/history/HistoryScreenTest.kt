@@ -26,6 +26,7 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.ui.formatDateTime
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -38,9 +39,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Compose UI tests for [HistoryScreen].
@@ -114,7 +112,6 @@ class HistoryScreenTest {
     private var insertedSessionId: Long = 0
     private var insertedStartTime: Long = 0
 
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
 
     @Before
     fun setup() {
@@ -195,7 +192,7 @@ class HistoryScreenTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithContentDescription(exportDescription).fetchSemanticsNodes().size >= 2
         }
-        composeRule.onNodeWithText(dateFormat.format(Date(rawStartTime))).assertIsDisplayed()
+        composeRule.onNodeWithText(formatDateTime(rawStartTime)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.history_vin_unknown)).assertIsDisplayed()
         composeRule.onNodeWithText("NO DATA").assertDoesNotExist()
         composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
@@ -204,7 +201,7 @@ class HistoryScreenTest {
     @Test
     fun sessionRow_showsFormattedDateAndVin_orUnknownVinFallback_whenVinMissing() {
         // Distinct from insertedStartTime by 5 minutes so the two rows never collide on the same
-        // "dd.MM.yyyy HH:mm" bucket (the format has no seconds).
+        // minute bucket (the format has no seconds).
         val secondStartTime = insertedStartTime - 5 * 60_000L
         runBlocking {
             testDb.sessionDao().insert(SessionEntity(startTime = secondStartTime, vehicleVin = null))
@@ -218,11 +215,11 @@ class HistoryScreenTest {
         }
 
         // Row with a VIN.
-        composeRule.onNodeWithText(dateFormat.format(Date(insertedStartTime))).assertIsDisplayed()
+        composeRule.onNodeWithText(formatDateTime(insertedStartTime)).assertIsDisplayed()
         composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
 
         // Row without a VIN falls back to the "unknown VIN" string.
-        composeRule.onNodeWithText(dateFormat.format(Date(secondStartTime))).assertIsDisplayed()
+        composeRule.onNodeWithText(formatDateTime(secondStartTime)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.history_vin_unknown)).assertIsDisplayed()
     }
 

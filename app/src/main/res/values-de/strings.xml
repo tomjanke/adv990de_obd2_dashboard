@@ -37,6 +37,7 @@
     <string name="settings_title">Einstellungen</string>
     <string name="settings_disconnect">Trennen</string>
     <string name="settings_paired_devices">Gekoppelte Geräte</string>
+    <string name="bluetooth_device_unnamed">Unbenanntes Gerät</string>
     <string name="settings_no_paired_devices">Keine gekoppelten OBD2-Geräte gefunden.\nBitte Adapter zuerst in den System-Bluetooth-Einstellungen koppeln.</string>
     <string name="settings_vehicle_info">Fahrzeuginfo</string>
     <string name="settings_app_info">App-Info</string>
