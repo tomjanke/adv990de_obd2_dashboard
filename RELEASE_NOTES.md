@@ -1,5 +1,22 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.27.2 (versionCode 104)
+
+Die Öltemperatur-Leiste wird in der Aufwärmphase auch dann grün, wenn die Kühlmitteltemperatur zwischendurch kurz zurückfällt.
+
+### Anzeige
+
+- Vorher setzte jeder Rückfall auf 78 °C oder tiefer den Grün-Timer sofort zurück. In der Aufwärmphase hängt das Kühlmittel aber bei 78–80 °C (Thermostat) und bricht bei Last immer wieder auf 76–78 °C ein; in zwei aufgezeichneten Fahrten (Start bei 6 und 16 °C) erschien deshalb nie Grün.
+- Jetzt setzt ein Rückfall den Timer erst zurück, wenn er **120 Sekunden ununterbrochen** anhält. Ein Wert bei 79–80 °C oder darüber beendet den Rückfall, die Zählung beginnt danach neu. Bei 75 °C oder tiefer (Rot) wird weiterhin sofort zurückgesetzt. Ein bereits grüner Balken bleibt bei kurzen Rückfällen grün und fällt erst nach 120 Sekunden unter 78 °C auf Gelb zurück.
+- Unverändert: Grün gilt weiter erst nach 10 Minuten über 80 °C; Farben, Schwellen 75 und 80 °C und das Lücken-Limit von 60 Sekunden sind gleich geblieben.
+- Die 120 Sekunden stammen aus den zwei Fahrten: die längsten Rückfälle unter 78 °C dauerten 74 und 84 Sekunden. Mit der echten Logik nachgespielt, erscheint Grün damit genau 10 Minuten nach dem ersten Wert über 80 °C; ein sofortiger Reset (auch bei 77 °C) und ein Entprellen von 60 Sekunden hätten in beiden Fahrten nie Grün gezeigt.
+- Neuer gespeicherter Zustand `oilBarBelowResetSinceMillis` (Beginn des Rückfalls); ein Zustand aus einer älteren Version ohne ihn wird wie „kein Rückfall“ gelesen.
+
+### Tests
+
+- 1490 JVM-Tests (+12, darunter ein Regressionstest, der beide Fahrten durchspielt), 331 Instrumentation-Tests. Lint: 0 Fehler, 1 Warnung (neuere Gradle-Version 9.8.1, bewusst nicht genommen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft, Smoke-Test mit dem ECU-Simulator bestanden. **Grenzen:** nur zwei Fahrten bei kühler Witterung als Grundlage; Rückfälle nach dem Grünwerden sind in den Daten nicht enthalten; eine eigene Aufwärmphase am Motorrad ist nicht geprüft.
+
 ## Version 1.27.1 (versionCode 103)
 
 Reine Aufräumarbeit im Build; an der App ändert sich nichts.
