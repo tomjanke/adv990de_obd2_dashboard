@@ -1,23 +1,24 @@
 [versions]
 agp = "9.3.0"
-kotlin = "2.4.10"
-sentry = "8.29.0"
+kotlin = "2.4.21"
+sentry = "8.60.0"
 # Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6.
 # Bewusst auf dem mit 1.7.0 ausgelieferten Stand belassen — das Toolchain-Upgrade
 # soll nicht zugleich den Compose-Stack anheben.
 compose-bom = "2026.05.00"
-# Stand v1.25.2: unter compileSdk 36 nicht weiter moeglich (checkDebugAarMetadata meldet es): navigation-compose 2.10.x, lifecycle 2.11.0,
+# Stand v1.25.3: unter compileSdk 36 nicht weiter moeglich (checkDebugAarMetadata meldet es): navigation-compose 2.10.x, lifecycle 2.11.0,
 # core-ktx 1.19.x, hilt-navigation-compose 1.4.0. Sie warten mit der BOM auf das Toolchain-Release (compileSdk 37, AGP 9.4, Gradle 9.6).
+# `kotlin` steht auch im buildscript-Block des Root-build.gradle.kts (kotlin-gradle-plugin-Pin) — beide gemeinsam aendern (BuildIntegrityTest).
 hilt = "2.60.1"
 room = "2.8.5"
 navigation = "2.9.8"
 datastore = "1.2.1"
-coroutines = "1.9.0"
-mockk = "1.13.12"
+coroutines = "1.11.0"
+mockk = "1.14.11"
 lifecycle = "2.10.0"
 appcompat = "1.8.0"
 paging = "3.5.2"
-kotlinx-serialization = "1.8.1"
+kotlinx-serialization = "1.11.0"
 
 [libraries]
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
@@ -48,7 +49,7 @@ mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
-androidx-test-runner = { group = "androidx.test", name = "runner", version = "1.6.2" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version = "1.7.0" }
 # Reference org.json impl for JVM unit tests: android.jar ships org.json as a stub (every method
 # throws or, with isReturnDefaultValues=true, silently returns null/0/false) — without this on the
 # test classpath, OpenMeteoApiTest's JSON parsing never actually runs. Verified latest on Maven
@@ -64,8 +65,8 @@ mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "moc
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
-androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.2.1" }
-androidx-test-rules = { group = "androidx.test", name = "rules", version = "1.6.1" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.3.0" }
+androidx-test-rules = { group = "androidx.test", name = "rules", version = "1.7.0" }
 # Compose ui-test zieht transitiv ein aelteres Espresso, das die versteckte API
 # InputManager.getInstance() per Reflection aufruft — die gibt es ab Android 17 nicht mehr.
 # Explizit auf 3.7.0 gehoben, damit die Compose-UI-Tests auf aktuellen Geraeten laufen.

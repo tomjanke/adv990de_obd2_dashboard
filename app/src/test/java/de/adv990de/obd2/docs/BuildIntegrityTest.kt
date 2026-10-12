@@ -62,6 +62,22 @@ class BuildIntegrityTest {
     }
 
     @Test
+    fun `the Kotlin Gradle plugin pin in the root build is the Kotlin version of the catalog`() {
+        // AGP 9 bringt seine eigene (aeltere) KGP-Version mit; der Pin im buildscript-Block des Root-Builds hebt sie auf die Version
+        // des Compose-Compiler-Plugins aus dem Catalog (`kotlin`). Der buildscript-Block kann den Catalog nicht lesen — die Zahl steht
+        // zweimal. Laeuft sie auseinander, gewinnt bei der Aufloesung stillschweigend die hoehere: der Build laeuft, aber niemand
+        // weiss mehr, welche Version den Code uebersetzt (aufgefallen beim Anheben auf 2.4.21: der Pin stand noch auf 2.4.10).
+        val catalogKotlin = Regex("""^kotlin\s*=\s*"([^"]+)"""", RegexOption.MULTILINE).find(read("gradle/libs.versions.toml"))?.groupValues?.get(1)
+        val pinnedKotlin = Regex("""classpath\("org\.jetbrains\.kotlin:kotlin-gradle-plugin:([^"]+)"\)""").find(read("build.gradle.kts"))?.groupValues?.get(1)
+        assertTrue("`kotlin = \"…\"` fehlt in libs.versions.toml", catalogKotlin != null)
+        assertTrue("der kotlin-gradle-plugin-Pin fehlt im Root-build.gradle.kts", pinnedKotlin != null)
+        assertEquals(
+            "Der Pin in build.gradle.kts ($pinnedKotlin) und `kotlin` im Catalog ($catalogKotlin) muessen gleich sein - beide gemeinsam aendern",
+            catalogKotlin, pinnedKotlin,
+        )
+    }
+
+    @Test
     fun `every direct runtime dependency has verified artifacts`() {
         val xml = read("gradle/verification-metadata.xml")
         val catalog = read("gradle/libs.versions.toml")
