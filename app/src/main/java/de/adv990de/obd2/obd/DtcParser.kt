@@ -66,7 +66,7 @@ class DtcParser {
     }
 
     private companion object {
-        /** Was der ELM327 VOR eine echte Antwort stellt: Protokollsuche und gelungene Bus-Initialisierung (s. `ObdRepository.rangeDataBytes`). */
+        /** Was der ELM327 VOR eine echte Antwort stellt: Protokollsuche und gelungene Bus-Initialisierung (s. `rangeDataBytes` (PidDiscovery.kt)). */
         val BANNER = Regex("""(SEARCHING\.\.\.|BUS INIT:\s*(\.\.\.)?\s*OK)\s*""")
 
         /** Busfehler des Adapters; "BUS INIT: ...ERROR" faellt hierunter, "BUS INIT: OK" wurde schon als Meldung entfernt. */

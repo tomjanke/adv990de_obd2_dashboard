@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.formatSensorNumber
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -44,6 +45,8 @@ import de.adv990de.obd2.ui.components.LiveValueTile
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
+import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.theme.PreviewTheme
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -257,3 +260,30 @@ internal fun SlotPickerSheet(
         }
     }
 }
+
+// region — Previews
+//
+// SlotPickerSheet ist ein Fenster (ModalBottomSheet) und zeigt in der Vorschau nichts Brauchbares; Kachel und Band sind zustandslos.
+
+@Composable
+private fun PreviewSlotComponents() {
+    androidx.compose.foundation.layout.Column {
+        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 87f), sparkline = listOf(60f, 65f, 72f, 80f, 85f, 87f))
+        SensorCard(SensorValue(PidRegistry.COOLANT_TEMP, 0f), isLive = false)
+        PreviewBanner(reason = UiText.DynamicString("Verbindung fehlgeschlagen"))
+    }
+}
+
+@Preview(name = "SensorCard and PreviewBanner (light)", showBackground = true)
+@Composable
+private fun PreviewSlotComponentsLight() {
+    PreviewTheme(dark = false) { PreviewSlotComponents() }
+}
+
+@Preview(name = "SensorCard and PreviewBanner (dark)", showBackground = true)
+@Composable
+private fun PreviewSlotComponentsDark() {
+    PreviewTheme(dark = true) { PreviewSlotComponents() }
+}
+
+// endregion

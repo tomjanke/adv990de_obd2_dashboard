@@ -51,7 +51,7 @@ class UiRulesSourceTest {
 
         assertTrue("BottomNav (AlertDialog) gefunden: $files", "BottomNav.kt" in files)
         assertTrue("ConfirmDeleteDialog gefunden: $files", "ConfirmDeleteDialog.kt" in files)
-        assertTrue("DashboardComponents (ModalBottomSheet) gefunden: $files", "DashboardComponents.kt" in files)
+        assertTrue("SlotComponents (ModalBottomSheet) gefunden: $files", "SlotComponents.kt" in files)
     }
 
     @Test
