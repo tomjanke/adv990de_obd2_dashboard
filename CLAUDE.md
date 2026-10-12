@@ -64,7 +64,7 @@ simulierte Öl-Temperatur-Balken unter der RPM-Segmentanzeige (`OilTemperatureBa
 (`RpmBarLogic.kt`, reine Funktion, JVM-getestet) ordnet ihm die Farbe zu:
 - `Red` (≤75 °C) → `StatusColors.Critical` (Rot)
 - `Yellow` (>75 °C, unter dem Grün-Schwellwert) → `StatusColors.Warning` (Gelb)
-- `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 78–80 °C) → `StatusColors.TrafficLightGreen` (`#22C55E`, dasselbe Grün wie der Bluetooth-Dot oben)
+- `Green` (>80 °C **ununterbrochen für 10 Minuten**, mit Hysterese-Zone 79–80 °C und Entprellen von Einbrüchen ≤ 78 °C um 120 s, s. u.) → `StatusColors.TrafficLightGreen` (`#22C55E`, dasselbe Grün wie der Bluetooth-Dot oben)
 
 **Korrektur (2026-09-27, finales Review):** Grün war ursprünglich `MaterialTheme.colorScheme.tertiary`
 — das ist aber nur im grünen Cockpit-Schema tatsächlich grün (`#86EFAC`); im blauen ist es
@@ -76,8 +76,9 @@ Bluetooth-Dots.
 Die invertierte Semantik ist inhaltlich korrekt (ein kalter Motor braucht längere Aufwärm-Zeit,
 nicht als Alarm sondern als Hilfe-Info) und vom User bestätigt. Alle drei Farben sind benannte
 `StatusColors`-Tokens; keine Hardcoded-Werte im Composable. Hysterese-Details: `GREEN_ENTER_THRESHOLD_C = 80 °C`,
-`GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min` — die Zone 78–80 °C hält den
-Timer unverändert (verhindert Thermostat-Pendeln).
+`GREEN_RESET_THRESHOLD_C = 78 °C`, `GREEN_HOLD_MS = 10 min`, `RESET_DEBOUNCE_MS = 120 s` — die Zone 79–80 °C hält den
+Timer unverändert (verhindert Thermostat-Pendeln) und unterbricht einen laufenden Einbruch; ein Einbruch (≤ 78 °C bei laufendem Timer) setzt den Timer erst zurück,
+wenn er **120 s ununterbrochen** anhält (seit 2026-10-12, s. „Entprellen des Resets“ unten); bei ≤ 75 °C (Rot) gilt sofort der Reset.
 
 **Dokumentierte Ausnahme — Neutral-Anzeige „N“ in der Ganganzeige (Stand 2026-10-04, Nutzerwunsch):**
 Steht das Fahrzeug und läuft der Motor, zeigt die Gang-Box neben dem RPM-Balken (s. „RPM-Balken“) ein
@@ -306,6 +307,8 @@ Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/Oi
   nur konservativ: die Grün-Zählung startet dann neu statt einen möglicherweise nicht mehr gültigen
   Warmlauf weiterzuzählen. Eine deutlich längere Trennung (App im Hintergrund, Motorrad geparkt)
   überschreitet die 60 s ohnehin sicher.
+- **Entprellen des Resets (seit 2026-10-12, Nutzerwunsch nach Beobachtung auf der Fahrt):** Das Kühlmittel hängt in der Aufwärmphase bei 78–80 °C (Thermostat) und bricht bei Last immer wieder auf 76–78 °C ein; ein sofortiger Reset bei ≤ 78 °C setzte die Zählung dauernd zurück. `updateOilBarTimer` führt dafür `OilBarTimerState.belowResetSinceMillis` (Beginn des Einbruchs): ein Einbruch (≤ 78 °C bei laufendem Timer) setzt zurück, sobald er `RESET_DEBOUNCE_MS` = **120 s ununterbrochen** dauert; jeder Wert in der Haltezone (79–80 °C) oder darüber unterbricht ihn, die Zählung beginnt neu. **Auch ein bereits grüner Balken** bleibt bei kurzen Einbrüchen grün und fällt erst nach 120 s unter 78 °C auf Gelb. Bei ≤ 75 °C (Rot) wird sofort zurückgesetzt, ohne Entprellen; das Lücken-Limit (60 s) vergisst auch den Einbruch. Neuer `SavedStateHandle`-Schlüssel `oilBarBelowResetSinceMillis` (**Schlüsselnamen sind persistierter Zustand, nie umbenennen**; ein Zustand ohne ihn liest als null).
+  **Herleitung der 120 s** aus zwei aufgezeichneten Aufwärmfahrten (2026-10-12, CSV, Start bei 6 bzw. 16 °C): längste Einbrüche ≤ 78 °C 82 s bzw. 74 s (≤ 77 °C: 35/42 s; ≤ 76 °C: 15/16 s; ≤ 75 °C: keine). Nachgespielt mit der echten Logik: Reset ≤ 78/77/76 sofort und Entprellen 60 s ließen in **keiner** Fahrt Grün erscheinen, Entprellen ab 90 s und 120 s ließen es genau 10 Minuten nach dem ersten Wert über 80 °C erscheinen (nach 18,1 bzw. 16,1 min Fahrt); 120 s lassen rund 36 s Abstand zum längsten Einbruch, 90 s nur 8 s. Verworfen: Reset ≤ 77 °C allein (kein Grün in beiden Fahrten) und Reset ≤ 75 °C (zu locker: ein Kühlmittel, das lange bei 76 °C steht, erreichte Grün). `OilBarRecordedDrivesTest` spielt beide Fahrten als Zonen-Laufkodierung (Zone, Sekunden) durch und verlangt Grün **genau** 10 Minuten nach dem ersten Wert über 80 °C. **Grenzen:** nur zwei Fahrten bei kühler Witterung; Einbrüche nach dem Grünwerden sind in den Daten nicht enthalten; ob das Öl nach 10 Minuten wirklich warm ist, belegen die Daten nicht (die Regel bildet nur Ihre Definition ab).
 - Zeitbasis von Timer und Lücken-Limit ist `SystemClock.elapsedRealtime()` (monoton, zählt Tiefschlaf
   mit), nicht die Wanduhr.
 - Die Kühlmitteltemperatur wird dafür **immer** abgefragt, wie RPM — unabhängig von Slot-Belegung und
@@ -974,7 +977,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1478 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 1490 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 331 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

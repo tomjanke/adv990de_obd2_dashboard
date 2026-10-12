@@ -76,24 +76,111 @@ class OilTemperatureBarTest {
     }
 
     @Test
-    fun `holds steady in the 78-80C hysteresis band`() {
+    fun `holds steady in the 79-80C hysteresis band`() {
         val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L)
         val next = updateOilBarTimer(coolantTempC = 79f, nowMillis = 5000L, state = running)
         assertEquals(1000L, next.aboveGreenThresholdSinceMillis) // holds, neither resets nor advances
     }
 
     @Test
-    fun `resets at exactly 78C`() {
-        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L)
-        val next = updateOilBarTimer(coolantTempC = 78f, nowMillis = 5000L, state = running)
-        assertNull(next.aboveGreenThresholdSinceMillis)
+    fun `at 75C or below the timer resets at once - the red zone is no dip to wait out`() {
+        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L, lastSampleAtMillis = 4000L, belowResetSinceMillis = 3000L)
+        for (temp in listOf(75f, 60f)) {
+            val next = updateOilBarTimer(coolantTempC = temp, nowMillis = 5000L, state = running)
+            assertNull("$temp C", next.aboveGreenThresholdSinceMillis)
+            assertNull("$temp C: auch die Entprellung ist beendet", next.belowResetSinceMillis)
+        }
+    }
+
+    // --- updateOilBarTimer: Entprellen des Resets (RESET_DEBOUNCE_MS = 120 s) ---
+    // Anlass: In zwei aufgezeichneten Aufwaermfahrten (2026-10-12) bricht das Kuehlmittel bei hoher Drehzahl immer wieder auf 76-78 C ein
+    // (Thermostat/Fahrtwind), die laengsten Einbrueche dauerten 74-84 s. Ein sofortiger Reset bei <= 78 C liess Gruen nie erscheinen.
+
+    private val dipMs = 120_000L
+
+    @Test
+    fun `a dip to 78C or below does not reset a running timer - it starts the debounce`() {
+        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L, lastSampleAtMillis = 4000L)
+        for (temp in listOf(78f, 77f, 76f)) {
+            val next = updateOilBarTimer(coolantTempC = temp, nowMillis = 5000L, state = running)
+            assertEquals("$temp C", 1000L, next.aboveGreenThresholdSinceMillis)
+            assertEquals("$temp C", 5000L, next.belowResetSinceMillis)
+        }
     }
 
     @Test
-    fun `resets below 78C`() {
-        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L)
-        val next = updateOilBarTimer(coolantTempC = 60f, nowMillis = 5000L, state = running)
+    fun `just above 78C is not a dip`() {
+        val running = OilBarTimerState(aboveGreenThresholdSinceMillis = 1000L, lastSampleAtMillis = 4000L)
+        assertNull(updateOilBarTimer(78.1f, 5000L, running).belowResetSinceMillis)
+    }
+
+    @Test
+    fun `the debounce counts from the first sample of the dip, not from the latest`() {
+        var state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 4000L)
+        state = updateOilBarTimer(77f, 5000L, state)
+        state = updateOilBarTimer(76f, 6000L, state)
+        state = updateOilBarTimer(78f, 7000L, state)
+        assertEquals(5000L, state.belowResetSinceMillis)
+    }
+
+    @Test
+    fun `a dip of exactly 120s resets the timer, one millisecond less does not`() {
+        val inDip = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 5000L + dipMs - 1000L, belowResetSinceMillis = 5000L)
+        val early = updateOilBarTimer(77f, 5000L + dipMs - 1L, inDip)
+        assertEquals(0L, early.aboveGreenThresholdSinceMillis)
+        assertEquals(5000L, early.belowResetSinceMillis)
+
+        val due = updateOilBarTimer(77f, 5000L + dipMs, inDip)
+        assertNull(due.aboveGreenThresholdSinceMillis)
+        assertNull("nach dem Reset gibt es nichts mehr zu entprellen", due.belowResetSinceMillis)
+    }
+
+    @Test
+    fun `a dip shorter than 120s changes nothing once the temperature is back above 80C`() {
+        var state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 1000L)
+        state = state.feed(77f, fromMs = 2_000L, toMs = 2_000L + 100_000L)
+        assertEquals(0L, state.aboveGreenThresholdSinceMillis)
+        state = updateOilBarTimer(85f, 103_000L, state)
+        assertEquals("der Start der Zaehlung bleibt", 0L, state.aboveGreenThresholdSinceMillis)
+        assertNull(state.belowResetSinceMillis)
+    }
+
+    @Test
+    fun `a sample in the hysteresis band interrupts the dip - the 120s count starts over`() {
+        var state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 1000L)
+        state = state.feed(77f, fromMs = 2_000L, toMs = 100_000L)          // 99 s unter der Grenze
+        state = updateOilBarTimer(79f, 101_000L, state)                     // Haltezone unterbricht
+        assertNull(state.belowResetSinceMillis)
+        state = state.feed(77f, fromMs = 102_000L, toMs = 200_000L)        // weitere 99 s: zusammen 198 s, aber nicht ununterbrochen
+        assertEquals("nicht zurueckgesetzt: kein einzelner Einbruch dauerte 120 s", 0L, state.aboveGreenThresholdSinceMillis)
+    }
+
+    @Test
+    fun `without a running timer a dip starts no debounce`() {
+        val next = updateOilBarTimer(77f, 5000L, fresh)
         assertNull(next.aboveGreenThresholdSinceMillis)
+        assertNull(next.belowResetSinceMillis)
+    }
+
+    @Test
+    fun `a gap of more than 60s forgets the debounce too`() {
+        val inDip = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 50_000L, belowResetSinceMillis = 40_000L)
+        val next = updateOilBarTimer(77f, 50_000L + 61_000L, inDip)
+        assertNull(next.aboveGreenThresholdSinceMillis)
+        assertNull("die Auswertung beginnt frisch, auch die Entprellung", next.belowResetSinceMillis)
+    }
+
+    @Test
+    fun `a green bar stays green through a short dip and falls back to yellow only when the debounce runs out`() {
+        var state = fresh.feed(85f, fromMs = 0L, toMs = tenMinutesMs)
+        assertEquals(OilBarColor.Green, oilBarColor(85f, tenMinutesMs, state))
+
+        state = state.feed(77f, fromMs = tenMinutesMs + 1_000L, toMs = tenMinutesMs + dipMs - 1_000L)
+        assertEquals("119 s unter 78 C: noch Gruen", OilBarColor.Green, oilBarColor(77f, tenMinutesMs + dipMs - 1_000L, state))
+
+        state = updateOilBarTimer(77f, tenMinutesMs + 1_000L + dipMs, state)
+        assertEquals("120 s: der Timer ist zurueckgesetzt, 77 C ist nicht Rot", OilBarColor.Yellow, oilBarColor(77f, tenMinutesMs + 1_000L + dipMs, state))
+        assertNull(state.aboveGreenThresholdSinceMillis)
     }
 
     @Test
@@ -123,13 +210,15 @@ class OilTemperatureBarTest {
     // --- updateOilBarTimer: sample-gap limit (MAX_SAMPLE_GAP_MS = 60 s) ---
 
     @Test
-    fun `every update records its sample time, in all three threshold branches`() {
+    fun `every update records its sample time, in all threshold branches`() {
         var state = updateOilBarTimer(coolantTempC = 85f, nowMillis = 1_000L, state = fresh)
         assertEquals(1_000L, state.lastSampleAtMillis)   // start branch
         state = updateOilBarTimer(coolantTempC = 79f, nowMillis = 2_000L, state = state)
         assertEquals(2_000L, state.lastSampleAtMillis)   // hysteresis hold branch
         state = updateOilBarTimer(coolantTempC = 60f, nowMillis = 3_000L, state = state)
-        assertEquals(3_000L, state.lastSampleAtMillis)   // reset branch
+        assertEquals(3_000L, state.lastSampleAtMillis)   // reset branch (rot)
+        state = updateOilBarTimer(coolantTempC = 77f, nowMillis = 4_000L, state = state)
+        assertEquals(4_000L, state.lastSampleAtMillis)   // dip branch
     }
 
     @Test

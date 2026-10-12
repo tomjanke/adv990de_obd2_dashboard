@@ -7,9 +7,20 @@ private const val RED_THRESHOLD_C = 75f
 /** > 80°C startet den Gruen-Timer. */
 private const val GREEN_ENTER_THRESHOLD_C = 80f
 
-/** ≤ 78°C resettet den Gruen-Timer. Zone 78-80°C: Timer haelt (Hysterese gegen Thermostat-
- *  Pendeln um den Einstiegspunkt), weder Start noch Reset. */
+/** ≤ 78°C ist ein Einbruch, der den Gruen-Timer nach [RESET_DEBOUNCE_MS] zuruecksetzt (nicht sofort, s. dort). Zone 79-80°C: Timer haelt
+ *  (Hysterese gegen Thermostat-Pendeln um den Einstiegspunkt), weder Start noch Reset, und unterbricht einen laufenden Einbruch. */
 private const val GREEN_RESET_THRESHOLD_C = 78f
+
+/**
+ * So lange muss die Temperatur UNUNTERBROCHEN ≤ [GREEN_RESET_THRESHOLD_C] bleiben, bevor der Gruen-Timer zurueckgesetzt wird. Kuerzere Einbrueche
+ * (Thermostat, Fahrtwind, Lastwechsel) werden ignoriert — das Oel hat viel mehr Traegheit als das Kuehlmittel.
+ *
+ * 120 s sind aus zwei aufgezeichneten Aufwaermfahrten (2026-10-12) abgeleitet: das Kuehlmittel haengt dort bei 78-80°C und bricht bei hoher Drehzahl
+ * immer wieder auf 76-78°C ein, die laengsten Einbrueche dauerten 74 bzw. 84 s. Ein sofortiger Reset (bis 1.27.1) und auch 60 s liessen Gruen in
+ * beiden Fahrten nie erscheinen; ab 90 s erschien es, 120 s lassen rund 36 s Abstand zum laengsten gemessenen Einbruch (s. `OilBarRecordedDrivesTest`).
+ * Bei ≤ 75°C (Rot) gilt das nicht: dort wird sofort zurueckgesetzt, kalt ist kalt.
+ */
+private const val RESET_DEBOUNCE_MS = 2 * 60 * 1000L
 
 /** Ununterbrochen ueber [GREEN_ENTER_THRESHOLD_C] fuer diese Dauer -> Gruen. */
 private const val GREEN_HOLD_MS = 10 * 60 * 1000L
@@ -33,12 +44,16 @@ enum class OilBarColor { Red, Yellow, Green }
  * [lastSampleAtMillis]: Zeitpunkt des zuletzt verarbeiteten Messwerts, oder null vor dem ersten.
  * Grundlage fuer das Luecken-Limit [MAX_SAMPLE_GAP_MS].
  *
+ * [belowResetSinceMillis]: Beginn des laufenden Einbruchs (ununterbrochen ≤ [GREEN_RESET_THRESHOLD_C] bei laufendem Timer), oder null.
+ * Grundlage fuer das Entprellen [RESET_DEBOUNCE_MS].
+ *
  * Beide Zeitpunkte stammen aus derselben Uhr wie das `nowMillis` der Aufrufe (im ViewModel die
  * monotone `SystemClock.elapsedRealtime()`), nicht aus den Zeitstempeln der Messwerte.
  */
 data class OilBarTimerState(
     val aboveGreenThresholdSinceMillis: Long? = null,
     val lastSampleAtMillis: Long? = null,
+    val belowResetSinceMillis: Long? = null,
 )
 
 /**
@@ -50,7 +65,8 @@ data class OilBarTimerState(
  *    einem langen Verbindungsabbruch (oder stundenlang geschlossener App) mit einem einzigen neuen
  *    Messwert seinen uralten Startzeitpunkt fortzusetzen und sofort Gruen zu zeigen.
  * 2. Die Schwellwert-Logik auf diesem (ggf. frischen) Zustand: > 80 °C startet den Timer bzw.
- *    laesst ihn laufen, ≤ 78 °C setzt ihn zurueck, 78–80 °C haelt ihn unveraendert.
+ *    laesst ihn laufen; 79–80 °C haelt ihn unveraendert und unterbricht einen laufenden Einbruch; ≤ 78 °C beginnt einen
+ *    Einbruch, der den Timer erst nach [RESET_DEBOUNCE_MS] ununterbrochen zuruecksetzt; ≤ 75 °C (Rot) setzt sofort zurueck.
  *
  * [OilBarTimerState.lastSampleAtMillis] wird in jedem Fall auf [nowMillis] gesetzt.
  *
@@ -61,12 +77,24 @@ data class OilBarTimerState(
 fun updateOilBarTimer(coolantTempC: Float, nowMillis: Long, state: OilBarTimerState): OilBarTimerState {
     val lastSample = state.lastSampleAtMillis
     val base = if (lastSample != null && nowMillis - lastSample > MAX_SAMPLE_GAP_MS) OilBarTimerState() else state
-    val aboveSince = when {
-        coolantTempC > GREEN_ENTER_THRESHOLD_C -> base.aboveGreenThresholdSinceMillis ?: nowMillis
-        coolantTempC <= GREEN_RESET_THRESHOLD_C -> null
-        else -> base.aboveGreenThresholdSinceMillis // Hysterese-Zone 78-80°C: haelt unveraendert
+    val aboveSince = base.aboveGreenThresholdSinceMillis
+    return when {
+        coolantTempC > GREEN_ENTER_THRESHOLD_C ->
+            OilBarTimerState(aboveSince ?: nowMillis, nowMillis, belowResetSinceMillis = null)
+        // Kalt (Rot): sofort zurueck, kein Einbruch, auf den man warten muesste.
+        coolantTempC <= RED_THRESHOLD_C -> OilBarTimerState(null, nowMillis, belowResetSinceMillis = null)
+        coolantTempC <= GREEN_RESET_THRESHOLD_C -> when {
+            // Ohne laufenden Timer gibt es nichts zu entprellen.
+            aboveSince == null -> OilBarTimerState(null, nowMillis, belowResetSinceMillis = null)
+            else -> {
+                val dipSince = base.belowResetSinceMillis ?: nowMillis
+                if (nowMillis - dipSince >= RESET_DEBOUNCE_MS) OilBarTimerState(null, nowMillis, belowResetSinceMillis = null)
+                else OilBarTimerState(aboveSince, nowMillis, belowResetSinceMillis = dipSince)
+            }
+        }
+        // Hysterese-Zone 79-80°C: Timer haelt unveraendert; der Einbruch war nicht ununterbrochen, seine Zaehlung faengt neu an.
+        else -> OilBarTimerState(aboveSince, nowMillis, belowResetSinceMillis = null)
     }
-    return OilBarTimerState(aboveGreenThresholdSinceMillis = aboveSince, lastSampleAtMillis = nowMillis)
 }
 
 /**

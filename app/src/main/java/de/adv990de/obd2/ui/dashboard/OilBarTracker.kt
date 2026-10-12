@@ -9,6 +9,7 @@ import de.adv990de.obd2.obd.model.SensorValue
 internal const val KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS = "oilBarAboveGreenSinceMillis"
 internal const val KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS = "oilBarLastSampleAtMillis"
 internal const val KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP = "oilBarLastSampleTimestamp"
+internal const val KEY_OIL_BAR_BELOW_RESET_SINCE_MILLIS = "oilBarBelowResetSinceMillis"
 
 /**
  * Die Farbe des Oel-Temperatur-Balkens (Gruen-Hysterese) ueber die Zyklen einer Sitzung. Herausgeloest aus `DashboardViewModel`;
@@ -24,7 +25,7 @@ internal const val KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP = "oilBarLastSampleTimestam
  * Konfigurationsaenderungen (die ViewModelStore-Instanz bleibt dabei erhalten), nicht aber eine Activity-Neuerzeugung BEI LAUFENDEM Prozess —
  * "Nicht im Hintergrund behalten" oder aggressives OEM-Reclaiming erzeugen dabei ein frisches ViewModel, ohne dass ConnectionLost oder das
  * Luecken-Limit je eintraten. [SavedStateHandle] uebersteht genau das (Bundle aus onSaveInstanceState), zusaetzlich zu Prozess-Tod.
- * [OilBarTimerState] hat keinen eigenen Parcelize-Support, deshalb als zwei einzelne `Long?`-Werte gespeichert.
+ * [OilBarTimerState] hat keinen eigenen Parcelize-Support, deshalb als einzelne `Long?`-Werte gespeichert (seit 2026-10-12 drei: auch der Beginn eines Einbruchs, s. [RESET_DEBOUNCE_MS] in `OilTemperatureBar.kt`; ein Zustand aus einer älteren Version ohne diesen Schlüssel liest ihn als null).
  *
  * [now] ist die monotone Uhr des Aufrufers (im ViewModel `SystemClock.elapsedRealtime()`): Gruen-Timer und Luecken-Limit rechnen Dauern,
  * die nicht springen duerfen, wenn Netzzeit-Abgleich oder Nutzer die Systemzeit verstellen.
@@ -38,10 +39,12 @@ internal class OilBarTracker(
         get() = OilBarTimerState(
             aboveGreenThresholdSinceMillis = savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS],
             lastSampleAtMillis = savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS],
+            belowResetSinceMillis = savedStateHandle[KEY_OIL_BAR_BELOW_RESET_SINCE_MILLIS],
         )
         set(value) {
             savedStateHandle[KEY_OIL_BAR_ABOVE_GREEN_SINCE_MILLIS] = value.aboveGreenThresholdSinceMillis
             savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_AT_MILLIS] = value.lastSampleAtMillis
+            savedStateHandle[KEY_OIL_BAR_BELOW_RESET_SINCE_MILLIS] = value.belowResetSinceMillis
         }
 
     /**

@@ -80,6 +80,37 @@ class OilBarTrackerTest {
     }
 
     @Test
+    fun `a dip in progress survives a new tracker on the same SavedStateHandle`() {
+        // Timer laeuft ab t = 0; der Einbruch unter 78 C beginnt bei 330 s, die Activity wird bei 360 s neu erzeugt. Der Reset muss 120 s nach dem
+        // BEGINN des Einbruchs kommen (450 s), nicht 120 s nach der Neuerzeugung (480 s).
+        var stamp = 1L
+        clock = 0L
+        while (clock <= 300_000L) { tracker.update(listOf(coolant(85f, stamp++)), previous = null); clock += 30_000L }
+        clock = 330_000L
+        tracker.update(listOf(coolant(77f, stamp++)), previous = OilBarColor.Yellow)
+        assertEquals("laufend: noch nicht zurueckgesetzt", 0L, handle.get<Long>("oilBarAboveGreenSinceMillis"))
+
+        val recreated = OilBarTracker(handle, now = { clock })
+        clock = 360_000L
+        recreated.update(listOf(coolant(77f, stamp++)), previous = OilBarColor.Yellow)
+        assertEquals("30 s nach Beginn des Einbruchs", 0L, handle.get<Long>("oilBarAboveGreenSinceMillis"))
+        clock = 450_000L
+        recreated.update(listOf(coolant(77f, stamp)), previous = OilBarColor.Yellow)
+
+        assertNull("120 s nach dem Beginn des Einbruchs ist der Timer zurueckgesetzt", handle.get<Long>("oilBarAboveGreenSinceMillis"))
+    }
+
+    @Test
+    fun `the start of a dip is stored under its own key`() {
+        clock = 0L
+        tracker.update(listOf(coolant(85f, timestamp = 1)), previous = null)
+        clock = 1_000L
+        tracker.update(listOf(coolant(77f, timestamp = 2)), previous = OilBarColor.Yellow)
+
+        assertEquals(1_000L, handle.get<Long>("oilBarBelowResetSinceMillis"))
+    }
+
+    @Test
     fun `the stored keys are the ones older versions wrote`() {
         tracker.update(listOf(coolant(85f, timestamp = 42)), previous = null)
 
