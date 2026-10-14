@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.30.0 (versionCode 108)
+
+Die Farbe des Ölbalkens steht jetzt auch in der Fahrtaufzeichnung und im CSV-Export — neben dem Gang.
+
+### Aufzeichnung
+
+- **Neu: die angezeigte Farbe des Ölbalkens je Messzyklus.** Eine Zeile mit der PID `OIL_BAR` (Name `Oil bar`, Herkunft `DERIVED`): `0` = rot, `1` = gelb, `2` = grün, `-1` = grau (noch kein Kühlmittelwert eingetroffen). Grau steht bewusst als eigene Zeile, damit „Balken grau“ von „kein Zyklus“ zu unterscheiden ist.
+- **Es ist die Anzeige, keine zweite Berechnung:** Grün-Hysterese, Entprellen von 120 s und das Halten der Farbe bei einem fehlenden Kühlmittelwert gelten wie am Balken. So bleibt eine Fahrt auswertbar, auch wenn sich die Schwellen der App später ändern, und auch nach einem Schnell-Reconnect, bei dem der Timer der vorigen Fahrt weiterlief.
+- **CSV:** Die Spalten bleiben `timestamp,pid,value,name,source`. Auswertungen, die nach `010C`/`010D`/`0105` filtern, laufen unverändert weiter; die Gang-Zeilen `GEAR` bleiben wie in 1.29.0.
+- **Keine Datenbank-Migration** (PID und Herkunft sind Text). `OIL_BAR` steht nicht in der PID-Liste der App: Es wird nie abgefragt und nie als Kachel angeboten.
+- Intern: Gang- und Balkenzeile eines Zyklus gehen in einem Aufruf an die Aufzeichnung (ein Schreibvorgang statt zwei).
+
+### Grenzen
+
+- Frühere Fahrten haben keine Farbe. Der Timerstand (wie lange das Kühlmittel schon über 80 °C ist) wird nicht mitgeschrieben; er folgt aus der Kühlmittelreihe.
+- Die Zeilen eines Zyklus stehen in der Datei nicht zwingend direkt hinter ihm — nach Zeitstempel sortieren. Ein Wert, der erst nach dem Ende der Sitzung ankommt, wird verworfen. Pro Zyklus kommt eine Zeile hinzu.
+- Am Fahrzeug nicht erprobt: nur per Tests und Fakes geprüft. (Dass der Balken in der Praxis grün wird, auch bei kurzzeitig fallender Temperatur, hat der Nutzer nach zwei Testfahrten bestätigt — ohne Aufzeichnung.)
+
+### Tests
+
+- 1504 JVM-Tests (+15), 327 Instrumentation-Tests (+1: die Farbe im CSV-Export gegen eine echte Datenbank). Neun gezielte Mutationen (z. B. Balken immer „grau“, Aufzeichnung bei jedem Ereignis, Rot als Gelb, falsche Herkunft, nur der erste Wert geschrieben) werden von den neuen Tests erkannt. Lint: 0 Fehler, 3 Warnungen (neuere Gradle-Version 9.8.1, bewusst nicht genommen; `paging` 3.5.3 ist neu erschienen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.29.0 (versionCode 107)
 
 Der Gang, den die Gang-Box zeigt, steht jetzt auch in der Fahrtaufzeichnung und im CSV-Export.
