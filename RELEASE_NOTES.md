@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.29.0 (versionCode 107)
+
+Der Gang, den die Gang-Box zeigt, steht jetzt auch in der Fahrtaufzeichnung und im CSV-Export.
+
+### Aufzeichnung
+
+- **Neu: der angezeigte Gang je Messzyklus.** Eine Zeile mit der PID `GEAR` (Name `Gear`, Herkunft `DERIVED` = von der App berechnet): `1`–`6` ist der Gang, `0` ist „N“, `-1` heißt „nicht bestimmbar“ („–“ in der Gang-Box). „–“ steht bewusst als eigene Zeile, damit „Gang unbekannt“ von „kein Zyklus“ zu unterscheiden ist.
+- **Es ist die Anzeige, keine zweite Berechnung:** Hysterese, Halten des Gangs, „N“ und die GPS-Gegenprobe gelten wie in der Gang-Box. Aufgezeichnet wird je OBD-Zyklus, nicht bei jedem GPS-Update dazwischen; der Zeitstempel ist der des Zyklus.
+- **CSV:** Die Spalten bleiben `timestamp,pid,value,name,source`. Neu in `source`: `DERIVED`. Ihre Auswertungsskripte, die nach `010C`/`010D`/`0105` filtern, laufen unverändert weiter.
+- **Keine Datenbank-Migration** (PID und Herkunft sind Text). `GEAR` steht nicht in der PID-Liste der App: Es wird nie abgefragt und nie als Kachel angeboten.
+
+### Grenzen
+
+- Frühere Fahrten haben keinen Gang. Radumfang und Übersetzungen der Fahrtzeit werden nicht mitgespeichert; der Gang gilt für die Einstellungen von damals.
+- Die Gang-Zeile eines Zyklus steht in der Datei nicht zwingend direkt hinter ihm (das Dashboard schreibt sie aus einer eigenen Coroutine) — nach Zeitstempel sortieren. Ein Gang, der erst nach dem Ende der Sitzung ankommt, wird verworfen.
+- „N“ heißt „steht, Motor läuft“, auch bei gezogener Kupplung. Pro Zyklus kommt eine Zeile hinzu.
+- Am Fahrzeug nicht erprobt: nur per Tests und Fakes geprüft.
+
+### Tests
+
+- 1489 JVM-Tests (+25), 326 Instrumentation-Tests (+1: der Gang im CSV-Export gegen eine echte Datenbank). Neun gezielte Mutationen (z. B. Aufzeichnung bei jedem Ereignis, „-1“ als „0“, falscher Zeitstempel) werden von den neuen Tests erkannt. Lint: 0 Fehler, 3 Warnungen (neuere Gradle-Version 9.8.1, bewusst nicht genommen; `paging` 3.5.3 ist neu erschienen und kommt mit der nächsten Bibliotheksrunde).
+- Auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.28.0 (versionCode 106)
 
 Die Aufzeichnung ist einfacher: Gespeichert wird, was die App abfragt, und die Geschwindigkeit ist immer dabei. Zwei Einstellungen, die verwirrten und bei Fahrzeugen ohne Geschwindigkeit sogar schadeten, sind entfernt.
