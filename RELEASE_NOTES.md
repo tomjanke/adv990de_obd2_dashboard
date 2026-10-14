@@ -1,5 +1,20 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.27.3 (versionCode 105)
+
+Die Texte der Aufzeichnungs-Einstellungen sagen jetzt, was die Aufzeichnung tatsächlich tut. Am Verhalten ändert sich nichts.
+
+### Einstellungen
+
+- **„Aufgezeichnete PIDs“ heißt jetzt „Aufzeichnung filtern“.** Die Auswahl ist nur ein Filter über das, was die App ohnehin misst: die Werte der Kacheln, immer Drehzahl und Kühlmittel, bei eingeschalteter dynamischer Drehzahl-Schwelle auch die Öltemperatur. Ein Haken bei einem Wert ohne Kachel bewirkte nie etwas, der alte Name und die alte Unterzeile („Welche Messwerte in der Fahrt-Historie gespeichert werden“) ließen das aber so aussehen. Oben im Bildschirm steht jetzt ein Hinweis; wer mehr Werte in einer Fahrt braucht, belegt sie als Kachel.
+- **„Nur ECU-bestätigte PIDs aufzeichnen“ heißt jetzt „Nur vom Fahrzeug gemeldete Werte speichern“.** Die Unterzeile nennt, was der Schalter tut: Werte, die das Steuergerät beim Verbinden nicht als unterstützt gemeldet hat, werden verworfen. Der Schalter wirkt nur, wenn diese Abfrage ein Ergebnis hatte.
+- **Gut zu wissen:** Der Schalter verwirft auch die GPS-Geschwindigkeit, wenn das Steuergerät die Geschwindigkeit nicht meldet (sie trägt dieselbe PID-Kennung `010D`). Das war schon vorher so und ist nicht geändert worden; die Unterzeile sagt es jetzt. Bei einem Fahrzeug, dessen Geschwindigkeit nur per GPS kommt, sollte der Schalter aus bleiben.
+
+### Tests
+
+- 1490 JVM-Tests, 332 Instrumentation-Tests (+1: der Hinweis oben im Bildschirm). Lint: 0 Fehler, 1 Warnung (neuere Gradle-Version 9.8.1, bewusst nicht genommen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft. **Grenzen:** Der neue Hinweis ist per Test belegt (er wird angezeigt), das Aussehen nicht per Bildschirmfoto; ein Test für das Verwerfen der GPS-Geschwindigkeit durch den Schalter fehlt weiterhin.
+
 ## Version 1.27.2 (versionCode 104)
 
 Die Öltemperatur-Leiste wird in der Aufwärmphase auch dann grün, wenn die Kühlmitteltemperatur zwischendurch kurz zurückfällt.
