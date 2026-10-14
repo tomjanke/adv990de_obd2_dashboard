@@ -44,7 +44,7 @@
     <string name="settings_group_vehicle">Fahrzeug</string>
     <string name="settings_group_info">Info &amp; Wartung</string>
     <string name="settings_gear_ratios_summary">Radumfang und Übersetzungen für die Ganganzeige</string>
-    <string name="settings_logging_pids_summary">Welche Messwerte in der Fahrt-Historie gespeichert werden</string>
+    <string name="settings_logging_pids_summary">Gemessene Werte von der Aufzeichnung ausnehmen</string>
     <string name="settings_vehicle_info_summary">FIN und Fahrzeugdaten aus dem Steuergerät</string>
     <string name="settings_app_logs_summary">Ereignisprotokoll der App</string>
     <string name="settings_app_info_summary">Version, Lizenzen und Quellen</string>
@@ -221,10 +221,11 @@
     <string name="settings_recording_section">Aufzeichnung</string>
     <string name="settings_log_only_dtc">Nur Fahrten mit DTCs speichern</string>
     <string name="settings_log_only_dtc_desc">Fahrten ohne Fahrzeug-Fehlercodes werden verworfen</string>
-    <string name="settings_log_only_discovered">Nur ECU-bestätigte PIDs aufzeichnen</string>
-    <string name="settings_log_only_discovered_desc">PIDs ohne ECU-Discovery-Bestätigung werden nicht gespeichert</string>
-    <string name="settings_logging_pids">Aufgezeichnete PIDs</string>
-    <string name="logging_config_title">Aufgezeichnete PIDs</string>
+    <string name="settings_log_only_discovered">Nur vom Fahrzeug gemeldete Werte speichern</string>
+    <string name="settings_log_only_discovered_desc">Werte, die das Steuergerät beim Verbinden nicht als unterstützt gemeldet hat, werden verworfen – auch die GPS-Geschwindigkeit, wenn das Fahrzeug keine Geschwindigkeit meldet. Ohne Ergebnis dieser Abfrage wirkt der Schalter nicht.</string>
+    <string name="settings_logging_pids">Aufzeichnung filtern</string>
+    <string name="logging_config_title">Aufzeichnung filtern</string>
+    <string name="logging_config_intro">Gespeichert wird nur, was die App ohnehin misst: die Werte der Kacheln sowie immer Drehzahl und Kühlmittel (bei dynamischer Drehzahl-Schwelle auch die Öltemperatur). Hier lassen sich Werte abwählen. Ein Haken bei einem Wert ohne Kachel bewirkt nichts.</string>
     <string name="logging_config_select_all">Alle auswählen</string>
     <string name="logging_config_deselect_all">Alle abwählen</string>
 

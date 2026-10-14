@@ -44,7 +44,7 @@
     <string name="settings_group_vehicle">Vehicle</string>
     <string name="settings_group_info">Info &amp; maintenance</string>
     <string name="settings_gear_ratios_summary">Wheel circumference and ratios for the gear indicator</string>
-    <string name="settings_logging_pids_summary">Which readings are stored in the trip history</string>
+    <string name="settings_logging_pids_summary">Exclude measured values from the recording</string>
     <string name="settings_vehicle_info_summary">VIN and vehicle data from the ECU</string>
     <string name="settings_app_logs_summary">The app\'s event log</string>
     <string name="settings_app_info_summary">Version, licenses and credits</string>
@@ -221,10 +221,11 @@
     <string name="settings_recording_section">Recording</string>
     <string name="settings_log_only_dtc">Only save sessions with DTCs</string>
     <string name="settings_log_only_dtc_desc">Sessions without vehicle fault codes are discarded</string>
-    <string name="settings_log_only_discovered">Only record ECU-confirmed PIDs</string>
-    <string name="settings_log_only_discovered_desc">Skips PIDs not confirmed by PID discovery</string>
-    <string name="settings_logging_pids">Recorded PIDs</string>
-    <string name="logging_config_title">Recorded PIDs</string>
+    <string name="settings_log_only_discovered">Only store values reported by the vehicle</string>
+    <string name="settings_log_only_discovered_desc">Values the ECU did not report as supported when connecting are discarded – including the GPS speed if the vehicle reports no speed. The switch has no effect if that query gave no result.</string>
+    <string name="settings_logging_pids">Filter recording</string>
+    <string name="logging_config_title">Filter recording</string>
+    <string name="logging_config_intro">Only what the app measures anyway is stored: the values on the tiles, plus rpm and coolant temperature, which are always measured (and oil temperature with the dynamic rpm threshold). Values can be deselected here. A check mark next to a value without a tile has no effect.</string>
     <string name="logging_config_select_all">Select all</string>
     <string name="logging_config_deselect_all">Deselect all</string>
 

@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.Role
@@ -119,6 +120,17 @@ class LoggingConfigScreenDeviceTest {
 
     private fun selectAllLabel() = composeRule.activity.getString(R.string.logging_config_select_all)
     private fun deselectAllLabel() = composeRule.activity.getString(R.string.logging_config_deselect_all)
+
+    // --- explanatory text: the selection is only a filter over what is measured anyway ---
+
+    @Test
+    fun intro_isShownAboveTheList_andSaysTheSelectionIsOnlyAFilter() {
+        launchLoggingConfigScreen()
+
+        composeRule.onNodeWithTag(LOGGING_CONFIG_INTRO_TEST_TAG)
+            .assertIsDisplayed()
+            .assertTextEquals(composeRule.activity.getString(R.string.logging_config_intro))
+    }
 
     // --- Select All / Deselect All ---
 

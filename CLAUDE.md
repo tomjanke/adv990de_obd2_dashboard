@@ -387,8 +387,8 @@ Eine flache, gruppierte Seite (`SettingsScreen`) im Sinne der AOSP-Settings-Rich
 Überschrift, Trennlinien, keine gerundeten Karten — passt zu „scharfe Kanten“; Material3 1.4.0 hat ohnehin kein
 `SegmentedListItem`): **Verbindung** (gekoppelte Geräte + „Alle gekoppelten Geräte“, Reconnect-Timeout, Basisverzögerung)
 · **Dashboard & Anzeige** (Farbschema, Einheiten, Hauptmenü beim Fahren ausblenden, GPS-Geschwindigkeit,
-Drehzahl-Blinkgrenze + dynamische Schwelle, Getriebe →) · **Aufzeichnung** (Nur Fahrten mit DTCs, Nur ECU-bestätigte
-PIDs, Aufgezeichnete PIDs →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wartung** (App-Logs →, App-Info →).
+Drehzahl-Blinkgrenze + dynamische Schwelle, Getriebe →) · **Aufzeichnung** (Nur Fahrten mit DTCs, Nur vom Fahrzeug
+gemeldete Werte speichern, Aufzeichnung filtern →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wartung** (App-Logs →, App-Info →).
 - **Unterseiten** sind `SettingsLinkRow`s (Titel, Einzeiler-Zusammenfassung, Chevron), nie nackte `TextButton`s.
 - **Jede Zeile ≥ 64 dp, jeder Schalter ist eine Ganz-Zeilen-Fläche** (`SettingsSwitchRow`: `toggleable` an der Zeile, der
   `Switch` zeigt nur den Zustand; ein `testTag` am Modifier sitzt damit am Knoten mit dem Toggle-Zustand).
@@ -451,6 +451,8 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 (statt aufzuzeichnen und am Ende zu verwerfen).
 
 **Die Aufzeichnungsauswahl ist ein Filter, kein Abfrage-Auftrag:** `SessionRecorder` schreibt nur PIDs, die ohnehin abgefragt werden (die vier Kacheln, immer Drehzahl und Kühlmittel, bei dynamischer Schwelle die Öltemperatur — `selectPids`); ein Haken bei einem nicht belegten PID bewirkt nichts. Mehr Werte in einer Fahrt heißt: den PID als Kachel belegen. Ein pauschales Mitlesen aller gewählten PIDs wurde am 2026-10-14 vom Nutzer aus dem Backlog genommen (Protokoll Punkt 25; Grund: jeder PID kostet rund 0,15–0,28 s je Zyklus).
+Die Texte in den Einstellungen sagen das seit 2026-10-14 („Aufzeichnung filtern“ mit Hinweis oben im Bildschirm, „Nur vom Fahrzeug gemeldete Werte speichern“); vorher hießen sie „Aufgezeichnete PIDs“ und „Nur ECU-bestätigte PIDs aufzeichnen“ und versprachen mehr, als die Auswahl bewirkt.
+**Bekannt, nicht geändert:** „Nur vom Fahrzeug gemeldete Werte speichern“ verwirft auch die GPS-Geschwindigkeit (sie trägt die PID-ID `010D`), wenn das Steuergerät `010D` nicht meldet — die Beschreibung nennt es; ein Test dafür fehlt. Der Schalter ist sonst fast wirkungslos: bei erfolgreicher Discovery werden nicht gemeldete Kachel-PIDs gar nicht erst abgefragt (`selectPids`).
 **Die Aufzeichnungsauswahl ist eine Abwahl (seit v1.25.2).** `AppPreferences.loggedPidIds` = alle bekannten PIDs **ohne** die vom Nutzer abgewählten; gespeichert wird die Abwahl (`unlogged_pid_ids`), nicht die Auswahl.
 Eine Positivliste (`logged_pid_ids`, bis 1.25.1) lässt jeden PID aus, den es beim Speichern noch nicht gab — wer einmal einen Haken entfernt hatte, zeichnete später ergänzte PIDs nie auf, ohne es zu merken. Der alte Schlüssel wird weiter
 **gelesen** (was darin fehlt, gilt als abgewählt: der Nutzer sieht seine Auswahl unverändert, und PIDs, die schon damals fehlten, bleiben weg wie bisher) und beim ersten Schreiben abgelöst; der neue gewinnt, wenn beide stehen. Unbekannte IDs in

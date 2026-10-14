@@ -16,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,6 +39,9 @@ import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
  *  `performScrollToNode` to PID rows below the initially-composed viewport (confirmed empirically
  *  2026-09-29: only ~5 of 19 rows compose before the first frame settles on a Pixel 8 Pro). */
 internal const val LOGGING_CONFIG_LIST_TEST_TAG = "logging_config_list"
+
+/** Test-only selector for the explanatory text above the list. */
+internal const val LOGGING_CONFIG_INTRO_TEST_TAG = "logging_config_intro"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +70,20 @@ fun LoggingConfigScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding).testTag(LOGGING_CONFIG_LIST_TEST_TAG)) {
+            item {
+                // Die Auswahl ist nur ein Filter ueber das, was ohnehin gemessen wird — der Text sagt es (sonst wirkt ein Haken bei
+                // einem Wert ohne Kachel, als wuerde er aufgezeichnet).
+                Text(
+                    text = stringResource(R.string.logging_config_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .testTag(LOGGING_CONFIG_INTRO_TEST_TAG),
+                )
+                HorizontalDivider()
+            }
             item {
                 Row(
                     modifier = Modifier
