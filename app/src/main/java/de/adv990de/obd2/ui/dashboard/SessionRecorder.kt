@@ -2,7 +2,6 @@ package de.adv990de.obd2.ui.dashboard
 
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.LogLevel
-import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
@@ -10,6 +9,10 @@ import kotlinx.coroutines.CancellationException
 /**
  * Die Aufzeichnung EINER Sitzung: Fahrt anlegen, Zyklen schreiben, Fahrt beenden. Herausgeloest aus
  * [ReadingsPipeline.events]; die Pipeline entscheidet, OB aufgezeichnet wird (`logOnlyDtcSessions`), dieser Baustein, WIE.
+ *
+ * **Geschrieben wird alles, was die Pipeline uebergibt:** die abgefragten Werte (Kacheln, Drehzahl, Kuehlmittel, die Geschwindigkeit
+ * des Fahrzeugs) und die ergaenzte GPS-Geschwindigkeit. Einen weiteren Filter gibt es nicht — bis v1.27.3 verwarfen ein Schalter
+ * („nur vom Fahrzeug gemeldete Werte“) und eine Abwahl-Liste Werte, und der Schalter nahm Fahrzeugen ohne Geschwindigkeit die GPS-Geschwindigkeit.
  *
  * Aufzeichnen ist Beiwerk der Live-Anzeige: Ein Datenbankfehler (Platte voll, Datenbank gesperrt) darf sie nicht beenden. Er wird
  * einmal je Sitzung gemeldet — ein Fehler mit 2 Hz wuerde sonst das ebenfalls betroffene App-Log fluten. Nur die Abbruch-Ausnahme
@@ -19,11 +22,8 @@ import kotlinx.coroutines.CancellationException
  */
 internal class SessionRecorder(
     private val sessionRepository: SessionRepository,
-    private val obdRepository: ObdRepository,
     private val crashReporter: CrashReporter,
     private val log: suspend (LogLevel, String) -> Unit,
-    private val logOnlyDiscovered: Boolean,
-    private val loggedPidIds: Set<String>,
 ) {
     private var sessionId = NO_SESSION
     private var failureReported = false
@@ -39,16 +39,11 @@ internal class SessionRecorder(
         }
     }
 
-    /** Schreibt einen zusammengefuehrten Zyklus: nur die aufzuzeichnenden PIDs, bei `logOnlyDiscovered` nur die vom Steuergeraet gemeldeten. */
+    /** Schreibt einen zusammengefuehrten Zyklus (alle uebergebenen Werte). */
     suspend fun record(values: List<SensorValue>) {
         if (sessionId == NO_SESSION) return // keine Fahrt: nichts aufzuzeichnen
         try {
-            val filtered = values
-                .filter { sv ->
-                    !logOnlyDiscovered || (obdRepository.supportedPidIds.value?.contains(sv.pid.id) ?: true)
-                }
-                .filter { sv -> sv.pid.id in loggedPidIds }
-            sessionRepository.writeReadings(sessionId, filtered)
+            sessionRepository.writeReadings(sessionId, values)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             reportFailure(e)

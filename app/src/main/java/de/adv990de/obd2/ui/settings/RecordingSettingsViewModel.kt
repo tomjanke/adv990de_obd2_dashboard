@@ -18,14 +18,7 @@ class RecordingSettingsViewModel @Inject constructor(
     val logOnlyDtc: StateFlow<Boolean> = appPreferences.logOnlyDtcSessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val logOnlyDiscovered: StateFlow<Boolean> = appPreferences.logOnlyDiscoveredPids
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-
     fun toggleLogOnlyDtc() {
         viewModelScope.launch { appPreferences.setLogOnlyDtcSessions(!logOnlyDtc.value) }
-    }
-
-    fun toggleLogOnlyDiscovered() {
-        viewModelScope.launch { appPreferences.setLogOnlyDiscoveredPids(!logOnlyDiscovered.value) }
     }
 }

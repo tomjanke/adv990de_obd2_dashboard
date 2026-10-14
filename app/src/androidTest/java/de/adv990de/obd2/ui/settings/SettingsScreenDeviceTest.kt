@@ -383,7 +383,6 @@ class SettingsScreenDeviceTest {
 
         for ((title, summary, route) in listOf(
             Triple(R.string.settings_gear_ratios, R.string.settings_gear_ratios_summary, Screen.GearSettings.route),
-            Triple(R.string.settings_logging_pids, R.string.settings_logging_pids_summary, Screen.LoggingConfig.route),
             Triple(R.string.settings_vehicle_info, R.string.settings_vehicle_info_summary, Screen.VehicleInfo.route),
             Triple(R.string.settings_app_logs, R.string.settings_app_logs_summary, Screen.AppLogs.route),
             Triple(R.string.settings_app_info, R.string.settings_app_info_summary, Screen.AppInfo.route),
@@ -415,7 +414,7 @@ class SettingsScreenDeviceTest {
 
     private companion object {
         val SUB_PAGE_ROUTES = listOf(
-            Screen.GearSettings.route, Screen.LoggingConfig.route, Screen.VehicleInfo.route,
+            Screen.GearSettings.route, Screen.VehicleInfo.route,
             Screen.AppLogs.route, Screen.AppInfo.route,
         )
     }

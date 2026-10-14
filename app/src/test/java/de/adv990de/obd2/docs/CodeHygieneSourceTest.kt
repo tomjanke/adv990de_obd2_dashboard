@@ -48,7 +48,6 @@ class CodeHygieneSourceTest {
         "ui/dashboard/DashboardScreen.kt" to "braucht hiltViewModel(); die Bausteine (RpmBar, Kacheln, Banner) haben Vorschauen in DashboardComponents.kt und SlotComponents.kt",
         "ui/freezeframe/FreezeFrameScreen.kt" to "braucht hiltViewModel() und hat keinen zustandslosen Teil",
         "ui/licenses/LicensesScreen.kt" to "liest die Lizenztexte aus den Assets der App, die eine Vorschau nicht kennt",
-        "ui/loggingconfig/LoggingConfigScreen.kt" to "braucht hiltViewModel() und hat keinen zustandslosen Teil",
         "ui/navigation/AppNavHost.kt" to "der Navigationsgraph: jedes Ziel braucht hiltViewModel()",
         "ui/permission/LocationPermissionState.kt" to "kein sichtbares Composable: der Zustand der Standortberechtigung (remember)",
         "ui/settings/SettingsScreen.kt" to "braucht hiltViewModel(); die Geraetezeile (DeviceRow.kt) und die Zeilen (SettingsComponents.kt) haben Vorschauen",

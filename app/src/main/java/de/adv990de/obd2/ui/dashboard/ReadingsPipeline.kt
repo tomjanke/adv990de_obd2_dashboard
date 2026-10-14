@@ -253,10 +253,8 @@ class ReadingsPipeline @Inject constructor(
             dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first(),
         )
 
-        // Aufzeichnungs-Einstellungen einmal pro Sitzung lesen, nicht pro Zyklus.
+        // Aufzeichnungs-Einstellung einmal pro Sitzung lesen, nicht pro Zyklus.
         val logOnlyDtc = appPreferences.logOnlyDtcSessions.first()
-        val logOnlyDiscovered = appPreferences.logOnlyDiscoveredPids.first()
-        val loggedPidIds = appPreferences.loggedPidIds.first()
         val watchdogTimeoutMs = appPreferences.obdWatchdogTimeoutSeconds.first() * 1_000L
 
         val vin = try { obdRepository.readVin() } catch (e: Exception) {
@@ -308,9 +306,7 @@ class ReadingsPipeline @Inject constructor(
         // eine DTC-lose Fahrt entgegen der Einstellung).
         val recordThisTrip = !(logOnlyDtc && !hasDtcForRecording)
 
-        val recorder = SessionRecorder(
-            sessionRepository, obdRepository, crashReporter, ::logBestEffort, logOnlyDiscovered, loggedPidIds,
-        )
+        val recorder = SessionRecorder(sessionRepository, crashReporter, ::logBestEffort)
         try {
             if (recordThisTrip) recorder.start(vin)
             emitAll(

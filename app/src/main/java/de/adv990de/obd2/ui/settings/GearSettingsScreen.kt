@@ -254,7 +254,7 @@ internal fun GearRatioField(
 //
 // GearSettingsScreen selbst braucht `hiltViewModel()` und bekommt deshalb bewusst kein Preview —
 // kein Screen in diesem Projekt, der einen Hilt-ViewModel voraussetzt, hat eines (AppLogsScreen,
-// LoggingConfigScreen, SettingsScreen selbst eingeschlossen). Stattdessen wird die ViewModel-lose
+// SettingsScreen selbst eingeschlossen). Stattdessen wird die ViewModel-lose
 // Bausteinkomponente GearRatioField geprevit, die alles Interessante traegt.
 //
 // Der Fehler-Zustand laesst sich ueber die oeffentliche API nicht direkt herbeifuehren (das

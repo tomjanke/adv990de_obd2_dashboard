@@ -24,7 +24,6 @@ class BottomNavActionTest {
     fun `tapping the Settings tab on a settings sub-page returns to the Settings start page`() {
         for (route in listOf(
             Screen.VehicleInfo.route,
-            Screen.LoggingConfig.route,
             Screen.AppInfo.route,
             Screen.AppLogs.route,
             Screen.GearSettings.route,

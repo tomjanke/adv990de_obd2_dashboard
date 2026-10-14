@@ -387,8 +387,7 @@ Eine flache, gruppierte Seite (`SettingsScreen`) im Sinne der AOSP-Settings-Rich
 Überschrift, Trennlinien, keine gerundeten Karten — passt zu „scharfe Kanten“; Material3 1.4.0 hat ohnehin kein
 `SegmentedListItem`): **Verbindung** (gekoppelte Geräte + „Alle gekoppelten Geräte“, Reconnect-Timeout, Basisverzögerung)
 · **Dashboard & Anzeige** (Farbschema, Einheiten, Hauptmenü beim Fahren ausblenden, GPS-Geschwindigkeit,
-Drehzahl-Blinkgrenze + dynamische Schwelle, Getriebe →) · **Aufzeichnung** (Nur Fahrten mit DTCs, Nur vom Fahrzeug
-gemeldete Werte speichern, Aufzeichnung filtern →) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wartung** (App-Logs →, App-Info →).
+Drehzahl-Blinkgrenze + dynamische Schwelle, Getriebe →) · **Aufzeichnung** (Nur Fahrten mit DTCs) · **Fahrzeug** (Fahrzeuginfo →) · **Info & Wartung** (App-Logs →, App-Info →).
 - **Unterseiten** sind `SettingsLinkRow`s (Titel, Einzeiler-Zusammenfassung, Chevron), nie nackte `TextButton`s.
 - **Jede Zeile ≥ 64 dp, jeder Schalter ist eine Ganz-Zeilen-Fläche** (`SettingsSwitchRow`: `toggleable` an der Zeile, der
   `Switch` zeigt nur den Zustand; ein `testTag` am Modifier sitzt damit am Knoten mit dem Toggle-Zustand).
@@ -450,13 +449,14 @@ bereits abgebrochener Aufrufer legt keine Fahrt an, und wird er während des Ins
 verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs“ legt bei DTC-freiem Fahrzeug **gar keine Fahrt** mehr an
 (statt aufzuzeichnen und am Ende zu verwerfen).
 
-**Die Aufzeichnungsauswahl ist ein Filter, kein Abfrage-Auftrag:** `SessionRecorder` schreibt nur PIDs, die ohnehin abgefragt werden (die vier Kacheln, immer Drehzahl und Kühlmittel, bei dynamischer Schwelle die Öltemperatur — `selectPids`); ein Haken bei einem nicht belegten PID bewirkt nichts. Mehr Werte in einer Fahrt heißt: den PID als Kachel belegen. Ein pauschales Mitlesen aller gewählten PIDs wurde am 2026-10-14 vom Nutzer aus dem Backlog genommen (Protokoll Punkt 25; Grund: jeder PID kostet rund 0,15–0,28 s je Zyklus).
-Die Texte in den Einstellungen sagen das seit 2026-10-14 („Aufzeichnung filtern“ mit Hinweis oben im Bildschirm, „Nur vom Fahrzeug gemeldete Werte speichern“); vorher hießen sie „Aufgezeichnete PIDs“ und „Nur ECU-bestätigte PIDs aufzeichnen“ und versprachen mehr, als die Auswahl bewirkt.
-**Bekannt, nicht geändert:** „Nur vom Fahrzeug gemeldete Werte speichern“ verwirft auch die GPS-Geschwindigkeit (sie trägt die PID-ID `010D`), wenn das Steuergerät `010D` nicht meldet — die Beschreibung nennt es; ein Test dafür fehlt. Der Schalter ist sonst fast wirkungslos: bei erfolgreicher Discovery werden nicht gemeldete Kachel-PIDs gar nicht erst abgefragt (`selectPids`).
-**Die Aufzeichnungsauswahl ist eine Abwahl (seit v1.25.2).** `AppPreferences.loggedPidIds` = alle bekannten PIDs **ohne** die vom Nutzer abgewählten; gespeichert wird die Abwahl (`unlogged_pid_ids`), nicht die Auswahl.
-Eine Positivliste (`logged_pid_ids`, bis 1.25.1) lässt jeden PID aus, den es beim Speichern noch nicht gab — wer einmal einen Haken entfernt hatte, zeichnete später ergänzte PIDs nie auf, ohne es zu merken. Der alte Schlüssel wird weiter
-**gelesen** (was darin fehlt, gilt als abgewählt: der Nutzer sieht seine Auswahl unverändert, und PIDs, die schon damals fehlten, bleiben weg wie bisher) und beim ersten Schreiben abgelöst; der neue gewinnt, wenn beide stehen. Unbekannte IDs in
-der Abwahl wirken nicht. **Beide Schlüsselnamen sind gespeicherter Zustand — nie umbenennen.** `loggedPidIds`/`toggleLoggedPid`/`setLoggedPids` behielten ihre Signaturen; die Umstellung liegt allein in `AppPreferences` (`AppPreferencesTest`).
+**Was eine Fahrt aufzeichnet (Nutzerentscheidung 2026-10-14, Protokoll Punkt 26):** `SessionRecorder` schreibt **alles, was die Pipeline übergibt**, ohne weiteren Filter: die abgefragten Werte — die vier Kacheln (gefiltert gegen die vom Steuergerät gemeldeten PIDs),
+immer Drehzahl und Kühlmittel, bei dynamischer Schwelle die Öltemperatur — und die **Geschwindigkeit**. Die Geschwindigkeit gehört zu jeder Fahrt: meldet das Steuergerät `010D`, fragt `selectPids` sie auch **ohne Kachel** ab; meldet es sie nicht (bei Motorrädern oft: ABS-Steuergerät, nicht auf dem
+OBD2-Bus), ergänzt `mergeGpsSpeed` die GPS-Geschwindigkeit (Herkunft `GPS`, Einstellung „Geschwindigkeit per GPS“) — das geschieht unabhängig von den Kacheln. Ohne Discovery-Ergebnis fragt `selectPids` die Geschwindigkeit nicht von sich aus ab (ein Fahrzeug ohne `010D` kostete sonst jeden Zyklus einen vergeblichen Befehl, bei einem Zeitlimit 5 s); dann gilt wie bisher nur die Kachel.
+**Die Kachelauswahl bietet nur vom Steuergerät gemeldete Werte** (`DashboardViewModel.availablePids`; die Geschwindigkeit bleibt bei eingeschaltetem GPS wählbar; ohne Verbindung oder ohne Liste stehen alle zur Wahl). Mehr Werte in einer Fahrt heißt: den PID als Kachel belegen. Ein pauschales Mitlesen aller unterstützten Werte lehnte der Nutzer ab
+(Protokoll Punkt 25: jeder PID kostet rund 0,15–0,28 s je Zyklus, der Zyklus würde von 1,1–1,6 s auf geschätzt 3–6 s wachsen, Drehzahlbalken und Ganganzeige würden träge).
+**Entfernt (1.28.0):** der Schalter „Nur vom Fahrzeug gemeldete Werte speichern“ (er nahm Fahrzeugen ohne Geschwindigkeit die GPS-Geschwindigkeit aus der Fahrt und war sonst fast wirkungslos, weil nicht gemeldete Kachel-PIDs bei erfolgreicher Discovery gar nicht erst abgefragt werden) und die Liste „Aufzeichnung filtern“ samt Bildschirm und Route
+(ein Haken bei einem nicht abgefragten Wert bewirkte nichts; alle 19 Zeilen standen angehakt da). Die DataStore-Schlüssel `log_only_discovered_pids`, `unlogged_pid_ids` und `logged_pid_ids` stehen bei Nutzern noch im Speicher und werden nicht mehr gelesen — **nicht mit anderer Bedeutung wiederverwenden.** Wer früher Werte abgewählt hatte, sieht sie jetzt wieder
+aufgezeichnet, sofern sie abgefragt werden.
 
 ### Fehlerzustände ehrlich anzeigen (seit v1.24.1)
 
@@ -981,8 +981,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1490 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 332 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1464 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 325 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

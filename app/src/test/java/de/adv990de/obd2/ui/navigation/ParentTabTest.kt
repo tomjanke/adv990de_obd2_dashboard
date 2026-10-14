@@ -28,7 +28,6 @@ class ParentTabTest {
     fun `every settings sub-page belongs to the Settings tab`() {
         for (route in listOf(
             Screen.VehicleInfo.route,
-            Screen.LoggingConfig.route,
             Screen.AppInfo.route,
             Screen.AppLogs.route,
             Screen.GearSettings.route,
@@ -51,7 +50,7 @@ class ParentTabTest {
         Screen.Dashboard -> Screen.Dashboard
         Screen.Dtc, Screen.FreezeFrame -> Screen.Dtc
         Screen.History -> Screen.History
-        Screen.Settings, Screen.VehicleInfo, Screen.LoggingConfig, Screen.AppInfo, Screen.AppLogs,
+        Screen.Settings, Screen.VehicleInfo, Screen.AppInfo, Screen.AppLogs,
         Screen.GearSettings, Screen.Licenses -> Screen.Settings
     }
 
@@ -59,7 +58,7 @@ class ParentTabTest {
     fun `parentTab matches the documented parent of every screen`() {
         val all = listOf(
             Screen.Dashboard, Screen.Dtc, Screen.FreezeFrame, Screen.VehicleInfo, Screen.History,
-            Screen.Settings, Screen.LoggingConfig, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
+            Screen.Settings, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
             Screen.Licenses,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))

@@ -56,7 +56,6 @@ fun SettingsScreen(
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
-    val logOnlyDiscovered by recordingVm.logOnlyDiscovered.collectAsStateWithLifecycle()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
     val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsStateWithLifecycle()
@@ -365,7 +364,7 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
 
-            recordingSection(logOnlyDtc, logOnlyDiscovered, recordingVm, navController)
+            recordingSection(logOnlyDtc, recordingVm)
             vehicleSection(navController)
             infoSection(navController, crashVm)
         }

@@ -534,45 +534,6 @@ class DashboardViewModelTest {
         }
     }
 
-    @Test
-    fun `loggedPidIds filter - writeReadings called with only allowed PIDs`() = runTest {
-        val allowedId = PidRegistry.RPM.id
-        val blockedId = PidRegistry.SPEED.id
-        val allowedReading = SensorValue(pid = PidRegistry.RPM, value = 1500f, timestamp = 1000L)
-        val blockedReading  = SensorValue(pid = PidRegistry.SPEED, value = 80f, timestamp = 1001L)
-
-        val isConnectedFlow = MutableStateFlow(false)
-        val obdRepo = fakeObdRepository {
-            every { this@fakeObdRepository.isConnectedFlow } returns isConnectedFlow
-            every { livePids(any()) } returns flowOf(listOf(allowedReading, blockedReading))
-        }
-        val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 55L
-            coEvery { writeReadings(any(), any()) } just Runs
-            coEvery { endSession(any()) } just Runs
-        }
-
-        makeVmFrom(
-            obdRepo, sessionRepo,
-            fakeAppPreferences(loggedPidIds = setOf(allowedId)),
-            makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(),
-            makeGpsSpeedSource(), mockk(relaxed = true)
-        )
-        isConnectedFlow.value = true
-        advanceUntilIdle()
-
-        coVerify {
-            sessionRepo.writeReadings(55L, match { readings ->
-                readings.size == 1 && readings[0].pid.id == allowedId
-            })
-        }
-        coVerify(exactly = 0) {
-            sessionRepo.writeReadings(any(), match { readings ->
-                readings.any { it.pid.id == blockedId }
-            })
-        }
-    }
-
     // ── supportedPidIds filtering ──────────────────────────────────────────────
 
     @Test

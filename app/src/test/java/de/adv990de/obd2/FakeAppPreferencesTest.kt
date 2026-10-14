@@ -42,7 +42,7 @@ class FakeAppPreferencesTest {
 
     @Test
     fun `the class has flows to compare at all`() {
-        assertTrue("Reflexion findet die Flows nicht: ${flowGetters.map { it.name }}", flowGetters.size >= 20)
+        assertTrue("Reflexion findet die Flows nicht: ${flowGetters.map { it.name }}", flowGetters.size >= 18)
     }
 
     @Test

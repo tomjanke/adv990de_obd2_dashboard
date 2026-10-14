@@ -2,20 +2,18 @@ package de.adv990de.obd2.ui.dashboard
 
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.LogLevel
-import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,13 +29,7 @@ class SessionRecorderTest {
     private fun recorder(
         sessions: SessionRepository,
         crash: CrashReporter = mockk(relaxed = true),
-        supported: Set<String>? = null,
-        logOnlyDiscovered: Boolean = false,
-        loggedPidIds: Set<String> = setOf(PidRegistry.RPM.id, PidRegistry.SPEED.id),
-    ): SessionRecorder {
-        val obd = mockk<ObdRepository> { every { supportedPidIds } returns MutableStateFlow(supported) }
-        return SessionRecorder(sessions, obd, crash, { level, message -> logged += level to message }, logOnlyDiscovered, loggedPidIds)
-    }
+    ): SessionRecorder = SessionRecorder(sessions, crash) { level, message -> logged += level to message }
 
     private fun sessions(startResult: Long = 7L): SessionRepository = mockk {
         coEvery { startSession(any()) } returns startResult
@@ -58,38 +50,18 @@ class SessionRecorderTest {
     }
 
     @Test
-    fun `only the PIDs chosen for recording are written`() = runTest {
+    fun `everything the pipeline hands over is written - no further filter, the GPS speed included`() = runTest {
         val repo = sessions()
-        val recorder = recorder(repo, loggedPidIds = setOf(PidRegistry.SPEED.id))
+        val recorder = recorder(repo)
         val written = slot<List<SensorValue>>()
         coEvery { repo.writeReadings(any(), capture(written)) } just Runs
+        // Fahrzeug ohne eigene Geschwindigkeit: die GPS-Geschwindigkeit traegt dieselbe PID-ID 010D (source GPS).
+        val gpsSpeed = SensorValue(pid = GPS_SPEED, value = 80f, source = ValueSource.GPS)
 
         recorder.start(null)
-        recorder.record(listOf(rpm, speed))
+        recorder.record(listOf(rpm, gpsSpeed))
 
-        assertEquals(listOf(speed), written.captured)
-    }
-
-    @Test
-    fun `with only discovered PIDs on, a PID the ECU does not report is not written - and everything is written while the set is unknown`() = runTest {
-        val onlySpeed = setOf(PidRegistry.SPEED.id)
-        val repoKnown = sessions()
-        val written = slot<List<SensorValue>>()
-        coEvery { repoKnown.writeReadings(any(), capture(written)) } just Runs
-        recorder(repoKnown, supported = onlySpeed, logOnlyDiscovered = true).also {
-            it.start(null)
-            it.record(listOf(rpm, speed))
-        }
-        assertEquals("nur das gemeldete PID", listOf(speed), written.captured)
-
-        val repoUnknown = sessions()
-        val writtenAll = slot<List<SensorValue>>()
-        coEvery { repoUnknown.writeReadings(any(), capture(writtenAll)) } just Runs
-        recorder(repoUnknown, supported = null, logOnlyDiscovered = true).also {
-            it.start(null)
-            it.record(listOf(rpm, speed))
-        }
-        assertEquals("ohne Discovery wird nichts verworfen", listOf(rpm, speed), writtenAll.captured)
+        assertEquals(listOf(rpm, gpsSpeed), written.captured)
     }
 
     @Test

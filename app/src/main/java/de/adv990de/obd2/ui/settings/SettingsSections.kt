@@ -19,9 +19,7 @@ import de.adv990de.obd2.ui.navigation.Screen
 
 internal fun LazyListScope.recordingSection(
     logOnlyDtc: Boolean,
-    logOnlyDiscovered: Boolean,
     recordingVm: RecordingSettingsViewModel,
-    navController: NavController,
 ) {
     // ═══ Aufzeichnung ════════════════════════════════════════════
     item { SettingsGroupHeader(stringResource(R.string.settings_recording_section)) }
@@ -31,23 +29,6 @@ internal fun LazyListScope.recordingSection(
             summary = stringResource(R.string.settings_log_only_dtc_desc),
             checked = logOnlyDtc,
             onCheckedChange = { recordingVm.toggleLogOnlyDtc() },
-        )
-        HorizontalDivider()
-    }
-    item {
-        SettingsSwitchRow(
-            title = stringResource(R.string.settings_log_only_discovered),
-            summary = stringResource(R.string.settings_log_only_discovered_desc),
-            checked = logOnlyDiscovered,
-            onCheckedChange = { recordingVm.toggleLogOnlyDiscovered() },
-        )
-        HorizontalDivider()
-    }
-    item {
-        SettingsLinkRow(
-            title = stringResource(R.string.settings_logging_pids),
-            summary = stringResource(R.string.settings_logging_pids_summary),
-            onClick = { navController.navigate(Screen.LoggingConfig.route) },
         )
         HorizontalDivider()
     }

@@ -18,8 +18,6 @@ internal fun fakeAppPreferences(
     lastDevice: ScannedDevice? = null,
     showAllBtDevices: Boolean = false,
     logOnlyDtcSessions: Boolean = false,
-    logOnlyDiscoveredPids: Boolean = false,
-    loggedPidIds: Set<String> = AppPreferences.ALL_PID_IDS,
     hideNavOnDrive: Boolean = false,
     crashReportsEnabled: Boolean = true,
     useGpsSpeed: Boolean = false,
@@ -40,8 +38,6 @@ internal fun fakeAppPreferences(
     every { this@mockk.lastDevice } returns flowOf(lastDevice)
     every { this@mockk.showAllBtDevices } returns flowOf(showAllBtDevices)
     every { this@mockk.logOnlyDtcSessions } returns flowOf(logOnlyDtcSessions)
-    every { this@mockk.logOnlyDiscoveredPids } returns flowOf(logOnlyDiscoveredPids)
-    every { this@mockk.loggedPidIds } returns flowOf(loggedPidIds)
     every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
     every { this@mockk.crashReportsEnabled } returns flowOf(crashReportsEnabled)
     every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)

@@ -50,6 +50,28 @@ class PidSelectionTest {
     }
 
     @Test
+    fun `the speed is always queried when the vehicle reports it, slot or not`() {
+        assertEquals(
+            "ohne Kachel, vom Steuergeraet gemeldet",
+            listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id),
+            ids(emptyList(), supported = setOf(PidRegistry.SPEED.id, PidRegistry.RPM.id)),
+        )
+        assertEquals(
+            "als Kachel und gemeldet nur einmal",
+            listOf(PidRegistry.SPEED.id, PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id),
+            ids(listOf(PidRegistry.SPEED.id), supported = setOf(PidRegistry.SPEED.id)),
+        )
+    }
+
+    @Test
+    fun `the speed is not queried on its own when the vehicle does not report it or support is unknown`() {
+        val base = listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id)
+        assertEquals("Fahrzeug meldet sie nicht (GPS uebernimmt)", base, ids(emptyList(), supported = setOf(PidRegistry.RPM.id)))
+        assertEquals("keine Discovery gelaufen", base, ids(emptyList(), supported = null))
+        assertEquals("leere Menge gilt wie unbekannt", base, ids(emptyList(), supported = emptySet()))
+    }
+
+    @Test
     fun `the dynamic threshold adds the oil temperature, and only then`() {
         assertEquals(
             listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.ENGINE_OIL_TEMP.id),

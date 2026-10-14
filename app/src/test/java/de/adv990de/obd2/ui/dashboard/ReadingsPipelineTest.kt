@@ -335,31 +335,49 @@ class ReadingsPipelineTest {
     // --- Test 11 ---
 
     @Test
-    fun `logOnlyDiscoveredPids filters recorded readings down to supported PIDs`() = runTest {
+    fun `everything that is read is recorded - no filter against the list of the vehicle`() = runTest {
         val readings = listOf(rpm, coolantTemp)
+        // Das Steuergeraet fuehrt nur die Drehzahl; die Aufzeichnung verwirft trotzdem nichts (bis 1.27.3 tat das ein Schalter).
         val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
         val sessionRepo = makeSessionRepo()
-        val prefs = fakeAppPreferences(logOnlyDiscoveredPids = true)
 
-        makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
+        makePipeline(repo, sessionRepo = sessionRepo)
             .events(backgroundScope).take(1).toList()
 
-        coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
+        coVerify { sessionRepo.writeReadings(7L, readings) }
     }
 
     // --- Test 12 ---
 
     @Test
-    fun `without logOnlyDiscoveredPids, unsupported readings are still recorded`() = runTest {
-        val readings = listOf(rpm, coolantTemp)
-        val repo = makeRepo(connected = true, readings = readings, supported = setOf(rpm.pid.id))
+    fun `the GPS speed is recorded when the vehicle does not list the speed`() = runTest {
+        // Motorrad: die Geschwindigkeit liegt nicht auf dem OBD2-Bus, das Steuergeraet fuehrt 010D nicht. Mit GPS an gehoert sie trotzdem
+        // in die Fahrt (frueher nahm der Schalter "nur vom Fahrzeug gemeldete Werte" sie heraus).
+        val repo = makeRepo(connected = true, readings = listOf(rpm), supported = setOf(rpm.pid.id))
+        val written = slot<List<SensorValue>>()
         val sessionRepo = makeSessionRepo()
-        val prefs = fakeAppPreferences(logOnlyDiscoveredPids = false)
+        coEvery { sessionRepo.writeReadings(7L, capture(written)) } just Runs
 
-        makePipeline(repo, sessionRepo = sessionRepo, prefs = prefs)
+        makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = makeGps(42f))
             .events(backgroundScope).take(1).toList()
 
-        coVerify { sessionRepo.writeReadings(7L, readings) }
+        val speed = written.captured.single { it.pid.id == PidRegistry.SPEED.id }
+        assertEquals(ValueSource.GPS, speed.source)
+        assertEquals(42f, speed.value, 0.001f)
+    }
+
+    // --- Test 12b ---
+
+    @Test
+    fun `the speed is queried without a tile when the vehicle lists it`() = runTest {
+        val repo = makeRepo(connected = true, supported = setOf(PidRegistry.SPEED.id, PidRegistry.RPM.id))
+        val pidsSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
+        val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.ENGINE_LOAD.id, "", "", ""))
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        assertTrue(PidRegistry.SPEED.id in pidsSlot.captured.map { it.id })
     }
 
     // --- Test 13 ---
