@@ -450,6 +450,7 @@ bereits abgebrochener Aufrufer legt keine Fahrt an, und wird er während des Ins
 verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs“ legt bei DTC-freiem Fahrzeug **gar keine Fahrt** mehr an
 (statt aufzuzeichnen und am Ende zu verwerfen).
 
+**Die Aufzeichnungsauswahl ist ein Filter, kein Abfrage-Auftrag:** `SessionRecorder` schreibt nur PIDs, die ohnehin abgefragt werden (die vier Kacheln, immer Drehzahl und Kühlmittel, bei dynamischer Schwelle die Öltemperatur — `selectPids`); ein Haken bei einem nicht belegten PID bewirkt nichts. Mehr Werte in einer Fahrt heißt: den PID als Kachel belegen. Ein pauschales Mitlesen aller gewählten PIDs wurde am 2026-10-14 vom Nutzer aus dem Backlog genommen (Protokoll Punkt 25; Grund: jeder PID kostet rund 0,15–0,28 s je Zyklus).
 **Die Aufzeichnungsauswahl ist eine Abwahl (seit v1.25.2).** `AppPreferences.loggedPidIds` = alle bekannten PIDs **ohne** die vom Nutzer abgewählten; gespeichert wird die Abwahl (`unlogged_pid_ids`), nicht die Auswahl.
 Eine Positivliste (`logged_pid_ids`, bis 1.25.1) lässt jeden PID aus, den es beim Speichern noch nicht gab — wer einmal einen Haken entfernt hatte, zeichnete später ergänzte PIDs nie auf, ohne es zu merken. Der alte Schlüssel wird weiter
 **gelesen** (was darin fehlt, gilt als abgewählt: der Nutzer sieht seine Auswahl unverändert, und PIDs, die schon damals fehlten, bleiben weg wie bisher) und beim ersten Schreiben abgelöst; der neue gewinnt, wenn beide stehen. Unbekannte IDs in
