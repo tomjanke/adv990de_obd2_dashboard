@@ -1622,14 +1622,27 @@ class DashboardViewModelTest {
 
     // ── B30/B26: tests with a pipeline whose events the test controls ──────────
 
-    private class Driven(val vm: DashboardViewModel, val events: kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>)
+    private class Driven(
+        val vm: DashboardViewModel,
+        val events: kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>,
+        val pipeline: ReadingsPipeline,
+    )
+
+    /**
+     * Eine strenge Pipeline-Attrappe: die Ereignisse bestimmt der Test, und die Gang-Aufzeichnung (`recordGear`) ist angenommen —
+     * das ViewModel ruft sie nach jedem OBD-Zyklus, eine strenge Attrappe ohne diese Zeile liesse die Sammlung scheitern.
+     */
+    private fun strictPipeline(events: kotlinx.coroutines.flow.Flow<SessionEvent>): ReadingsPipeline = mockk {
+        every { events(any()) } returns events
+        coEvery { recordGear(any(), any()) } just Runs
+    }
 
     private fun driven(prefs: AppPreferences = fakeAppPreferences()): Driven {
         val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
-        val pipeline = mockk<ReadingsPipeline> { every { events(any()) } returns events }
+        val pipeline = strictPipeline(events)
         val obdRepo = fakeObdRepository()
         val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle())
-        return Driven(vm, events)
+        return Driven(vm, events, pipeline)
     }
 
     private fun rpmAt(ts: Long, value: Float = 3000f) = SensorValue(pid = PidRegistry.RPM, value = value, timestamp = ts)
@@ -2401,14 +2414,14 @@ class DashboardViewModelTest {
         // Verteidigung — deshalb speist dieser Test die Wiederholungen DIREKT ein, ueber eine
         // Pipeline, die sie unbegrenzt liefert, statt sich auf deren Begrenzung zu verlassen.
         val replayed = coolantReading(85f, timestamp = 1_000L)
-        val pipeline = mockk<ReadingsPipeline> {
-            every { events(any()) } returns flow {
+        val pipeline = strictPipeline(
+            flow {
                 repeat(11 * 60) {
                     emit(SessionEvent.Values(listOf(replayed), gpsSpeedKmh = 10f))
                     delay(1_000L)
                 }
             }
-        }
+        )
         val obdRepo = fakeObdRepository()
         val vm = DashboardViewModel(
             obdRepo, fakeAppPreferences(), mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(),
@@ -2601,6 +2614,90 @@ class DashboardViewModelTest {
      * uebergeben deshalb die feingranularen Mocks — die eigenen Tests der Kollaborateure stehen
      * in `ConnectionCoordinatorTest` und `ReadingsPipelineTest`.
      */
+    // ── Der angezeigte Gang steht in der Aufzeichnung (Nutzerwunsch 2026-10-14) ───────────────────────
+
+    @Test
+    fun `each OBD cycle records the gear the display shows, stamped with the cycle`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        // 60 km/h per GPS, 5000 rpm, Rad 2000 mm, Uebersetzung 10 -> erster Gang
+        d.cycleAt(1_000L, rpm = 5000f, ecuKmh = 60f, gpsKmh = 60f)
+        advanceUntilIdle()
+
+        assertEquals(1, d.vm.uiState.value.gear)
+        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading(gear = 1, isNeutral = false), 1_000L) }
+    }
+
+    @Test
+    fun `N is recorded as N`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.cycleAt(2_000L, rpm = 1200f, ecuKmh = 0f, gpsKmh = 0f)
+        advanceUntilIdle()
+
+        assertTrue(d.vm.uiState.value.isNeutral)
+        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading(gear = null, isNeutral = true), 2_000L) }
+    }
+
+    @Test
+    fun `a cycle without a determinable gear records the dash`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        // ohne GPS-Fix kein Gang, und die Geschwindigkeit des Fahrzeugs (50) ist kein "steht" -> weder Gang noch N
+        d.cycleAt(3_000L, rpm = 1200f, ecuKmh = 50f, gpsKmh = null)
+        advanceUntilIdle()
+
+        assertEquals(null, d.vm.uiState.value.gear)
+        assertFalse(d.vm.uiState.value.isNeutral)
+        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading.Unknown, 3_000L) }
+    }
+
+    @Test
+    fun `a GPS refresh between two OBD cycles shows a new gear but records nothing`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        // dieselben OBD-Werte, neuer GPS-Fix: das Dashboard rechnet neu, die Aufzeichnung bleibt beim OBD-Takt
+        d.events.emit(SessionEvent.Values(cycle(5000f, 60f, timestamp = 1_000L), gpsSpeedKmh = 60f, isObdCycle = false))
+        advanceUntilIdle()
+
+        assertEquals(1, d.vm.uiState.value.gear)
+        coVerify(exactly = 0) { d.pipeline.recordGear(any(), any()) }
+    }
+
+    @Test
+    fun `an event without any value is no cycle and records nothing`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.events.emit(SessionEvent.Values(emptyList(), gpsSpeedKmh = null))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { d.pipeline.recordGear(any(), any()) }
+    }
+
+    @Test
+    fun `the timestamp is the newest one of the cycle`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.events.emit(
+            SessionEvent.Values(
+                listOf(
+                    SensorValue(pid = PidRegistry.RPM, value = 5000f, timestamp = 4_000L),
+                    SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 80f, timestamp = 4_250L),
+                ),
+                gpsSpeedKmh = 60f,
+            )
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { d.pipeline.recordGear(any(), 4_250L) }
+    }
+
     private fun makeVmFrom(
         obdRepo: ObdRepository,
         sessionRepo: SessionRepository,

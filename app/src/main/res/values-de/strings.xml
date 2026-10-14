@@ -305,6 +305,7 @@
     <string name="pid_engine_oil_temp">Öltemperatur</string>
     <string name="pid_engine_fuel_rate">Verbrauch</string>
     <string name="pid_speed_gps">Geschw. (GPS)</string>
+    <string name="pid_gear">Gang</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
     <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
     <string name="settings_gps_permission_missing">Standortberechtigung fehlt: Ohne den genauen Standort liefert das GPS keine Geschwindigkeit.</string>

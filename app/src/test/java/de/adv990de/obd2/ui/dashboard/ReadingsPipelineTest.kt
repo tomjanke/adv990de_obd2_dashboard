@@ -262,6 +262,96 @@ class ReadingsPipelineTest {
         coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }
     }
 
+    @Test
+    fun `only the OBD tick is flagged as an OBD cycle - a GPS refresh in between is not`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm))
+            awaitCancellation()
+        }
+        val gps: GpsSpeedSource = mockk {
+            every { speedKmh } returns flow {
+                emit(10f)
+                delay(100)
+                emit(20f)
+            }
+        }
+
+        val collected = mutableListOf<SessionEvent.Values>()
+        val job = launch {
+            makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gps)
+                .events(backgroundScope)
+                .filterIsInstance<SessionEvent.Values>()
+                .toList(collected)
+        }
+        advanceTimeBy(150)
+        job.cancel()
+
+        assertEquals(listOf(true, false), collected.map { it.isObdCycle })
+    }
+
+    // --- Gear in the recording (the gear is computed by the ViewModel, written here) ---
+
+    @Test
+    fun `the displayed gear is written into the running trip`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
+        val sessionRepo = makeSessionRepo()
+        val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
+        val job = launch { pipeline.events(backgroundScope).collect { } }
+        advanceTimeBy(1)
+        runCurrent()
+
+        val gear = GearReading(gear = 3, isNeutral = false)
+        pipeline.recordGear(gear, timestamp = 2000L)
+        job.cancel()
+
+        coVerify { sessionRepo.writeReadings(7L, listOf(gearSensorValue(gear, timestamp = 2000L))) }
+    }
+
+    @Test
+    fun `no gear is written without a running trip`() = runTest {
+        val sessionRepo = makeSessionRepo()
+        val pipeline = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
+
+        pipeline.recordGear(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)
+
+        coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
+    }
+
+    @Test
+    fun `no gear is written once the session has ended`() = runTest {
+        val sessionRepo = makeSessionRepo()
+        val pipeline = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
+        pipeline.events(backgroundScope).take(1).toList()   // the flow completes: the trip is closed
+
+        pipeline.recordGear(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)
+
+        coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }   // only the cycle itself
+    }
+
+    @Test
+    fun `a gear is not written to the trip of the next session by the one that ended`() = runTest {
+        val isConnected = MutableStateFlow(true)
+        val repo = makeRepo(connected = true)
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
+        val sessionRepo = makeSessionRepo()
+        val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
+        val job = launch { pipeline.events(backgroundScope).collect { } }
+        advanceTimeBy(1)
+        runCurrent()
+
+        isConnected.value = false   // the session ends, the pipeline idles
+        advanceTimeBy(1)
+        runCurrent()
+        pipeline.recordGear(GearReading(gear = 2, isNeutral = false), timestamp = 3000L)
+        job.cancel()
+
+        coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }
+        coVerify { sessionRepo.endSession(7L) }
+    }
+
     // --- Test 9 ---
 
     @Test

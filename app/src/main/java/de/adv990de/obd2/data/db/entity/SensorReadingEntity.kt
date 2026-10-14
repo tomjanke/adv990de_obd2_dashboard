@@ -22,7 +22,7 @@ data class SensorReadingEntity(
     val pidId: String,
     val value: Float,
     /**
-     * Woher der Wert kam: `ECU` oder `GPS` (`ValueSource.name`). `null` bei Zeilen, die vor 1.25.0 aufgezeichnet wurden — ihre Herkunft
+     * Woher der Wert kam: `ECU`, `GPS` oder `DERIVED` (von der App berechnet, z. B. der Gang) (`ValueSource.name`). `null` bei Zeilen, die vor 1.25.0 aufgezeichnet wurden — ihre Herkunft
      * kennt niemand (die GPS-Geschwindigkeit trug dieselbe PID-ID wie die des Fahrzeugs), `ECU` zu raten waere eine Behauptung.
      */
     val source: String? = null,

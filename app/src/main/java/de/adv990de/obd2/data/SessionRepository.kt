@@ -9,7 +9,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
-import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -189,7 +188,7 @@ class SessionRepository @Inject constructor(
                                 cursor.getLong(colTimestamp).toString(),
                                 pidId,
                                 cursor.getFloat(colValue).toString(),
-                                PidRegistry.all[pidId]?.name.orEmpty(),
+                                csvPidName(pidId),
                                 cursor.getString(colSource).orEmpty(),
                             )
                         )

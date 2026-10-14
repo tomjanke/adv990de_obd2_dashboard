@@ -25,7 +25,8 @@ internal class SessionRecorder(
     private val crashReporter: CrashReporter,
     private val log: suspend (LogLevel, String) -> Unit,
 ) {
-    private var sessionId = NO_SESSION
+    // @Volatile: [record] kommt auch vom ViewModel (der Gang, `ReadingsPipeline.recordGear`), [end] vom Ende der Sitzung — verschiedene Coroutinen.
+    @Volatile private var sessionId = NO_SESSION
     private var failureReported = false
 
     /** Legt die Fahrt an. Scheitert das, laeuft die Anzeige ohne Aufzeichnung weiter. */
@@ -39,7 +40,10 @@ internal class SessionRecorder(
         }
     }
 
-    /** Schreibt einen zusammengefuehrten Zyklus (alle uebergebenen Werte). */
+    /**
+     * Schreibt einen zusammengefuehrten Zyklus (alle uebergebenen Werte) oder einen berechneten Wert zu einem Zyklus (den Gang).
+     * Nach [end] ist die Fahrt zu: ein Wert, der erst jetzt ankommt, wird verworfen statt an eine beendete Fahrt gehaengt.
+     */
     suspend fun record(values: List<SensorValue>) {
         if (sessionId == NO_SESSION) return // keine Fahrt: nichts aufzuzeichnen
         try {
@@ -50,10 +54,12 @@ internal class SessionRecorder(
         }
     }
 
-    /** Beendet die Fahrt, falls es eine gibt. Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern. */
+    /** Beendet die Fahrt, falls es eine gibt (einmal; danach ist sie zu). Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern. */
     suspend fun end() {
-        if (sessionId == NO_SESSION) return
-        try { sessionRepository.endSession(sessionId) } catch (_: Exception) {}
+        val id = sessionId
+        if (id == NO_SESSION) return
+        sessionId = NO_SESSION
+        try { sessionRepository.endSession(id) } catch (_: Exception) {}
     }
 
     private suspend fun reportFailure(e: Exception) {

@@ -166,7 +166,7 @@ class DashboardViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            readingsPipeline.events(viewModelScope).collect(::onSessionEvent)
+            readingsPipeline.events(viewModelScope).collect { onSessionEvent(it) }
         }
         // Der Link steht, sobald das Repository es sagt — nicht erst mit dem ersten Messwert (B24).
         viewModelScope.launch {
@@ -177,9 +177,16 @@ class DashboardViewModel @Inject constructor(
 
     // ── Messwert-Ereignisse ──────────────────────────────────────────────────
 
-    private fun onSessionEvent(event: SessionEvent) {
+    private suspend fun onSessionEvent(event: SessionEvent) {
         when (event) {
-            is SessionEvent.Values -> applyReadings(event.values, event.gpsSpeedKmh)
+            is SessionEvent.Values -> {
+                val shown = applyReadings(event.values, event.gpsSpeedKmh)
+                // Der angezeigte Gang gehoert in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem GPS-Zwischenupdate (dasselbe Raster wie
+                // die anderen Werte). Ein Ereignis ohne Wert ist kein Zyklus.
+                if (event.isObdCycle) {
+                    event.values.maxOfOrNull { it.timestamp }?.let { readingsPipeline.recordGear(shown, it) }
+                }
+            }
             SessionEvent.Idle -> applyIdle()
             SessionEvent.Stale -> applyStale()
             SessionEvent.ConnectionLost -> startReconnecting()
@@ -208,7 +215,8 @@ class DashboardViewModel @Inject constructor(
         )
     }
 
-    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?) {
+    /** Rechnet die Anzeige fuer einen Zyklus neu und liefert, was die Gang-Box jetzt zeigt (der Aufrufer zeichnet es auf). */
+    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?): GearReading {
         sparklines.append(values)
         val displayIds = slotPids.value.toSet()
         val engineTempC = if (rpmDynamicThreshold.value) {
@@ -253,6 +261,7 @@ class DashboardViewModel @Inject constructor(
             error = null,
             sparklines = sparklines.snapshot()
         )
+        return gearReading
     }
 
     /**

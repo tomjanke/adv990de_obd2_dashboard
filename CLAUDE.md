@@ -452,6 +452,9 @@ verworfen (sonst bliebe eine „aktive“ Geisterfahrt). „Nur Fahrten mit DTCs
 **Was eine Fahrt aufzeichnet (Nutzerentscheidung 2026-10-14, Protokoll Punkt 26):** `SessionRecorder` schreibt **alles, was die Pipeline übergibt**, ohne weiteren Filter: die abgefragten Werte — die vier Kacheln (gefiltert gegen die vom Steuergerät gemeldeten PIDs),
 immer Drehzahl und Kühlmittel, bei dynamischer Schwelle die Öltemperatur — und die **Geschwindigkeit**. Die Geschwindigkeit gehört zu jeder Fahrt: meldet das Steuergerät `010D`, fragt `selectPids` sie auch **ohne Kachel** ab; meldet es sie nicht (bei Motorrädern oft: ABS-Steuergerät, nicht auf dem
 OBD2-Bus), ergänzt `mergeGpsSpeed` die GPS-Geschwindigkeit (Herkunft `GPS`, Einstellung „Geschwindigkeit per GPS“) — das geschieht unabhängig von den Kacheln. Ohne Discovery-Ergebnis fragt `selectPids` die Geschwindigkeit nicht von sich aus ab (ein Fahrzeug ohne `010D` kostete sonst jeden Zyklus einen vergeblichen Befehl, bei einem Zeitlimit 5 s); dann gilt wie bisher nur die Kachel.
+**Der angezeigte Gang steht auch in der Fahrt (Nutzerwunsch 2026-10-14, Protokoll Punkt 27):** je OBD-Zyklus eine Zeile `pid = GEAR`, Wert **1–6 = Gang, 0 = „N“, −1 = nicht bestimmbar („–“)** (`gearRecordValue`, `ui/dashboard/GearRecording.kt` — **die Zahlen nie ändern**, die Auswertung liest sie), `source = DERIVED` (`ValueSource`), Name `Gear` (`DerivedPids.GEAR`, bewusst **nicht** in der `PidRegistry`: sonst Kachelauswahl, Discovery, Abfrage).
+Es ist die **Anzeige** der Gang-Box (Hysterese, Anzeige-Halten, GPS-Gegenprobe), keine zweite Berechnung: der Gang entsteht im `DashboardViewModel` (`GearTracker`), das nach jedem OBD-Zyklus `ReadingsPipeline.recordGear(…, Zeitstempel des Zyklus)` ruft — **nicht** bei den GPS-Zwischenupdates (`SessionEvent.Values.isObdCycle = false`). Das ViewModel schreibt aus einer eigenen Coroutine: die Gang-Zeile steht nicht zwingend direkt hinter ihrem Zyklus (Zeitstempel zählt), und ein Gang, der erst nach dem Sitzungsende ankommt, wird verworfen (`SessionRecorder.end()` schließt die Fahrt). „−1“ ist eine Zeile wie jede andere (Wahl des Nutzers): so ist „Gang unbekannt“ von „kein Zyklus“ zu unterscheiden. Grenzen: ältere Fahrten haben keinen Gang; Radumfang und Übersetzungen der Fahrtzeit werden nicht mitgespeichert; „N“ heißt „steht, Motor läuft“ (auch bei gezogener Kupplung).
+**Test-Falle:** eine strenge `ReadingsPipeline`-Attrappe (`mockk<ReadingsPipeline>`) muss `recordGear` annehmen (`DashboardViewModelTest.strictPipeline`), sonst scheitert die Sammlung der Ereignisse am ersten Zyklus.
 **Die Kachelauswahl bietet nur vom Steuergerät gemeldete Werte** (`DashboardViewModel.availablePids`; die Geschwindigkeit bleibt bei eingeschaltetem GPS wählbar; ohne Verbindung oder ohne Liste stehen alle zur Wahl). Mehr Werte in einer Fahrt heißt: den PID als Kachel belegen. Ein pauschales Mitlesen aller unterstützten Werte lehnte der Nutzer ab
 (Protokoll Punkt 25: jeder PID kostet rund 0,15–0,28 s je Zyklus, der Zyklus würde von 1,1–1,6 s auf geschätzt 3–6 s wachsen, Drehzahlbalken und Ganganzeige würden träge).
 **Entfernt (1.28.0):** der Schalter „Nur vom Fahrzeug gemeldete Werte speichern“ (er nahm Fahrzeugen ohne Geschwindigkeit die GPS-Geschwindigkeit aus der Fahrt und war sonst fast wirkungslos, weil nicht gemeldete Kachel-PIDs bei erfolgreicher Discovery gar nicht erst abgefragt werden) und die Liste „Aufzeichnung filtern“ samt Bildschirm und Route
@@ -705,7 +708,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   Auswertung einer Testfahrt (Gang-Toleranzen, Vergleich ECU gegen GPS) entscheidend. `SensorValue.source: ValueSource` (`ECU` als Standard, `GPS`); `mergeGpsSpeed` markiert, was es ergänzt.
 - **Datenbank v4:** `sensor_readings.source` (`TEXT`, **nullable, ohne Vorgabewert**), `MIGRATION_3_4` = `ALTER TABLE … ADD COLUMN source TEXT` (von Hand, in `ALL_MIGRATIONS`; `AppDatabaseMigrationTest` prüft Form, Erhalt der Altdaten und das Schreiben über das DAO). Zeilen aus der Zeit vor 1.25.0 bleiben
   `NULL` = **unbekannt**: ihre Herkunft kennt niemand, `ECU` zu raten wäre eine Behauptung. Der CSV-Export schreibt für sie ein leeres Feld. Ein früher exportiertes, nie ausgeliefertes `4.json` (Kopie von 3.json, Commit 84e35f6) wurde vom echten Schema ersetzt.
-- **Die Namen `ECU`/`GPS` stehen als Text in Datenbank und CSV — nie umbenennen** (`ValueSource.name`). Das CSV hat jetzt fünf Spalten `timestamp,pid,value,name,source`; die ersten vier sind unverändert, ein Parser nach Position läuft weiter.
+- **Die Namen `ECU`/`GPS`/`DERIVED` stehen als Text in Datenbank und CSV — nie umbenennen** (`ValueSource.name`; `DERIVED` seit 2026-10-14 für berechnete Werte, heute der Gang, s. „Was eine Fahrt aufzeichnet“). Keine Migration nötig: `pidId` und `source` sind Text. Das CSV hat jetzt fünf Spalten `timestamp,pid,value,name,source`; die ersten vier sind unverändert, ein Parser nach Position läuft weiter.
 - **Rückweg auf ältere APKs:** wie schon seit v1.23.0 (Datenbank v3) gibt es keinen Downgrade-Pfad — ein APK ≤ 1.24.x kann eine v4-Datenbank nicht öffnen; nur mit gelöschten App-Daten.
 
 ### Zeitlimit-Richtlinie und Altbytes (seit v1.25.0, PRO-13)
@@ -981,8 +984,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1464 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 325 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1489 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 326 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

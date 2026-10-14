@@ -135,7 +135,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1464 Tests, < 30 Sekunden)
+# JVM Unit Tests (1489 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -144,9 +144,9 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1464 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1489 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 251 (Dashboard, Preview Banner, RpmBar, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 52 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 53 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
@@ -296,13 +296,13 @@ Ist beim Bauen die Env-Variable bzw. Gradle-Property `SENTRY_DSN` gesetzt (Manif
 Mit DSN gilt zur Laufzeit: Sentry startet **nicht von selbst** (`io.sentry.auto-init=false`), sondern erst, nachdem die Einstellung gelesen ist; die Einstellung **„Absturzberichte senden“** (Info & Wartung, Standard an) startet und stoppt es sofort. Gesendet werden bei einem Absturz oder unerwarteten Fehler technische Fehlerdetails, Gerätemodell und Android-Version. Die App-Info zeigt, ob Absturzberichte an, aus oder in dieser Version nicht enthalten sind. Eingebunden ist nur `sentry-android-core` — ohne Native-Handler und Replay (vorher lagen `libsentry.so`/`libsentry-android.so` in drei Architekturen im APK, obwohl die App keinen eigenen Native-Code hat). Bekannte Grenze: Ein Absturz in den ersten Millisekunden nach dem Prozessstart, bevor die Einstellung gelesen ist, wird nicht gemeldet.
 
 ### CSV-Export einer Fahrt
-Ein Export (Verlauf → Teilen) schreibt `session_<Fahrt>_<UTC-Zeit>.csv` in den Cache — je Export eine eigene Datei, nie eine überschriebene. Spalten: `timestamp` (Millisekunden seit 1970), `pid` (z. B. `010C`), `value` (metrisch, Punkt als Dezimaltrennzeichen), `name` (stabiler englischer PID-Name, z. B. `RPM`), `source` (`ECU` oder `GPS`). Die ersten drei Spalten sind unverändert; `name` und `source` stehen hinten, damit Auswertungen nach Position weiterlaufen. `source` unterscheidet die Geschwindigkeit des Fahrzeugs von der des GPS (beide tragen die PID `010D`); bei Fahrten, die vor Version 1.25.0 aufgezeichnet wurden, bleibt das Feld leer, weil ihre Herkunft nicht bekannt ist. Die Zeilen stehen in Aufzeichnungsreihenfolge und werden ohne Sortierlauf gestreamt (konstanter Speicher auch bei langen Fahrten). Bekannte Grenze: Excel macht beim Doppelklick-Öffnen aus der Spalte `pid` Zahlen wie `0105` → 105 (Anführungszeichen verhindern das nicht); die Spalte `name` identifiziert den Wert trotzdem, oder die Datei als Text importieren.
+Ein Export (Verlauf → Teilen) schreibt `session_<Fahrt>_<UTC-Zeit>.csv` in den Cache — je Export eine eigene Datei, nie eine überschriebene. Spalten: `timestamp` (Millisekunden seit 1970), `pid` (z. B. `010C`), `value` (metrisch, Punkt als Dezimaltrennzeichen), `name` (stabiler englischer PID-Name, z. B. `RPM`), `source` (`ECU`, `GPS` oder `DERIVED` = von der App berechnet). Die ersten drei Spalten sind unverändert; `name` und `source` stehen hinten, damit Auswertungen nach Position weiterlaufen. `source` unterscheidet die Geschwindigkeit des Fahrzeugs von der des GPS (beide tragen die PID `010D`); bei Fahrten, die vor Version 1.25.0 aufgezeichnet wurden, bleibt das Feld leer, weil ihre Herkunft nicht bekannt ist. Der Gang steht als PID `GEAR` (Name `Gear`, `source` `DERIVED`): `1`–`6` = Gang, `0` = „N“, `-1` = nicht bestimmbar — es ist die Anzeige der Gang-Box (mit Hysterese und Halten), keine zweite Berechnung; er hängt am Radumfang und an den Übersetzungen, die zur Fahrtzeit eingetragen waren (sie werden nicht mitgespeichert), und fehlt in Fahrten vor dieser Version. Die Gang-Zeile eines Zyklus trägt dessen Zeitstempel, steht in der Datei aber nicht zwingend direkt hinter ihm — nach Zeitstempel sortieren. Die Zeilen stehen in Aufzeichnungsreihenfolge und werden ohne Sortierlauf gestreamt (konstanter Speicher auch bei langen Fahrten). Bekannte Grenze: Excel macht beim Doppelklick-Öffnen aus der Spalte `pid` Zahlen wie `0105` → 105 (Anführungszeichen verhindern das nicht); die Spalte `name` identifiziert den Wert trotzdem, oder die Datei als Text importieren.
 
 ### Benutzerseitige Einstellungen
 Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - **Verbindung:** gekoppeltes Gerät (Auto-Connect zum letzten Gerät), „Alle gekoppelten Geräte“ anzeigen, Reconnect bei eingefrorenen Werten (OBD-Watchdog), Reconnect-Basisverzögerung
 - **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
-- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“. Gespeichert wird, was die App abfragt: die Werte der Kacheln (zur Auswahl stehen nur Werte, die das Steuergerät als unterstützt meldet), immer Drehzahl und Kühlmittel und die Geschwindigkeit — vom Fahrzeug, wenn es sie meldet, sonst per GPS („Geschwindigkeit per GPS“). Mehr Werte in einer Fahrt: als Kachel belegen
+- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“. Gespeichert wird, was die App abfragt: die Werte der Kacheln (zur Auswahl stehen nur Werte, die das Steuergerät als unterstützt meldet), immer Drehzahl und Kühlmittel und die Geschwindigkeit — vom Fahrzeug, wenn es sie meldet, sonst per GPS („Geschwindigkeit per GPS“) — und der **angezeigte Gang** (1–6, „N“ als 0, nicht bestimmbar als −1; Herkunft `DERIVED`, je OBD-Zyklus eine Zeile, auch wenn die Gang-Box „–“ zeigt). Mehr Werte in einer Fahrt: als Kachel belegen
 - **Fahrzeug:** Fahrzeuginfo (FIN)
 - **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte; von dort die Open-Source-Lizenzen)
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
@@ -363,7 +363,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1464) |
+| `app/src/test/` | JVM-Unit-Tests (1489) |
 | `app/src/androidTest/` | Instrumented Tests (325, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

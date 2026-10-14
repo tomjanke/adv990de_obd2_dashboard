@@ -7,6 +7,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.dashboard.GearReading
+import de.adv990de.obd2.ui.dashboard.gearSensorValue
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -149,6 +153,29 @@ class SessionRepositoryDeviceTest {
         assertEquals(
             "timestamp,pid,value,name,source\n300,010C,1.5,RPM,ECU\n100,0105,1.5,Coolant Temp,GPS\n200,01FF,1.5,,\n",
             file.readText()
+        )
+    }
+
+    @Test
+    fun theDisplayedGear_isWrittenThroughTheRepository_andExportedWithItsNameAndSource() = runBlocking {
+        // 2026-10-14: the gear box's gear is a row like any other — pid GEAR, 1-6 = gear, 0 = N, -1 = not determinable, source DERIVED.
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exportDir = java.io.File(ctx.cacheDir, "exports").also { it.deleteRecursively() }
+        val trip = repo.startSession()
+
+        repo.writeReadings(trip, listOf(SensorValue(PidRegistry.RPM, 3000f, timestamp = 100L)))
+        repo.writeReadings(trip, listOf(gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 100L)))
+        repo.writeReadings(trip, listOf(gearSensorValue(GearReading(gear = null, isNeutral = true), timestamp = 200L)))
+        repo.writeReadings(trip, listOf(gearSensorValue(GearReading.Unknown, timestamp = 300L)))
+        repo.exportToCsv(trip)
+
+        assertEquals(
+            "timestamp,pid,value,name,source\n" +
+                "100,010C,3000.0,RPM,ECU\n" +
+                "100,GEAR,3.0,Gear,DERIVED\n" +
+                "200,GEAR,0.0,Gear,DERIVED\n" +
+                "300,GEAR,-1.0,Gear,DERIVED\n",
+            exportDir.listFiles()!!.single().readText()
         )
     }
 }

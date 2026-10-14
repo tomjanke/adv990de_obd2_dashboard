@@ -58,6 +58,10 @@ class ReadingsPipeline @Inject constructor(
     private val dtcHistoryRepository: DtcHistoryRepository,
 ) {
 
+    /** Die Aufzeichnung der laufenden Sitzung (`null` ausserhalb einer Sitzung) — das Ziel von [recordGear]. */
+    @Volatile
+    private var activeRecorder: SessionRecorder? = null
+
     /**
      * Die zuletzt vom Fahrzeug gelesenen, noch NICHT mit GPS zusammengefuehrten Werte eines
      * OBD-Zyklus. Existiert nur, damit [gpsRefresh] zwischen zwei OBD-Zyklen erneut zusammenfuehren
@@ -238,7 +242,7 @@ class ReadingsPipeline @Inject constructor(
             val readings = lastObdReadings.value ?: return@mapNotNull null
             mergeGpsSpeed(readings, gpsKmh) to gpsKmh
         }.onEach { (merged, _) -> applyMerged(merged) }
-            .map { (merged, gpsKmh) -> SessionEvent.Values(merged, gpsKmh) }
+            .map { (merged, gpsKmh) -> SessionEvent.Values(merged, gpsKmh, isObdCycle = false) }
 
     private fun runSession(slotIds: List<String>, gpsSpeed: StateFlow<Float?>): Flow<SessionEvent> = flow {
         // Stand der Nutzer-Trennungen beim Start dieser Sitzung. "Trennen" schliesst den Socket; ein gerade
@@ -307,6 +311,7 @@ class ReadingsPipeline @Inject constructor(
         val recordThisTrip = !(logOnlyDtc && !hasDtcForRecording)
 
         val recorder = SessionRecorder(sessionRepository, crashReporter, ::logBestEffort)
+        activeRecorder = recorder
         try {
             if (recordThisTrip) recorder.start(vin)
             emitAll(
@@ -344,8 +349,25 @@ class ReadingsPipeline @Inject constructor(
             crashReporter.recordException(e)
             emit(SessionEvent.Failed(ObdErrorMapper.toUiText(e)))
         } finally {
+            // Nur die eigene Aufzeichnung abmelden: eine Sitzung, die eine neue ersetzt (flatMapLatest), hat ihre schon eingetragen.
+            if (activeRecorder === recorder) activeRecorder = null
             recorder.end()
         }
+    }
+
+    /**
+     * Schreibt den Gang, den die Gang-Box nach einem OBD-Zyklus zeigt, in die laufende Fahrt (Nutzerwunsch 2026-10-14). Der Gang entsteht im
+     * `DashboardViewModel` (`GearTracker`: Hysterese, Anzeige-Halten, "N", GPS-Gegenprobe), die Aufzeichnung gehoert hierher — eine zweite
+     * Berechnung an dieser Stelle wuerde von der Anzeige abweichen. Das ViewModel ruft es je OBD-Zyklus ([SessionEvent.Values.isObdCycle]),
+     * mit dem Zeitstempel des Zyklus.
+     *
+     * Ohne laufende Sitzung oder ohne angelegte Fahrt ("nur Fahrten mit DTCs") passiert nichts; nach dem Ende der Sitzung wird ein spaet
+     * eintreffender Gang verworfen (der Recorder ist dann zu). Wirft nie ausser der Abbruch-Ausnahme: ein Datenbankfehler wird einmal je
+     * Sitzung gemeldet, wie bei den Messwerten. **Reihenfolge:** die Gang-Zeile folgt dem Zyklus, steht aber nicht zwingend direkt hinter
+     * ihm (das ViewModel schreibt aus einer eigenen Coroutine); der Zeitstempel ist der des Zyklus.
+     */
+    internal suspend fun recordGear(reading: GearReading, timestamp: Long) {
+        activeRecorder?.record(listOf(gearSensorValue(reading, timestamp)))
     }
 
     /**

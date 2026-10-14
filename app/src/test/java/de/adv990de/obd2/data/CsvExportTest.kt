@@ -136,6 +136,26 @@ class CsvExportTest {
         assertEquals(24L * 60 * 60 * 1000, EXPORT_MAX_AGE_MS)
     }
 
+    // ── csvPidName ────────────────────────────────────────────────────────
+
+    @Test
+    fun `an OBD PID is named by the registry`() {
+        assertEquals("RPM", csvPidName("010C"))
+        assertEquals("Speed", csvPidName("010D"))
+        assertEquals("Coolant Temp", csvPidName("0105"))
+    }
+
+    @Test
+    fun `the derived gear is named Gear`() {
+        assertEquals("Gear", csvPidName("GEAR"))
+    }
+
+    @Test
+    fun `an unknown PID has an empty name`() {
+        assertEquals("", csvPidName("01FF"))
+        assertEquals("", csvPidName(""))
+    }
+
     // ── EXPORT_QUERY_SQL ──────────────────────────────────────────────────
 
     @Test

@@ -12,8 +12,15 @@ sealed interface SessionEvent {
      * tatsaechlich zum Einsatz kam ([mergeGpsSpeed] gibt dem Fahrzeugwert Vorrang, sobald das
      * Fahrzeug selbst eine Geschwindigkeit meldet). Die virtuelle Ganganzeige braucht ihn separat
      * und exklusiv, s. Kommentar in `DashboardViewModel.applyReadings()`.
+     *
+     * [isObdCycle] ist `false` fuer die Zwischenupdates, die ein neuer GPS-Fix ausloest (`ReadingsPipeline.gpsRefresh`: dieselben OBD-Werte
+     * noch einmal, mit neuer Geschwindigkeit). Die Anzeige rechnet damit neu; aufgezeichnet wird nur je echtem OBD-Zyklus (auch der Gang).
      */
-    data class Values(val values: List<SensorValue>, val gpsSpeedKmh: Float?) : SessionEvent
+    data class Values(
+        val values: List<SensorValue>,
+        val gpsSpeedKmh: Float?,
+        val isObdCycle: Boolean = true,
+    ) : SessionEvent
 
     /** Keine Verbindung — es fliessen keine Werte. */
     data object Idle : SessionEvent

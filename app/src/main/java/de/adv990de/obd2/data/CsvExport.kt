@@ -1,5 +1,7 @@
 package de.adv990de.obd2.data
 
+import de.adv990de.obd2.obd.DerivedPids
+import de.adv990de.obd2.obd.PidRegistry
 import java.io.File
 import java.time.Instant
 import java.time.ZoneOffset
@@ -32,6 +34,13 @@ internal const val EXPORT_QUERY_SQL =
 internal fun csvField(value: String): String =
     if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"" + value.replace("\"", "\"\"") + "\""
     else value
+
+/**
+ * Der stabile Klartext-Name einer PID-Spalte: OBD-PIDs nennt die [PidRegistry], berechnete Werte (der Gang) [DerivedPids]; eine unbekannte Id
+ * (Altdaten, spaeter entfernte PIDs) hat einen leeren Namen.
+ */
+internal fun csvPidName(pidId: String): String =
+    (PidRegistry.all[pidId] ?: DerivedPids.all[pidId])?.name.orEmpty()
 
 /** Eine CSV-Zeile samt abschliessendem Zeilenumbruch. */
 internal fun csvRow(vararg fields: String): String = fields.joinToString(",") { csvField(it) } + "\n"

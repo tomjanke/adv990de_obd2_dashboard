@@ -125,6 +125,33 @@ class SessionRecorderTest {
     }
 
     @Test
+    fun `the displayed gear is written like any other value - a derived value on the gear PID`() = runTest {
+        val repo = sessions(startResult = 5L)
+        val recorder = recorder(repo)
+        recorder.start(null)
+        val gear = gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)
+
+        recorder.record(listOf(gear))
+
+        coVerify { repo.writeReadings(5L, listOf(gear)) }
+    }
+
+    @Test
+    fun `after end nothing more is written - a value that arrives late is dropped, not added to a closed trip`() = runTest {
+        val repo = sessions(startResult = 9L)
+        val recorder = recorder(repo)
+        recorder.start(null)
+        recorder.record(listOf(rpm))
+
+        recorder.end()
+        recorder.record(listOf(gearSensorValue(GearReading.Unknown, timestamp = 3000L)))
+        recorder.end()   // zweimal enden schadet nicht und schliesst die Fahrt nicht zweimal
+
+        coVerify(exactly = 1) { repo.writeReadings(any(), any()) }
+        coVerify(exactly = 1) { repo.endSession(9L) }
+    }
+
+    @Test
     fun `without start there is nothing to record or end`() = runTest {
         val repo = sessions()
         val recorder = recorder(repo)
