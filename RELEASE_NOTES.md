@@ -1,5 +1,22 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.28.0 (versionCode 106)
+
+Die Aufzeichnung ist einfacher: Gespeichert wird, was die App abfragt, und die Geschwindigkeit ist immer dabei. Zwei Einstellungen, die verwirrten und bei Fahrzeugen ohne Geschwindigkeit sogar schadeten, sind entfernt.
+
+### Aufzeichnung
+
+- **Gespeichert wird alles, was die App abfragt:** die Werte der Kacheln, immer Drehzahl und Kühlmittel und bei eingeschalteter dynamischer Drehzahl-Schwelle die Öltemperatur. Es gibt keinen weiteren Filter. Mehr Werte in einer Fahrt bekommt man, indem man sie als Kachel belegt.
+- **Die Geschwindigkeit ist immer in der Fahrt.** Meldet das Steuergerät die Geschwindigkeit, wird sie jetzt auch ohne Kachel abgefragt. Meldet es sie nicht (bei Motorrädern oft: sie liegt im ABS-Steuergerät, nicht auf dem OBD2-Bus), kommt die GPS-Geschwindigkeit, solange „Geschwindigkeit per GPS“ an ist. Ohne Liste vom Steuergerät wird sie nicht von sich aus abgefragt, dann gilt wie bisher nur die Kachel.
+- **Entfernt: „Nur vom Fahrzeug gemeldete Werte speichern“.** Der Schalter verwarf bei Fahrzeugen, die keine Geschwindigkeit melden, die GPS-Geschwindigkeit aus der Fahrt und war sonst fast wirkungslos, weil nicht gemeldete Werte gar nicht erst abgefragt werden.
+- **Entfernt: die Liste „Aufzeichnung filtern“ (vorher „Aufgezeichnete PIDs“) samt Bildschirm.** Ein Haken bei einem Wert ohne Kachel bewirkte nie etwas, und alle 19 Zeilen standen angehakt da. Wer früher Werte abgewählt hatte, sieht sie jetzt wieder aufgezeichnet, sofern sie abgefragt werden. Die alten Einstellungswerte bleiben ungelesen im Gerät liegen.
+- **Unverändert:** „Nur Fahrten mit DTCs speichern“ und die Auswahl der Kacheln. Sie bot schon nur Werte, die das Steuergerät als unterstützt meldet (die Geschwindigkeit bleibt bei eingeschaltetem GPS wählbar; ohne Verbindung oder ohne Liste stehen alle zur Wahl).
+
+### Tests
+
+- 1464 JVM-Tests (−26: die Tests der entfernten Einstellungen und des Bildschirms fielen weg; neu sind 5, darunter zwei, die ohne die Geschwindigkeits-Regel rot werden), 325 Instrumentation-Tests (−7 mit dem Bildschirm). Lint: 0 Fehler, 1 Warnung (neuere Gradle-Version 9.8.1, bewusst nicht genommen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft. **Grenzen:** Ein Geräte-Gesamtlauf hatte einen Fehlschlag (`PreviewsRenderDeviceTest`, „No compose hierarchies found“, ungewöhnlich langer Lauf); einzeln und in einem zweiten Gesamtlauf war er grün, die Ursache ist nicht geklärt. Die Einstellungsseite wurde nicht per Bildschirmfoto angesehen, und das Verhalten an einem echten Fahrzeug ist nicht getestet, nur per Fakes.
+
 ## Version 1.27.3 (versionCode 105)
 
 Die Texte der Aufzeichnungs-Einstellungen sagen jetzt, was die Aufzeichnung tatsächlich tut. Am Verhalten ändert sich nichts.
