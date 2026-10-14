@@ -14,10 +14,12 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.fakeObdRepository
 import de.adv990de.obd2.location.GpsSpeedSource
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.obd.model.ValueSource
 import de.adv990de.obd2.ui.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -1626,23 +1628,30 @@ class DashboardViewModelTest {
         val vm: DashboardViewModel,
         val events: kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>,
         val pipeline: ReadingsPipeline,
+        /** Was das ViewModel je OBD-Zyklus an `recordDerived` uebergab, in der Reihenfolge der Aufrufe. */
+        val recorded: List<List<SensorValue>>,
     )
 
     /**
-     * Eine strenge Pipeline-Attrappe: die Ereignisse bestimmt der Test, und die Gang-Aufzeichnung (`recordGear`) ist angenommen —
-     * das ViewModel ruft sie nach jedem OBD-Zyklus, eine strenge Attrappe ohne diese Zeile liesse die Sammlung scheitern.
+     * Eine strenge Pipeline-Attrappe: die Ereignisse bestimmt der Test, und die Aufzeichnung der abgeleiteten Werte (`recordDerived`: Gang
+     * und Oel-Balken) ist angenommen — das ViewModel ruft sie nach jedem OBD-Zyklus, eine strenge Attrappe ohne diese Zeile liesse die
+     * Sammlung scheitern. Was uebergeben wird, sammelt [recorded].
      */
-    private fun strictPipeline(events: kotlinx.coroutines.flow.Flow<SessionEvent>): ReadingsPipeline = mockk {
+    private fun strictPipeline(
+        events: kotlinx.coroutines.flow.Flow<SessionEvent>,
+        recorded: MutableList<List<SensorValue>> = mutableListOf(),
+    ): ReadingsPipeline = mockk {
         every { events(any()) } returns events
-        coEvery { recordGear(any(), any()) } just Runs
+        coEvery { recordDerived(capture(recorded)) } just Runs
     }
 
     private fun driven(prefs: AppPreferences = fakeAppPreferences()): Driven {
         val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
-        val pipeline = strictPipeline(events)
+        val recorded = mutableListOf<List<SensorValue>>()
+        val pipeline = strictPipeline(events, recorded)
         val obdRepo = fakeObdRepository()
         val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle())
-        return Driven(vm, events, pipeline)
+        return Driven(vm, events, pipeline, recorded)
     }
 
     private fun rpmAt(ts: Long, value: Float = 3000f) = SensorValue(pid = PidRegistry.RPM, value = value, timestamp = ts)
@@ -2614,7 +2623,23 @@ class DashboardViewModelTest {
      * uebergeben deshalb die feingranularen Mocks — die eigenen Tests der Kollaborateure stehen
      * in `ConnectionCoordinatorTest` und `ReadingsPipelineTest`.
      */
-    // ── Der angezeigte Gang steht in der Aufzeichnung (Nutzerwunsch 2026-10-14) ───────────────────────
+    // ── Der angezeigte Gang und die Oel-Balken-Farbe stehen in der Aufzeichnung (Nutzerwunsch 2026-10-14) ───────────────────────
+
+    /** Die Gang-Zeilen, die das ViewModel aufzeichnen liess — in der Reihenfolge der Zyklen. */
+    private fun Driven.recordedGear(): List<SensorValue> = recorded.flatten().filter { it.pid == DerivedPids.GEAR }
+
+    /** Die Oel-Balken-Zeilen, die das ViewModel aufzeichnen liess — in der Reihenfolge der Zyklen. */
+    private fun Driven.recordedOilBar(): List<SensorValue> = recorded.flatten().filter { it.pid == DerivedPids.OIL_BAR }
+
+    /** Ein OBD-Zyklus mit Kuehlmitteltemperatur (und einer Drehzahl), gestempelt mit der Uhr des ViewModels. */
+    private suspend fun Driven.coolantCycleAt(clockMs: Long, coolantC: Float?) {
+        vm.nowMillis = { clockMs }
+        val values = buildList {
+            add(SensorValue(pid = PidRegistry.RPM, value = 1200f, timestamp = clockMs))
+            if (coolantC != null) add(SensorValue(pid = PidRegistry.COOLANT_TEMP, value = coolantC, timestamp = clockMs))
+        }
+        events.emit(SessionEvent.Values(values, gpsSpeedKmh = null))
+    }
 
     @Test
     fun `each OBD cycle records the gear the display shows, stamped with the cycle`() = runTest {
@@ -2626,7 +2651,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, d.vm.uiState.value.gear)
-        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading(gear = 1, isNeutral = false), 1_000L) }
+        assertEquals(listOf(gearSensorValue(GearReading(gear = 1, isNeutral = false), 1_000L)), d.recordedGear())
     }
 
     @Test
@@ -2638,7 +2663,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertTrue(d.vm.uiState.value.isNeutral)
-        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading(gear = null, isNeutral = true), 2_000L) }
+        assertEquals(listOf(gearSensorValue(GearReading(gear = null, isNeutral = true), 2_000L)), d.recordedGear())
     }
 
     @Test
@@ -2652,7 +2677,7 @@ class DashboardViewModelTest {
 
         assertEquals(null, d.vm.uiState.value.gear)
         assertFalse(d.vm.uiState.value.isNeutral)
-        coVerify(exactly = 1) { d.pipeline.recordGear(GearReading.Unknown, 3_000L) }
+        assertEquals(listOf(gearSensorValue(GearReading.Unknown, 3_000L)), d.recordedGear())
     }
 
     @Test
@@ -2665,7 +2690,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, d.vm.uiState.value.gear)
-        coVerify(exactly = 0) { d.pipeline.recordGear(any(), any()) }
+        assertTrue("ein GPS-Zwischenupdate zeichnet nichts auf: ${d.recorded}", d.recorded.isEmpty())
     }
 
     @Test
@@ -2676,7 +2701,7 @@ class DashboardViewModelTest {
         d.events.emit(SessionEvent.Values(emptyList(), gpsSpeedKmh = null))
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { d.pipeline.recordGear(any(), any()) }
+        assertTrue("ein Ereignis ohne Wert ist kein Zyklus: ${d.recorded}", d.recorded.isEmpty())
     }
 
     @Test
@@ -2695,7 +2720,114 @@ class DashboardViewModelTest {
         )
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { d.pipeline.recordGear(any(), 4_250L) }
+        assertEquals(listOf(4_250L), d.recordedGear().map { it.timestamp })
+        assertEquals(listOf(4_250L), d.recordedOilBar().map { it.timestamp })
+    }
+
+    @Test
+    fun `each OBD cycle records the gear and the oil bar together, in one call`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = 70f)
+        advanceUntilIdle()
+
+        assertEquals(
+            "ein Aufruf je Zyklus mit beiden Zeilen, Gang zuerst",
+            listOf(listOf(gearSensorValue(GearReading.Unknown, 1_000L), oilBarSensorValue(OilBarColor.Red, 1_000L))),
+            d.recorded,
+        )
+    }
+
+    @Test
+    fun `a cold engine is recorded as red, a warm one as yellow`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = 75f)    // <= 75: rot
+        d.coolantCycleAt(2_000L, coolantC = 76f)    // darueber: gelb, solange der Gruen-Timer nicht 10 Minuten voll hat
+        advanceUntilIdle()
+
+        assertEquals(listOf(0f, 1f), d.recordedOilBar().map { it.value })
+        assertTrue(d.recordedOilBar().all { it.source == ValueSource.DERIVED })
+    }
+
+    @Test
+    fun `before the first coolant value the bar is grey and recorded as -1`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = null)
+        advanceUntilIdle()
+
+        assertEquals(null, d.vm.uiState.value.oilBarColor)
+        assertEquals(listOf(-1f), d.recordedOilBar().map { it.value })
+    }
+
+    @Test
+    fun `a cycle without a new coolant value records the colour the display keeps`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = 70f)    // rot
+        d.coolantCycleAt(2_000L, coolantC = null)   // kein Kuehlmittelwert: die Anzeige haelt Rot
+        advanceUntilIdle()
+
+        assertEquals(OilBarColor.Red, d.vm.uiState.value.oilBarColor)
+        assertEquals(listOf(0f, 0f), d.recordedOilBar().map { it.value })
+    }
+
+    @Test
+    fun `after ten minutes above 80 degrees the recorded colour is green - the one the display shows`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        // alle 30 s ein neuer Kuehlmittelwert (unter dem Luecken-Limit von 60 s), zehn Minuten lang ueber 80 Grad; jeder Zyklus wird
+        // verarbeitet, bevor die Uhr weiterspringt (das ViewModel liest sie erst beim Verarbeiten)
+        for (clock in 0L..600_000L step 30_000L) {
+            d.coolantCycleAt(clock, coolantC = 85f)
+            advanceUntilIdle()
+        }
+
+        assertEquals(OilBarColor.Green, d.vm.uiState.value.oilBarColor)
+        val colours = d.recordedOilBar().map { it.value }
+        assertEquals("bis zur letzten Minute gelb: $colours", 1f, colours[colours.size - 2], 0f)
+        assertEquals("im letzten Zyklus gruen: $colours", 2f, colours.last(), 0f)
+    }
+
+    @Test
+    fun `a short dip does not turn the recorded colour back - the debounced display is what is recorded`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        for (clock in 0L..600_000L step 30_000L) {
+            d.coolantCycleAt(clock, coolantC = 85f)
+            advanceUntilIdle()
+        }
+        for (clock in listOf(630_000L, 660_000L)) {
+            d.coolantCycleAt(clock, coolantC = 77f)    // Einbruch <= 78: der Balken bleibt gruen (Entprellen 120 s)
+            advanceUntilIdle()
+        }
+
+        assertEquals(listOf(2f, 2f, 2f), d.recordedOilBar().map { it.value }.takeLast(3))
+    }
+
+    @Test
+    fun `a dip that lasts 120 seconds turns the recorded colour back to yellow, at the cycle where the display does`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        for (clock in 0L..600_000L step 30_000L) {
+            d.coolantCycleAt(clock, coolantC = 85f)
+            advanceUntilIdle()
+        }
+        for (clock in 630_000L..750_000L step 30_000L) {   // Einbruch ab 630 s, 120 s ununterbrochen um 750 s
+            d.coolantCycleAt(clock, coolantC = 77f)
+            advanceUntilIdle()
+        }
+
+        assertEquals(OilBarColor.Yellow, d.vm.uiState.value.oilBarColor)
+        assertEquals(listOf(2f, 2f, 2f, 2f, 1f), d.recordedOilBar().map { it.value }.takeLast(5))
     }
 
     private fun makeVmFrom(

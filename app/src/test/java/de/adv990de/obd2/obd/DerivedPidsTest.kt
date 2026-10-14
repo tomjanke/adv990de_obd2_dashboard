@@ -17,14 +17,29 @@ class DerivedPidsTest {
     }
 
     @Test
+    fun `the oil bar has the stable id and name that the database and the CSV carry`() {
+        assertEquals("OIL_BAR", DerivedPids.OIL_BAR.id)
+        assertEquals("Oil bar", DerivedPids.OIL_BAR.name)
+        assertEquals("OIL_BAR", DerivedPids.OIL_BAR_ID)
+    }
+
+    @Test
     fun `derived values are not OBD PIDs - they stay out of the registry, the tile picker and the discovery`() {
-        assertFalse(PidRegistry.all.containsKey(DerivedPids.GEAR.id))
-        assertFalse(PidRegistry.all.values.contains(DerivedPids.GEAR))
+        for (derived in DerivedPids.all.values) {
+            assertFalse("${derived.id} gehoert nicht in die Registry", PidRegistry.all.containsKey(derived.id))
+            assertFalse("${derived.id} gehoert nicht in die Registry", PidRegistry.all.values.contains(derived))
+        }
     }
 
     @Test
     fun `derived values are looked up by id`() {
         assertSame(DerivedPids.GEAR, DerivedPids.all[DerivedPids.GEAR_ID])
+        assertSame(DerivedPids.OIL_BAR, DerivedPids.all[DerivedPids.OIL_BAR_ID])
+    }
+
+    @Test
+    fun `the derived values are exactly the gear and the oil bar, with different ids`() {
+        assertEquals(setOf("GEAR", "OIL_BAR"), DerivedPids.all.keys)
     }
 
     @Test

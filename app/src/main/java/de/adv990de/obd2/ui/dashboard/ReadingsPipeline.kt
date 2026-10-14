@@ -58,7 +58,7 @@ class ReadingsPipeline @Inject constructor(
     private val dtcHistoryRepository: DtcHistoryRepository,
 ) {
 
-    /** Die Aufzeichnung der laufenden Sitzung (`null` ausserhalb einer Sitzung) — das Ziel von [recordGear]. */
+    /** Die Aufzeichnung der laufenden Sitzung (`null` ausserhalb einer Sitzung) — das Ziel von [recordDerived]. */
     @Volatile
     private var activeRecorder: SessionRecorder? = null
 
@@ -356,18 +356,19 @@ class ReadingsPipeline @Inject constructor(
     }
 
     /**
-     * Schreibt den Gang, den die Gang-Box nach einem OBD-Zyklus zeigt, in die laufende Fahrt (Nutzerwunsch 2026-10-14). Der Gang entsteht im
-     * `DashboardViewModel` (`GearTracker`: Hysterese, Anzeige-Halten, "N", GPS-Gegenprobe), die Aufzeichnung gehoert hierher — eine zweite
-     * Berechnung an dieser Stelle wuerde von der Anzeige abweichen. Das ViewModel ruft es je OBD-Zyklus ([SessionEvent.Values.isObdCycle]),
-     * mit dem Zeitstempel des Zyklus.
+     * Schreibt die abgeleiteten Werte eines OBD-Zyklus — den Gang, den die Gang-Box zeigt, und die Farbe des Oel-Balkens — in die laufende Fahrt
+     * (Nutzerwuensche 2026-10-14). Beide entstehen im `DashboardViewModel` (`GearTracker`, `OilBarTracker`: Hysterese, Entprellen, Anzeige-Halten,
+     * GPS-Gegenprobe), die Aufzeichnung gehoert hierher — eine zweite Berechnung an dieser Stelle wuerde von der Anzeige abweichen. Das ViewModel
+     * ruft es je OBD-Zyklus ([SessionEvent.Values.isObdCycle]), mit dem Zeitstempel des Zyklus, und gibt die Zeilen eines Zyklus zusammen
+     * (ein Schreibvorgang).
      *
-     * Ohne laufende Sitzung oder ohne angelegte Fahrt ("nur Fahrten mit DTCs") passiert nichts; nach dem Ende der Sitzung wird ein spaet
-     * eintreffender Gang verworfen (der Recorder ist dann zu). Wirft nie ausser der Abbruch-Ausnahme: ein Datenbankfehler wird einmal je
-     * Sitzung gemeldet, wie bei den Messwerten. **Reihenfolge:** die Gang-Zeile folgt dem Zyklus, steht aber nicht zwingend direkt hinter
+     * Ohne laufende Sitzung oder ohne angelegte Fahrt ("nur Fahrten mit DTCs") passiert nichts; nach dem Ende der Sitzung werden spaet
+     * eintreffende Werte verworfen (der Recorder ist dann zu). Wirft nie ausser der Abbruch-Ausnahme: ein Datenbankfehler wird einmal je
+     * Sitzung gemeldet, wie bei den Messwerten. **Reihenfolge:** die Zeilen folgen dem Zyklus, stehen aber nicht zwingend direkt hinter
      * ihm (das ViewModel schreibt aus einer eigenen Coroutine); der Zeitstempel ist der des Zyklus.
      */
-    internal suspend fun recordGear(reading: GearReading, timestamp: Long) {
-        activeRecorder?.record(listOf(gearSensorValue(reading, timestamp)))
+    internal suspend fun recordDerived(values: List<SensorValue>) {
+        activeRecorder?.record(values)
     }
 
     /**

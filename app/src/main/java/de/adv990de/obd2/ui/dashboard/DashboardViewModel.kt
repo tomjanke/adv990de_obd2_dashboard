@@ -181,10 +181,14 @@ class DashboardViewModel @Inject constructor(
         when (event) {
             is SessionEvent.Values -> {
                 val shown = applyReadings(event.values, event.gpsSpeedKmh)
-                // Der angezeigte Gang gehoert in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem GPS-Zwischenupdate (dasselbe Raster wie
-                // die anderen Werte). Ein Ereignis ohne Wert ist kein Zyklus.
+                // Der angezeigte Gang und die Farbe des Oel-Balkens gehoeren in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem
+                // GPS-Zwischenupdate (dasselbe Raster wie die anderen Werte), beide Zeilen in einem Aufruf. Ein Ereignis ohne Wert ist kein Zyklus.
                 if (event.isObdCycle) {
-                    event.values.maxOfOrNull { it.timestamp }?.let { readingsPipeline.recordGear(shown, it) }
+                    event.values.maxOfOrNull { it.timestamp }?.let { timestamp ->
+                        readingsPipeline.recordDerived(
+                            listOf(gearSensorValue(shown.gear, timestamp), oilBarSensorValue(shown.oilBarColor, timestamp))
+                        )
+                    }
                 }
             }
             SessionEvent.Idle -> applyIdle()
@@ -215,8 +219,11 @@ class DashboardViewModel @Inject constructor(
         )
     }
 
-    /** Rechnet die Anzeige fuer einen Zyklus neu und liefert, was die Gang-Box jetzt zeigt (der Aufrufer zeichnet es auf). */
-    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?): GearReading {
+    /** Was die Anzeige nach einem Zyklus von den abgeleiteten Werten zeigt — das, was der Aufrufer aufzeichnet. */
+    private class ShownDerived(val gear: GearReading, val oilBarColor: OilBarColor?)
+
+    /** Rechnet die Anzeige fuer einen Zyklus neu und liefert, was die Gang-Box und der Oel-Balken jetzt zeigen (der Aufrufer zeichnet es auf). */
+    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?): ShownDerived {
         sparklines.append(values)
         val displayIds = slotPids.value.toSet()
         val engineTempC = if (rpmDynamicThreshold.value) {
@@ -261,7 +268,7 @@ class DashboardViewModel @Inject constructor(
             error = null,
             sparklines = sparklines.snapshot()
         )
-        return gearReading
+        return ShownDerived(gearReading, newOilBarColor)
     }
 
     /**

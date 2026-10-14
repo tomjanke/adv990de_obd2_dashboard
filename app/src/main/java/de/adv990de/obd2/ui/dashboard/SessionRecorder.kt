@@ -25,7 +25,7 @@ internal class SessionRecorder(
     private val crashReporter: CrashReporter,
     private val log: suspend (LogLevel, String) -> Unit,
 ) {
-    // @Volatile: [record] kommt auch vom ViewModel (der Gang, `ReadingsPipeline.recordGear`), [end] vom Ende der Sitzung — verschiedene Coroutinen.
+    // @Volatile: [record] kommt auch vom ViewModel (Gang und Oel-Balken, `ReadingsPipeline.recordDerived`), [end] vom Ende der Sitzung — verschiedene Coroutinen.
     @Volatile private var sessionId = NO_SESSION
     private var failureReported = false
 
@@ -41,7 +41,7 @@ internal class SessionRecorder(
     }
 
     /**
-     * Schreibt einen zusammengefuehrten Zyklus (alle uebergebenen Werte) oder einen berechneten Wert zu einem Zyklus (den Gang).
+     * Schreibt einen zusammengefuehrten Zyklus (alle uebergebenen Werte) oder berechnete Werte zu einem Zyklus (Gang und Oel-Balken).
      * Nach [end] ist die Fahrt zu: ein Wert, der erst jetzt ankommt, wird verworfen statt an eine beendete Fahrt gehaengt.
      */
     suspend fun record(values: List<SensorValue>) {

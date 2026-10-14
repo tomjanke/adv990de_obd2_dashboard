@@ -290,7 +290,7 @@ class ReadingsPipelineTest {
         assertEquals(listOf(true, false), collected.map { it.isObdCycle })
     }
 
-    // --- Gear in the recording (the gear is computed by the ViewModel, written here) ---
+    // --- Derived values in the recording (gear and oil bar are computed by the ViewModel, written here) ---
 
     @Test
     fun `the displayed gear is written into the running trip`() = runTest {
@@ -303,10 +303,30 @@ class ReadingsPipelineTest {
         runCurrent()
 
         val gear = GearReading(gear = 3, isNeutral = false)
-        pipeline.recordGear(gear, timestamp = 2000L)
+        pipeline.recordDerived(listOf(gearSensorValue(gear, timestamp = 2000L)))
         job.cancel()
 
         coVerify { sessionRepo.writeReadings(7L, listOf(gearSensorValue(gear, timestamp = 2000L))) }
+    }
+
+    @Test
+    fun `the gear and the oil bar of one cycle are written together, in one database write`() = runTest {
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
+        val sessionRepo = makeSessionRepo()
+        val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
+        val job = launch { pipeline.events(backgroundScope).collect { } }
+        advanceTimeBy(1)
+        runCurrent()
+
+        val derived = listOf(
+            gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 2000L),
+            oilBarSensorValue(OilBarColor.Green, timestamp = 2000L),
+        )
+        pipeline.recordDerived(derived)
+        job.cancel()
+
+        coVerify(exactly = 1) { sessionRepo.writeReadings(7L, derived) }
     }
 
     @Test
@@ -314,7 +334,7 @@ class ReadingsPipelineTest {
         val sessionRepo = makeSessionRepo()
         val pipeline = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
 
-        pipeline.recordGear(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)
+        pipeline.recordDerived(listOf(gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)))
 
         coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
     }
@@ -325,7 +345,7 @@ class ReadingsPipelineTest {
         val pipeline = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
         pipeline.events(backgroundScope).take(1).toList()   // the flow completes: the trip is closed
 
-        pipeline.recordGear(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)
+        pipeline.recordDerived(listOf(gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)))
 
         coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }   // only the cycle itself
     }
@@ -345,7 +365,7 @@ class ReadingsPipelineTest {
         isConnected.value = false   // the session ends, the pipeline idles
         advanceTimeBy(1)
         runCurrent()
-        pipeline.recordGear(GearReading(gear = 2, isNeutral = false), timestamp = 3000L)
+        pipeline.recordDerived(listOf(gearSensorValue(GearReading(gear = 2, isNeutral = false), timestamp = 3000L)))
         job.cancel()
 
         coVerify(exactly = 1) { sessionRepo.writeReadings(any(), any()) }

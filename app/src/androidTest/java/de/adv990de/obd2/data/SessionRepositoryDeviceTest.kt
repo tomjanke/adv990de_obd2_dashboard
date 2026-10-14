@@ -10,7 +10,9 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.dashboard.GearReading
+import de.adv990de.obd2.ui.dashboard.OilBarColor
 import de.adv990de.obd2.ui.dashboard.gearSensorValue
+import de.adv990de.obd2.ui.dashboard.oilBarSensorValue
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -175,6 +177,29 @@ class SessionRepositoryDeviceTest {
                 "100,GEAR,3.0,Gear,DERIVED\n" +
                 "200,GEAR,0.0,Gear,DERIVED\n" +
                 "300,GEAR,-1.0,Gear,DERIVED\n",
+            exportDir.listFiles()!!.single().readText()
+        )
+    }
+
+    @Test
+    fun theDisplayedOilBarColour_isWrittenThroughTheRepository_andExportedWithItsNameAndSource() = runBlocking {
+        // 2026-10-14: the oil bar's colour is a row like any other — pid OIL_BAR, 0 = red, 1 = yellow, 2 = green, -1 = grey, source DERIVED.
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exportDir = java.io.File(ctx.cacheDir, "exports").also { it.deleteRecursively() }
+        val trip = repo.startSession()
+
+        repo.writeReadings(trip, listOf(oilBarSensorValue(null, timestamp = 100L)))
+        repo.writeReadings(trip, listOf(oilBarSensorValue(OilBarColor.Red, timestamp = 200L)))
+        repo.writeReadings(trip, listOf(oilBarSensorValue(OilBarColor.Yellow, timestamp = 300L)))
+        repo.writeReadings(trip, listOf(oilBarSensorValue(OilBarColor.Green, timestamp = 400L)))
+        repo.exportToCsv(trip)
+
+        assertEquals(
+            "timestamp,pid,value,name,source\n" +
+                "100,OIL_BAR,-1.0,Oil bar,DERIVED\n" +
+                "200,OIL_BAR,0.0,Oil bar,DERIVED\n" +
+                "300,OIL_BAR,1.0,Oil bar,DERIVED\n" +
+                "400,OIL_BAR,2.0,Oil bar,DERIVED\n",
             exportDir.listFiles()!!.single().readText()
         )
     }

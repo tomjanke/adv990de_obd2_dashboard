@@ -151,6 +151,11 @@ class CsvExportTest {
     }
 
     @Test
+    fun `the derived oil bar is named Oil bar`() {
+        assertEquals("Oil bar", csvPidName("OIL_BAR"))
+    }
+
+    @Test
     fun `an unknown PID has an empty name`() {
         assertEquals("", csvPidName("01FF"))
         assertEquals("", csvPidName(""))
