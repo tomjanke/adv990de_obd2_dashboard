@@ -287,6 +287,7 @@ class DashboardViewModel @Inject constructor(
             gear = gearReading.gear,
             isNeutral = gearReading.isNeutral,
             oilBarColor = newOilBarColor,
+            oilBarGreenInMillis = oilBarTracker.greenInMillis(),
             isConnected = true,
             isReconnecting = false,
             isStale = false,
@@ -339,6 +340,7 @@ class DashboardViewModel @Inject constructor(
                 gear = null,
                 isNeutral = false,
                 oilBarColor = null,
+                oilBarGreenInMillis = OIL_BAR_GREEN_HOLD_MS,
                 sparklines = emptyMap(),
             )
         } else {

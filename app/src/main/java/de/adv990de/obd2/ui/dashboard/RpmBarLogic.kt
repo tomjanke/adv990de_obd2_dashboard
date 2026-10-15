@@ -99,6 +99,17 @@ internal fun oilBarStripColor(color: OilBarColor?, isLive: Boolean, idleColor: C
         OilBarColor.Green  -> StatusColors.TrafficLightGreen
     }
 
+/**
+ * Der Anteil des Oel-Streifens, der waehrend der Timerphase bereits gruen ist (Nutzerwunsch 2026-10-16: der Timer als fortlaufender Farbwechsel
+ * des gelben Balkens von links nach rechts): `1 - Restzeit / 10 Minuten`, auf 0..1 begrenzt. **Nur wenn der Timer wirklich laeuft:** live **und**
+ * gelb **und** Restzeit unter der vollen Dauer — in jedem anderen Zustand 0 (Rot, Gruen und Grau zeigen ihre eigene Farbe; ein Timer, der nicht
+ * laeuft, meldet die volle Dauer, s. [oilBarGreenInMillis]). Reine Funktion; mit der Restzeit 0 ist der Streifen ganz gruen, genau dann
+ * wechselt auch die Farbe ([oilBarColor]) auf Gruen.
+ */
+internal fun oilBarGreenShare(color: OilBarColor?, isLive: Boolean, greenInMillis: Long): Float =
+    if (!isLive || color != OilBarColor.Yellow) 0f
+    else (1f - greenInMillis.toFloat() / OIL_BAR_GREEN_HOLD_MS).coerceIn(0f, 1f)
+
 /** Was die Gang-Box neben dem RPM-Balken zeigt: ein Gang, Leerlauf ("N") oder "–". */
 internal sealed interface GearBoxContent {
     data object Neutral : GearBoxContent

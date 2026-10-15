@@ -22,6 +22,11 @@ data class DashboardUiState(
     val isNeutral: Boolean = false,
     val oilBarColor: OilBarColor? = null,
     /**
+     * Die Restzeit bis der Oel-Balken gruen wird ([oilBarGreenInMillis] in `OilTemperatureBar.kt`); die volle Dauer ([OIL_BAR_GREEN_HOLD_MS]), solange der Timer nicht laeuft.
+     * Der Streifen zeigt daraus den Timer als fortlaufenden Farbwechsel von Gelb nach Gruen ([oilBarGreenShare], Nutzerwunsch 2026-10-16).
+     */
+    val oilBarGreenInMillis: Long = OIL_BAR_GREEN_HOLD_MS,
+    /**
      * Die Verbindung steht, aber das Steuergeraet liefert seit [OBD_STALE_AFTER_MS] keine Messwerte
      * mehr (z. B. Zuendung aus): Kacheln und Drehzahlbalken zeigen dann "--" statt alter Zahlen
      * ([SessionEvent.Stale]). Mit der Verbindung ist [isConnected] false und dieses Feld auch.

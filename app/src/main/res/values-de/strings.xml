@@ -30,6 +30,7 @@
     <!-- Simulierte Oeltemperatur-Leiste (keine sichtbare Beschriftung, nur Accessibility) -->
     <string name="oil_bar_red_desc">Wahrscheinliche Öltemperatur: kalt</string>
     <string name="oil_bar_yellow_desc">Wahrscheinliche Öltemperatur: wird warm</string>
+    <string name="oil_bar_warmup_desc">Wahrscheinliche Öltemperatur: wird warm, noch %1$s, bis der Balken grün wird</string>
     <string name="oil_bar_green_desc">Wahrscheinliche Öltemperatur: Betriebstemperatur erreicht</string>
     <string name="oil_bar_unknown_desc">Wahrscheinliche Öltemperatur: unbekannt</string>
 

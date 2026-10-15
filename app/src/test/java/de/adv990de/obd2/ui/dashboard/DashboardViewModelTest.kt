@@ -3005,6 +3005,95 @@ class DashboardViewModelTest {
         assertEquals(555_000L, d.warmup.greenInMillis.value)
     }
 
+    // ── Die Restzeit bis Gruen im UI-State: der Balken zeigt den Timer als fortlaufenden Farbwechsel (Nutzerwunsch 2026-10-16) ──
+
+    @Test
+    fun `the ui state starts with the full ten minutes - no warm-up is shown`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        assertEquals(OIL_BAR_GREEN_HOLD_MS, d.vm.uiState.value.oilBarGreenInMillis)
+    }
+
+    @Test
+    fun `the ui state counts down from the first coolant value above 80`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = 78f)    // nicht ueber 80: der Timer laeuft noch nicht
+        advanceUntilIdle()
+        assertEquals(600_000L, d.vm.uiState.value.oilBarGreenInMillis)
+        assertEquals(OilBarColor.Yellow, d.vm.uiState.value.oilBarColor)
+
+        d.coolantCycleAt(31_000L, coolantC = 85f)   // erster Wert ueber 80: Start
+        advanceUntilIdle()
+        assertEquals(600_000L, d.vm.uiState.value.oilBarGreenInMillis)
+
+        d.coolantCycleAt(61_000L, coolantC = 85f)
+        advanceUntilIdle()
+        assertEquals(570_000L, d.vm.uiState.value.oilBarGreenInMillis)
+        assertEquals(OilBarColor.Yellow, d.vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `a cold engine takes the shown progress back to nothing`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+        d.coolantCycleAt(0L, coolantC = 85f)
+        advanceUntilIdle()
+        d.coolantCycleAt(30_000L, coolantC = 85f)
+        advanceUntilIdle()
+        assertEquals(570_000L, d.vm.uiState.value.oilBarGreenInMillis)
+
+        d.coolantCycleAt(60_000L, coolantC = 70f)   // <= 75: sofort zurueck, der Balken wird rot
+        advanceUntilIdle()
+
+        assertEquals(600_000L, d.vm.uiState.value.oilBarGreenInMillis)
+        assertEquals(OilBarColor.Red, d.vm.uiState.value.oilBarColor)
+    }
+
+    @Test
+    fun `a GPS refresh moves the shown progress too - it follows the clock, not only new readings`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+        d.coolantCycleAt(0L, coolantC = 85f)
+        advanceUntilIdle()
+        d.coolantCycleAt(30_000L, coolantC = 85f)
+        advanceUntilIdle()
+
+        d.vm.nowMillis = { 45_000L }
+        d.events.emit(
+            SessionEvent.Values(
+                listOf(
+                    SensorValue(pid = PidRegistry.RPM, value = 1200f, timestamp = 30_000L),
+                    SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 85f, timestamp = 30_000L),
+                ),
+                gpsSpeedKmh = 5f,
+                isObdCycle = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(555_000L, d.vm.uiState.value.oilBarGreenInMillis)
+    }
+
+    @Test
+    fun `losing the connection clears the shown progress together with the bar colour`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+        d.coolantCycleAt(0L, coolantC = 85f)
+        advanceUntilIdle()
+        d.coolantCycleAt(30_000L, coolantC = 85f)
+        advanceUntilIdle()
+        assertEquals(570_000L, d.vm.uiState.value.oilBarGreenInMillis)
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+
+        assertEquals(null, d.vm.uiState.value.oilBarColor)
+        assertEquals(OIL_BAR_GREEN_HOLD_MS, d.vm.uiState.value.oilBarGreenInMillis)
+    }
+
     private fun makeVmFrom(
         obdRepo: ObdRepository,
         sessionRepo: SessionRepository,

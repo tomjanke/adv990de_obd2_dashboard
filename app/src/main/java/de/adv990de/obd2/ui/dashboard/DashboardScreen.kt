@@ -161,6 +161,7 @@ fun DashboardScreen(
                 gear = state.gear,
                 isNeutral = state.isNeutral,
                 oilBarColor = state.oilBarColor,
+                oilBarGreenInMillis = state.oilBarGreenInMillis,
                 modifier = Modifier.fillMaxWidth(),
                 isLive = isLive,
                 trailingContent = {

@@ -315,6 +315,43 @@ class DashboardComponentsTest {
         }
     }
 
+    // --- oilBarGreenShare: der Timer als fortlaufender Farbwechsel des gelben Balkens (Nutzerwunsch 2026-10-16) ---
+    // Solange der Timer wirklich laeuft, faerbt sich der gelbe Streifen anteilig von links nach rechts gruen: Anteil = 1 - Restzeit / 10 Minuten.
+    // In jedem anderen Zustand (nicht live, nicht gelb, Timer laeuft nicht) gibt es keinen gruenen Anteil.
+
+    private val tenMinutes = OIL_BAR_GREEN_HOLD_MS
+
+    @Test
+    fun `a running warm-up turns the yellow bar green in proportion to the elapsed time`() {
+        assertEquals(0.5f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = tenMinutes / 2), 1e-6f)
+        assertEquals(0.25f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = tenMinutes * 3 / 4), 1e-6f)
+        assertEquals(0.9f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = tenMinutes / 10), 1e-6f)
+    }
+
+    @Test
+    fun `a timer that has not started shows no green - the full ten minutes remain`() {
+        assertEquals(0f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = tenMinutes), 0f)
+    }
+
+    @Test
+    fun `just before the bar turns green almost all of it is green, and it never exceeds the whole bar`() {
+        assertEquals(1f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = 0L), 0f)
+        assertEquals(1f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = -5_000L), 0f)
+        assertEquals(0f, oilBarGreenShare(OilBarColor.Yellow, isLive = true, greenInMillis = tenMinutes + 5_000L), 0f)
+    }
+
+    @Test
+    fun `only a yellow bar has a green share - red, green and unknown show their plain colour`() {
+        for (color in listOf(OilBarColor.Red, OilBarColor.Green, null)) {
+            assertEquals("color=$color", 0f, oilBarGreenShare(color, isLive = true, greenInMillis = tenMinutes / 2), 0f)
+        }
+    }
+
+    @Test
+    fun `without a connection there is no green share, whatever the timer says`() {
+        assertEquals(0f, oilBarGreenShare(OilBarColor.Yellow, isLive = false, greenInMillis = tenMinutes / 2), 0f)
+    }
+
     // --- gearBoxContent / gearBoxColor ---
     // Die Gang-Box neben dem RPM-Balken kennt drei Zustaende: Gang, Leerlauf ("N") und unbekannt
     // ("–"). Praezedenz: ohne Verbindung immer unbekannt, sonst gewinnt "N" vor einem noch

@@ -1,6 +1,10 @@
 package de.adv990de.obd2.ui.dashboard
 
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.platform.testTag
@@ -14,6 +18,8 @@ import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.ui.components.formatOilTimer
+import de.adv990de.obd2.ui.theme.StatusColors
 import io.mockk.every
 import org.junit.Before
 import org.junit.Rule
@@ -370,6 +376,123 @@ class RpmBarTest {
         val gearBox = composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.dashboard_gear_desc, 3))
             .fetchSemanticsNode().boundsInRoot
         org.junit.Assert.assertEquals("rechts bleiben 8 dp Rand", 8 * density, root.right - gearBox.right, 1.5f)
+    }
+
+    // ── Der Timer als fortlaufender Farbwechsel des Streifens (Nutzerwunsch 2026-10-16) ──
+    // Solange der Timer wirklich laeuft, faerbt sich der gelbe Streifen anteilig von links nach rechts gruen (Anteil = 1 - Restzeit / 10 min).
+
+    private val stripColor = androidx.compose.runtime.mutableStateOf<OilBarColor?>(OilBarColor.Yellow)
+    private val stripGreenIn = androidx.compose.runtime.mutableLongStateOf(OIL_BAR_GREEN_HOLD_MS)
+    private val stripLive = androidx.compose.runtime.mutableStateOf(true)
+
+    /** Zeigt den Balken (nur einmal je Test, `setContent` geht nicht zweimal); danach mit [updateStrip] verstellen. */
+    private fun showStrip(color: OilBarColor?, greenInMillis: Long, isLive: Boolean = true) {
+        stripColor.value = color
+        stripGreenIn.longValue = greenInMillis
+        stripLive.value = isLive
+        composeRule.setContent {
+            RpmBar(
+                rpm = 4500f, threshold = 7000, gear = 3,
+                oilBarColor = stripColor.value, oilBarGreenInMillis = stripGreenIn.longValue, isLive = stripLive.value,
+            )
+        }
+        composeRule.waitForIdle()
+    }
+
+    private fun updateStrip(color: OilBarColor?, greenInMillis: Long) {
+        stripColor.value = color
+        stripGreenIn.longValue = greenInMillis
+        composeRule.waitForIdle()
+    }
+
+    private fun stripImage() = composeRule.onNodeWithTag(OIL_BAR_STRIP_TEST_TAG).captureToImage().asAndroidBitmap()
+
+    /** Die Farben der Mittelzeile des Streifens an den Stellen [fractions] (0..1 der Breite), wie sie auf dem Bildschirm stehen. */
+    private fun stripColoursAt(vararg fractions: Float): List<Int> {
+        val image = stripImage()
+        return fractions.map { image.getPixel((image.width * it).toInt().coerceIn(0, image.width - 1), image.height / 2) }
+    }
+
+    /** Wo (Bruchteil der Breite) in der Mittelzeile Gruen in Gelb uebergeht; `null`, wenn es keinen Uebergang gibt. */
+    private fun greenToYellowEdge(): Float? {
+        val image = stripImage()
+        val y = image.height / 2
+        val lastGreen = (0 until image.width).lastOrNull { image.getPixel(it, y) == green } ?: return null
+        val firstYellow = (0 until image.width).firstOrNull { image.getPixel(it, y) == yellow } ?: return null
+        return ((lastGreen + firstYellow) / 2f) / image.width
+    }
+
+    private val green get() = StatusColors.TrafficLightGreen.toArgb()
+    private val yellow get() = StatusColors.Warning.toArgb()
+    private val red get() = StatusColors.Critical.toArgb()
+
+    @Test
+    fun oilStrip_halfWayThroughTheWarmUp_isGreenOnTheLeftHalfAndYellowOnTheRightHalf() {
+        showStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS / 2)
+
+        org.junit.Assert.assertEquals(listOf(green, yellow), stripColoursAt(0.25f, 0.75f))
+        val edge = greenToYellowEdge() ?: error("kein Uebergang von Gruen zu Gelb im Streifen")
+        org.junit.Assert.assertEquals("der Uebergang liegt bei der Haelfte", 0.5f, edge, 0.02f)
+    }
+
+    @Test
+    fun oilStrip_theGreenPartGrowsFromLeftToRightWithTheElapsedTime() {
+        showStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS * 9 / 10) // 10 % verstrichen
+        val early = greenToYellowEdge() ?: error("kein Uebergang bei 10 %")
+
+        updateStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS / 10) // 90 % verstrichen
+        val late = greenToYellowEdge() ?: error("kein Uebergang bei 90 %")
+
+        org.junit.Assert.assertEquals("10 %", 0.1f, early, 0.02f)
+        org.junit.Assert.assertEquals("90 %", 0.9f, late, 0.02f)
+    }
+
+    @Test
+    fun oilStrip_whileTheTimerIsNotRunning_isPlainYellow() {
+        showStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS) // volle Zeit = Timer laeuft nicht
+
+        org.junit.Assert.assertEquals(listOf(yellow, yellow, yellow), stripColoursAt(0.02f, 0.5f, 0.98f))
+        org.junit.Assert.assertNull("kein Gruen im Streifen", greenToYellowEdge())
+    }
+
+    @Test
+    fun oilStrip_redGreenAndGrey_ignoreTheTimerValue() {
+        showStrip(OilBarColor.Red, greenInMillis = OIL_BAR_GREEN_HOLD_MS / 2)
+        org.junit.Assert.assertEquals("rot", listOf(red, red), stripColoursAt(0.1f, 0.9f))
+
+        updateStrip(OilBarColor.Green, greenInMillis = 0L)
+        org.junit.Assert.assertEquals("gruen", listOf(green, green), stripColoursAt(0.1f, 0.9f))
+
+        updateStrip(OilBarColor.Green, greenInMillis = OIL_BAR_GREEN_HOLD_MS / 2)
+        org.junit.Assert.assertEquals("gruen bleibt ganz gruen", listOf(green, green), stripColoursAt(0.1f, 0.9f))
+    }
+
+    @Test
+    fun oilStrip_withoutAConnection_isGreyEvenWithARunningTimer() {
+        showStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS / 2, isLive = false)
+
+        val (left, right) = stripColoursAt(0.25f, 0.75f)
+        org.junit.Assert.assertEquals("links wie rechts grau", left, right)
+        org.junit.Assert.assertNotEquals(green, left)
+        org.junit.Assert.assertNotEquals(yellow, left)
+    }
+
+    @Test
+    fun oilStrip_descriptionNamesTheRemainingTimeWhileTheTimerRuns() {
+        showStrip(OilBarColor.Yellow, greenInMillis = 372_000L) // 6:12
+
+        val locale = composeRule.activity.resources.configuration.locales[0]
+        composeRule.onNodeWithTag(OIL_BAR_STRIP_TEST_TAG).assertContentDescriptionEquals(
+            composeRule.activity.getString(R.string.oil_bar_warmup_desc, formatOilTimer(372_000L, locale)),
+        )
+    }
+
+    @Test
+    fun oilStrip_descriptionIsThePlainYellowOneWhileTheTimerIsNotRunning() {
+        showStrip(OilBarColor.Yellow, greenInMillis = OIL_BAR_GREEN_HOLD_MS)
+
+        composeRule.onNodeWithTag(OIL_BAR_STRIP_TEST_TAG)
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.oil_bar_yellow_desc))
     }
 
     @Test

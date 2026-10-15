@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.FUEL_ROW_START_PADDING
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.components.formatOilTimer
 import de.adv990de.obd2.ui.components.SEGMENT_GAP
 import de.adv990de.obd2.ui.components.segmentWidthPx
 import de.adv990de.obd2.ui.theme.AppTypography
@@ -76,6 +78,8 @@ internal fun RpmBar(
      *  Lint-Warnungen). `trailingContent` bleibt der letzte Parameter (Trailing-Lambda-Konvention).
      *  Alle Call-Sites nutzen benannte Argumente, die Position aendert fuer sie nichts. */
     oilBarColor: OilBarColor? = null,
+    /** Restzeit bis der Streifen gruen wird (Timerphase als Farbwechsel, s. [oilBarGreenShare]); die volle Dauer = Timer laeuft nicht. */
+    oilBarGreenInMillis: Long = OIL_BAR_GREEN_HOLD_MS,
     /** Fahrzeug steht und Motor laeuft: die Gang-Box zeigt ein gruenes "N" statt eines Gangs
      *  (s. [gearBoxContent] fuer die Praezedenz). Position wie [oilBarColor] aus Lint-Gruenden. */
     isNeutral: Boolean = false,
@@ -191,7 +195,8 @@ internal fun RpmBar(
                 OilTemperatureBarStrip(
                     color = oilBarColor,
                     isLive = isLive,
-                    modifier = Modifier.weight(1f).height(OIL_BAR_HEIGHT),
+                    greenInMillis = oilBarGreenInMillis,
+                    modifier = Modifier.weight(1f).height(OIL_BAR_HEIGHT).testTag(OIL_BAR_STRIP_TEST_TAG),
                 )
             }
         }
@@ -241,6 +246,9 @@ internal fun RpmBar(
 /** Test-only selector: die Oelkanne vor dem Oel-Temperatur-Streifen. */
 internal const val OIL_BAR_ICON_TEST_TAG = "oil_bar_icon"
 
+/** Test-only selector: der Oel-Streifen (Farbe, gruener Anteil der Timerphase, Beschreibung). */
+internal const val OIL_BAR_STRIP_TEST_TAG = "oil_bar_strip"
+
 /**
  * Oel-Zeile unter den Drehzahl-Segmenten: 20 dp hoch (Entscheidung 1b des Nutzers: die Segmente werden dafuer von 48 auf 40 dp niedriger), darin
  * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (ihre Breite folgt dem Seitenverhaeltnis 24:15), beide **unten buendig**
@@ -272,21 +280,41 @@ internal fun OilTemperatureBarStrip(
     color: OilBarColor?,
     isLive: Boolean,
     modifier: Modifier = Modifier,
+    /** Restzeit bis Gruen (s. [oilBarGreenShare]); die volle Dauer = Timer laeuft nicht. Steht nach `modifier`: der muss der erste optionale Parameter sein (Lint `ModifierParameter`). */
+    greenInMillis: Long = OIL_BAR_GREEN_HOLD_MS,
 ) {
     val barColor = oilBarStripColor(color, isLive, idleColor = MaterialTheme.colorScheme.surfaceVariant)
-    val description = stringResource(
-        if (!isLive) R.string.oil_bar_unknown_desc else when (color) {
-            null               -> R.string.oil_bar_unknown_desc
-            OilBarColor.Red    -> R.string.oil_bar_red_desc
-            OilBarColor.Yellow -> R.string.oil_bar_yellow_desc
-            OilBarColor.Green  -> R.string.oil_bar_green_desc
-        }
-    )
+    // Waehrend der Timerphase faerbt sich der gelbe Streifen anteilig von links nach rechts gruen (Nutzerwunsch 2026-10-16) — nur, solange der Timer
+    // wirklich laeuft (live, gelb, Restzeit unter der vollen Dauer), sonst ist der Anteil 0.
+    val greenShare = oilBarGreenShare(color, isLive, greenInMillis)
+    val locale = LocalLocale.current.platformLocale
+    val description = if (greenShare > 0f) {
+        stringResource(R.string.oil_bar_warmup_desc, formatOilTimer(greenInMillis, locale))
+    } else {
+        stringResource(
+            if (!isLive) R.string.oil_bar_unknown_desc else when (color) {
+                null               -> R.string.oil_bar_unknown_desc
+                OilBarColor.Red    -> R.string.oil_bar_red_desc
+                OilBarColor.Yellow -> R.string.oil_bar_yellow_desc
+                OilBarColor.Green  -> R.string.oil_bar_green_desc
+            }
+        )
+    }
     Box(
         modifier = modifier
             .background(barColor)
             .semantics { contentDescription = description }
-    )
+    ) {
+        // Das Gruen liegt ueber dem deckenden Gelb: der Rand ist eine reine Mischung aus beiden, kein Spalt dazwischen.
+        if (greenShare > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(greenShare)
+                    .background(StatusColors.TrafficLightGreen)
+            )
+        }
+    }
 }
 
 @Preview(name = "RpmBar · gear locked (blue)", showBackground = true)
@@ -300,6 +328,8 @@ private fun PreviewRpmBarGearLocked() {
             ) {
                 RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
                 RpmBar(rpm = 4500f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Yellow, modifier = Modifier.fillMaxWidth())
+                // Timerphase: 40 % der zehn Minuten sind verstrichen, die ersten 40 % des gelben Streifens sind gruen.
+                RpmBar(rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = OilBarColor.Yellow, oilBarGreenInMillis = OIL_BAR_GREEN_HOLD_MS * 6 / 10, modifier = Modifier.fillMaxWidth())
                 RpmBar(rpm = 1100f, threshold = 7000, gear = null, isNeutral = true, oilBarColor = OilBarColor.Green, modifier = Modifier.fillMaxWidth())
                 RpmBar(rpm = 0f, threshold = 7000, gear = null, oilBarColor = OilBarColor.Red, isLive = false, modifier = Modifier.fillMaxWidth())
             }
@@ -337,7 +367,8 @@ private fun PreviewRpmBarNeutralDefaultLight() {
 
 /**
  * Alle Zustaende der [OilTemperatureBarStrip] untereinander, ungefaehr in Anzeige-Hoehe: Rot, Gelb,
- * Gruen, dann grau (noch keine Farbe bzw. ohne Verbindung). Die fehlende Vorschau war der Grund,
+ * Gruen, dann grau (noch keine Farbe bzw. ohne Verbindung), darunter die Timerphase als Farbwechsel von Gelb
+ * nach Gruen bei 25, 50 und 75 % der Zeit. Die fehlende Vorschau war der Grund,
  * warum das theme-abhaengige "Gruen" (hellblau/amber/mauve, bis zum finalen Review) unbemerkt
  * blieb — deshalb je ein dunkles Cockpit-Schema und das helle Default-Schema.
  */
@@ -349,6 +380,14 @@ private fun OilTemperatureBarStripStates() {
     ) {
         (OilBarColor.entries + null).forEach { color ->
             OilTemperatureBarStrip(color = color, isLive = true, modifier = Modifier.fillMaxWidth().height(OIL_BAR_HEIGHT))
+        }
+        listOf(0.25f, 0.5f, 0.75f).forEach { elapsed ->
+            OilTemperatureBarStrip(
+                color = OilBarColor.Yellow,
+                isLive = true,
+                greenInMillis = (OIL_BAR_GREEN_HOLD_MS * (1f - elapsed)).toLong(),
+                modifier = Modifier.fillMaxWidth().height(OIL_BAR_HEIGHT),
+            )
         }
     }
 }

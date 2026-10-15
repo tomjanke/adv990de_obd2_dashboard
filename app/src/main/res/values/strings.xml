@@ -30,6 +30,7 @@
     <!-- Simulated oil temperature bar (no visible label, accessibility only) -->
     <string name="oil_bar_red_desc">Probable oil temperature: cold</string>
     <string name="oil_bar_yellow_desc">Probable oil temperature: warming up</string>
+    <string name="oil_bar_warmup_desc">Probable oil temperature: warming up, %1$s until the bar turns green</string>
     <string name="oil_bar_green_desc">Probable oil temperature: at operating temperature</string>
     <string name="oil_bar_unknown_desc">Probable oil temperature: unknown</string>
 
