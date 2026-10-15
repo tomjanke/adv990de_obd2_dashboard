@@ -233,15 +233,16 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theBarEndsAt16DpFromTheRightEdge_andTheLeftMarginIsOnly8Dp() {
+    fun theBarEndsAt12DpFromTheRightEdge_andTheLeftMarginIsOnly8Dp() {
         // Nutzerwunsch 2026-10-15: das Tankstellen-Symbol sitzt naeher am linken Rand (8 dp Zeilenrand + 4 dp Eigenrand des Symbols = 12 dp sichtbar, vorher 16 + 4);
-        // rechts bleibt der Rand des Balkens bei 16 dp (die sichtbare Kante des Symbols misst DashboardLeftEdgeAlignmentDeviceTest als Bildpunkt).
+        // der Balken endet rechts ebenfalls 12 dp vor dem Rand (vorher 16 dp) — links und rechts dieselbe sichtbare Randbreite
+        // (die sichtbare Kante des Symbols misst DashboardLeftEdgeAlignmentDeviceTest als Bildpunkt).
         show(FuelGaugeState(320, 100f))
         val density = composeRule.activity.resources.displayMetrics.density
 
         val row = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot
         val track = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot
-        assertEquals("rechter Rand ${row.right - track.right} px", 16 * density, row.right - track.right, 1.5f)
+        assertEquals("rechter Rand ${row.right - track.right} px", 12 * density, row.right - track.right, 1.5f)
         // Symbol (24 dp) + 12 dp Abstand vor dem Balken: er beginnt bei 8 + 24 + 12 = 44 dp.
         assertEquals("Balken beginnt ${track.left - row.left} px vom Zeilenanfang", 44 * density, track.left - row.left, 1.5f)
     }
