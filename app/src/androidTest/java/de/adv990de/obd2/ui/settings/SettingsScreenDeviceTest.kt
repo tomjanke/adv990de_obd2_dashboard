@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -155,6 +156,23 @@ class SettingsScreenDeviceTest {
 
     private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) =
         waitUntilSwitchIsOn(GPS_SPEED_SWITCH_TEST_TAG, expected)
+
+    @Test
+    fun fuelRangeRow_isInTheVehicleGroup_andSavesTheEnteredRange() {
+        runBlocking { appPreferences.setFuelRangeFullKm(0) }
+        launchSettingsScreen()
+        scrollToClearView(FUEL_RANGE_ROW_TEST_TAG)
+
+        composeRule.onNodeWithTag(FUEL_RANGE_ROW_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_fuel_range_not_set)).assertIsDisplayed()
+
+        composeRule.onNodeWithTag(FUEL_RANGE_ROW_TEST_TAG).performClick()
+        composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).performTextInput("320")
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_fuel_range_save)).performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { runBlocking { appPreferences.fuelRangeFullKm.first() } == 320 }
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_fuel_range_summary, 320)).assertIsDisplayed()
+    }
 
     @Test
     fun settingsTitle_isVisible() {

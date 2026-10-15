@@ -15,6 +15,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.fuel.FuelRangeLimits
 import de.adv990de.obd2.obd.PidRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -63,6 +64,9 @@ class AppPreferences @Inject constructor(
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
         private val KEY_RPM_DYNAMIC_THRESHOLD = booleanPreferencesKey("rpm_dynamic_threshold")
         private val KEY_WHEEL_CIRCUMFERENCE_MM = floatPreferencesKey("wheel_circumference_mm")
+        // Tankanzeige: die Namen sind persistierter Zustand (DataStore) — nie umbenennen oder mit anderer Bedeutung wiederverwenden.
+        private val KEY_FUEL_RANGE_FULL_KM = intPreferencesKey("fuel_range_full_km")
+        private val KEY_FUEL_KM_SINCE_FILL = floatPreferencesKey("fuel_km_since_fill")
         private val KEY_PRIMARY_RATIO   = floatPreferencesKey("primary_ratio")
         private val KEY_SECONDARY_RATIO = floatPreferencesKey("secondary_ratio")
         private val KEY_GEAR_RATIO_1 = floatPreferencesKey("gear_ratio_1")
@@ -283,6 +287,32 @@ class AppPreferences @Inject constructor(
 
     suspend fun setWheelCircumferenceMm(value: Float) {
         dataStore.edit { it[KEY_WHEEL_CIRCUMFERENCE_MM] = value }
+    }
+
+    // ── Tankanzeige (virtuell, Streckenzaehler — s. de.adv990de.obd2.fuel) ─────────
+
+    /**
+     * Reichweite bei vollem Tank in ganzen km; **0 = nicht festgelegt** (die Tankanzeige bleibt ausgeblendet). Ein Wert ausserhalb von
+     * [FuelRangeLimits] im Speicher (kann nur von Hand entstehen) gilt als nicht festgelegt.
+     */
+    val fuelRangeFullKm: Flow<Int> = data.map { prefs ->
+        (prefs[KEY_FUEL_RANGE_FULL_KM] ?: 0).takeIf { it in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM } ?: 0
+    }.distinctUntilChanged()
+
+    /** [km] = 0 loescht die Reichweite; sonst muss der Wert in [FuelRangeLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
+    suspend fun setFuelRangeFullKm(km: Int) {
+        require(km == 0 || km in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM) { "fuel range out of bounds: $km" }
+        dataStore.edit { it[KEY_FUEL_RANGE_FULL_KM] = km }
+    }
+
+    /** Seit dem letzten Zuruecksetzen gefahrene Kilometer (GPS). Ein negativer oder nicht endlicher Wert im Speicher liest als 0. */
+    val fuelKmSinceFill: Flow<Float> = data.map { prefs ->
+        (prefs[KEY_FUEL_KM_SINCE_FILL] ?: 0f).takeIf { it.isFinite() && it >= 0f } ?: 0f
+    }.distinctUntilChanged()
+
+    suspend fun setFuelKmSinceFill(km: Float) {
+        require(km.isFinite() && km >= 0f) { "fuel counter must be finite and >= 0: $km" }
+        dataStore.edit { it[KEY_FUEL_KM_SINCE_FILL] = km }
     }
 
     val primaryRatio: Flow<Float> = data.map { prefs ->

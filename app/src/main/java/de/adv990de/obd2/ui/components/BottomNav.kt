@@ -46,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
+import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.navigation.BottomNavAction
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.bottomNavAction
@@ -91,13 +92,16 @@ fun BottomNav(
     weatherVm: WeatherViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     exitAppVm: ExitAppViewModel = hiltViewModel(),
+    fuelVm: FuelGaugeViewModel = hiltViewModel(),
 ) {
     val isNavHidden by vm.isNavHidden.collectAsStateWithLifecycle()
+    val fuelGauge by fuelVm.gauge.collectAsStateWithLifecycle()
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     // rememberSaveable (UID-23): eine Drehung mit offenem Dialog schloss ihn bisher (Beenden bleibt eine bewusste Handlung).
     var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showFuelReset by rememberSaveable { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -114,81 +118,101 @@ fun BottomNav(
         )
     }
 
-    AnimatedContent(
-        targetState = isNavHidden,
-        transitionSpec = { slideInVertically { it } togetherWith slideOutVertically { it } },
-        label = "BottomNavOrAmbientStatus",
-    ) { hidden ->
-        if (hidden) {
-            val outsideTempC by weatherVm.outsideTempC.collectAsStateWithLifecycle()
-            val oilGreenInMillis by vm.oilGreenInMillis.collectAsStateWithLifecycle()
-            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial, oilGreenInMillis = oilGreenInMillis)
-        } else {
-            Column {
-                HorizontalDivider()
-                NavigationBar(
-                    modifier = Modifier.navigationBarsPadding().height(64.dp),
-                    // `surface` statt M3-Default `surfaceContainer` (Material3 1.4.0, per javap
-                    // geprueft; Tonal-Elevation dort ohnehin 0dp): dieselbe Flaeche wie
-                    // AmbientStatusRow, damit der AnimatedContent-Wechsel keinen Farbsprung zeigt.
-                    // Zugleich die Cockpit-Toenung: die drei Cockpit-Schemata definieren kein
-                    // surfaceContainer, der Default waere das neutrale M3-Grau. Dokumentierte
-                    // M3-Abweichung, s. CLAUDE.md.
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    windowInsets = WindowInsets(0)
-                ) {
-                    // Explizite 10sp statt MaterialTheme.typography.labelSmall (Stand 2026-09-29,
-                    // User-Wunsch "kleinere Schrift"): labelSmall traegt wie jede Rolle in
-                    // AppTypography BIKE_SCALE (1.18x), macht "Einstellungen" also nur geringfuegig
-                    // kleiner (~13sp statt ~14sp) — im Portraet-Modus (5 Spalten, ~72dp breit)
-                    // reichte das nicht, das Wort brach weiterhin um und die zweite Zeile wurde vom
-                    // festen 64dp-Leistenrahmen abgeschnitten (visuell auf dem Pixel 8 Pro
-                    // bestaetigt). Bewusst UNSKALIERT, nur fuer diesen einen Anwendungsfall (Nav-
-                    // Labels stehen in keiner Zeile der Typografie-Hierarchie in CLAUDE.md) —
-                    // andere Textrollen/Live-Werte bleiben von BIKE_SCALE unberuehrt. Im Querformat
-                    // (viel breitere Spalten) waere das nicht noetig gewesen, gilt hier aber
-                    // einheitlich fuer beide Ausrichtungen. fontFamily/Farbe erbt Text() weiterhin
-                    // vom umgebenden LocalTextStyle (Space Grotesk, onSurfaceVariant).
-                    val navLabelStyle = TextStyle(fontSize = 10.sp)
-                    navItems.forEach { (screen, icon, labelRes) ->
-                        val label = stringResource(labelRes)
-                        NavigationBarItem(
-                            // parentTab(): a sub-page keeps the tab it was opened from highlighted.
-                            selected = parentTab(currentRoute) == screen,
-                            onClick = {
-                                val switchTab = {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
+    // Die Tankanzeige (virtuell, s. FuelGaugeRow) sitzt ueber dem Hauptmenue bzw. der Statuszeile und gehoert zu keinem der beiden: sie steht ausserhalb des
+    // AnimatedContent, der Wechsel Hauptmenue <-> Statuszeile laesst sie unberuehrt. Ohne hinterlegte Reichweite gibt es sie nicht.
+    fuelGauge?.let { gauge ->
+        if (showFuelReset) {
+            FuelResetDialog(
+                rangeFullKm = gauge.rangeFullKm,
+                onConfirm = {
+                    showFuelReset = false
+                    fuelVm.reset()
+                },
+                onDismiss = { showFuelReset = false },
+            )
+        }
+    }
+
+    Column {
+        fuelGauge?.let { gauge ->
+            FuelGaugeRow(state = gauge, onResetRequested = { showFuelReset = true })
+        }
+        AnimatedContent(
+            targetState = isNavHidden,
+            transitionSpec = { slideInVertically { it } togetherWith slideOutVertically { it } },
+            label = "BottomNavOrAmbientStatus",
+        ) { hidden ->
+            if (hidden) {
+                val outsideTempC by weatherVm.outsideTempC.collectAsStateWithLifecycle()
+                val oilGreenInMillis by vm.oilGreenInMillis.collectAsStateWithLifecycle()
+                AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial, oilGreenInMillis = oilGreenInMillis)
+            } else {
+                Column {
+                    HorizontalDivider()
+                    NavigationBar(
+                        modifier = Modifier.navigationBarsPadding().height(64.dp),
+                        // `surface` statt M3-Default `surfaceContainer` (Material3 1.4.0, per javap
+                        // geprueft; Tonal-Elevation dort ohnehin 0dp): dieselbe Flaeche wie
+                        // AmbientStatusRow, damit der AnimatedContent-Wechsel keinen Farbsprung zeigt.
+                        // Zugleich die Cockpit-Toenung: die drei Cockpit-Schemata definieren kein
+                        // surfaceContainer, der Default waere das neutrale M3-Grau. Dokumentierte
+                        // M3-Abweichung, s. CLAUDE.md.
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        windowInsets = WindowInsets(0)
+                    ) {
+                        // Explizite 10sp statt MaterialTheme.typography.labelSmall (Stand 2026-09-29,
+                        // User-Wunsch "kleinere Schrift"): labelSmall traegt wie jede Rolle in
+                        // AppTypography BIKE_SCALE (1.18x), macht "Einstellungen" also nur geringfuegig
+                        // kleiner (~13sp statt ~14sp) — im Portraet-Modus (5 Spalten, ~72dp breit)
+                        // reichte das nicht, das Wort brach weiterhin um und die zweite Zeile wurde vom
+                        // festen 64dp-Leistenrahmen abgeschnitten (visuell auf dem Pixel 8 Pro
+                        // bestaetigt). Bewusst UNSKALIERT, nur fuer diesen einen Anwendungsfall (Nav-
+                        // Labels stehen in keiner Zeile der Typografie-Hierarchie in CLAUDE.md) —
+                        // andere Textrollen/Live-Werte bleiben von BIKE_SCALE unberuehrt. Im Querformat
+                        // (viel breitere Spalten) waere das nicht noetig gewesen, gilt hier aber
+                        // einheitlich fuer beide Ausrichtungen. fontFamily/Farbe erbt Text() weiterhin
+                        // vom umgebenden LocalTextStyle (Space Grotesk, onSurfaceVariant).
+                        val navLabelStyle = TextStyle(fontSize = 10.sp)
+                        navItems.forEach { (screen, icon, labelRes) ->
+                            val label = stringResource(labelRes)
+                            NavigationBarItem(
+                                // parentTab(): a sub-page keeps the tab it was opened from highlighted.
+                                selected = parentTab(currentRoute) == screen,
+                                onClick = {
+                                    val switchTab = {
+                                        navController.navigate(screen.route) {
+                                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
                                     }
-                                }
-                                when (bottomNavAction(currentRoute, screen)) {
-                                    BottomNavAction.Ignore -> Unit
-                                    // Re-tap on the highlighted tab from one of its sub-pages: back to the tab's start page.
-                                    // popBackStack() is false when that page is not on the stack — then navigate as usual.
-                                    BottomNavAction.PopToTabRoot ->
-                                        if (!navController.popBackStack(screen.route, inclusive = false)) switchTab()
-                                    BottomNavAction.SwitchTab -> switchTab()
-                                }
-                            },
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label, style = navLabelStyle) },
+                                    when (bottomNavAction(currentRoute, screen)) {
+                                        BottomNavAction.Ignore -> Unit
+                                        // Re-tap on the highlighted tab from one of its sub-pages: back to the tab's start page.
+                                        // popBackStack() is false when that page is not on the stack — then navigate as usual.
+                                        BottomNavAction.PopToTabRoot ->
+                                            if (!navController.popBackStack(screen.route, inclusive = false)) switchTab()
+                                        BottomNavAction.SwitchTab -> switchTab()
+                                    }
+                                },
+                                icon = { Icon(icon, contentDescription = label) },
+                                label = { Text(label, style = navLabelStyle) },
+                                alwaysShowLabel = true
+                            )
+                        }
+                        // Kein Navigationsziel, deshalb ausserhalb von navItems: loest den
+                        // Bestaetigungsdialog aus statt navController.navigate(). NavigationBar
+                        // gewichtet alle Kinder automatisch gleich, damit sind alle fuenf Punkte
+                        // gleichmaessig verteilt, ohne eigene Layout-Logik.
+                        val exitLabel = stringResource(R.string.nav_exit)
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = { showExitConfirmation = true },
+                            icon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = exitLabel) },
+                            label = { Text(exitLabel, style = navLabelStyle) },
                             alwaysShowLabel = true
                         )
                     }
-                    // Kein Navigationsziel, deshalb ausserhalb von navItems: loest den
-                    // Bestaetigungsdialog aus statt navController.navigate(). NavigationBar
-                    // gewichtet alle Kinder automatisch gleich, damit sind alle fuenf Punkte
-                    // gleichmaessig verteilt, ohne eigene Layout-Logik.
-                    val exitLabel = stringResource(R.string.nav_exit)
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { showExitConfirmation = true },
-                        icon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = exitLabel) },
-                        label = { Text(exitLabel, style = navLabelStyle) },
-                        alwaysShowLabel = true
-                    )
                 }
             }
         }

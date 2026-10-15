@@ -134,7 +134,7 @@ internal fun ChoiceSetting(
 
 /** Minimum height of every row of the Settings page (CLAUDE.md design principle 4: settings lists at
  *  least 64 dp, the whole row is the touch target). */
-private val SettingsRowMinHeight = 64.dp
+internal val SettingsRowMinHeight = 64.dp
 
 /**
  * Header of one group of the Settings page: the cockpit-style ALL-CAPS [SectionLabel] in the accent

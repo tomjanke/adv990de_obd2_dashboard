@@ -53,9 +53,11 @@ fun SettingsScreen(
     driveVm: DriveStateViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
+    fuelVm: FuelSettingsViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
+    val fuelRangeFullKm by fuelVm.rangeFullKm.collectAsStateWithLifecycle()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
     val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsStateWithLifecycle()
@@ -365,7 +367,7 @@ fun SettingsScreen(
             }
 
             recordingSection(logOnlyDtc, recordingVm)
-            vehicleSection(navController)
+            vehicleSection(navController, fuelRangeFullKm, fuelVm::setRangeFullKm)
             infoSection(navController, crashVm)
         }
     }

@@ -588,4 +588,96 @@ class AppPreferencesTest {
 
         assertTrue("Programmierfehler duerfen nicht still verschluckt werden", failure is IllegalStateException)
     }
+
+    // ── Tankanzeige (Reichweite bei vollem Tank, gefahrene Kilometer) ──────────
+
+    @Test
+    fun `fuelRangeFullKm is 0 (not set) when nothing is stored`() = runTest {
+        assertEquals(0, makePreferences().fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeFullKm stores a valid range and reads it back`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelRangeFullKm(320)
+
+        assertEquals(320, prefs.fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeFullKm stores the limits 50 and 1000`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelRangeFullKm(50)
+        assertEquals(50, prefs.fuelRangeFullKm.first())
+        prefs.setFuelRangeFullKm(1000)
+        assertEquals(1000, prefs.fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeFullKm with 0 clears the range`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelRangeFullKm(320)
+
+        prefs.setFuelRangeFullKm(0)
+
+        assertEquals(0, prefs.fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeFullKm refuses a value outside 50 to 1000 and keeps the old one`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelRangeFullKm(320)
+
+        for (bad in listOf(-1, 1, 49, 1001, 100_000)) {
+            val failure = runCatching { prefs.setFuelRangeFullKm(bad) }.exceptionOrNull()
+            assertTrue("$bad muss abgelehnt werden, war $failure", failure is IllegalArgumentException)
+        }
+        assertEquals(320, prefs.fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `an out-of-range value in the store reads as not set`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        store.edit { it[androidx.datastore.preferences.core.intPreferencesKey("fuel_range_full_km")] = 5 }
+
+        assertEquals(0, prefs.fuelRangeFullKm.first())
+    }
+
+    @Test
+    fun `fuelKmSinceFill is 0 when nothing is stored`() = runTest {
+        assertEquals(0f, makePreferences().fuelKmSinceFill.first(), 0f)
+    }
+
+    @Test
+    fun `setFuelKmSinceFill stores the counter and reads it back`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelKmSinceFill(123.4f)
+
+        assertEquals(123.4f, prefs.fuelKmSinceFill.first(), 0.0001f)
+    }
+
+    @Test
+    fun `a negative or non-finite counter in the store reads as 0`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        val key = androidx.datastore.preferences.core.floatPreferencesKey("fuel_km_since_fill")
+
+        store.edit { it[key] = -3f }
+        assertEquals(0f, prefs.fuelKmSinceFill.first(), 0f)
+        store.edit { it[key] = Float.NaN }
+        assertEquals(0f, prefs.fuelKmSinceFill.first(), 0f)
+    }
+
+    @Test
+    fun `setFuelKmSinceFill refuses a negative or non-finite counter`() = runTest {
+        val prefs = makePreferences()
+
+        for (bad in listOf(-0.1f, Float.NaN, Float.POSITIVE_INFINITY)) {
+            val failure = runCatching { prefs.setFuelKmSinceFill(bad) }.exceptionOrNull()
+            assertTrue("$bad muss abgelehnt werden, war $failure", failure is IllegalArgumentException)
+        }
+        assertEquals(0f, prefs.fuelKmSinceFill.first(), 0f)
+    }
 }

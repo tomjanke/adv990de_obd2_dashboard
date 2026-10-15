@@ -34,6 +34,8 @@ internal fun fakeAppPreferences(
     gearRatios: List<Float> = AppPreferences.DEFAULT_GEAR_RATIOS,
     obdWatchdogTimeoutSeconds: Int = AppPreferences.DEFAULT_OBD_WATCHDOG_TIMEOUT_SECONDS,
     reconnectBaseDelaySeconds: Int = AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS,
+    fuelRangeFullKm: Int = 0,
+    fuelKmSinceFill: Float = 0f,
 ): AppPreferences = mockk {
     every { this@mockk.lastDevice } returns flowOf(lastDevice)
     every { this@mockk.showAllBtDevices } returns flowOf(showAllBtDevices)
@@ -54,4 +56,6 @@ internal fun fakeAppPreferences(
     every { this@mockk.gearRatios } returns flowOf(gearRatios)
     every { this@mockk.obdWatchdogTimeoutSeconds } returns flowOf(obdWatchdogTimeoutSeconds)
     every { this@mockk.reconnectBaseDelaySeconds } returns flowOf(reconnectBaseDelaySeconds)
+    every { this@mockk.fuelRangeFullKm } returns flowOf(fuelRangeFullKm)
+    every { this@mockk.fuelKmSinceFill } returns flowOf(fuelKmSinceFill)
 }

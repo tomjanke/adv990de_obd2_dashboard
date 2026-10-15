@@ -35,9 +35,18 @@ internal fun LazyListScope.recordingSection(
 }
 
 
-internal fun LazyListScope.vehicleSection(navController: NavController) {
+internal fun LazyListScope.vehicleSection(
+    navController: NavController,
+    fuelRangeFullKm: Int,
+    onFuelRangeChange: (Int) -> Unit,
+) {
     // ═══ Fahrzeug ════════════════════════════════════════════════
     item { SettingsGroupHeader(stringResource(R.string.settings_group_vehicle)) }
+    // Reichweite bei vollem Tank: Grundlage der virtuellen Tankanzeige (ohne Wert bleibt die Anzeige ausgeblendet).
+    item {
+        FuelRangeSettingRow(rangeFullKm = fuelRangeFullKm, onRangeChange = onFuelRangeChange)
+        HorizontalDivider()
+    }
     item {
         SettingsLinkRow(
             title = stringResource(R.string.settings_vehicle_info),

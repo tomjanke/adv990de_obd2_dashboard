@@ -8,6 +8,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.fuel.DistanceIntegrator
+import de.adv990de.obd2.fuel.FuelDistanceSink
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
@@ -42,6 +44,8 @@ class DashboardViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     // Die Restzeit bis Gruen fuer die Ambient-Statuszeile (der Standardwert gilt nur fuer Tests; Hilt reicht den Singleton).
     private val oilWarmupState: OilWarmupState = OilWarmupState(),
+    // Wohin die GPS-Kilometer der Tankanzeige gehen (der Standardwert gilt nur fuer Tests; Hilt bindet das FuelRepository, s. FuelModule).
+    private val fuelDistanceSink: FuelDistanceSink = FuelDistanceSink.None,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -152,6 +156,9 @@ class DashboardViewModel @Inject constructor(
     /** Farbe des Oel-Balkens samt Timer-Zustand im [SavedStateHandle] — s. [OilBarTracker]. */
     private val oilBarTracker = OilBarTracker(savedStateHandle, now = { nowMillis() })
 
+    /** Die GPS-Kilometer fuer die Tankanzeige (Strecke = Integral der GPS-Geschwindigkeit) — s. [DistanceIntegrator] und `FuelRepository`. */
+    private val fuelIntegrator = DistanceIntegrator()
+
     // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
     // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:
     // Dagger/Hilt ignoriert Kotlin-Defaultwerte bei @Inject-Konstruktoren und scheitert ohne ein
@@ -183,6 +190,9 @@ class DashboardViewModel @Inject constructor(
         when (event) {
             is SessionEvent.Values -> {
                 val shown = applyReadings(event.values, event.gpsSpeedKmh)
+                // Auch ein GPS-Zwischenupdate zaehlt: die Strecke haengt an der Zeit und der GPS-Geschwindigkeit, nicht an den OBD-Zyklen.
+                val km = fuelIntegrator.sample(event.gpsSpeedKmh, nowMillis())
+                if (km > 0f) fuelDistanceSink.addDistance(km)
                 // Der angezeigte Gang und die Farbe des Oel-Balkens gehoeren in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem
                 // GPS-Zwischenupdate (dasselbe Raster wie die anderen Werte), beide Zeilen in einem Aufruf. Ein Ereignis ohne Wert ist kein Zyklus.
                 if (event.isObdCycle) {
@@ -193,15 +203,27 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
             }
-            SessionEvent.Idle -> applyIdle()
-            SessionEvent.Stale -> applyStale()
-            SessionEvent.ConnectionLost -> startReconnecting()
+            SessionEvent.Idle -> { endFuelInterval(); applyIdle() }
+            SessionEvent.Stale -> { endFuelInterval(); applyStale() }
+            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting() }
             is SessionEvent.Failed -> {
+                endFuelInterval()
                 sparklines.clear()
                 gearTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
             }
         }
+    }
+
+    /** Ohne Werte gibt es keine Strecke: das Intervall endet (kein Raten ueber die Luecke) und der Zaehler wird gespeichert. */
+    private fun endFuelInterval() {
+        fuelIntegrator.reset()
+        fuelDistanceSink.flush()
+    }
+
+    override fun onCleared() {
+        // Das ViewModel endet mit der Activity: der Zaehler soll nicht nur im Speicher stehen.
+        fuelDistanceSink.flush()
     }
 
     /**

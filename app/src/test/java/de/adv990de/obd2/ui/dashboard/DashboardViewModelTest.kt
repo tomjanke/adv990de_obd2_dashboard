@@ -8,6 +8,7 @@ import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.fuel.FuelDistanceSink
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
@@ -41,6 +42,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -1647,13 +1649,13 @@ class DashboardViewModelTest {
         coEvery { recordDerived(capture(recorded)) } just Runs
     }
 
-    private fun driven(prefs: AppPreferences = fakeAppPreferences()): Driven {
+    private fun driven(prefs: AppPreferences = fakeAppPreferences(), fuelSink: FuelDistanceSink = FuelDistanceSink.None): Driven {
         val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
         val recorded = mutableListOf<List<SensorValue>>()
         val pipeline = strictPipeline(events, recorded)
         val obdRepo = fakeObdRepository()
         val warmup = OilWarmupState()
-        val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(), warmup)
+        val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(), warmup, fuelSink)
         return Driven(vm, events, pipeline, recorded, warmup)
     }
 
@@ -1661,6 +1663,106 @@ class DashboardViewModelTest {
 
     private suspend fun Driven.cycle(vararg values: SensorValue) {
         events.emit(SessionEvent.Values(values.toList(), gpsSpeedKmh = null))
+    }
+
+
+    // ── Tankanzeige: die GPS-Kilometer ─────────────────────────────────────────
+
+    private class RecordingFuelSink : FuelDistanceSink {
+        val km = mutableListOf<Float>()
+        var flushes = 0
+        override fun addDistance(km: Float) { this.km += km }
+        override fun flush() { flushes++ }
+    }
+
+    /** Ein Ereignis mit GPS-Geschwindigkeit [gpsKmh] zur Uhrzeit [atMillis] (monotone Uhr des ViewModels). */
+    private suspend fun TestScope.fuelEvent(d: Driven, clock: LongArray, atMillis: Long, gpsKmh: Float?, isObdCycle: Boolean = true) {
+        clock[0] = atMillis
+        d.events.emit(SessionEvent.Values(listOf(rpmAt(atMillis)), gpsSpeedKmh = gpsKmh, isObdCycle = isObdCycle))
+        advanceUntilIdle() // das ViewModel liest die Uhr beim Verarbeiten: nach JEDEM Ereignis abwarten
+    }
+
+    private fun TestScope.drivenWithFuel(sink: RecordingFuelSink, clock: LongArray): Driven =
+        driven(fuelSink = sink).also { it.vm.nowMillis = { clock[0] }; advanceUntilIdle() }
+
+    @Test
+    fun `GPS speed over time is counted as fuel distance - 72 km per hour for 10 seconds is 0,2 km`() = runTest {
+        val sink = RecordingFuelSink()
+        val clock = longArrayOf(0L)
+        val d = drivenWithFuel(sink, clock)
+
+        fuelEvent(d, clock, 0L, 72f)
+        fuelEvent(d, clock, 10_000L, 72f)
+
+        assertEquals(0.2f, sink.km.sum(), 1e-5f)
+    }
+
+    @Test
+    fun `GPS refresh events count as well - the distance does not depend on OBD cycles`() = runTest {
+        val sink = RecordingFuelSink()
+        val clock = longArrayOf(0L)
+        val d = drivenWithFuel(sink, clock)
+
+        fuelEvent(d, clock, 0L, 36f)
+        for (i in 1..10) fuelEvent(d, clock, i * 1_000L, 36f, isObdCycle = false)
+
+        assertEquals(0.1f, sink.km.sum(), 1e-5f)
+    }
+
+    @Test
+    fun `no GPS speed counts nothing`() = runTest {
+        val sink = RecordingFuelSink()
+        val clock = longArrayOf(0L)
+        val d = drivenWithFuel(sink, clock)
+
+        fuelEvent(d, clock, 0L, null)
+        fuelEvent(d, clock, 10_000L, null)
+
+        assertTrue("nichts gezaehlt: ${sink.km}", sink.km.isEmpty())
+    }
+
+    @Test
+    fun `idle ends the interval and saves the counter - the first sample afterwards counts nothing`() = runTest {
+        val sink = RecordingFuelSink()
+        val clock = longArrayOf(0L)
+        val d = drivenWithFuel(sink, clock)
+        fuelEvent(d, clock, 0L, 72f)
+        fuelEvent(d, clock, 1_000L, 72f)
+        val before = sink.km.sum()
+
+        d.events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+        assertEquals("Zaehler gespeichert", 1, sink.flushes)
+
+        fuelEvent(d, clock, 2_000L, 72f)
+        assertEquals("die Luecke wird nicht gezaehlt", before, sink.km.sum(), 0f)
+    }
+
+    @Test
+    fun `stale values, a lost connection and a failed session also save the counter`() = runTest {
+        val sink = RecordingFuelSink()
+        val d = drivenWithFuel(sink, longArrayOf(0L))
+
+        d.events.emit(SessionEvent.Stale)
+        advanceUntilIdle()
+        d.events.emit(SessionEvent.ConnectionLost)
+        advanceUntilIdle()
+        d.events.emit(SessionEvent.Failed(UiText.DynamicString("x")))
+        advanceUntilIdle()
+
+        assertEquals(3, sink.flushes)
+    }
+
+    @Test
+    fun `the counter is saved when the view model ends`() = runTest {
+        val sink = RecordingFuelSink()
+        val d = drivenWithFuel(sink, longArrayOf(0L))
+
+        val onCleared = DashboardViewModel::class.java.getDeclaredMethod("onCleared")
+        onCleared.isAccessible = true
+        onCleared.invoke(d.vm)
+
+        assertEquals(1, sink.flushes)
     }
 
     @Test
