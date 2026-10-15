@@ -240,7 +240,7 @@ einem noch nicht committeten Bump gebaut, seine eingebettete Revision war nicht 
 5. mit `--install` installiert es auf das angeschlossene Gerät und prüft den `versionCode`.
 
 `scripts/release.sh --check` macht nur die Vorprüfung. Der **Smoke-Test** am entsperrten Gerät ist `python3 -u scripts/smoke.py <versionName> <versionCode>`
-(uiautomator: Start, Reiter, Beenden-Dialog, App-Info mit Version und Build, Logcat ohne Absturz; er prüft keinen echten Adapter). Mit `--simulator` (Debug-Build, Berechtigungen erteilt; Paket dann `de.adv990de.obd2.debug`) prüft er zusätzlich den Datenfluss gegen den ECU-Simulator: verbinden, Werte im Dashboard, „Trennen“ und danach kein Reconnect.
+(uiautomator: Start, Reiter, Beenden-Dialog, App-Info mit Version und Build, Logcat ohne Absturz; er prüft keinen echten Adapter und läuft im Hoch- wie im Querformat). Mit `--simulator` (Debug-Build, Berechtigungen erteilt; Paket dann `de.adv990de.obd2.debug`) prüft er zusätzlich den Datenfluss gegen den ECU-Simulator: verbinden, Werte im Dashboard, „Trennen“ und danach kein Reconnect.
 **Taggen und Pushen bleiben Handarbeit** nach dem Smoke-Test: `git tag vX.Y.Z && git push origin main vX.Y.Z`. Der Test `ReleaseDocsConsistencyTest` hält Version und versionCode in `build.gradle.kts`, README und
 `RELEASE_NOTES.md` zusammen.
 

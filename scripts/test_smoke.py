@@ -130,5 +130,87 @@ class PollTest(unittest.TestCase):
         self.assertEqual(4, len(calls))  # t = 0, 2, 4, 6 -> nach der Frist (>= 5) keine weitere Pruefung
 
 
+PORTRAIT = (1008, 2244)    # Pixel 8 Pro aufrecht
+LANDSCAPE = (2244, 1008)   # gedreht: `wm size` meldet trotzdem immer 1008x2244 — daher kommt die Groesse aus dem Baum
+
+
+def tree(width, height, *children):
+    """Ein uiautomator-Baum: der Wurzelknoten deckt den ganzen Bildschirm, darunter die uebrigen Knoten."""
+    return [node("", 0, height, x1=0, x2=width), *children]
+
+
+class FindTextTest(unittest.TestCase):
+    def test_finds_the_middle_of_the_first_node_with_exactly_that_text(self):
+        nodes = [node("App-Logs", 400, 560), node("App-Info", 600, 760, x1=0, x2=200)]
+        self.assertEqual((100, 680), smoke.find_text(nodes, "App-Info"))
+
+    def test_needs_the_whole_text_not_a_part(self):
+        self.assertIsNone(smoke.find_text([node("App-Info Version", 400, 560)], "App-Info"))
+
+    def test_ignores_slivers_scrolled_under_the_app_bar(self):
+        self.assertIsNone(smoke.find_text([node("App-Info", 180, 181)], "App-Info"))
+        self.assertIsNotNone(smoke.find_text([node("App-Info", 180, 200)], "App-Info"))
+
+    def test_missing_text_gives_none(self):
+        self.assertIsNone(smoke.find_text([], "App-Info"))
+
+
+class ScreenSizeTest(unittest.TestCase):
+    def test_follows_the_rotation_of_the_screen(self):
+        self.assertEqual(PORTRAIT, smoke.screen_size_from_nodes(tree(*PORTRAIT, node("Live", 2000, 2100))))
+        self.assertEqual(LANDSCAPE, smoke.screen_size_from_nodes(tree(*LANDSCAPE, node("Live", 800, 900))))
+
+    def test_an_empty_tree_has_no_size(self):
+        self.assertIsNone(smoke.screen_size_from_nodes([]))
+
+
+class ScrollPointsTest(unittest.TestCase):
+    # Gemessen am Pixel 8 Pro im Querformat (Bildschirmfoto): die App-Leiste endet bei rund 0,21 der Hoehe, das Hauptmenue beginnt bei rund 0,80.
+    # Ein Wischen, das ausserhalb dieses Bandes beginnt, greift die Leiste oder das Menue statt der Liste.
+    TOP, BOTTOM = 0.21, 0.79
+
+    def test_every_swipe_stays_on_the_list_in_both_orientations(self):
+        for width, height in (PORTRAIT, LANDSCAPE):
+            for x1, y1, x2, y2, _ms in smoke.scroll_points(width, height):
+                self.assertEqual(width // 2, x1)
+                self.assertEqual(width // 2, x2)
+                for y in (y1, y2):
+                    self.assertTrue(self.TOP * height < y < self.BOTTOM * height, f"{width}x{height}: y={y} liegt nicht auf der Liste")
+
+    def test_the_first_swipe_goes_up_the_list_and_the_next_ones_are_small(self):
+        fast, fine = smoke.scroll_points(*LANDSCAPE)
+        self.assertGreater(fast[1] - fast[3], fine[1] - fine[3])   # schnell: weit nach oben; fein: ein Fling ueberspringt sonst jedes Suchband
+        self.assertGreater(fast[1], fast[3])                       # nach oben wischen = die Liste laeuft nach unten
+        self.assertGreater(fine[1], fine[3])
+        self.assertLess(fast[4], fine[4])                          # der schnelle Wisch ist kuerzer (Fling), der feine langsam
+
+    def test_the_size_must_be_the_current_one_not_the_physical_portrait_size(self):
+        # Der Fehler bis jetzt: `wm size` meldet im Querformat 1008x2244; 0,7 x 2244 = 1570 liegt auf einem 1008 px hohen Bildschirm ausserhalb.
+        _, y_start, _, _, _ = smoke.scroll_points(*PORTRAIT)[0]
+        self.assertGreater(y_start, LANDSCAPE[1])
+
+
+class ScrollStalledTest(unittest.TestCase):
+    def test_the_same_screen_after_the_swipe_means_the_list_did_not_move(self):
+        before = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("App-Info", 600, 760))
+        after = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("App-Info", 600, 760))
+        self.assertTrue(smoke.scroll_stalled(before, after))
+
+    def test_a_row_that_moved_is_not_stalled_even_with_the_same_texts(self):
+        before = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("App-Info", 600, 760))
+        after = tree(*LANDSCAPE, node("App-Logs", 300, 460), node("App-Info", 500, 660))
+        self.assertFalse(smoke.scroll_stalled(before, after))
+
+    def test_a_new_row_is_not_stalled(self):
+        before = tree(*LANDSCAPE, node("App-Logs", 400, 560))
+        after = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("App-Info", 600, 760))
+        self.assertFalse(smoke.scroll_stalled(before, after))
+
+    def test_slivers_under_the_app_bar_do_not_count_as_movement(self):
+        before = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("Fahrzeuginfo", 180, 181))
+        after = tree(*LANDSCAPE, node("App-Logs", 400, 560), node("Fahrzeuginfo", 182, 183))
+        self.assertTrue(smoke.scroll_stalled(before, after))
+
+
 if __name__ == "__main__":
     unittest.main()

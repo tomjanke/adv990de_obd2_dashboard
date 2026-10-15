@@ -16,7 +16,9 @@ Voraussetzung: die Debug-App hat BLUETOOTH_CONNECT und POST_NOTIFICATIONS (sonst
 Grenzen (aus den Fallen im Projekt-Memory):
  - Das Geraet muss ENTSPERRT sein. Das Skript weckt es nur (KEYCODE_WAKEUP) und bricht bei gesperrtem Bildschirm ab.
  - Ein Dump dauert ~3 s, ein Lauf rund eine Minute. Mit `python3 -u` starten, wenn die Ausgabe umgeleitet wird.
- - Es tippt per TEXT, nie per Koordinate (die Ausrichtung wechselt, Auto-Drehen ist an).
+ - Es tippt per TEXT, nie per Koordinate (die Ausrichtung wechselt, Auto-Drehen ist an). Nur das Wischen in der Einstellungsliste rechnet in
+   Koordinaten, und zwar aus der Groesse des AKTUELLEN Bildschirms (aus dem uiautomator-Baum, nicht aus `wm size`: das meldet immer die
+   Hochformat-Groesse) — der Lauf geht im Hoch- wie im Querformat.
  - BACK nur dort, wo nachweislich ein Dialog/eine Unterseite offen ist: auf einem Hauptreiter beendet es die App.
  - Es prueft NICHT: einen echten Adapter, Wetter, Gaenge — dafuer gibt es die Instrumentation-Tests und die Fahrt. Messwerte und
    Verbindung prueft es nur mit --simulator, und auch dort nur gegen den Simulator, nie gegen ein Fahrzeug.
@@ -60,15 +62,60 @@ def swipe(x1, y1, x2, y2, ms):
 
 
 def tap_text(text):
-    # Eine unter die App-Leiste gescrollte Zeile bleibt als 1-px-Streifen im Baum: nur Knoten mit Hoehe >= 20 px zaehlen.
-    for n in dump_nodes():
-        if n["t"] == text and n["y2"] - n["y1"] >= 20:
-            tap(n["cx"], n["cy"])
-            return True
-    return False
+    spot = find_text(dump_nodes(), text)
+    if spot:
+        tap(*spot)
+    return spot is not None
 
 
 # --- Reine Entscheidungslogik (ohne Geraet, getestet in scripts/test_smoke.py) ---------------------------------------------------------
+
+def find_text(nodes, text):
+    """Mitte (x, y) des ersten sichtbaren Knotens mit genau diesem Text, sonst None.
+
+    Eine unter die App-Leiste gescrollte Zeile bleibt als 1-px-Streifen im Baum: nur Knoten mit Hoehe >= 20 px zaehlen.
+    """
+    for n in nodes:
+        if n["t"] == text and n["y2"] - n["y1"] >= 20:
+            return n["cx"], n["cy"]
+    return None
+
+
+def screen_size_from_nodes(nodes):
+    """(Breite, Hoehe) des AKTUELLEN Bildschirms aus dem uiautomator-Baum (der Wurzelknoten deckt ihn ab), None bei leerem Baum.
+
+    Nicht `wm size`: das meldet immer die Hochformat-Groesse (1008x2244), auch wenn das Geraet quer steht — dort lagen die Wischpunkte
+    ausserhalb des Bildschirms, die Liste scrollte nie, und die Suche nach "App-Info" lief ins Leere.
+    """
+    if not nodes:
+        return None
+    return max(n["x2"] for n in nodes), max(n["y2"] for n in nodes)
+
+
+# Zwei Wischbahnen in Bruchteilen der Bildschirmhoehe: erst schnell und weit nach oben (die Liste laeuft nach unten), dann in kleinen Schritten —
+# ein Fling ueberspringt jedes Suchband. Alle Punkte liegen zwischen 0,30 und 0,70 der Hoehe, also auf der Liste: die App-Leiste endet bei rund
+# 0,21 (Querformat gemessen), das Hauptmenue beginnt bei rund 0,80.
+FAST_SWIPES = 8
+
+
+def scroll_points(width, height):
+    """[(x1, y1, x2, y2, ms)] fuer den schnellen und den feinen Wisch auf einem Bildschirm dieser Groesse."""
+    x = width // 2
+    return [
+        (x, int(height * 0.70), x, int(height * 0.30), 150),
+        (x, int(height * 0.62), x, int(height * 0.40), 600),
+    ]
+
+
+def scroll_stalled(before, after):
+    """Hat sich nach dem Wischen nichts bewegt (Ende der Liste oder ein Wischen, das die Liste nicht traf)?
+
+    Verglichen werden Text, Beschreibung und senkrechte Lage der sichtbaren Knoten (Streifen unter 20 px zaehlen nicht).
+    """
+    def shape(nodes):
+        return [(n["t"], n["d"], n["y1"], n["y2"]) for n in nodes if n["y2"] - n["y1"] >= 20]
+    return shape(before) == shape(after)
+
 
 SIMULATOR_ROW = "OBD Sim"
 # Baender des Dashboards, die sagen: noch keine (frischen) Werte — Vorschau (offline/verbinde), warte auf Werte, veraltet. Grossgeschrieben,
@@ -146,11 +193,6 @@ def poll(fn, timeout, interval, sleep=time.sleep, now=time.monotonic):
         if value or now() >= deadline:
             return value
         sleep(interval)
-
-
-def screen_size():
-    w, h = adb("shell", "wm", "size").split()[-1].split("x")
-    return int(w), int(h)
 
 
 def simulator_button(label):
@@ -247,19 +289,27 @@ def main():
 
     tap_text("Einstellungen")
     time.sleep(2)
-    w, h = screen_size()
+    nodes = dump_nodes()
+    size = screen_size_from_nodes(nodes)
     found = False
-    for step in range(40):
-        if tap_text("App-Info"):
-            found = True
-            break
-        if step == 0:
-            for _ in range(8):      # erst schnell nach oben, dann in kleinen Schritten: ein Fling ueberspringt jedes Suchband
-                swipe(w // 2, int(h * 0.7), w // 2, int(h * 0.3), 150)
-        else:
-            swipe(w // 2, int(h * 0.62), w // 2, int(h * 0.40), 600)
-        time.sleep(0.8)
-    check("Zeile App-Info gefunden", found)
+    stalled = False
+    if size:
+        fast, fine = scroll_points(*size)
+        for step in range(40):
+            spot = find_text(nodes, "App-Info")
+            if spot:
+                tap(*spot)
+                found = True
+                break
+            for _ in range(FAST_SWIPES if step == 0 else 1):
+                swipe(*(fast if step == 0 else fine))
+            time.sleep(0.8)
+            before, nodes = nodes, dump_nodes()
+            if scroll_stalled(before, nodes):   # Ende der Liste oder Wischen ohne Wirkung: nicht weitere 40 Schritte suchen
+                stalled = True
+                break
+    check("Zeile App-Info gefunden", found,
+          "" if found else (f"Bildschirm {size}, " + ("die Liste bewegte sich nicht mehr" if stalled else "nicht gefunden")))
     time.sleep(2)
     t = texts()
     check(f"App-Info nennt Version {args.version}", any(args.version in x for x in t), str([x for x in t if args.version in x][:2]))

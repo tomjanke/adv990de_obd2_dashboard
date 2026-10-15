@@ -15,7 +15,7 @@ coroutines = "1.11.0"
 mockk = "1.14.11"
 lifecycle = "2.11.0"
 appcompat = "1.8.0"
-paging = "3.5.2"
+paging = "3.5.3"
 kotlinx-serialization = "1.11.0"
 
 [libraries]
