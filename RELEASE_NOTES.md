@@ -1,5 +1,27 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.8 (versionCode 118)
+
+Die Farbe der Tankanzeige hängt an der Zahl leuchtender Segmente und wechselt genau dann, wenn ein Segment erlischt.
+
+### Anzeige
+
+- **Farbe an die Segmentzahl gekoppelt:** 5–10 leuchtende Segmente grün, 3–4 gelb, 2 rot, 1 rot blinkend. Die Farbe gilt für die ganze Anzeige (nicht je Segmentposition): das erlöschende Segment wird grau, die übrigen nehmen sofort die Farbe der neuen Stufe an. Vorher galten Prozentschwellen (≥ 40 % grün, ≥ 20 % gelb, ≥ 5 % rot, darunter blinkend), die Farbe wechselte also mitten in einem Segment.
+- **Folgen für die Grenzen:** in Prozent des Rests grün über 40 %, gelb über 20 % bis 40 %, rot über 10 % bis 20 %, blinkend bei **höchstens 10 %** (vorher unter 5 %). Genau 40 % sind jetzt gelb (vorher grün), genau 20 % rot (vorher gelb), genau 10 % blinkend. Bei 300 km Reichweite blinkt das letzte Segment also ab 30 km Rest statt ab 15 km.
+- **Meine Auslegung der Vorgabe** („1 Segment rot blinkt, 2 Segmente rot, 4 Segmente gelb, der Rest grün“): die Liste als Obergrenzen — 3 und 4 Segmente gelb, die 3 wurde nicht genannt — und die Farbe für die ganze Anzeige. Die Gegenlesart (feste Farbe je Segmentposition: Segment 1–2 rot, 3–4 gelb, 5–10 grün) wurde verworfen, weil bei 4 verbleibenden Segmenten dann 2 rot und 2 gelb wären, nicht „4 Segmente gelb“.
+
+### Grenzen
+
+- **Hochformat nicht angesehen;** am Gerät nur das Standard-Dunkelschema und der Zustand ohne Verbindung gesehen. Die vier Stufen (5 grün, 4 gelb, 2 rot, 1 rot blinkend) sind am Bildschirmfoto im Querformat gemessen (`#22C55E`, `#EAB308`, `#EF4444`); das einzelne Segment wurde in der „an“-Phase des Blinkens erfasst, der Blinktakt selbst ist per Geräte-Test belegt.
+- Ob sich die gröbere Farbstufung am Motorrad während der Fahrt gut ablesen lässt, und die Genauigkeit der GPS-Strecke gegen den Tageskilometerzähler sind ungeprüft.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1632 JVM-Tests (+2) und 392 Instrumentation-Tests (+1). `FuelGaugeTest` prüft jede Grenze (`fuelLevelForSegments`, Stufe je Segmentzahl, Farbe ändert sich nur dort, wo ein Segment erlischt), `FuelGaugeRowDeviceTest` liest den Farbwechsel genau beim Erlöschen aus dem gerenderten Bild (vorher rot: bei genau 40 % noch grün, bei 10 % kein Blinken). Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+- Mutationen erkannt: grün ab 4 statt 5 Segmenten, gelb ab 2 statt 3, rot ab 1 statt 2.
+- **Test-Falle:** bei angehaltener Uhr (`mainClock.autoAdvance = false`) braucht ein neuer Zustand einen Frame (`advanceTimeByFrame()`), sonst misst der Test den alten.
+
 ## Version 1.32.7 (versionCode 117)
 
 Die Tankanzeige besteht aus zehn Segmenten und sinkt segmentweise statt stufenlos.
