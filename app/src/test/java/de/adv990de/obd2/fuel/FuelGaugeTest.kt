@@ -7,8 +7,8 @@ import org.junit.Test
 
 /**
  * Die Tankanzeige ist ein Streckenzaehler: Rest = Reichweite bei vollem Tank minus gefahrene Kilometer.
- * Die Stufen sind die des Nutzers (2026-10-15): 100-40 % gruen, 39-20 % gelb, 19-5 % rot, unter 5 % rot blinkend.
- * "39 %" heisst: unter 40 — die Grenzen sind deshalb Untergrenzen (>= 40, >= 20, >= 5), keine Luecken bei 39,5 %.
+ * Die Farbe haengt seit dem 2026-10-15 (Nutzerwunsch) an der Zahl leuchtender Segmente, nicht mehr an Prozentschwellen: 5-10 Segmente gruen,
+ * 3-4 gelb, 2 rot, 1 (und leer) rot blinkend. Sie wechselt damit genau dann, wenn ein Segment erloescht.
  */
 class FuelGaugeTest {
 
@@ -25,21 +25,48 @@ class FuelGaugeTest {
     }
 
     @Test
-    fun `exactly 40 percent is still green, just below it is yellow`() {
-        assertEquals(FuelLevel.Green, level(200, 120f))   // 80 km = 40 %
-        assertEquals(FuelLevel.Yellow, level(200, 120.2f)) // 79.8 km = 39,9 %
+    fun `five segments are the last green ones - at 4 segments the whole bar turns yellow`() {
+        assertEquals(FuelLevel.Green, level(200, 100f))     // 50 % = 5 Segmente
+        assertEquals(FuelLevel.Green, level(200, 119.8f))   // 40,1 % = ceil(4,01) = 5 Segmente
+        assertEquals(FuelLevel.Yellow, level(200, 120f))    // genau 40 % = 4 Segmente
     }
 
     @Test
-    fun `exactly 20 percent is still yellow, just below it is red`() {
-        assertEquals(FuelLevel.Yellow, level(200, 160f))   // 40 km = 20 %
-        assertEquals(FuelLevel.Red, level(200, 160.2f))    // 39,8 km = 19,9 %
+    fun `three and four segments are yellow, two segments are red`() {
+        assertEquals(FuelLevel.Yellow, level(200, 140f))    // 30 % = 3 Segmente
+        assertEquals(FuelLevel.Yellow, level(200, 159.8f))  // 20,1 % = 3 Segmente
+        assertEquals(FuelLevel.Red, level(200, 160f))       // genau 20 % = 2 Segmente
     }
 
     @Test
-    fun `exactly 5 percent is still red, just below it is red and blinking`() {
-        assertEquals(FuelLevel.Red, level(200, 190f))          // 10 km = 5 %
-        assertEquals(FuelLevel.RedBlinking, level(200, 190.2f)) // 9,8 km = 4,9 %
+    fun `two segments are red and steady, the last segment is red and blinking`() {
+        assertEquals(FuelLevel.Red, level(200, 170f))            // 15 % = 2 Segmente
+        assertEquals(FuelLevel.Red, level(200, 179.8f))          // 10,1 % = 2 Segmente
+        assertEquals(FuelLevel.RedBlinking, level(200, 180f))    // genau 10 % = 1 Segment
+        assertEquals(FuelLevel.RedBlinking, level(200, 190f))    // 5 %
+        assertEquals(FuelLevel.RedBlinking, level(200, 199.8f))  // 0,1 %
+    }
+
+    @Test
+    fun `the level follows the segment count exactly - the colour changes in the moment a segment goes out`() {
+        val expected = mapOf(
+            10 to FuelLevel.Green, 9 to FuelLevel.Green, 8 to FuelLevel.Green, 7 to FuelLevel.Green, 6 to FuelLevel.Green, 5 to FuelLevel.Green,
+            4 to FuelLevel.Yellow, 3 to FuelLevel.Yellow,
+            2 to FuelLevel.Red,
+            1 to FuelLevel.RedBlinking, 0 to FuelLevel.RedBlinking,
+        )
+        for ((segments, level) in expected) assertEquals("$segments Segmente", level, fuelLevelForSegments(segments))
+
+        // Ueber die ganze Reichweite in 0,5-km-Schritten: zu jeder Segmentzahl gehoert genau eine Farbe, und die Farbe aendert sich nur dort, wo ein Segment erlischt.
+        var previous: FuelGaugeState? = null
+        var d = 0f
+        while (d <= 200f) {
+            val state = FuelGaugeState(200, d)
+            assertEquals("gefahren $d km", expected.getValue(state.litSegments), state.level)
+            previous?.let { if (it.litSegments == state.litSegments) assertEquals("gefahren $d km: gleiche Segmentzahl, gleiche Farbe", it.level, state.level) }
+            previous = state
+            d += 0.5f
+        }
     }
 
     @Test
@@ -88,6 +115,15 @@ class FuelGaugeTest {
     @Test
     fun `fuelLevel of an unknown fraction (NaN) is the alarm level, never green`() {
         assertEquals(FuelLevel.RedBlinking, fuelLevel(Float.NaN))
+    }
+
+    @Test
+    fun `fuelLevel of a fraction is the level of its segment count`() {
+        assertEquals(FuelLevel.Green, fuelLevel(1f))
+        assertEquals(FuelLevel.Green, fuelLevel(0.41f))
+        assertEquals(FuelLevel.Yellow, fuelLevel(0.40f))
+        assertEquals(FuelLevel.Red, fuelLevel(0.15f))
+        assertEquals(FuelLevel.RedBlinking, fuelLevel(0.10f))
     }
 
     @Test

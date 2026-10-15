@@ -84,9 +84,10 @@ class FuelGaugeRowDeviceTest {
         composeRule.waitForIdle()
     }
 
-    /** Ein anderer Zustand in derselben Komposition (setContent geht nur einmal je Test). */
+    /** Ein anderer Zustand in derselben Komposition (setContent geht nur einmal je Test). Bei angehaltener Uhr braucht die Komposition einen Frame. */
     private fun update(state: FuelGaugeState) {
         current.value = state
+        if (!composeRule.mainClock.autoAdvance) composeRule.mainClock.advanceTimeByFrame()
         composeRule.waitForIdle()
     }
 
@@ -228,6 +229,8 @@ class FuelGaugeRowDeviceTest {
 
     @Test
     fun theLastSegmentStaysLitDownToAnEmptyTank() {
+        // Das letzte Segment blinkt: die Uhr steht still, damit die Messung immer die "an"-Phase trifft.
+        composeRule.mainClock.autoAdvance = false
         show(FuelGaugeState(200, 0f))
         val red = StatusColors.Critical.toArgb()
 
@@ -299,28 +302,53 @@ class FuelGaugeRowDeviceTest {
         assertTrue("der Balken endet am rechten Rand der Spur: ${scan.lastInkPx} von ${scan.widthPx}", scan.lastInkPx >= scan.widthPx - 2)
     }
 
+    // --- Farbe haengt an der Zahl leuchtender Segmente (Nutzerwunsch 2026-10-15): 5-10 gruen, 3-4 gelb, 2 rot, 1 rot blinkend ---
+
     @Test
-    fun theBarIsGreenAbove40Percent() {
-        show(FuelGaugeState(200, 100f)) // 50 %
+    fun theBarIsGreenWithFiveOrMoreSegments() {
+        show(FuelGaugeState(200, 100f)) // 50 % = 5 Segmente
         assertEquals(StatusColors.TrafficLightGreen.toArgb(), fillColorArgb())
     }
 
     @Test
-    fun theBarIsYellowFrom20To39Percent() {
-        show(FuelGaugeState(200, 140f)) // 30 %
+    fun theBarIsYellowWithThreeOrFourSegments() {
+        show(FuelGaugeState(200, 140f)) // 30 % = 3 Segmente
         assertEquals(StatusColors.Warning.toArgb(), fillColorArgb())
     }
 
     @Test
-    fun theBarIsRedFrom5To19Percent() {
-        show(FuelGaugeState(200, 170f)) // 15 %
+    fun theBarIsRedWithTwoSegments() {
+        show(FuelGaugeState(200, 170f)) // 15 % = 2 Segmente
         assertEquals(StatusColors.Critical.toArgb(), fillColorArgb())
     }
 
     @Test
-    fun aRedBarAbove5PercentDoesNotBlink() {
+    fun theColourChangesInTheMomentASegmentGoesOut_andTheRemainingSegmentsTakeTheNewColour() {
+        // Genau an den Grenzen aus dem gerenderten Bild gelesen: 41 % = 5 gruene, 40 % = 4 gelbe, 20,1 % = 3 gelbe, 20 % = 2 rote, 10,1 % = 2 rote.
+        // Vorher (Prozentschwellen) blieben bei genau 40 % noch 4 gruene Segmente stehen und bei genau 20 % 2 gelbe.
         composeRule.mainClock.autoAdvance = false
-        show(FuelGaugeState(200, 170f)) // 15 %
+        show(FuelGaugeState(200, 0f))
+        val green = StatusColors.TrafficLightGreen.toArgb()
+        val yellow = StatusColors.Warning.toArgb()
+        val red = StatusColors.Critical.toArgb()
+
+        fun check(driven: Float, litColor: Int, segments: Int, label: String) {
+            update(FuelGaugeState(200, driven))
+            val scan = scan(litColor)
+            assertEquals("$label: $segments Segmente in der Farbe ${litColor.toUInt().toString(16)}", segments, scan.litCount)
+        }
+        check(118f, green, 5, "41 %")
+        check(120f, yellow, 4, "genau 40 %")
+        check(159.8f, yellow, 3, "20,1 %")
+        check(160f, red, 2, "genau 20 %")
+        check(179.8f, red, 2, "10,1 %")
+        check(180f, red, 1, "genau 10 %: das letzte Segment blinkt rot")
+    }
+
+    @Test
+    fun aRedBarWithTwoSegmentsDoesNotBlink() {
+        composeRule.mainClock.autoAdvance = false
+        show(FuelGaugeState(200, 170f)) // 15 % = 2 Segmente
 
         repeat(4) {
             composeRule.mainClock.advanceTimeBy(500)
@@ -329,9 +357,9 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun belowFivePercentTheBarBlinksRed() {
+    fun theLastSegmentBlinksRed() {
         composeRule.mainClock.autoAdvance = false
-        show(FuelGaugeState(200, 195f)) // 2,5 %
+        show(FuelGaugeState(200, 180f)) // genau 10 % = 1 Segment
         val on = fillColorArgb()
         assertEquals("zuerst rot und voll sichtbar", StatusColors.Critical.toArgb(), on)
 

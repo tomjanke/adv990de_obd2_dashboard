@@ -95,8 +95,9 @@ internal fun fuelBarColor(level: FuelLevel): Color = when (level) {
  * Links das Tankstellen-Symbol (macht klar, dass es eine Tankanzeige ist), daneben ueber die ganze uebrige Breite der Balken — er besteht seit
  * 2026-10-15 (Nutzerwunsch) aus [FUEL_SEGMENT_COUNT] = 10 Segmenten, die sich von links mit dem Anteil der Restreichweite ([FuelGaugeState.fraction])
  * fuellen **und segmentweise abnehmen, nicht stufenlos** (`ceil(Anteil * 10)`, s. [FuelGaugeState.litSegments]); die Luecke zwischen den Segmenten ist
- * dieselbe wie beim Drehzahlbalken ([SEGMENT_GAP], eine gemeinsame Konstante). Alle leuchtenden Segmente haben eine Farbe, die nach [FuelLevel]
- * wechselt; unter 5 % blinkt der Balken rot.
+ * dieselbe wie beim Drehzahlbalken ([SEGMENT_GAP], eine gemeinsame Konstante). Alle leuchtenden Segmente haben eine Farbe, die an der **Zahl der
+ * leuchtenden Segmente** haengt ([FuelLevel], s. [FuelGaugeState.level]): 5-10 gruen, 3-4 gelb, 2 rot, 1 rot blinkend — sie wechselt genau dann, wenn
+ * ein Segment erloescht.
  *
  * Die Zeile ist [FUEL_ROW_HEIGHT] hoch (40 dp, volle Breite), der Balken darin 16 dp hoch und zentriert. **Bewusste Ausnahme von der 56-dp-Regel fuer
  * Touch-Ziele** (CLAUDE.md): der Nutzer wollte weniger Abstand um den Balken; der Long-Press ist eine seltene, ueber eine Rueckfrage abgesicherte

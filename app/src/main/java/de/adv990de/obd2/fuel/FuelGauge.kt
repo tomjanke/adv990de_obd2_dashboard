@@ -4,9 +4,11 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
- * Stufen der virtuellen Tankanzeige (Nutzerwunsch 2026-10-15), bezogen auf den Anteil der Restreichweite an der Reichweite bei vollem Tank:
- * 100-40 % gruen, 39-20 % gelb, 19-5 % rot, unter 5 % rot blinkend. Die Grenzen sind Untergrenzen (>= 40, >= 20, >= 5): "39 %" heisst
- * "unter 40", sonst klaffte bei 39,5 % eine Luecke.
+ * Stufen der virtuellen Tankanzeige, seit 2026-10-15 (Nutzerwunsch) **an die Zahl leuchtender Segmente gekoppelt** statt an Prozentschwellen:
+ * 5-10 Segmente gruen, 3-4 gelb, 2 rot, 1 (und leer) rot blinkend. Die Farbe wechselt damit genau in dem Moment, in dem ein Segment erlischt;
+ * die verbleibenden Segmente nehmen die Farbe der neuen Stufe an (die ganze Anzeige hat eine Farbe, die Farbe haengt nicht an der Segmentposition).
+ * Vorher galten >= 40 % gruen, >= 20 % gelb, >= 5 % rot, darunter blinkend — die Farbe wechselte mitten in einem Segment, und die blinkende Stufe
+ * begann erst unter 5 %; jetzt blinkt das letzte Segment, also ab hoechstens 10 % Rest.
  */
 enum class FuelLevel {
     Green, Yellow, Red, RedBlinking;
@@ -15,20 +17,31 @@ enum class FuelLevel {
     val blinks: Boolean get() = this == RedBlinking
 }
 
-internal const val FUEL_GREEN_FROM = 0.40f
-internal const val FUEL_YELLOW_FROM = 0.20f
-internal const val FUEL_RED_FROM = 0.05f
+/** Ab so vielen leuchtenden Segmenten ist die Anzeige gruen. */
+internal const val FUEL_GREEN_FROM_SEGMENTS = 5
+
+/** Ab so vielen leuchtenden Segmenten (und unter [FUEL_GREEN_FROM_SEGMENTS]) ist sie gelb. */
+internal const val FUEL_YELLOW_FROM_SEGMENTS = 3
+
+/** Ab so vielen leuchtenden Segmenten (und unter [FUEL_YELLOW_FROM_SEGMENTS]) ist sie rot; darunter blinkt sie rot. */
+internal const val FUEL_RED_FROM_SEGMENTS = 2
 
 /**
- * Die Stufe zu einem Anteil [fraction] (0 = leer, 1 = voll). Ein unbekannter Anteil (NaN) ist die Alarmstufe — nie Gruen.
+ * Die Stufe zu einer Zahl leuchtender Segmente. Null Segmente (leer) ist die Alarmstufe — nie Gruen, auch wenn es dann nichts zum Blinken gibt.
  * Reine Funktion ohne Android-Bezug, JVM-getestet.
  */
-fun fuelLevel(fraction: Float): FuelLevel = when {
-    fraction >= FUEL_GREEN_FROM -> FuelLevel.Green
-    fraction >= FUEL_YELLOW_FROM -> FuelLevel.Yellow
-    fraction >= FUEL_RED_FROM -> FuelLevel.Red
+fun fuelLevelForSegments(litSegments: Int): FuelLevel = when {
+    litSegments >= FUEL_GREEN_FROM_SEGMENTS -> FuelLevel.Green
+    litSegments >= FUEL_YELLOW_FROM_SEGMENTS -> FuelLevel.Yellow
+    litSegments >= FUEL_RED_FROM_SEGMENTS -> FuelLevel.Red
     else -> FuelLevel.RedBlinking
 }
+
+/**
+ * Die Stufe zu einem Anteil [fraction] (0 = leer, 1 = voll): die Stufe seiner Segmentzahl ([fuelLitSegments]). Ein unbekannter Anteil (NaN) laesst
+ * kein Segment leuchten und ist damit die Alarmstufe — nie Gruen.
+ */
+fun fuelLevel(fraction: Float): FuelLevel = fuelLevelForSegments(fuelLitSegments(fraction))
 
 /** Zahl der Segmente der Tankanzeige (Nutzerwunsch 2026-10-15): jedes steht fuer ein Zehntel der Reichweite bei vollem Tank. */
 const val FUEL_SEGMENT_COUNT = 10
@@ -39,7 +52,7 @@ private const val SEGMENT_EPSILON = 1e-4f
 /**
  * Wie viele von [count] Segmenten bei einem Anteil [fraction] (0 = leer, 1 = voll) leuchten: `ceil(fraction * count)` — ein Segment bleibt an,
  * solange noch etwas von seinem Zehntel uebrig ist (wie der Drehzahlbalken mit `ceil(rpm / 200)`). Das erste Segment geht also erst aus, wenn ein
- * Zehntel der Reichweite gefahren ist, und das letzte erst bei leerem Tank — die blinkende Stufe unter 5 % hat damit immer etwas zum Blinken.
+ * Zehntel der Reichweite gefahren ist, und das letzte erst bei leerem Tank — das blinkende letzte Segment steht damit bis zum leeren Tank.
  * Ein unbekannter Anteil (NaN) laesst nichts leuchten. Reine Funktion ohne Android-Bezug, JVM-getestet.
  */
 fun fuelLitSegments(fraction: Float, count: Int = FUEL_SEGMENT_COUNT): Int {
