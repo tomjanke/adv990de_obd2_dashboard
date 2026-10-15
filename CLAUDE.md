@@ -1023,8 +1023,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1632 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 392 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1627 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 389 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

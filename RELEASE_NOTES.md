@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.9 (versionCode 119)
+
+Der Öl-Timer steht jetzt im Ölstreifen selbst: der gelbe Balken färbt sich während der Timerphase von links nach rechts grün. Der Text „Öl: m:ss“ in der Statuszeile entfällt.
+
+### Anzeige
+
+- **Timerphase als Farbwechsel des Streifens.** Solange der Grün-Timer wirklich läuft, färbt sich der gelbe Ölstreifen anteilig von links nach rechts grün: grüner Anteil = `1 − Restzeit / 10 Minuten` (bei der Hälfte der Zeit ist die linke Hälfte grün). Mit der Restzeit 0 ist der Streifen ganz grün, genau dann wechselt auch die Farbe auf Grün. **Nur wenn der Timer wirklich läuft:** nicht verbunden, nicht gelb (Rot, Grün und Grau zeigen ihre eigene Farbe) oder Timer nicht gestartet bzw. verfallen (ein Balken zwischen 75 und 80 °C, der noch nie über 80 °C war, bleibt ganz gelb) → kein Grün. Ein Reset (≤ 75 °C, Einbruch von 120 s, Lücke über 60 s) nimmt den grünen Anteil mit zurück; ein kürzerer Einbruch und die Haltezone 79–80 °C lassen ihn weiterlaufen. Nicht animiert: der Anteil springt etwa jede Sekunde, im Querformat um rund 1,5 dp, im Hochformat um rund 0,5 dp.
+- **TalkBack:** solange der Anteil über 0 liegt, nennt die Beschreibung des Streifens die Restzeit („Wahrscheinliche Öltemperatur: wird warm, noch 6:12, bis der Balken grün wird“); sonst die Beschreibung der Farbe.
+- **Kein Öl-Timer mehr in der Statuszeile.** Die Zeile zeigt wieder nur Datum/Uhrzeit links und die Außentemperatur rechts (Stand vor 1.31.0). Folgen: die Restzeit ist nur noch im **Dashboard** zu sehen, nicht mehr auf den anderen Seiten während der Fahrt; und die kompakte Kopfzeile im Hochformat (nur Uhrzeit statt Datum), die nur wegen des Timers in der Mitte nötig war, entfällt — im Hochformat steht wieder das volle Datum.
+  Entfernt: `OilWarmupState`, `DriveStateViewModel.oilGreenInMillis`, `AmbientHeaderLayout.kt` (`ambientOilText`, `ambientUsesCompactHeader`), `formatDashboardTime`, die Strings `ambient_oil_label` und `ambient_oil_desc` und die Tests des Texts. Erhalten bleiben `oilBarGreenInMillis`, `OilBarTracker.greenInMillis()` und `formatOilTimer`, die jetzt den Streifen speisen. Das Entfernen ist ein eigener Commit (`71b6d8f`) und lässt sich einzeln zurücknehmen; der Timer-Text kam mit `e928e91`.
+- **Meine Auslegung des Wunsches:** „NUR wenn der Timer wirklich läuft“ = verbunden, gelb und Restzeit unter der vollen Dauer; „Timeranzeige in der Statuszeile könnte entfallen“ = entfernen und die Zeile auf den alten Stand zurücksetzen, nicht nur anbieten.
+
+### Grenzen
+
+- **Der Streifen mit laufendem Timer ist nur in gerenderten Vorschauen gesehen** (die Geräte-Tests lesen den Übergang als Bildpunkte), nicht im echten Dashboard — der Timer braucht zehn echte Minuten oberhalb von 80 °C.
+- **Hochformat nicht angesehen:** weder der Streifen noch die Statuszeile mit dem wieder vollen Datum. Passt das Datum dort nicht neben die Temperatur, ist das der Zustand von 1.17.x bis 1.30.0.
+- Ablesbarkeit des Fortschritts am Motorrad während der Fahrt ungeprüft; nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1627 JVM-Tests und 389 Instrumentation-Tests. Neu: 10 JVM-Tests (`oilBarGreenShare`, Restzeit im UI-State: Start, Reset, GPS-Zwischenupdate, Verbindungsverlust) und 7 Geräte-Tests in `RpmBarTest` (Übergang bei der Hälfte, wächst von links nach rechts, kein Grün ohne laufenden Timer, Rot/Grün/Grau unverändert, Beschreibung) — vor der Umsetzung rot, der Streifen blieb ganz gelb. Entfallen: die Tests des Statuszeilen-Texts. Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+- **Lint-Falle:** der `modifier` muss der erste optionale Parameter bleiben (`ModifierParameter`); `greenInMillis` steht deshalb nach `modifier`.
+
 ## Version 1.32.8 (versionCode 118)
 
 Die Farbe der Tankanzeige hängt an der Zahl leuchtender Segmente und wechselt genau dann, wenn ein Segment erlischt.
