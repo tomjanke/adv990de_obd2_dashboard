@@ -1,5 +1,32 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.7 (versionCode 117)
+
+Die Tankanzeige besteht aus zehn Segmenten und sinkt segmentweise statt stufenlos.
+
+### Anzeige
+
+- **Zehn Segmente.** Jedes Segment steht für ein Zehntel der Reichweite bei vollem Tank. Die Zahl leuchtender Segmente ist `ceil(Anteil × 10)` — wie beim Drehzahlbalken (`ceil(rpm / 200)`): ein Segment bleibt an, solange noch etwas von seinem Zehntel übrig ist. Das erste geht erst aus, wenn ein Zehntel der Reichweite gefahren ist (90 % = 9 Segmente, 90,1 % noch 10), das letzte erst bei leerem Tank. Aufgerundet, damit die rot blinkende Stufe unter 5 % immer ein Segment zum Blinken hat.
+- **Lücke wie beim Drehzahlbalken.** Der Abstand zwischen den Segmenten ist 1,5 dp, dieselbe Konstante (`SEGMENT_GAP`) und dieselbe Breitenformel (`segmentWidthPx`) wie bei den 50 Drehzahl-Segmenten, neue Datei `ui/components/SegmentedBar.kt`. Gemessen am Bildschirmfoto (Pixel 8 Pro, Querformat, 2,25 px/dp): Tank-Lücke 3,37 px, Drehzahl-Lücke 3,38 px, beides 1,50 dp.
+- **Farbe und Blinken unverändert:** alle leuchtenden Segmente haben eine gemeinsame Ampelfarbe aus dem echten Anteil (≥ 40 % grün, ≥ 20 % gelb, ≥ 5 % rot, darunter rot blinkend). Bei 39 % stehen also 4 gelbe Segmente, bei 41 % 5 grüne. Jedes Segment ist ein einziges deckendes Rechteck, damit die Kanten saubere Mischungen sind (zwei übereinanderliegende Rechtecke ließen an der Kante einen grauen Saum); die abgeblendete Blinkphase wird vorab über das unbeleuchtete Segment gemischt.
+
+### Entscheidungen
+
+- **Aufrunden statt abrunden und eine Farbe für alle leuchtenden Segmente** habe ich entschieden (Nutzer ließ beides offen): abgerundet wäre die blinkende Stufe unter 10 % leer; eine Farbe je Segmentposition (Segment 1–2 immer rot usw.) hätte die dokumentierten Stufen „≥ 40 % grün“ verändert.
+
+### Grenzen
+
+- **Hochformat nicht angesehen** (die Segmente sind dort rechnerisch ≈ 39 dp breit); am Gerät nur das Standard-Dunkelschema und der Zustand ohne Verbindung gesehen (6 grüne Segmente bei 59 %, 3 gelbe bei 27 %).
+- Ablesbarkeit der Segmentstufen am Motorrad während der Fahrt ungeprüft; die Genauigkeit der GPS-Strecke der Tankanzeige gegen den Tageskilometerzähler ebenfalls.
+- Bei exakt leerem Tank leuchtet kein Segment, es gibt also nichts zum Blinken — wie vorher beim leeren Balken.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1630 JVM-Tests (+15: `FuelGaugeTest`, `SegmentedBarTest`, `FuelGaugePlacementSourceTest`) und 391 Instrumentation-Tests (+4: `FuelGaugeRowDeviceTest` liest Segmente, Lücken und Kantenpunkte als Bildpunkte). Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+- **Float-Rauschen an den Segmentgrenzen:** bei Reichweite 51 km und 40,8 km gefahren (genau 2 Zehntel Rest) ergibt `Anteil × 10` in Float `2,0000002`, ohne Toleranz leuchtete ein Segment zu viel. `fuelLitSegments` enthält deshalb eine Toleranz von 1e-4 Segmenten; der Test läuft über alle Reichweiten von 50 bis 1000 km und ist ohne die Toleranz rot.
+- Mutationen erkannt: abrunden statt aufrunden, Toleranz 0, 9 statt 10 Segmente, doppelte Lücke, ein Segment zu viel, zwei übereinanderliegende Rechtecke je Segment.
+
 ## Version 1.32.6 (versionCode 116)
 
 Etwas mehr Luft zwischen den Drehzahl-Segmenten und dem Ölstreifen.
