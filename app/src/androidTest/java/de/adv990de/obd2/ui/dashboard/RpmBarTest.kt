@@ -340,6 +340,36 @@ class RpmBarTest {
         org.junit.Assert.assertTrue("Streifen beginnt rechts der linken Kante der Segmente", strip.left > segments.left)
     }
 
+    // ── Linker Rand (Nutzerwunsch 2026-10-15): Segmente buendig wie die Kachel, Oelkanne an der Kante des Tankstellen-Symbols ──
+
+    @Test
+    fun rpmSegments_startExactlyAtTheLeftScreenEdge() {
+        showGeometryBar()
+
+        val left = rpmSegments().fetchSemanticsNode().boundsInRoot.left
+        org.junit.Assert.assertEquals("Segmente buendig am linken Rand: $left px", 0f, left, 1.5f)
+    }
+
+    @Test
+    fun theOilCan_boxStarts11dpFromTheEdge_soItsVisibleEdgeSitsAt12dpLikeThePump() {
+        showGeometryBar()
+
+        // 8 dp Zeilenrand der Tankzeile + 4 dp Eigenrand des Material-Symbols = 12 dp sichtbar; die Kanne hat 1 dp Eigenrand -> 11 dp.
+        // Dass die SICHTBAREN Kanten wirklich gleich liegen, misst DashboardLeftEdgeAlignmentDeviceTest gegen die echte Tankzeile.
+        val left = composeRule.onNodeWithTag(OIL_BAR_ICON_TEST_TAG).fetchSemanticsNode().boundsInRoot.left
+        org.junit.Assert.assertEquals("Kanne beginnt 11 dp vom Rand: $left px", 11 * density, left, 1.5f)
+    }
+
+    @Test
+    fun theGearBox_keepsItsRightMargin_8dp() {
+        showGeometryBar()
+
+        val root = composeRule.onNodeWithTag(rpmBarRootTag).fetchSemanticsNode().boundsInRoot
+        val gearBox = composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.dashboard_gear_desc, 3))
+            .fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertEquals("rechts bleiben 8 dp Rand", 8 * density, root.right - gearBox.right, 1.5f)
+    }
+
     @Test
     fun theOilCan_isShownInEveryOilState_includingTheGreyOneWithoutConnection() {
         val color = androidx.compose.runtime.mutableStateOf<OilBarColor?>(OilBarColor.Red)

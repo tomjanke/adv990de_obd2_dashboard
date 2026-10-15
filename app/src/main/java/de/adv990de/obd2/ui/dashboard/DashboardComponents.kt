@@ -39,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.components.FUEL_ROW_START_PADDING
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.GearIndicatorStyle
@@ -114,7 +115,9 @@ internal fun RpmBar(
             // Ganganzeige == ValueTileStyle) eine Innenhoehe von mind. 61,36dp
             // (ValueTileStyle.lineHeight bei fixiertem fontScale=1f) statt der zuvor 56dp.
             .height(78.dp)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            // Links kein Rand (Nutzerwunsch 2026-10-15): die Segmente stehen buendig am Bildschirmrand wie die Kachel. Rechts bleiben 8 dp
+            // (dort stehen Gang-Box und Bluetooth-Symbol, kein Balken), oben und unten ebenfalls.
+            .padding(end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Column statt einzelnem Box: die RPM-Segmente (80% Hoehenanteil) und darunter die
@@ -171,7 +174,7 @@ internal fun RpmBar(
             // so hoch wie der Tankbalken (16 dp). Die Segmente nehmen den Rest der Spalte (62 - 2 - 20 = 40 dp, vorher 48), die Zeilenhoehe von
             // 78 dp und die Gang-Box bleiben. Das Symbol ist neutral (onSurfaceVariant), nur der Streifen traegt die Farbe.
             Row(
-                modifier = Modifier.fillMaxWidth().height(OIL_ROW_HEIGHT),
+                modifier = Modifier.fillMaxWidth().height(OIL_ROW_HEIGHT).padding(start = OIL_ROW_START_PADDING),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -242,6 +245,15 @@ internal val OIL_ROW_HEIGHT = 20.dp
 internal val OIL_ICON_HEIGHT = 16.dp
 internal val OIL_BAR_HEIGHT = 16.dp
 internal val OIL_ICON_GAP = 8.dp
+
+/**
+ * Linker Rand der Oel-Zeile: die Oelkanne steht an derselben **sichtbaren** Kante wie das Tankstellen-Symbol der Tankzeile (Nutzerwunsch 2026-10-15; seit der
+ * Aenderung am selben Tag 12 dp vom Rand). Das Material-Symbol hat 4 dp Eigenrand, die selbstgezeichnete Kanne nur 1 dp (der Henkel beginnt bei x = 1 im 24er-Raster
+ * von `ic_oil_can`) — der Rand ist also der der Tankzeile ([FUEL_ROW_START_PADDING]) **plus 3 dp**: gleiche Boxen laegen 3 dp daneben. Die Segmente darueber
+ * stehen bewusst buendig (0 dp), nur die Zeile mit dem Symbol ist eingerueckt; der Streifen endet weiter an der rechten Kante der Segmente.
+ * `DashboardLeftEdgeAlignmentDeviceTest` misst die sichtbaren Kanten gegen die echte Tankzeile.
+ */
+internal val OIL_ROW_START_PADDING = FUEL_ROW_START_PADDING + 3.dp
 
 /**
  * Simulierte "wahrscheinliche Oeltemperatur", abgeleitet aus der Kuehlmitteltemperatur (kein

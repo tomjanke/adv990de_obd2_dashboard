@@ -64,6 +64,13 @@ internal const val FUEL_BLINK_OFF_ALPHA = 0.15f
 /** Hoehe der Zeile: 40 dp mit dem 16-dp-Balken in der Mitte = 12 dp Luft oben und unten (Nutzerwunsch 2026-10-15: engerer Abstand; vorher 56 dp mit 20 dp). */
 internal val FUEL_ROW_HEIGHT = 40.dp
 
+/**
+ * Linker Rand der Tankzeile (Nutzerwunsch 2026-10-15: Tankstellen-Symbol und Oelkanne naeher am Rand): 8 dp + 4 dp Eigenrand des Material-Symbols = **12 dp**
+ * sichtbar (vorher 16 dp Rand, 20 dp sichtbar). Rechts bleibt es bei 16 dp. Die Oelkanne im Drehzahlbalken leitet ihren Rand davon ab (`OIL_ROW_START_PADDING`),
+ * damit beide an derselben sichtbaren Kante stehen — wer diesen Wert aendert, verschiebt die Kanne mit.
+ */
+internal val FUEL_ROW_START_PADDING = 8.dp
+
 private val FuelBarHeight = 16.dp
 private val FuelIconSize = 24.dp
 
@@ -120,7 +127,7 @@ fun FuelGaugeRow(
             shadowElevation = 0.dp,
         ) {
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(start = FUEL_ROW_START_PADDING, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
