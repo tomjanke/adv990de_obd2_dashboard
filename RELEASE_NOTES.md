@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.5 (versionCode 115)
+
+Der Tankbalken endet 12 dp vor dem rechten Rand; dazu die offenen Prüfungen aus 1.32.3 und 1.32.4 (Hochformat, Paging-Prüfsummen).
+
+### Anzeige
+
+- **Tankzeile: rechter Rand 12 dp.** Der Balken endet jetzt 12 dp vor dem Bildschirmrand (vorher 16 dp) — so weit wie das Tankstellen-Symbol links sichtbar vom Rand steht (8 dp Zeilenrand + 4 dp Eigenrand des Symbols). Der Balken wird dadurch 4 dp länger. Neue Konstante `FUEL_ROW_END_PADDING` statt der festen 16 dp im Code.
+
+### Geprüft (Nachträge zu 1.32.3 und 1.32.4)
+
+- **Hochformat:** `scripts/smoke.py` lief am Pixel 8 Pro im Hochformat **ALL PASS** (Release 1.32.4; bisher nur im Querformat und über die Python-Tests). Die Ränder der Debug-App sind am Bildschirmfoto gemessen: Segmente 0 dp, Kachel 0 dp, Ölkanne 12,0 dp, Tankstellen-Symbol 12,0 dp, Tankbalken endet 12,0 dp vor dem rechten Rand. Die komplette Geräte-Suite (387 Tests) lief im Hochformat grün, darunter der Pixel-Test der Ränder.
+- **Display-Ecken:** die Rundung beträgt laut `dumpsys window` 68 px (≈ 30 dp). Im Hochformat liegt kein Inhalt im Eckbereich (Segmente ab y ≈ 131 px, Tankzeile endet bei 2044 px, die untere Rundung beginnt bei 2176 px).
+- **Paging-Prüfsummen (3.5.3 aus 1.32.4):** mit `--refresh-dependencies` frisch aufgelöst (Download vom Nutzer freigegeben): der volle Schreibbefehl lief durch und ließ `gradle/verification-metadata.xml` unverändert (1005 Komponenten), ein normaler Build mit `--refresh-dependencies` lief gegen die vorhandenen Hashes durch. Die ohne frisches Auflösen geschriebenen Einträge waren vollständig und richtig.
+
+### Grenzen
+
+- Die abgerundeten Ecken sind im **Querformat** nicht gemessen (das Pixel stand aufrecht); die Segmente laufen dort bis an die Kante.
+- Weiterhin ungeprüft: Ablesbarkeit der um 8 dp niedrigeren Drehzahl-Segmente (1.32.2) am Motorrad während einer Fahrt; die Genauigkeit der GPS-Strecke der Tankanzeige gegen den Tageskilometerzähler.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1615 JVM-Tests und 387 Instrumentation-Tests (unverändert; ein Test heißt jetzt `theBarEndsAt12DpFromTheRightEdge_andTheLeftMarginIsOnly8Dp` und erwartet 12 statt 16 dp, vorher rot: 36 statt 27 px), 31 Python-Tests. Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+
 ## Version 1.32.4 (versionCode 114)
 
 Paging-Update und ein orientierungsfester Smoke-Test; an der Anzeige ändert sich nichts.
