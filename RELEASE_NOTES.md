@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.6 (versionCode 116)
+
+Etwas mehr Luft zwischen den Drehzahl-Segmenten und dem Ölstreifen.
+
+### Anzeige
+
+- **Abstand Segmente → Ölstreifen: 6 dp statt 4 dp.** Ölkanne und Ölstreifen stehen jetzt **unten bündig** in ihrer 20-dp-Zeile (vorher zentriert). Die sichtbare Lücke ist damit 2 dp Abstand plus 4 dp Luft über dem Streifen = 6 dp. Die Segmente bleiben 40 dp hoch, die Zeilenhöhe 78 dp und die Ölzeile 20 dp; der Streifen steht dafür 2 dp tiefer (8 statt 10 dp über dem Unterrand der Drehzahlzeile). Gemessen am Bildschirmfoto im Querformat (Pixel 8 Pro, 2,25 px/dp): Lücke 10 px (4,4 dp) → 14 px (6,2 dp), Segmente 40,0 dp, Streifen 16,0 dp.
+  Auslegung des Wunsches („etwa 2px mehr“): 2 **dp** mehr. 2 px als Absolutwert wären kleiner als die bisherigen 4 dp.
+
+### Geprüft (Nachtrag zu 1.32.5)
+
+- **Display-Ecken im Querformat:** gemessen (Debug-App, Bildschirmfoto 2244 × 1008 px, Rundung 68 px): in den vier Eckquadraten von 68 × 68 px liegt kein einziger Bildpunkt, der sich vom Hintergrund abhebt. Die oberste Tinte in den linken 68 Spalten (die bündigen Segmente) liegt bei y = 81 px, also 13 px unter dem Ende der Rundung. Damit ist die Grenze „im Querformat nicht gemessen“ aus 1.32.5 erledigt; der Eintrag dort bleibt als Geschichte unverändert.
+
+### Grenzen
+
+- Hochformat: die neue Lücke ist dort **nicht angesehen** (gleiche Geometrie, nur im Querformat gemessen).
+- Weiterhin ungeprüft: Ablesbarkeit der 40-dp-Drehzahl-Segmente am Motorrad während einer Fahrt; die Genauigkeit der GPS-Strecke der Tankanzeige gegen den Tageskilometerzähler.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1615 JVM-Tests und 387 Instrumentation-Tests (Anzahl unverändert; `RpmBarTest.oilRow_adds_up_toTheColumn_segments_gap_row_is_62dp` erwartet jetzt 6 dp Lücke und den bündigen Abschluss, vorher rot: 10 statt 13,5 px), 31 Python-Tests. Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+
 ## Version 1.32.5 (versionCode 115)
 
 Der Tankbalken endet 12 dp vor dem rechten Rand; dazu die offenen Prüfungen aus 1.32.3 und 1.32.4 (Hochformat, Paging-Prüfsummen).
