@@ -1,5 +1,36 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.0 (versionCode 110)
+
+Neu: eine virtuelle Tankanzeige — ein Balken, der die seit dem Tanken gefahrene GPS-Strecke gegen die Reichweite bei vollem Tank zählt.
+
+### Anzeige
+
+- **Neu: Tankanzeige über dem Hauptmenü bzw. der Statuszeile**, in voller Breite und auf jedem Screen, links ein Tankstellen-Symbol. Der Balken füllt sich von links mit dem Anteil der Restreichweite: **ab 40 % grün, ab 20 % gelb, ab 5 % rot, darunter rot blinkend** (500 ms an, 500 ms aus). Die Grenzen sind Untergrenzen („39 %“ heißt unter 40). Die Zeile ist 56 dp hoch (Trefferfläche für Handschuhe); die Kacheln behalten ihre Höhe (170 dp Hochformat, 200 dp Querformat).
+- **Zurücksetzen nach dem Tanken:** ein langer Druck auf Symbol oder Balken (der Standard-Long-Press des Systems, ca. 0,4 s) öffnet eine Rückfrage; bestätigt, springt die Anzeige auf die volle Reichweite. Ein einfacher Tipp tut nichts. Für TalkBack beschreibt die Zeile den Stand („Tankanzeige: noch etwa 220 km (69 %)“) und nennt den langen Druck „Tankanzeige zurücksetzen“.
+- Die Farben sind die Ampel (`TrafficLightGreen`, `Warning`, `Critical`) mit der üblichen Bedeutung (voll = grün) — eine weitere dokumentierte Ausnahme neben Bluetooth-Punkt, Ölbalken und „N“.
+
+### Einstellung
+
+- **Neu: „Reichweite bei vollem Tank“** in der Gruppe „Fahrzeug“ — ganze Kilometer von **50 bis 1000**; ein leeres Feld löscht den Wert. **Ohne Reichweite gibt es die Tankanzeige nicht**, bestehende Installationen sehen keine Änderung. Eingabe und Anzeige in km, auch bei imperialen Einheiten.
+
+### So wird gezählt
+
+- Die Strecke ist das **Integral der GPS-Geschwindigkeit** über die Zeit (`DistanceIntegrator`). Gezählt wird nur, was belegt ist: eine Lücke zwischen zwei Messungen von mehr als 10 s, eine unbekannte oder unplausible Geschwindigkeit (null, NaN, negativ, über 250 km/h) zählt nichts; unter 2 km/h gilt als Stillstand (GPS-Rauschen). Ein Verbindungsverlust beendet das Intervall.
+- Der Zähler gehört der ganzen App (`FuelRepository`, DataStore-Schlüssel `fuel_km_since_fill` und `fuel_range_full_km`, die Namen sind persistierter Zustand). Er wird gedrosselt gespeichert (ab 0,2 km Zuwachs, beim Zurücksetzen sofort, am Sitzungsende); ein Prozess-Kill verliert höchstens 0,2 km. Ein noch nicht gelesener Zähler wird nie überschrieben.
+
+### Grenzen
+
+- **Es ist ein Streckenzähler, keine Kraftstoffmessung.** Die App erkennt das Tanken nicht (Sie setzen per Zurücksetzen auf „voll“, Teilbefüllungen gibt es nicht) und kennt den Verbrauch nicht — Autobahn oder Stadt verschiebt die echte Restreichweite gegen die angezeigte.
+- **Gezählt wird nur bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“** (dieselbe Quelle wie die Ganganzeige). Ohne OBD-Verbindung, bei beendeter App oder abgeschalteter GPS-Einstellung steht der Zähler still.
+- Die Genauigkeit der GPS-Strecke ist **nicht gemessen** (am besten bei der ersten Fahrt gegen den Tageskilometerzähler vergleichen). Der Platz im Querformat ist nur gerechnet (≈ 390 von ≈ 510 dp auf dem Pixel 8 Pro), nicht am Gerät gemessen; auf kleineren Telefonen schrumpft die Kachelreihe im Querformat wie bisher auf die verfügbare Höhe.
+- Nur auf dem Pixel 8 Pro im Hochformat am Gerät gesehen (Zeile, Tipp ohne Wirkung, langer Druck öffnet die Rückfrage), nicht während einer Fahrt.
+
+### Tests
+
+- 1613 JVM-Tests (+78), 373 Instrumentation-Tests (+35: Tankzeile mit Farben aus dem gerenderten Bild, Blinken bei angehaltener Uhr, Long-Press und Trefferfläche, Zeile in der Navigation samt Rückfrage, Höhe von Hauptmenü und Statuszeile auch mit sichtbarer Tankzeile, Eingabedialog der Reichweite). 17 gezielte Mutationen (Stufengrenzen, Streckenrechnung, Speicherung, Dashboard-Anbindung, Eingabeprüfung) wurden von den Tests erkannt. Lint: 0 Fehler, 3 Warnungen.
+- Auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.31.0 (versionCode 109)
 
 Der laufende Timer des Ölbalkens steht jetzt in der Statuszeile während der Fahrt.
