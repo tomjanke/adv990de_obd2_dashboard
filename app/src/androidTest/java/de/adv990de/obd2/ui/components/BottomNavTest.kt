@@ -31,7 +31,6 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
-import de.adv990de.obd2.ui.dashboard.OilWarmupState
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
@@ -156,7 +155,7 @@ class BottomNavTest {
         val prefs = mockk<AppPreferences> {
             every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
         }
-        return DriveStateViewModel(obdRepo, prefs, oilWarmup)
+        return DriveStateViewModel(obdRepo, prefs)
     }
 
     /** Mirrors `DisplaySettingsViewModelTest.makePrefs()`: every flow the constructor touches is
@@ -189,9 +188,6 @@ class BottomNavTest {
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
             )
         )
-
-    /** Die Restzeit bis Gruen, die das Dashboard sonst veroeffentlicht — hier setzt sie der Test selbst. */
-    private val oilWarmup = OilWarmupState()
 
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel
@@ -358,35 +354,6 @@ class BottomNavTest {
     }
 
     @Test
-    fun navHidden_true_showsTheOilTimerWithItsStartTimeBeforeItRuns() {
-        launchBottomNav(isMoving = true, hideNavOnDrive = true)
-
-        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 10:00").assertIsDisplayed()
-    }
-
-    @Test
-    fun navHidden_true_showsTheRunningCountdownAndFollowsIt() {
-        oilWarmup.set(372_000L)
-        launchBottomNav(isMoving = true, hideNavOnDrive = true)
-        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 6:12").assertIsDisplayed()
-
-        oilWarmup.set(371_000L)
-
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("${label(R.string.ambient_oil_label)} 6:11").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 6:12").assertDoesNotExist()
-    }
-
-    @Test
-    fun navHidden_false_showsNoOilTimer() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = true)
-
-        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
-        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 10:00").assertDoesNotExist()
-    }
-
-    @Test
     fun navHidden_true_withImperialUnits_showsTemperatureInFahrenheit() {
         // 20 °C * 9/5 + 32 = 68 °F — same convertUnit convention as the dashboard tiles.
         launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = 20f, useImperial = true)
@@ -421,11 +388,10 @@ class BottomNavTest {
 
     @Test
     fun theMainMenuAndTheAmbientStatusRowAreExactlyAsTall() {
-        // Nutzerfrage 2026-10-15: "Ist das Hauptmenue im Stand und die Statuszeile bei Fahrt mit Datum, Timer und Temperatur gleich hoch?"
+        // Nutzerfrage 2026-10-15: "Ist das Hauptmenue im Stand und die Statuszeile bei Fahrt mit Datum und Temperatur gleich hoch?"
         // Beide sind im Quelltext 64 dp + Trennlinie + Inset; hier wird die gemessene Hoehe verglichen (ein Hoehensprung beim AnimatedContent-Wechsel
         // waere ein sichtbarer Sprung des ganzen Bildschirms darueber). Eine Komposition, "faehrt" wird umgeschaltet.
         val moving = MutableStateFlow(false)
-        oilWarmup.set(372_000L)
         composeRule.setContent {
             val vm = remember { makeVm(moving, hideNavOnDrive = true) }
             val weatherVm = remember { makeWeatherVm(outsideTempC = 20f) }
@@ -445,7 +411,7 @@ class BottomNavTest {
 
         moving.value = true
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("${label(R.string.ambient_oil_label)} 6:12").fetchSemanticsNodes().isNotEmpty() &&
+            composeRule.onAllNodesWithText("20 °C").fetchSemanticsNodes().isNotEmpty() &&
                 composeRule.onAllNodesWithText(label(R.string.nav_live)).fetchSemanticsNodes().isEmpty()
         }
         composeRule.onNodeWithText("20 °C").assertIsDisplayed()

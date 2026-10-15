@@ -1,7 +1,6 @@
 package de.adv990de.obd2.ui.components
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,16 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import de.adv990de.obd2.R
-import de.adv990de.obd2.ui.dashboard.OIL_BAR_GREEN_HOLD_MS
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.asLiveValue
@@ -69,12 +61,7 @@ import kotlinx.coroutines.delay
  * bleibt, kein primaerer Messwert.
  */
 @Composable
-fun AmbientStatusRow(
-    outsideTempC: Float?,
-    useImperial: Boolean,
-    /** Restzeit bis der Oel-Balken gruen wird ([OilWarmupState]); Standard = die volle Dauer ("Starttimerzeit", Timer laeuft noch nicht). */
-    oilGreenInMillis: Long = OIL_BAR_GREEN_HOLD_MS,
-) {
+fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         // Tick genau auf den Minutenwechsel (die Anzeige hat keine Sekunden) statt in festem
@@ -104,13 +91,6 @@ fun AmbientStatusRow(
     // NOT Locale.getDefault(): that reads a non-observable global (Compose lint "NonObservableLocale")
     // and would not recompose if the user changes the system locale without restarting the app.
     val locale = LocalLocale.current.platformLocale
-    val textStyle = MaterialTheme.typography.titleLarge.asLiveValue()
-    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val oilLabel = stringResource(R.string.ambient_oil_label)
-    val oilText = ambientOilText(oilLabel, oilGreenInMillis, locale)
-    val oilDescription = stringResource(R.string.ambient_oil_desc, formatOilTimer(oilGreenInMillis, locale))
-    val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -124,55 +104,29 @@ fun AmbientStatusRow(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
         ) {
-            BoxWithConstraints(
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Das volle Datum nur, wenn es neben dem Timer in seine Haelfte passt — sonst die Uhrzeit allein (s. ambientUsesCompactHeader).
-                // Gemessen wird mit dem echten Stil und dem breitesten Timer-Text ("10:00"): der Entscheid springt nicht mit dem Countdown.
-                val fullHeader = formatDashboardHeader(nowMillis, locale)
-                val compact = ambientUsesCompactHeader(
-                    availableWidth = with(density) { maxWidth.roundToPx() },
-                    fullHeaderWidth = textMeasurer.measure(fullHeader, textStyle).size.width,
-                    centreWidth = textMeasurer.measure(ambientOilText(oilLabel, OIL_BAR_GREEN_HOLD_MS, locale), textStyle).size.width,
-                    minGap = with(density) { MIN_HEADER_GAP.roundToPx() },
+                LiveValueText(
+                    value = formatDashboardHeader(nowMillis, locale),
+                    style = MaterialTheme.typography.titleLarge.asLiveValue(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Links und rechts gleich breit (weight), damit der Timer exakt in der Mitte steht.
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                        LiveValueText(
-                            value = if (compact) formatDashboardTime(nowMillis, locale) else fullHeader,
-                            style = textStyle,
-                            color = textColor,
-                        )
-                    }
+                formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
                     LiveValueText(
-                        value = oilText,
-                        modifier = Modifier.semantics { contentDescription = oilDescription },
-                        style = textStyle,
-                        color = textColor,
+                        value = temperature,
+                        style = MaterialTheme.typography.titleLarge.asLiveValue(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                        formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
-                            LiveValueText(
-                                value = temperature,
-                                style = textStyle,
-                                color = textColor,
-                            )
-                        }
-                    }
                 }
             }
         }
     }
 }
-
-/** Mindestabstand zwischen dem Datum und dem Timer in der Mitte der Zeile. */
-private val MIN_HEADER_GAP = 8.dp
 
 // region — Previews
 
@@ -192,26 +146,6 @@ private fun PreviewAmbientStatusRowNoTemp() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
             AmbientStatusRow(outsideTempC = null, useImperial = false)
-        }
-    }
-}
-
-@Preview(name = "AmbientStatusRow · oil timer running (blue)", showBackground = true)
-@Composable
-private fun PreviewAmbientStatusRowOilTimerRunning() {
-    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            AmbientStatusRow(outsideTempC = 18.4f, useImperial = false, oilGreenInMillis = 372_000L)
-        }
-    }
-}
-
-@Preview(name = "AmbientStatusRow · oil timer done (amber)", showBackground = true)
-@Composable
-private fun PreviewAmbientStatusRowOilTimerDone() {
-    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            AmbientStatusRow(outsideTempC = null, useImperial = false, oilGreenInMillis = 0L)
         }
     }
 }

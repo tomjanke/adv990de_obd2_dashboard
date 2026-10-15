@@ -2,7 +2,6 @@ package de.adv990de.obd2.ui.components
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneId
 import java.util.Locale
@@ -114,19 +113,6 @@ class DashboardHeaderFormatTest {
         assertEquals(0L, (now + millisUntilNextMinute(now)) % 60_000L)
     }
 
-
-    // ── formatDashboardTime: the compact header of a narrow ambient row ─────────────────────
-
-    @Test
-    fun `the compact header is the time only`() {
-        assertEquals("14:32", formatDashboardTime(millis, Locale.GERMAN, fixedZone))
-        assertEquals("14:32", formatDashboardTime(millis, Locale.ENGLISH, fixedZone))
-    }
-
-    @Test
-    fun `the compact header is the time part of the full header`() {
-        assertTrue(formatDashboardHeader(millis, Locale.GERMAN, fixedZone).endsWith(formatDashboardTime(millis, Locale.GERMAN, fixedZone)))
-    }
 
     // ── formatOilTimer: the countdown to a green oil bar ─────────────────────────────────────
 

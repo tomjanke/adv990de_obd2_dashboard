@@ -21,14 +21,8 @@ fun formatDashboardHeader(epochMillis: Long, locale: Locale, zone: ZoneId = Zone
 }
 
 /**
- * Nur die Uhrzeit ("14:32") — die kompakte Form des Kopfes, wenn das volle Datum in einer schmalen Ambient-Statuszeile neben dem Oel-Timer
- * keinen Platz hat (s. [ambientUsesCompactHeader]). Dieselbe Uhrzeit wie der hintere Teil von [formatDashboardHeader].
- */
-fun formatDashboardTime(epochMillis: Long, locale: Locale, zone: ZoneId = ZoneId.systemDefault()): String =
-    DateTimeFormatter.ofPattern("HH:mm", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
-
-/**
- * Restzeit des Oel-Timers als "m:ss" ("10:00", "6:12", "0:00"). Auf ganze Sekunden AUFgerundet, damit der Countdown nie "0:00" zeigt, solange noch
+ * Restzeit des Oel-Timers als "m:ss" ("10:00", "6:12", "0:00") — fuer die Beschreibung des Oel-Streifens waehrend der Timerphase (seit 2026-10-16 steht sie
+ * nicht mehr in der Ambient-Statuszeile). Auf ganze Sekunden AUFgerundet, damit der Countdown nie "0:00" zeigt, solange noch
  * Zeit uebrig ist; auf 0 bis [OIL_BAR_GREEN_HOLD_MS] begrenzt. Die Zahlen folgen der Sprache des Geraets ([locale] als Parameter, wie bei den
  * anderen Formaten dieser Datei).
  */
