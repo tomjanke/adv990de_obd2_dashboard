@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.4 (versionCode 114)
+
+Paging-Update und ein orientierungsfester Smoke-Test; an der Anzeige ändert sich nichts.
+
+### Bibliothek
+
+- **Paging 3.5.2 → 3.5.3** (`paging-runtime-ktx`, `paging-compose` und deren Basis). 3.5.3 vom 12.10.2026 ist die aktuelle stabile Version (Quelle: developer.android.com/jetpack/androidx/releases/paging, Abfrage 15.10.2026). Die Änderungen sind reine Fehlerkorrekturen — kein `IllegalArgumentException` in `ItemSnapshotListFlow` bei `RemoteMediator`, `maxSize` lässt nicht unter zwei Seiten fallen, `Pager.append()` vor dem ersten Refresh wirft nicht mehr.
+  **Keine davon betrifft die App:** die Verlaufsliste nutzt `Pager(PagingConfig(pageSize = 20, …))` ohne `maxSize`, `RemoteMediator`, `ItemSnapshotList` und `Pager.append()`. Es ist Pflege ohne funktionalen Gewinn; Lint meldet dafür zwei Warnungen weniger.
+- **Prüfsummen:** sieben neue Komponenten in `gradle/verification-metadata.xml` (19 Dateien, 945 KiB aus Google Maven), geschrieben **ohne** `--refresh-dependencies` — die 3.5.3-POMs haben keine Eltern-POM, gegenüber 3.5.2 ändern sich nur die internen Paging-Verweise (externe Abhängigkeiten gleich, verglichen). Mit einem frischen Auflösen aller Abhängigkeiten **nicht** nachgeprüft.
+
+### Werkzeuge
+
+- **`scripts/smoke.py` läuft im Hoch- wie im Querformat.** Bisher scheiterten im Querformat die drei App-Info-Zeilen: die Wischpunkte kamen aus `wm size`, das **immer die Hochformat-Größe** meldet; sie lagen auf einem quer stehenden Gerät außerhalb des Bildschirms, die Liste scrollte nie. Jetzt kommt die Größe des aktuellen Bildschirms aus dem uiautomator-Baum, und die Suche bricht ab, sobald sich nach einem Wischen nichts mehr bewegt (statt 40 Schritte à rund 4 s).
+
+### Grenzen
+
+- Paging nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen.
+- Der echte Smoke-Lauf mit dem neuen Skript ging im **Querformat**; im Hochformat prüfen es nur die Python-Tests (beide Ausrichtungen), nicht ein Lauf am Gerät.
+
+### Tests
+
+- 1615 JVM-Tests und 387 Instrumentation-Tests (unverändert, darunter 21 Verlauf-Tests), dazu 31 Python-Tests des Smoke-Skripts (+13, vom JVM-Test `SmokeScriptTest` ausgeführt). Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert). Auf dem Pixel 8 Pro geprüft, nicht am Fahrzeug.
+
 ## Version 1.32.3 (versionCode 113)
 
 Der Drehzahlbalken steht bündig am linken Rand, Ölkanne und Tankstellen-Symbol sitzen näher am Rand.
