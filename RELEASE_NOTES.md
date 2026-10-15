@@ -1,5 +1,25 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.3 (versionCode 113)
+
+Der Drehzahlbalken steht bündig am linken Rand, Ölkanne und Tankstellen-Symbol sitzen näher am Rand.
+
+### Anzeige
+
+- **Drehzahl-Segmente bündig links:** Die Segmente beginnen jetzt am Bildschirmrand (0 dp) wie die Kacheln — vorher 8 dp Rand, seit der ersten Version des Balkens. Rechts, oben und unten bleiben 8 dp (rechts stehen Gang-Box und Bluetooth-Symbol).
+- **Ölkanne und Tankstellen-Symbol 12 dp vom linken Rand:** Beide stehen an derselben **sichtbaren** Kante, vorher 20 dp. Die Tankzeile hat dafür links 8 dp Rand statt 16 (das Material-Symbol bringt 4 dp Eigenrand mit); rechts endet der Balken weiter 16 dp vor dem Rand. Der Rand der Ölkanne wird aus dem der Tankzeile abgeleitet (plus 3 dp, weil die selbstgezeichnete Kanne nur 1 dp Eigenrand hat) — beide verschieben sich künftig gemeinsam.
+- Das Tankstellen-Symbol selbst, die Höhe der Tankzeile (40 dp) und die Höhe der Drehzahlzeile (78 dp) sind unverändert.
+
+### Grenzen
+
+- Gemessen am Pixel 8 Pro im Querformat (Bildschirmfoto: Segmente 0 dp, Kachel 0 dp, Kanne 12,0 dp, Tankstellen-Symbol 12,0 dp); das **Hochformat** wurde nicht angesehen, ebenso nicht die abgerundeten Display-Ecken (die Segmente laufen jetzt bis an die Kante, die Zeile liegt unter der Statusleiste).
+- Die Tankzeile ist links jetzt enger (12 dp sichtbar) als rechts (16 dp).
+- Weiterhin ungeprüft: Ablesbarkeit der um 8 dp niedrigeren Drehzahl-Segmente (1.32.2) am Motorrad während einer Fahrt.
+
+### Tests
+
+- 1615 JVM-Tests (unverändert), 387 Instrumentation-Tests (+6): neu `DashboardLeftEdgeAlignmentDeviceTest` (misst die sichtbaren Kanten von Ölkanne und Tankstellen-Symbol als Bildpunkte gegen die echte Tankzeile — der erste Bildpunkt-Test im Projekt, mit Begründung), +3 in `RpmBarTest` (Segmente bündig, Kanne 11 dp, rechter Rand 8 dp), +1 in `FuelGaugeRowDeviceTest` (Rand links 8 dp, rechts 16 dp). Mutationen erkannt (Kanne ohne die 3 dp Ausgleich: 3 dp neben dem Symbol; naiv 16 dp). Lint: 0 Fehler, 3 Warnungen. Auf dem Pixel 8 Pro geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.32.2 (versionCode 112)
 
 Der Öl-Streifen unter den Drehzahl-Segmenten ist so hoch wie der Tankbalken und hat eine Ölkanne davor.
