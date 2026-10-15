@@ -1,7 +1,10 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -9,6 +12,7 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
@@ -141,9 +145,13 @@ class BottomNavTest {
 
     // --- helpers ---
 
-    private fun makeVm(isMoving: Boolean, hideNavOnDrive: Boolean): DriveStateViewModel {
+    private fun makeVm(isMoving: Boolean, hideNavOnDrive: Boolean): DriveStateViewModel =
+        makeVm(MutableStateFlow(isMoving), hideNavOnDrive)
+
+    /** Wie oben, aber der Test schaltet "faehrt" selbst um ([moving]) — fuer den Wechsel Hauptmenue <-> Statuszeile in einer Komposition. */
+    private fun makeVm(moving: MutableStateFlow<Boolean>, hideNavOnDrive: Boolean): DriveStateViewModel {
         val obdRepo = mockk<ObdRepository> {
-            every { isMovingFlow } returns MutableStateFlow(isMoving)
+            every { isMovingFlow } returns moving
         }
         val prefs = mockk<AppPreferences> {
             every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
@@ -227,6 +235,7 @@ class BottomNavTest {
     private fun label(resId: Int): String = composeRule.activity.getString(resId)
 
     companion object {
+        private const val BOTTOM_AREA_TAG = "BOTTOM_AREA"
         private const val DASHBOARD_MARKER = "DASHBOARD_DESTINATION_MARKER"
         private const val DTC_MARKER = "DTC_DESTINATION_MARKER"
         private const val HISTORY_MARKER = "HISTORY_DESTINATION_MARKER"
@@ -408,6 +417,46 @@ class BottomNavTest {
         launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = null)
 
         composeRule.onNodeWithText(label(R.string.nav_live)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theMainMenuAndTheAmbientStatusRowAreExactlyAsTall() {
+        // Nutzerfrage 2026-10-15: "Ist das Hauptmenue im Stand und die Statuszeile bei Fahrt mit Datum, Timer und Temperatur gleich hoch?"
+        // Beide sind im Quelltext 64 dp + Trennlinie + Inset; hier wird die gemessene Hoehe verglichen (ein Hoehensprung beim AnimatedContent-Wechsel
+        // waere ein sichtbarer Sprung des ganzen Bildschirms darueber). Eine Komposition, "faehrt" wird umgeschaltet.
+        val moving = MutableStateFlow(false)
+        oilWarmup.set(372_000L)
+        composeRule.setContent {
+            val vm = remember { makeVm(moving, hideNavOnDrive = true) }
+            val weatherVm = remember { makeWeatherVm(outsideTempC = 20f) }
+            val displayVm = remember { makeDisplayVm(useImperial = false) }
+            val exitAppVm = remember { makeExitAppVm() }
+            val navController = rememberNavController()
+            NavHost(navController = navController, startDestination = Screen.Dashboard.route) {
+                composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
+            }
+            Box(Modifier.testTag(BOTTOM_AREA_TAG)) {
+                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm)
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
+        val mainMenuHeight = composeRule.onNodeWithTag(BOTTOM_AREA_TAG).fetchSemanticsNode().size.height
+
+        moving.value = true
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("${label(R.string.ambient_oil_label)} 6:12").fetchSemanticsNodes().isNotEmpty() &&
+                composeRule.onAllNodesWithText(label(R.string.nav_live)).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithText("20 °C").assertIsDisplayed()
+        val ambientRowHeight = composeRule.onNodeWithTag(BOTTOM_AREA_TAG).fetchSemanticsNode().size.height
+
+        val minimumPx = (65 * composeRule.activity.resources.displayMetrics.density).toInt() // Trennlinie 1 dp + 64 dp
+        assertTrue("Hauptmenue nicht gemessen: $mainMenuHeight px", mainMenuHeight >= minimumPx)
+        assertTrue(
+            "Hauptmenue $mainMenuHeight px, Statuszeile $ambientRowHeight px — die Hoehe darf beim Wechsel nicht springen",
+            mainMenuHeight == ambientRowHeight,
+        )
     }
 
     // --- exit button + confirmation dialog ---

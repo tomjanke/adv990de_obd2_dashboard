@@ -324,7 +324,7 @@ Ist `hideNavOnDrive` an und das Fahrzeug in Bewegung (`DriveStateViewModel.isNav
 app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
 - **Gleiche Geometrie und Fläche wie die Leiste:** Trennlinie, 64 dp `surface`,
   `navigationBarsPadding()` außerhalb der Fläche — kein Höhen- oder Farbsprung beim Wechsel (s.
-  M3-Abweichung „Hintergrund der Navigationsleiste" oben).
+  M3-Abweichung „Hintergrund der Navigationsleiste" oben). **Die Höhe ist gemessen gleich:** `BottomNavTest.theMainMenuAndTheAmbientStatusRowAreExactlyAsTall` komponiert `BottomNav`, schaltet von „steht“ auf „fährt“ und verlangt dieselbe Pixelhöhe von Hauptmenü und Statuszeile (mit Datum, Timer und Temperatur; Mutation: 60 statt 64 dp → rot, 200 gegen 191 px). Grenze: nicht mit großer Systemschrift geprüft — die Fläche bleibt 64 dp, der Text könnte dort abgeschnitten werden).
 - **Inhalt:** Datum/Uhrzeit links (`formatDashboardHeader`, tickt genau zum Minutenwechsel),
   **Öl-Timer in der Mitte** (s. nächster Punkt), Außentemperatur rechts (`formatOutsideTemperature`: `convertUnit` wie `SensorCard`, also °F bei
   imperialen Einheiten; NaN/∞ → weggelassen). Beides `LiveValueText` in `titleLarge.asLiveValue()`
@@ -991,7 +991,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 1535 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 337 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 338 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
