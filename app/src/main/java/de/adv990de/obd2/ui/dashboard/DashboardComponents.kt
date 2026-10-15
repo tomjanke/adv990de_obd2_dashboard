@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.FUEL_ROW_START_PADDING
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.components.SEGMENT_GAP
+import de.adv990de.obd2.ui.components.segmentWidthPx
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.GearIndicatorStyle
 import de.adv990de.obd2.ui.theme.StatusColors
@@ -146,8 +148,8 @@ internal fun RpmBar(
                 // ablesen kann, ohne die Zahl zu lesen.
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val count = (RPM_BAR_MAX / RPM_SEGMENT).toInt()
-                    val gap = 1.5.dp.toPx()
-                    val segmentWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
+                    val gap = SEGMENT_GAP.toPx()
+                    val segmentWidth = segmentWidthPx(size.width, gap, count)
                     val lit = if (visible) {
                         ceil(rpm / RPM_SEGMENT).toInt().coerceIn(0, count)
                     } else 0

@@ -2,7 +2,10 @@ package de.adv990de.obd2.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
@@ -39,6 +42,8 @@ import org.junit.runner.RunWith
 /**
  * Die virtuelle Tankanzeige (Nutzerwunsch 2026-10-15) auf dem Geraet: Fuellung, Farbe, Blinken, Long-Press und Trefferflaeche.
  * Die Farben werden aus dem gerenderten Bild gelesen (nicht aus dem Quelltext geschlossen), das Blinken mit angehaltener Uhr Schritt fuer Schritt.
+ * Der Balken besteht seit dem 2026-10-15 aus 10 Segmenten (Nutzerwunsch): wie viele leuchten und wie breit die Luecken sind, liest der Test als
+ * Bildpunkte aus der Mittelzeile der Spur — Segmente und Luecken haben dort je eine eigene, genau bekannte Farbe.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -62,31 +67,101 @@ class FuelGaugeRowDeviceTest {
     }
 
     private var resets = 0
+    private val current = mutableStateOf(FuelGaugeState(320, 0f))
+
+    /** Das Farbschema der Komposition; die Bildpunkt-Helfer lesen Luecke und unbeleuchtetes Segment daraus. */
+    private var scheme: ColorScheme = blueColorScheme
 
     private fun show(state: FuelGaugeState) {
+        current.value = state
         composeRule.setContent {
-            MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+            MaterialTheme(colorScheme = scheme, typography = AppTypography) {
                 Box(Modifier.fillMaxWidth()) {
-                    FuelGaugeRow(state = state, onResetRequested = { resets++ })
+                    FuelGaugeRow(state = current.value, onResetRequested = { resets++ })
                 }
             }
         }
         composeRule.waitForIdle()
     }
 
+    /** Ein anderer Zustand in derselben Komposition (setContent geht nur einmal je Test). */
+    private fun update(state: FuelGaugeState) {
+        current.value = state
+        composeRule.waitForIdle()
+    }
+
     /**
-     * Spur und Fuellung sind Kinder der Zeile, und die Zeile fasst ihre Kinder zu EINEM Knoten zusammen (`combinedClickable`: ein Knoten fuer
+     * Die Spur ist ein Kind der Zeile, und die Zeile fasst ihre Kinder zu EINEM Knoten zusammen (`combinedClickable`: ein Knoten fuer
      * TalkBack mit einer Beschreibung) — im zusammengefuehrten Baum gibt es sie nicht, nur im ungemergten.
      */
     private fun inner(tag: String) = composeRule.onNodeWithTag(tag, useUnmergedTree = true)
 
-    /** Die Farbe in der Mitte der Fuellung, wie sie auf dem Bildschirm steht. */
+    private fun trackImage() = inner(FUEL_GAUGE_TRACK_TEST_TAG).captureToImage().asAndroidBitmap()
+
+    /** Die Farbe in der Mitte des ersten Segments, wie sie auf dem Bildschirm steht (beim Blinken abgeblendet). */
     private fun fillColorArgb(): Int {
-        val image = inner(FUEL_GAUGE_FILL_TEST_TAG).captureToImage().asAndroidBitmap()
-        return image.getPixel(image.width / 2, image.height / 2)
+        val image = trackImage()
+        return image.getPixel(image.width / 20, image.height / 2)
     }
 
-    private fun width(tag: String) = inner(tag).fetchSemanticsNode().size.width
+    /** Ein Segment der Spur, gelesen als Bildpunkte: leuchtend oder nicht und seine Breite in genau erkannten Punkten. */
+    private data class Cell(val lit: Boolean, val widthPx: Int)
+
+    /** Was die Mittelzeile der Spur zeigt: die Segmente von links nach rechts, die Breite der Luecken dazwischen und der erste/letzte Punkt mit Inhalt. */
+    private data class Scan(val cells: List<Cell>, val gapsPx: List<Int>, val firstInkPx: Int, val lastInkPx: Int, val widthPx: Int) {
+        val litCount: Int get() = cells.count { it.lit }
+    }
+
+    /**
+     * Liest die Mittelzeile der Spur. Drei Farben sind genau bekannt: [litArgb] (leuchtendes Segment), `surfaceVariant` (unbeleuchtet) und `surface`
+     * (die Luecke: dort scheint die Zeile durch). Punkte an den Kanten, die der Kantenglaettung gehoeren, passen zu keiner und zaehlen nicht mit —
+     * deshalb sind die gemessenen Breiten bis zu 2 Punkte schmaler als die echten, die Luecken ebenso.
+     */
+    private fun scan(litArgb: Int): Scan {
+        val image = trackImage()
+        val gap = scheme.surface.toArgb()
+        val unlit = scheme.surfaceVariant.toArgb()
+        val y = image.height / 2
+        val cells = mutableListOf<Cell>()
+        val gaps = mutableListOf<Int>()
+        var segmentLit: Boolean? = null
+        var segmentWidth = 0
+        var gapWidth = 0
+        var first = -1
+        var last = -1
+        for (x in 0 until image.width) {
+            val pixel = image.getPixel(x, y)
+            when (pixel) {
+                gap -> {
+                    if (segmentLit != null) {
+                        cells += Cell(segmentLit, segmentWidth)
+                        segmentLit = null
+                        segmentWidth = 0
+                        gapWidth = 0
+                    }
+                    gapWidth++
+                }
+                litArgb, unlit -> {
+                    val isLit = pixel == litArgb
+                    if (segmentLit == null) {
+                        if (cells.isNotEmpty()) gaps += gapWidth
+                        segmentLit = isLit
+                    }
+                    segmentWidth++
+                    if (first < 0) first = x
+                    last = x
+                }
+                else -> Unit // Kantenglaettung
+            }
+        }
+        if (segmentLit != null) cells += Cell(segmentLit, segmentWidth)
+        return Scan(cells, gaps, first, last, image.width)
+    }
+
+    private fun lit(state: FuelGaugeState, litArgb: Int = StatusColors.TrafficLightGreen.toArgb()): Int {
+        update(state)
+        return scan(litArgb).litCount
+    }
 
     @Test
     fun theRowDescribesTheRemainingRangeForScreenReaders() {
@@ -106,25 +181,122 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theBarFillsFromTheLeftWithTheShareOfTheRemainingRange() {
-        show(FuelGaugeState(rangeFullKm = 200, kmSinceFill = 50f)) // 75 %
-
-        val track = width(FUEL_GAUGE_TRACK_TEST_TAG)
-        val fill = width(FUEL_GAUGE_FILL_TEST_TAG)
-
-        assertTrue("Fuellung $fill px von $track px, erwartet 75 %", kotlin.math.abs(fill - track * 0.75f) <= 1f)
-    }
-
-    @Test
-    fun aFullTankFillsTheWholeTrackAndAnEmptyOneNothing() {
+    fun theBarIsTenSegments_andAFullTankLightsAllOfThem() {
         show(FuelGaugeState(200, 0f))
-        assertEquals(width(FUEL_GAUGE_TRACK_TEST_TAG), width(FUEL_GAUGE_FILL_TEST_TAG))
+
+        val scan = scan(StatusColors.TrafficLightGreen.toArgb())
+
+        assertEquals("zehn Segmente: ${scan.cells}", 10, scan.cells.size)
+        assertEquals("alle leuchten", 10, scan.litCount)
     }
 
     @Test
-    fun anEmptyTankFillsNothing() {
+    fun anEmptyTankLightsNoSegment_butTheTenSegmentsStayVisibleAsTheScale() {
         show(FuelGaugeState(200, 400f))
-        assertEquals(0, width(FUEL_GAUGE_FILL_TEST_TAG))
+
+        val scan = scan(StatusColors.TrafficLightGreen.toArgb())
+
+        assertEquals("die Skala bleibt: ${scan.cells}", 10, scan.cells.size)
+        assertEquals(0, scan.litCount)
+    }
+
+    @Test
+    fun theLitSegmentsStandOnTheLeft_andTheRestIsTheUnlitScale() {
+        show(FuelGaugeState(rangeFullKm = 200, kmSinceFill = 50f)) // 75 % -> 8 Segmente
+
+        val scan = scan(StatusColors.TrafficLightGreen.toArgb())
+
+        assertEquals(List(8) { true } + List(2) { false }, scan.cells.map { it.lit })
+    }
+
+    @Test
+    fun theDisplayDropsBySegment_notContinuously() {
+        // Die Anzeige sinkt nicht stufenlos: erst wenn ein Zehntel der Reichweite gefahren ist, geht das erste Segment aus; ein Segment bleibt
+        // an, solange noch etwas von seinem Zehntel uebrig ist (aufgerundet, wie der Drehzahlbalken).
+        show(FuelGaugeState(200, 0f))
+        val green = StatusColors.TrafficLightGreen.toArgb()
+
+        assertEquals("100 %", 10, lit(FuelGaugeState(200, 0f), green))
+        assertEquals("99,9 % bleibt voll", 10, lit(FuelGaugeState(200, 0.2f), green))
+        assertEquals("90,1 % bleibt voll", 10, lit(FuelGaugeState(200, 19.8f), green))
+        assertEquals("90 % = 9 Segmente", 9, lit(FuelGaugeState(200, 20f), green))
+        assertEquals("89,9 % bleibt bei 9", 9, lit(FuelGaugeState(200, 20.2f), green))
+        assertEquals("50,1 % = 6 Segmente", 6, lit(FuelGaugeState(200, 99.8f), green))
+        assertEquals("50 % = 5 Segmente", 5, lit(FuelGaugeState(200, 100f), green))
+        assertEquals("41 % = 5 Segmente", 5, lit(FuelGaugeState(200, 118f), green))
+    }
+
+    @Test
+    fun theLastSegmentStaysLitDownToAnEmptyTank() {
+        show(FuelGaugeState(200, 0f))
+        val red = StatusColors.Critical.toArgb()
+
+        assertEquals("5 %", 1, lit(FuelGaugeState(200, 190f), red))
+        assertEquals("4,9 %", 1, lit(FuelGaugeState(200, 190.2f), red))
+        assertEquals("0,1 %", 1, lit(FuelGaugeState(200, 199.8f), red))
+        assertEquals("leer", 0, lit(FuelGaugeState(200, 200f), red))
+    }
+
+    /**
+     * Wie weit ein Kantenpunkt von einer **reinen Mischung** aus Segmentfarbe und Luecke entfernt ist (groesste Abweichung eines Farbkanals).
+     * Ein Segment, das aus zwei uebereinanderliegenden Rechtecken besteht (unbeleuchtet darunter, leuchtend darueber), hat an der geglaetteten Kante
+     * einen Saum, der Farbe des unbeleuchteten Segments enthaelt (am Bildschirmfoto: Randpunkt (40, 164, 87) statt einer reinen Mischung aus Gruen
+     * und Luecke). Ein einzelnes Rechteck mischt nur seine eigene Farbe mit dem Hintergrund — so zeichnet auch der Drehzahlbalken.
+     * Die Breite der Luecke aendert der Saum kaum (gemessen 3,28 gegen 3,37 Punkte); es geht um saubere Kanten.
+     */
+    private fun worstEdgeResidual(litArgb: Int): Int {
+        val image = trackImage()
+        val gap = scheme.surface.toArgb()
+        val unlit = scheme.surfaceVariant.toArgb()
+        fun ch(argb: Int, shift: Int) = (argb shr shift) and 0xFF
+        var worst = 0
+        val y = image.height / 2
+        for (x in 0 until image.width) {
+            val p = image.getPixel(x, y)
+            if (p == gap || p == unlit || p == litArgb) continue
+            val residual = listOf(litArgb, unlit).minOf { ink ->
+                val d = intArrayOf(16, 8, 0).map { ch(gap, it) - ch(ink, it) }
+                val v = intArrayOf(16, 8, 0).map { ch(p, it) - ch(ink, it) }
+                val t = ((0 until 3).sumOf { v[it] * d[it] }.toDouble() / (0 until 3).sumOf { d[it] * d[it] }).coerceIn(0.0, 1.0)
+                (0 until 3).maxOf { kotlin.math.abs(v[it] - t * d[it]).toInt() }
+            }
+            worst = maxOf(worst, residual)
+        }
+        return worst
+    }
+
+    @Test
+    fun theSegmentEdgesAreCleanBlends_likeInTheRpmBar() {
+        // 59 % -> 6 leuchtende und 4 unbeleuchtete Segmente: Kanten zwischen leuchtend/Luecke und unbeleuchtet/Luecke.
+        // Das Standard-Dunkelschema: dort liegen Luecke (#141218) und unbeleuchtetes Segment (#49454F) weit genug auseinander, dass ein Saum auffaellt
+        // (im blauen Cockpit-Schema sind die beiden fast gleich und der Saum nicht messbar).
+        scheme = darkColorScheme()
+        show(FuelGaugeState(130, 53f))
+
+        val worst = worstEdgeResidual(StatusColors.TrafficLightGreen.toArgb())
+
+        assertTrue("ein Kantenpunkt weicht um $worst von einer reinen Mischung ab (Saum aus uebereinanderliegenden Segmenten?)", worst <= 4)
+    }
+
+    @Test
+    fun theSegmentsAreSeparatedByTheSameGapAsTheRpmBar_andFillTheTrackEdgeToEdge() {
+        // Nutzerwunsch 2026-10-15: der Abstand der Tank-Segmente entspricht dem der Drehzahl-Segmente (SEGMENT_GAP = 1,5 dp, eine Konstante).
+        show(FuelGaugeState(200, 0f))
+        val density = composeRule.activity.resources.displayMetrics.density
+        val gap = 1.5f * density
+        val scan = scan(StatusColors.TrafficLightGreen.toArgb())
+        val segmentWidth = (scan.widthPx - 9 * gap) / 10
+
+        assertEquals("neun Luecken: ${scan.gapsPx}", 9, scan.gapsPx.size)
+        // Gemessen werden nur Punkte in genau der Farbe der Luecke; die Kantenglaettung nimmt bis zu zwei Punkte weg.
+        scan.gapsPx.forEach {
+            assertTrue("Luecke $it px, erwartet etwa $gap px (1,5 dp)", it >= gap - 2f && it <= gap)
+        }
+        scan.cells.forEach {
+            assertTrue("Segmentbreite ${it.widthPx} px, erwartet etwa $segmentWidth px", it.widthPx >= segmentWidth - 2f && it.widthPx <= segmentWidth + 0.5f)
+        }
+        assertTrue("der Balken beginnt am linken Rand der Spur: ${scan.firstInkPx}", scan.firstInkPx <= 1)
+        assertTrue("der Balken endet am rechten Rand der Spur: ${scan.lastInkPx} von ${scan.widthPx}", scan.lastInkPx >= scan.widthPx - 2)
     }
 
     @Test

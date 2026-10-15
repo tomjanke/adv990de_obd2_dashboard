@@ -95,4 +95,91 @@ class FuelGaugeTest {
         assertEquals(50, FuelRangeLimits.MIN_KM)
         assertEquals(1000, FuelRangeLimits.MAX_KM)
     }
+
+    // --- Segmente (Nutzerwunsch 2026-10-15): 10 Segmente, die Anzeige sinkt segmentweise, nicht stufenlos ---
+
+    private fun lit(rangeKm: Int, drivenKm: Float) = FuelGaugeState(rangeKm, drivenKm).litSegments
+
+    @Test
+    fun `the gauge has ten segments`() {
+        assertEquals(10, FUEL_SEGMENT_COUNT)
+    }
+
+    @Test
+    fun `a full tank lights all ten segments, an empty one none`() {
+        assertEquals(10, lit(200, 0f))
+        assertEquals(0, lit(200, 200f))
+        assertEquals(0, lit(200, 999f))
+    }
+
+    @Test
+    fun `a segment stays lit while any of its tenth is left - the first one goes out only after a tenth of the range is driven`() {
+        assertEquals(10, lit(200, 0.2f))   // 99,9 % bleibt voll
+        assertEquals(10, lit(200, 19.8f))  // 90,1 %
+        assertEquals(9, lit(200, 20f))     // genau 90 % = 9 Segmente
+        assertEquals(9, lit(200, 20.2f))   // 89,9 %
+        assertEquals(6, lit(200, 99.8f))   // 50,1 % -> ceil(5,01) = 6
+        assertEquals(5, lit(200, 100f))    // genau 50 %
+    }
+
+    @Test
+    fun `the last segment stays lit down to an empty tank, so the blinking stage below 5 percent still has something to blink`() {
+        assertEquals(1, lit(200, 190f))    // 5 % (rot)
+        assertEquals(1, lit(200, 190.2f))  // 4,9 % (rot blinkend)
+        assertEquals(1, lit(200, 199.8f))  // 0,1 %
+        assertEquals(0, lit(200, 200f))
+    }
+
+    @Test
+    fun `the display drops by whole segments, never in between`() {
+        // Fuenf Kilometer je Schritt ueber die ganze Reichweite: die Zahl leuchtender Segmente faellt nur um ganze Stufen und nie wieder hoch.
+        val series = (0..200 step 5).map { lit(200, it.toFloat()) }
+
+        assertEquals(10, series.first())
+        assertEquals(0, series.last())
+        series.zipWithNext().forEach { (a, b) ->
+            assertTrue("$a -> $b: nie mehr leuchtende Segmente, nie ein Sprung um mehr als eines bei 5 km (2,5 %)", b <= a && a - b <= 1)
+        }
+    }
+
+    @Test
+    fun `every segment boundary lands exactly - no float noise lights one segment too many`() {
+        // Jede Reichweite von 50 bis 1000 km, jede Grenze k/10 mit Dezimal-Kilometern (Reichweite 51, gefahren 40,8 km = genau 2 Zehntel Rest):
+        // remaining / range * 10 ergibt dort in Float 2,0000002 — ohne Toleranz leuchtete ein Segment zu viel.
+        for (range in 50..1000) {
+            for (k in 0..10) {
+                val drivenKm = range - range * k / 10f
+                assertEquals("Reichweite $range km, gefahren $drivenKm km (Rest = $k Zehntel)", k, lit(range, drivenKm))
+            }
+        }
+    }
+
+    @Test
+    fun `known float overshoots at a tenth boundary still show the exact segment count`() {
+        // Gemessen (Float-Rechnung nachgestellt): Anteil * 10 liegt hier ueber der ganzen Zahl, ohne Toleranz waere es ein Segment mehr.
+        assertEquals(2, lit(51, 40.8f))   // Rest 10,2 km = 2 Zehntel -> 2,0000002
+        assertEquals(1, lit(52, 46.8f))   // 5,2 km = 1 Zehntel -> 1,0000001
+        assertEquals(7, lit(52, 15.6f))   // 36,4 km = 7 Zehntel -> 7,0000005
+        assertEquals(3, lit(53, 37.1f))   // 15,9 km = 3 Zehntel -> 3,0000005
+        assertEquals(4, lit(56, 33.6f))   // 22,4 km = 4 Zehntel -> 4,0000005
+    }
+
+    @Test
+    fun `a bit more than k tenths left lights k plus one segments`() {
+        for (range in 50..1000 step 10) {
+            for (k in 0..9) {
+                val remaining = range * k / 10f + 0.05f * range / 100f // 0,05 % der Reichweite ueber der Grenze
+                assertEquals("Reichweite $range km, k=$k", k + 1, lit(range, range - remaining))
+            }
+        }
+    }
+
+    @Test
+    fun `fuelLitSegments clamps and rejects unknown fractions`() {
+        assertEquals(10, fuelLitSegments(1.7f))
+        assertEquals(0, fuelLitSegments(-0.3f))
+        assertEquals(0, fuelLitSegments(Float.NaN))
+        assertEquals(5, fuelLitSegments(0.5f, count = 5 * 2))
+        assertEquals(3, fuelLitSegments(0.5f, count = 5)) // ceil(2,5)
+    }
 }

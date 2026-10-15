@@ -1,5 +1,6 @@
 package de.adv990de.obd2.fuel
 
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -27,6 +28,23 @@ fun fuelLevel(fraction: Float): FuelLevel = when {
     fraction >= FUEL_YELLOW_FROM -> FuelLevel.Yellow
     fraction >= FUEL_RED_FROM -> FuelLevel.Red
     else -> FuelLevel.RedBlinking
+}
+
+/** Zahl der Segmente der Tankanzeige (Nutzerwunsch 2026-10-15): jedes steht fuer ein Zehntel der Reichweite bei vollem Tank. */
+const val FUEL_SEGMENT_COUNT = 10
+
+/** Toleranz in Segmenten gegen Float-Rauschen an den Grenzen: `0,3f * 10` ist 3,0000001 und liesse sonst ein Segment zu viel leuchten. */
+private const val SEGMENT_EPSILON = 1e-4f
+
+/**
+ * Wie viele von [count] Segmenten bei einem Anteil [fraction] (0 = leer, 1 = voll) leuchten: `ceil(fraction * count)` — ein Segment bleibt an,
+ * solange noch etwas von seinem Zehntel uebrig ist (wie der Drehzahlbalken mit `ceil(rpm / 200)`). Das erste Segment geht also erst aus, wenn ein
+ * Zehntel der Reichweite gefahren ist, und das letzte erst bei leerem Tank — die blinkende Stufe unter 5 % hat damit immer etwas zum Blinken.
+ * Ein unbekannter Anteil (NaN) laesst nichts leuchten. Reine Funktion ohne Android-Bezug, JVM-getestet.
+ */
+fun fuelLitSegments(fraction: Float, count: Int = FUEL_SEGMENT_COUNT): Int {
+    if (fraction.isNaN()) return 0
+    return ceil(fraction * count - SEGMENT_EPSILON).toInt().coerceIn(0, count)
 }
 
 /** Erlaubte Eingabe fuer "Reichweite bei vollem Tank", in ganzen Kilometern. 0 steht im Speicher fuer "nicht festgelegt". */
@@ -60,4 +78,7 @@ data class FuelGaugeState(val rangeFullKm: Int, val kmSinceFill: Float) {
     val percent: Int get() = (fraction * 100f).roundToInt()
 
     val level: FuelLevel get() = fuelLevel(fraction)
+
+    /** Wie viele der [FUEL_SEGMENT_COUNT] Segmente leuchten (s. [fuelLitSegments]); die Farbe kommt weiter aus [level], nicht aus der Segmentzahl. */
+    val litSegments: Int get() = fuelLitSegments(fraction)
 }

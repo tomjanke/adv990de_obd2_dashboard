@@ -1,13 +1,11 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,8 +30,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
+import de.adv990de.obd2.fuel.FUEL_SEGMENT_COUNT
 import de.adv990de.obd2.fuel.FuelGaugeState
 import de.adv990de.obd2.fuel.FuelLevel
 import de.adv990de.obd2.ui.theme.AppTypography
@@ -50,15 +52,14 @@ import de.adv990de.obd2.ui.theme.blueColorScheme
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Test-only selectors: die ganze Zeile (Long-Press), die Spur und die Fuellung des Balkens. */
+/** Test-only selectors: die ganze Zeile (Long-Press) und die Spur, auf der die zehn Segmente stehen. */
 internal const val FUEL_GAUGE_ROW_TEST_TAG = "fuel_gauge_row"
 internal const val FUEL_GAUGE_TRACK_TEST_TAG = "fuel_gauge_track"
-internal const val FUEL_GAUGE_FILL_TEST_TAG = "fuel_gauge_fill"
 
 /** Halbe Blinkperiode der untersten Stufe: 500 ms an, 500 ms aus. */
 internal const val FUEL_BLINK_HALF_PERIOD_MS = 500L
 
-/** Deckkraft der Fuellung in der "aus"-Phase des Blinkens — nicht ganz weg, damit der Balken als Form lesbar bleibt. */
+/** Deckkraft der leuchtenden Segmente in der "aus"-Phase des Blinkens — nicht ganz weg, damit der Balken als Form lesbar bleibt. */
 internal const val FUEL_BLINK_OFF_ALPHA = 0.15f
 
 /** Hoehe der Zeile: 40 dp mit dem 16-dp-Balken in der Mitte = 12 dp Luft oben und unten (Nutzerwunsch 2026-10-15: engerer Abstand; vorher 56 dp mit 20 dp). */
@@ -91,9 +92,11 @@ internal fun fuelBarColor(level: FuelLevel): Color = when (level) {
 /**
  * Die virtuelle Tankanzeige (Nutzerwunsch 2026-10-15): ein Streckenzaehler, der als Balken ganz unten im **Dashboard** steht (direkt ueber dem
  * Hauptmenue bzw. der Statuszeile; nur dort, nicht auf den anderen Seiten — Nutzerwunsch 2026-10-15).
- * Links das Tankstellen-Symbol (macht klar, dass es eine Tankanzeige ist), daneben ueber die ganze uebrige Breite der Balken — er fuellt
- * sich von links mit dem Anteil der Restreichweite ([FuelGaugeState.fraction]) und wechselt die Farbe nach [FuelLevel]; unter 5 %
- * blinkt er rot.
+ * Links das Tankstellen-Symbol (macht klar, dass es eine Tankanzeige ist), daneben ueber die ganze uebrige Breite der Balken — er besteht seit
+ * 2026-10-15 (Nutzerwunsch) aus [FUEL_SEGMENT_COUNT] = 10 Segmenten, die sich von links mit dem Anteil der Restreichweite ([FuelGaugeState.fraction])
+ * fuellen **und segmentweise abnehmen, nicht stufenlos** (`ceil(Anteil * 10)`, s. [FuelGaugeState.litSegments]); die Luecke zwischen den Segmenten ist
+ * dieselbe wie beim Drehzahlbalken ([SEGMENT_GAP], eine gemeinsame Konstante). Alle leuchtenden Segmente haben eine Farbe, die nach [FuelLevel]
+ * wechselt; unter 5 % blinkt der Balken rot.
  *
  * Die Zeile ist [FUEL_ROW_HEIGHT] hoch (40 dp, volle Breite), der Balken darin 16 dp hoch und zentriert. **Bewusste Ausnahme von der 56-dp-Regel fuer
  * Touch-Ziele** (CLAUDE.md): der Nutzer wollte weniger Abstand um den Balken; der Long-Press ist eine seltene, ueber eine Rueckfrage abgesicherte
@@ -113,7 +116,13 @@ fun FuelGaugeRow(
     val blinkOn = rememberFuelBlinkPhase(active = level.blinks)
     val description = stringResource(R.string.fuel_gauge_desc, state.remainingKm.roundToInt(), state.percent)
     val resetAction = stringResource(R.string.fuel_gauge_reset_action)
-    val fillColor = fuelBarColor(level).let { if (blinkOn) it else it.copy(alpha = FUEL_BLINK_OFF_ALPHA) }
+    val unlitColor = MaterialTheme.colorScheme.surfaceVariant
+    // In der "aus"-Phase des Blinkens ist die Farbe vorab ueber das unbeleuchtete Segment gemischt (Deckkraft FUEL_BLINK_OFF_ALPHA), nicht beim Zeichnen:
+    // Jedes Segment ist **ein** deckendes Rechteck wie beim Drehzahlbalken. Zwei uebereinanderliegende Rechtecke (unbeleuchtet darunter) haben an der
+    // geglaetteten Kante einen Saum aus der Farbe des unteren: der Randpunkt ist keine reine Mischung aus Segment und Luecke mehr (am Bildschirmfoto
+    // (40, 164, 87) mit einem Rotanteil, den keine Mischung aus Gruen und Luecke hat; Test `theSegmentEdgesAreCleanBlends…`).
+    val fillColor = fuelBarColor(level).let { if (blinkOn) it else it.copy(alpha = FUEL_BLINK_OFF_ALPHA).compositeOver(unlitColor) }
+    val litSegments = state.litSegments
 
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -140,20 +149,23 @@ fun FuelGaugeRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(12.dp))
-                Box(
+                // Zehn Segmente wie beim Drehzahlbalken: unbeleuchtete in surfaceVariant (die Skala bleibt lesbar), die Luecken zeigen den
+                // Zeilenhintergrund. Je Segment genau ein deckendes Rechteck (s. fillColor).
+                Canvas(
                     modifier = Modifier
                         .weight(1f)
                         .height(FuelBarHeight)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .testTag(FUEL_GAUGE_TRACK_TEST_TAG),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(state.fraction)
-                            .background(fillColor)
-                            .testTag(FUEL_GAUGE_FILL_TEST_TAG),
-                    )
+                    val gap = SEGMENT_GAP.toPx()
+                    val segmentWidth = segmentWidthPx(size.width, gap, FUEL_SEGMENT_COUNT)
+                    for (i in 0 until FUEL_SEGMENT_COUNT) {
+                        drawRect(
+                            color = if (i < litSegments) fillColor else unlitColor,
+                            topLeft = Offset(i * (segmentWidth + gap), 0f),
+                            size = Size(segmentWidth, size.height),
+                        )
+                    }
                 }
             }
         }
