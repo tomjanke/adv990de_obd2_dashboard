@@ -1,5 +1,24 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.2 (versionCode 112)
+
+Der Öl-Streifen unter den Drehzahl-Segmenten ist so hoch wie der Tankbalken und hat eine Ölkanne davor.
+
+### Anzeige
+
+- **Ölstreifen 16 dp hoch:** wie der Balken der Tankanzeige (vorher 12 dp). Farblogik, Timer und Aufzeichnung des Ölbalkens sind unverändert.
+- **Ölkanne davor:** links vor dem Streifen steht eine Ölkanne, 16 dp hoch, in `onSurfaceVariant` — wie die Zapfsäule in der Tankzeile; sie macht klar, was der Streifen ist. Die Kanne ist **selbst gezeichnet** (`ic_oil_can`), weil die Material-Icons nur ein Ölfass und einen Tropfen haben. Nur der Streifen trägt die Farbe, die Kanne bleibt neutral.
+- **Drehzahl-Segmente niedriger:** Die Segmentspalte ist jetzt 40 dp Segmente, 2 dp Lücke und 20 dp Öl-Zeile (Kanne, 8 dp Abstand, Streifen) statt 48 / 2 / 12. Die Zeilenhöhe von 78 dp und die Gang-Box bleiben unverändert; die Segmente behalten die volle Breite. Der Streifen endet an der rechten Kante der Segmente und beginnt rechts von der Kanne (rund 32 dp eingerückt).
+
+### Grenzen
+
+- Ob die um 8 dp niedrigeren Drehzahl-Segmente am Motorrad während einer Fahrt noch gut ablesbar sind, ist **nicht geprüft**.
+- Die Kanne ist eine eigene Zeichnung. Gesehen auf dem Pixel 8 Pro (Android 17) im Querformat in der echten App und in den Vorschau-Bildern; das Zusammenspiel mit der Tankzeile im Querformat wurde nicht angesehen (die Debug-App hatte keine Reichweite hinterlegt).
+
+### Tests
+
+- 1615 JVM-Tests (unverändert), 381 Instrumentation-Tests (+7 in `RpmBarTest`: Höhe von Zeile, Streifen und Segmenten, Summe der Höhen, Kanne links vom Streifen, rechte Kante des Streifens, Kanne in allen Öl-Zuständen); 76 Vorschauen (+1, die Kanne). 5 Mutationen am Gerät erkannt (Streifen 12 dp, Abstand 4 dp, Zeile 16 dp, Kanne ohne Kennung, Segmente fest 48 dp). Lint: 0 Fehler, 3 Warnungen. Auf dem Pixel 8 Pro geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.32.1 (versionCode 111)
 
 Die Tankanzeige steht jetzt nur noch im Dashboard und hat weniger Abstand um den Balken.
