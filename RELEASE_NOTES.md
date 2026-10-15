@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.31.0 (versionCode 109)
+
+Der laufende Timer des Ölbalkens steht jetzt in der Statuszeile während der Fahrt.
+
+### Anzeige
+
+- **Neu: „Öl: 6:12“ in der Mitte der Statuszeile** (englisch „Oil: 6:12“) — die Restzeit, bis der Ölbalken grün wird. Die Zeile erscheint wie bisher nur, wenn „Navigationsleiste beim Fahren ausblenden“ an ist und das Fahrzeug fährt.
+- **Wann der Timer läuft:** Er beginnt beim ersten Kühlmittelwert **über 80 °C** (nicht bei 75 oder 76 °C; dort wird der Balken nur gelb) und zählt 10 Minuten herunter. Ein kurzer Einbruch hält ihn nicht an; er wird erst zurückgesetzt, wenn die Temperatur auf höchstens 75 °C fällt, ein Einbruch auf höchstens 78 °C 120 s dauert oder mehr als 60 s kein Messwert kam. „0:00“ steht genau dann da, wenn der Balken grün wird.
+- **Solange der Timer nicht läuft, steht die Startzeit da:** „Öl: 10:00“ — vor dem ersten Wert über 80 °C und nach jedem Zurücksetzen.
+- **Im Hochformat zeigt die Zeile nur die Uhrzeit statt des vollen Datums.** Datum, Timer und Temperatur passen in dieser Schriftgröße nicht nebeneinander (das volle Datum braucht rund 265–280 dp, ein Pixel 8 Pro hat im Hochformat etwa 380 dp). Der Timer steht exakt in der Mitte. Im Querformat bleibt das volle Datum.
+- Der Wert kommt vom Dashboard über einen kleinen gemeinsamen Zustand (`OilWarmupState`) zur Navigation und läuft auch zwischen zwei Messwerten weiter. Die Aufzeichnung ist unverändert (die Balkenfarbe steht seit 1.30.0 als `OIL_BAR` im CSV).
+
+### Grenzen
+
+- Nur mit Tests und Vorschau-Bildern auf dem Pixel 8 Pro geprüft, nicht während einer Fahrt und nicht im Querformat am Gerät (das volle Datum dort ist per Test mit einer breiten Zeile belegt).
+- Die Restzeit überlebt keinen Neustart der App bis zum ersten Messzyklus (der Timer selbst schon).
+- Die Anzeige liest die Kühlmitteltemperatur, nicht eine gemessene Öltemperatur; das Öl ist wie beim Balken simuliert.
+
+### Tests
+
+- 1535 JVM-Tests (+31), 337 Instrumentation-Tests (+10: Statuszeile in festen Breiten, Timer in der Navigation). Neun gezielte Mutationen (z. B. Restzeit ohne Lückenlimit, aufwärts statt abwärts zählen, nie veröffentlicht, abgerundet statt aufgerundet, falscher Vergleich bei der Breite) werden von den neuen Tests erkannt. Lint: 0 Fehler, 3 Warnungen (neuere Gradle-Version 9.8.1, bewusst nicht genommen; `paging` 3.5.3 ist neu erschienen).
+- Auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.30.0 (versionCode 108)
 
 Die Farbe des Ölbalkens steht jetzt auch in der Fahrtaufzeichnung und im CSV-Export — neben dem Gang.
