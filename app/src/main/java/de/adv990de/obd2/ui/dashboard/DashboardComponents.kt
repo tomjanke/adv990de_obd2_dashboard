@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -128,7 +132,7 @@ internal fun RpmBar(
             } else {
                 stringResource(R.string.dashboard_rpm_bar_unavailable_desc)
             }
-            Box(modifier = Modifier.weight(0.8f).fillMaxWidth().semantics { contentDescription = rpmDescription }) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().semantics { contentDescription = rpmDescription }) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -163,11 +167,26 @@ internal fun RpmBar(
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            OilTemperatureBarStrip(
-                color = oilBarColor,
-                isLive = isLive,
-                modifier = Modifier.weight(0.2f).fillMaxWidth(),
-            )
+            // Oel-Zeile (Nutzerwunsch 2026-10-15): die Oelkanne direkt vor dem Streifen, analog zum Tankstellen-Symbol der Tankzeile; der Streifen ist
+            // so hoch wie der Tankbalken (16 dp). Die Segmente nehmen den Rest der Spalte (62 - 2 - 20 = 40 dp, vorher 48), die Zeilenhoehe von
+            // 78 dp und die Gang-Box bleiben. Das Symbol ist neutral (onSurfaceVariant), nur der Streifen traegt die Farbe.
+            Row(
+                modifier = Modifier.fillMaxWidth().height(OIL_ROW_HEIGHT),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_oil_can),
+                    contentDescription = null,
+                    modifier = Modifier.height(OIL_ICON_HEIGHT).testTag(OIL_BAR_ICON_TEST_TAG),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(OIL_ICON_GAP))
+                OilTemperatureBarStrip(
+                    color = oilBarColor,
+                    isLive = isLive,
+                    modifier = Modifier.weight(1f).height(OIL_BAR_HEIGHT),
+                )
+            }
         }
         val gearBox = gearBoxContent(gear, isNeutral, isLive)
         val gearDescription = when (gearBox) {
@@ -212,11 +231,23 @@ internal fun RpmBar(
     }
 }
 
+/** Test-only selector: die Oelkanne vor dem Oel-Temperatur-Streifen. */
+internal const val OIL_BAR_ICON_TEST_TAG = "oil_bar_icon"
+
+/**
+ * Oel-Zeile unter den Drehzahl-Segmenten: 20 dp hoch (Entscheidung 1b des Nutzers: die Segmente werden dafuer von 48 auf 40 dp niedriger), darin
+ * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (ihre Breite folgt dem Seitenverhaeltnis 24:15), beide zentriert.
+ */
+internal val OIL_ROW_HEIGHT = 20.dp
+internal val OIL_ICON_HEIGHT = 16.dp
+internal val OIL_BAR_HEIGHT = 16.dp
+internal val OIL_ICON_GAP = 8.dp
+
 /**
  * Simulierte "wahrscheinliche Oeltemperatur", abgeleitet aus der Kuehlmitteltemperatur (kein
  * echter Oelsensor) — s. `oilBarColor()`/`updateOilBarTimer()` in `OilTemperatureBar.kt` fuer die
- * Farblogik, [oilBarStripColor] fuer die Zuordnung zu Farben. Bewusst ohne Beschriftung
- * (User-Wunsch). Farbsemantik ist hier invertiert gegenueber dem Rest der App (Rot = zu kalt, nicht
+ * Farblogik, [oilBarStripColor] fuer die Zuordnung zu Farben. Bewusst ohne Textbeschriftung
+ * (User-Wunsch); die Oelkanne davor (in `RpmBar`) macht klar, was der Streifen ist. Farbsemantik ist hier invertiert gegenueber dem Rest der App (Rot = zu kalt, nicht
  * gefaehrlich/heiss) — dokumentierte, User-bestaetigte Ausnahme, s. CLAUDE.md.
  */
 @Composable
@@ -300,7 +331,7 @@ private fun OilTemperatureBarStripStates() {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         (OilBarColor.entries + null).forEach { color ->
-            OilTemperatureBarStrip(color = color, isLive = true, modifier = Modifier.fillMaxWidth().height(12.dp))
+            OilTemperatureBarStrip(color = color, isLive = true, modifier = Modifier.fillMaxWidth().height(OIL_BAR_HEIGHT))
         }
     }
 }
@@ -326,5 +357,22 @@ private fun PreviewOilTemperatureBarStripAmber() {
 private fun PreviewOilTemperatureBarStripDefaultLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) { OilTemperatureBarStripStates() }
+    }
+}
+
+@Preview(name = "Oelkanne (ic_oil_can) · gross, hell und dunkel", widthDp = 320, showBackground = true)
+@Composable
+private fun PreviewOilCanIcon() {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(16.dp)) {
+        MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 120.dp, height = 75.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 120.dp, height = 75.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Oelkanne (Nutzerwunsch 2026-10-15: "analog zur Tankstelle eine Oelkanne" vor dem Oel-Temperatur-Streifen). Die Material-Icons haben
+  keine Oelkanne (nur ein Oelfass und einen Tropfen), deshalb selbst gezeichnet — im Stil der gefuellten Material-Icons: 24x24, eine
+  Flaeche, einfarbig (die Farbe setzt der Aufrufer per tint). Die klassische Silhouette des Oeldruck-Symbols: Kannenkoerper mit Deckelknopf,
+  Griff links, langer schraeger Ausguss rechts oben und ein Tropfen darunter.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="15dp"
+    android:viewportWidth="24"
+    android:viewportHeight="15">
+    <!-- Auf den Inhalt zugeschnitten (statt 24x24 mit leerem Rand): die Kanne fuellt ihre Hoehe, die der Aufrufer festlegt; die Breite folgt dem Seitenverhaeltnis 24:15. -->
+    <group android:translateY="-5">
+    <!-- Kannenkoerper -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M5.5,10.5h10.5a1.5,1.5 0 0 1 1.5,1.5v6a1.5,1.5 0 0 1 -1.5,1.5H5.5A1.5,1.5 0 0 1 4,18v-6a1.5,1.5 0 0 1 1.5,-1.5z" />
+    <!-- Deckelknopf -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M8,7.5h5.5a0.75,0.75 0 0 1 0.75,0.75V9.5h-7V8.25A0.75,0.75 0 0 1 8,7.5z" />
+    <!-- Griff -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M1,11.5h3.5v1.75H2.75v3.5H4.5V18.5H1z" />
+    <!-- Ausguss -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M15.5,11.5L20.5,5.5l1.9,1.6L17.5,13z" />
+    <!-- Tropfen -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M21.6,10c0,0 -1.8,2.1 -1.8,3.3a1.8,1.8 0 0 0 3.6,0c0,-1.2 -1.8,-3.3 -1.8,-3.3z" />
+    </group>
+</vector>

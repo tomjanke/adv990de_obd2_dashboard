@@ -281,13 +281,16 @@ bei echtem Stillstand oder fehlendem GPS-Fix. `DashboardViewModel.applyReadings(
 `determineGear()`s Ergebnis durch `holdGear()`, bevor es in den UI-State geschrieben wird.
 
 **Öl-Temperatur-Balken (seit 2026-09-27):** Direkt unterhalb der RPM-Segmente sitzt ein schmaler,
-simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`) — ohne Label, reine Farb-Anzeige mit
-invertierter Semantik (s. „Statusfarben” oben). Aufbau: Das `weight(1f)`-Feld der Segmente in
-`RpmBar` ist eine `Column` aus Segment-Box (Gewicht 0,8), 2 dp Lücke und Streifen (Gewicht 0,2) —
-bei 62 dp Innenhöhe 48 dp / 2 dp / 12 dp. Der Streifen liegt damit **links neben** der Gang-Box,
+simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`) — ohne Textbeschriftung, reine Farb-Anzeige mit
+invertierter Semantik (s. „Statusfarben” oben). **Seit 2026-10-15 (Nutzerwunsch) steht direkt links vor dem Streifen eine Ölkanne**
+(`R.drawable.ic_oil_can`, **selbst gezeichnet**, weil die Material-Icons nur ein Ölfass und einen Tropfen haben: ein auf den Inhalt zugeschnittener 24×15-Vektor
+in der Art der gefüllten Material-Icons, 16 dp hoch, Farbe `onSurfaceVariant` — nur der Streifen trägt die Farbe), analog zum Tankstellen-Symbol der Tankzeile; sie macht klar, was der Streifen ist.
+Aufbau: Das `weight(1f)`-Feld der Segmente in `RpmBar` ist eine `Column` aus Segment-Box (der Rest der Höhe), 2 dp Lücke und **Öl-Zeile (20 dp: Kanne, 8 dp Abstand, Streifen
+16 dp hoch — wie der Tankbalken —, beide zentriert)** — bei 62 dp Innenhöhe **40 dp / 2 dp / 20 dp** (vorher 48 / 2 / 12: Entscheidung 1b des Nutzers, die Segmente wurden um 8 dp niedriger,
+die Zeilenhöhe von 78 dp bleibt). Der Streifen liegt damit **links neben** der Gang-Box,
 nicht über oder unter ihr: Die Gang-Box ist eine eigene Spalte der äußeren `Row` über die volle
-Zeilenhöhe und bleibt unverändert, ebenso die 78 dp Zeilenhöhe. Breite: exakt die Segment-Breite
-(nicht über Gang-Box oder Icons hinaus). Die 2-dp-Lücke, in der der Hintergrund durchscheint, hält
+Zeilenhöhe und bleibt unverändert, ebenso die 78 dp Zeilenhöhe. Breite: der Streifen endet an der rechten Kante der Segmente und beginnt rechts von Kanne und Abstand (rund 32 dp
+eingerückt), die Segmente behalten die volle Breite (nicht über Gang-Box oder Icons hinaus). Die 2-dp-Lücke, in der der Hintergrund durchscheint, hält
 Segmente und Streifen auch bei gleicher Farbe als zwei Formen lesbar (grau auf grau ohne Verbindung,
 rot auf rot bei kaltem Motor im Schaltblitz-Bereich).
 
@@ -766,7 +769,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **Die Vorschauen werden auf dem Gerät gerendert (seit v1.25.2):** `PreviewsRenderDeviceTest` komponiert jede `@Preview`-Funktion in einer eigenen Test-Umgebung (`runAndroidComposeUiTest`, Uhr angehalten wegen endloser Animationen) und
   verlangt, dass sie weder wirft noch nichts zeichnet (Fenster-Vorschauen = Dialoge: eine zweite Wurzel mit Inhalt). **Gefunden werden sie nach Form**, nicht nach der Annotation (BINARY, zur Laufzeit nicht lesbar): statische Methode
   `Preview…(Composer, int)` in einer `…Kt`-Klasse des APK (`DexFile`, `getDeclaredComposableMethod`). `CodeHygieneSourceTest` erzwingt die Form (**`private fun Preview…()` ohne Parameter**; umgekehrt heißt eine parameterlose Funktion, die keine
-  Vorschau ist, **nicht** `Preview…` — Hilfs-Composables `…PreviewContent`) und dass `PREVIEW_COUNT` im Geräte-Test (75) die Zahl der Quelltexte ist: wer eine Vorschau ergänzt oder entfernt, zieht die Zahl dort nach.
+  Vorschau ist, **nicht** `Preview…` — Hilfs-Composables `…PreviewContent`) und dass `PREVIEW_COUNT` im Geräte-Test (76) die Zahl der Quelltexte ist: wer eine Vorschau ergänzt oder entfernt, zieht die Zahl dort nach.
   Mit dem Instrumentation-Argument `previewShots=true` schreibt der Test je Vorschau ein Bild nach `files/preview_shots/` der Debug-App (nicht für Dialoge). **Falle:** `connectedDebugAndroidTest` deinstalliert die Debug-App danach, die Bilder sind
   weg — direkt laufen lassen: beide APKs per `adb install -r -t` (`app-debug.apk`, `app-debug-androidTest.apk`), dann `adb shell am instrument -w -e class de.adv990de.obd2.ui.PreviewsRenderDeviceTest -e previewShots true de.adv990de.obd2.debug.test/de.adv990de.obd2.HiltTestRunner`,
   Bilder per `adb exec-out run-as de.adv990de.obd2.debug cat files/preview_shots/<Name>.png`. Das Rendern fand zwei falsche Vorschauen (Kachel ohne Höhe füllte das Fenster und verdrängte die zweite Kachel und das Band; Einstellungszeilen ohne Seitenrand) — beide behoben.
@@ -1012,7 +1015,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 1615 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 374 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 381 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

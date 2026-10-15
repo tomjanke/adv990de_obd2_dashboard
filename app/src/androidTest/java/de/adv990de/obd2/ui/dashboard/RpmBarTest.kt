@@ -3,6 +3,8 @@ package de.adv990de.obd2.ui.dashboard
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
@@ -255,5 +257,97 @@ class RpmBarTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("6").assertIsDisplayed()
+    }
+
+    // ── Geometrie der Oel-Zeile (Nutzerwunsch 2026-10-15): Oelkanne vor dem Streifen, Streifen 16 dp wie der Tankbalken, Segmente 40 dp ──
+
+    private val rpmBarRootTag = "rpm_bar_root"
+
+    private fun showGeometryBar(oil: OilBarColor = OilBarColor.Green) {
+        composeRule.setContent {
+            RpmBar(
+                rpm = 4500f, threshold = 7000, gear = 3, oilBarColor = oil,
+                modifier = androidx.compose.ui.Modifier.testTag(rpmBarRootTag),
+            )
+        }
+        composeRule.waitForIdle()
+    }
+
+    private val density get() = composeRule.activity.resources.displayMetrics.density
+
+    private fun oilStrip() = composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.oil_bar_green_desc))
+    private fun rpmSegments() = composeRule.onNodeWithContentDescription(
+        composeRule.activity.getString(R.string.dashboard_rpm_bar_desc, rpmForSpeech(4500f))
+    )
+
+    @Test
+    fun rpmBarRow_staysExactly78DpHigh() {
+        showGeometryBar()
+
+        val height = composeRule.onNodeWithTag(rpmBarRootTag).fetchSemanticsNode().size.height
+        org.junit.Assert.assertEquals("Zeilenhoehe $height px", 78 * density, height.toFloat(), 1.5f)
+    }
+
+    @Test
+    fun oilStrip_isAsHighAsTheFuelBar_16dp() {
+        showGeometryBar()
+
+        val height = oilStrip().fetchSemanticsNode().size.height
+        org.junit.Assert.assertEquals("Streifenhoehe $height px", 16 * density, height.toFloat(), 1.5f)
+    }
+
+    @Test
+    fun rpmSegments_are40dpHigh_8dpLessThanBefore() {
+        showGeometryBar()
+
+        val height = rpmSegments().fetchSemanticsNode().size.height
+        org.junit.Assert.assertEquals("Segmenthoehe $height px", 40 * density, height.toFloat(), 1.5f)
+    }
+
+    @Test
+    fun oilRow_adds_up_toTheColumn_segments_gap_row_is_62dp() {
+        showGeometryBar()
+
+        val segments = rpmSegments().fetchSemanticsNode().boundsInRoot
+        val strip = oilStrip().fetchSemanticsNode().boundsInRoot
+        // Luecke 2 dp + (20 dp Zeile - 16 dp Streifen) / 2 = 4 dp zwischen Segmenten und Streifen; darunter noch 2 dp bis zum Zeilenende.
+        org.junit.Assert.assertEquals("Abstand Segmente -> Streifen", 4 * density, strip.top - segments.bottom, 1.5f)
+        org.junit.Assert.assertEquals(
+            "Segmente + Luecke + Oel-Zeile = 40 + 2 + 20 dp",
+            62 * density, (strip.bottom + 2 * density) - segments.top, 1.5f,
+        )
+    }
+
+    @Test
+    fun theOilCan_standsDirectlyLeftOfTheStrip_andIsCentredOnIt() {
+        showGeometryBar()
+
+        val icon = composeRule.onNodeWithTag(OIL_BAR_ICON_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val strip = oilStrip().fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertEquals("Oelkanne 16 dp hoch", 16 * density, icon.height, 1.5f)
+        org.junit.Assert.assertEquals("8 dp zwischen Kanne und Streifen", 8 * density, strip.left - icon.right, 1.5f)
+        org.junit.Assert.assertEquals("Kanne mittig zum Streifen", strip.center.y, icon.center.y, 1.5f)
+        org.junit.Assert.assertTrue("Kanne links vom Streifen", icon.right <= strip.left)
+    }
+
+    @Test
+    fun theOilStrip_endsWhereTheSegmentsEnd_andStartsAfterTheCan() {
+        showGeometryBar()
+
+        val segments = rpmSegments().fetchSemanticsNode().boundsInRoot
+        val strip = oilStrip().fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertEquals("rechte Kante gleich", segments.right, strip.right, 1.5f)
+        org.junit.Assert.assertTrue("Streifen beginnt rechts der linken Kante der Segmente", strip.left > segments.left)
+    }
+
+    @Test
+    fun theOilCan_isShownInEveryOilState_includingTheGreyOneWithoutConnection() {
+        val color = androidx.compose.runtime.mutableStateOf<OilBarColor?>(OilBarColor.Red)
+        composeRule.setContent { RpmBar(rpm = 0f, threshold = 7000, gear = null, oilBarColor = color.value, isLive = color.value != null) }
+        for (state in listOf(OilBarColor.Red, OilBarColor.Yellow, OilBarColor.Green, null)) {
+            color.value = state
+            composeRule.waitForIdle()
+            composeRule.onNodeWithTag(OIL_BAR_ICON_TEST_TAG).assertIsDisplayed()
+        }
     }
 }
