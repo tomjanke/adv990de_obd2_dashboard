@@ -68,6 +68,12 @@ internal class OilBarTracker(
         set(value) { savedStateHandle[KEY_OIL_BAR_LAST_SAMPLE_TIMESTAMP] = value }
 
     /**
+     * Die Restzeit bis Gruen jetzt ([oilBarGreenInMillis], aus demselben Zustand wie die Farbe, mit der Uhr des Aufrufers) — die Ambient-Statuszeile
+     * zeigt sie. Rechnet bei jedem Aufruf neu: die Zeit laeuft auch zwischen zwei Messwerten weiter.
+     */
+    fun greenInMillis(): Long = oilBarGreenInMillis(now(), timerState)
+
+    /**
      * Verarbeitet einen Zyklus und liefert die anzuzeigende Farbe. Unabhaengig von `rpmDynamicThreshold`: die Kuehlmitteltemperatur wird
      * immer gesucht, wenn ein plausibler Wert vorliegt. Fehlt sie in diesem Zyklus (kein Reading oder implausibel, z. B. NaN) oder ist sie nur
      * die GPS-Wiederholung eines schon verarbeiteten Messwerts (Zeitstempel nicht neuer, s. [lastSampleTimestamp]), bleibt der Timer-Zustand

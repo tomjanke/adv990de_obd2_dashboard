@@ -281,4 +281,60 @@ class OilTemperatureBarTest {
         }
         return state
     }
+
+
+    // --- oilBarGreenInMillis: Restzeit bis Gruen, angezeigt in der Ambient-Statuszeile ---
+
+    @Test
+    fun `without a running timer the full ten minutes remain`() {
+        assertEquals(tenMinutesMs, oilBarGreenInMillis(nowMillis = 5_000L, state = fresh))
+    }
+
+    @Test
+    fun `a running timer counts down from the first value above 80`() {
+        val state = OilBarTimerState(aboveGreenThresholdSinceMillis = 1_000L, lastSampleAtMillis = 1_000L)
+        assertEquals(tenMinutesMs, oilBarGreenInMillis(nowMillis = 1_000L, state = state))
+
+        val later = OilBarTimerState(aboveGreenThresholdSinceMillis = 1_000L, lastSampleAtMillis = 31_000L)
+        assertEquals(tenMinutesMs - 30_000L, oilBarGreenInMillis(nowMillis = 31_000L, state = later))
+    }
+
+    @Test
+    fun `at ten minutes nothing remains - and never less than zero`() {
+        val atTen = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = tenMinutesMs)
+        assertEquals(0L, oilBarGreenInMillis(nowMillis = tenMinutesMs, state = atTen))
+        assertEquals(1L, oilBarGreenInMillis(nowMillis = tenMinutesMs - 1, state = atTen.copy(lastSampleAtMillis = tenMinutesMs - 1)))
+
+        val beyond = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = tenMinutesMs + 40_000L)
+        assertEquals("nach dem Gruenwerden nie negativ", 0L, oilBarGreenInMillis(nowMillis = tenMinutesMs + 40_000L, state = beyond))
+    }
+
+    @Test
+    fun `a dip does not pause the countdown - it runs on as long as the timer is not reset`() {
+        val inDip = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 90_000L, belowResetSinceMillis = 30_000L)
+        assertEquals(tenMinutesMs - 90_000L, oilBarGreenInMillis(nowMillis = 90_000L, state = inDip))
+    }
+
+    @Test
+    fun `more than 60 seconds since the last reading voids the timer - the full time again`() {
+        val state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = 100_000L)
+        assertEquals("genau am Luecken-Limit zaehlt es noch", tenMinutesMs - 160_000L, oilBarGreenInMillis(nowMillis = 160_000L, state = state))
+        assertEquals("eine Millisekunde darueber ist der Timer verfallen", tenMinutesMs, oilBarGreenInMillis(nowMillis = 160_001L, state = state))
+    }
+
+    @Test
+    fun `before the first reading the full time remains`() {
+        val state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = null)
+        assertEquals(tenMinutesMs, oilBarGreenInMillis(nowMillis = 0L, state = state))
+    }
+
+    @Test
+    fun `the remaining time agrees with the colour - green exactly when nothing remains`() {
+        for (now in listOf(0L, 1L, 299_999L, 599_999L, 600_000L, 600_001L, 900_000L)) {
+            val state = OilBarTimerState(aboveGreenThresholdSinceMillis = 0L, lastSampleAtMillis = now)
+            val remaining = oilBarGreenInMillis(now, state)
+            val color = oilBarColor(coolantTempC = 85f, nowMillis = now, state = state)
+            assertEquals("bei $now ms: Restzeit $remaining, Farbe $color", remaining == 0L, color == OilBarColor.Green)
+        }
+    }
 }

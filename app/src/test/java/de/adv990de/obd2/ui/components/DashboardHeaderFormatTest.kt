@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.components
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneId
 import java.util.Locale
@@ -111,5 +112,50 @@ class DashboardHeaderFormatTest {
     fun `the computed tick lands exactly on the next minute`() {
         val now = millis + 12_345
         assertEquals(0L, (now + millisUntilNextMinute(now)) % 60_000L)
+    }
+
+
+    // ── formatDashboardTime: the compact header of a narrow ambient row ─────────────────────
+
+    @Test
+    fun `the compact header is the time only`() {
+        assertEquals("14:32", formatDashboardTime(millis, Locale.GERMAN, fixedZone))
+        assertEquals("14:32", formatDashboardTime(millis, Locale.ENGLISH, fixedZone))
+    }
+
+    @Test
+    fun `the compact header is the time part of the full header`() {
+        assertTrue(formatDashboardHeader(millis, Locale.GERMAN, fixedZone).endsWith(formatDashboardTime(millis, Locale.GERMAN, fixedZone)))
+    }
+
+    // ── formatOilTimer: the countdown to a green oil bar ─────────────────────────────────────
+
+    @Test
+    fun `the oil timer reads minutes and two-digit seconds`() {
+        assertEquals("10:00", formatOilTimer(600_000L, Locale.US))
+        assertEquals("6:12", formatOilTimer(372_000L, Locale.US))
+        assertEquals("1:01", formatOilTimer(61_000L, Locale.US))
+        assertEquals("0:09", formatOilTimer(9_000L, Locale.US))
+        assertEquals("0:00", formatOilTimer(0L, Locale.US))
+    }
+
+    @Test
+    fun `the oil timer rounds up to whole seconds - it never shows 0 00 before the time is up`() {
+        assertEquals("10:00", formatOilTimer(599_001L, Locale.US))
+        assertEquals("9:59", formatOilTimer(599_000L, Locale.US))
+        assertEquals("0:01", formatOilTimer(1L, Locale.US))
+        assertEquals("0:01", formatOilTimer(1_000L, Locale.US))
+        assertEquals("0:02", formatOilTimer(1_001L, Locale.US))
+    }
+
+    @Test
+    fun `the oil timer never shows a negative or a longer time than ten minutes`() {
+        assertEquals("0:00", formatOilTimer(-4_000L, Locale.US))
+        assertEquals("10:00", formatOilTimer(700_000L, Locale.US))
+    }
+
+    @Test
+    fun `the oil timer reads the same in German and English`() {
+        assertEquals(formatOilTimer(372_000L, Locale.US), formatOilTimer(372_000L, Locale.GERMANY))
     }
 }

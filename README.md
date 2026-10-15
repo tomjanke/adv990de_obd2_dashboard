@@ -16,7 +16,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 - **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
 - **Virtuelle Ganganzeige** — errechnet den eingelegten Gang aus Motordrehzahl und Geschwindigkeit (Hysterese gegen Flackern), konfigurierbar über einen eigenen Getriebe-Einstellungsbildschirm (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
 - **Simulierte Öltemperatur-Leiste** — schmaler Farbstreifen unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten über 80 °C, kurze Einbrüche unter 78 °C bis zu 2 Minuten werden toleriert); grau ohne Verbindung
-- **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
+- **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit, dem **Öl-Timer** und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Der Öl-Timer („Öl: 6:12“) steht exakt in der Mitte und zählt die Restzeit bis der Ölbalken grün wird; er beginnt beim ersten Kühlmittelwert über 80 °C mit 10:00 (vorher, und nach einem Zurücksetzen, steht dort „Öl: 10:00“). Im Hochformat passt das volle Datum nicht neben den Timer: dort zeigt die Zeile nur die Uhrzeit, im Querformat bleibt das Datum. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
 - **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export; einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug)
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
@@ -135,7 +135,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1504 Tests, < 30 Sekunden)
+# JVM Unit Tests (1535 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -144,13 +144,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1504 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1535 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 251 (Dashboard, Preview Banner, RpmBar, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 54 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
-| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 63 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
+| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 65 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
 
 ---
@@ -363,7 +363,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1504) |
+| `app/src/test/` | JVM-Unit-Tests (1535) |
 | `app/src/androidTest/` | Instrumented Tests (325, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

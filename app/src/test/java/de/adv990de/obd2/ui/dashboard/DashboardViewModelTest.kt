@@ -1630,6 +1630,8 @@ class DashboardViewModelTest {
         val pipeline: ReadingsPipeline,
         /** Was das ViewModel je OBD-Zyklus an `recordDerived` uebergab, in der Reihenfolge der Aufrufe. */
         val recorded: List<List<SensorValue>>,
+        /** Die Restzeit bis Gruen, die das ViewModel fuer die Ambient-Statuszeile veroeffentlicht. */
+        val warmup: OilWarmupState,
     )
 
     /**
@@ -1650,8 +1652,9 @@ class DashboardViewModelTest {
         val recorded = mutableListOf<List<SensorValue>>()
         val pipeline = strictPipeline(events, recorded)
         val obdRepo = fakeObdRepository()
-        val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle())
-        return Driven(vm, events, pipeline, recorded)
+        val warmup = OilWarmupState()
+        val vm = DashboardViewModel(obdRepo, prefs, mockk<ConnectionCoordinator>(relaxed = true), pipeline, SavedStateHandle(), warmup)
+        return Driven(vm, events, pipeline, recorded, warmup)
     }
 
     private fun rpmAt(ts: Long, value: Float = 3000f) = SensorValue(pid = PidRegistry.RPM, value = value, timestamp = ts)
@@ -2828,6 +2831,76 @@ class DashboardViewModelTest {
 
         assertEquals(OilBarColor.Yellow, d.vm.uiState.value.oilBarColor)
         assertEquals(listOf(2f, 2f, 2f, 2f, 1f), d.recordedOilBar().map { it.value }.takeLast(5))
+    }
+
+    // ── Die Restzeit bis Gruen fuer die Ambient-Statuszeile ──────────────────────────────────────────
+
+    @Test
+    fun `the oil warm-up state starts with the full ten minutes`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        assertEquals(600_000L, d.warmup.greenInMillis.value)
+    }
+
+    @Test
+    fun `the countdown starts with the first coolant value above 80 and runs down with the cycles`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(1_000L, coolantC = 78f)    // nicht ueber 80: der Timer laeuft noch nicht
+        advanceUntilIdle()
+        assertEquals(600_000L, d.warmup.greenInMillis.value)
+
+        d.coolantCycleAt(31_000L, coolantC = 85f)   // erster Wert ueber 80: Start
+        advanceUntilIdle()
+        assertEquals(600_000L, d.warmup.greenInMillis.value)
+
+        d.coolantCycleAt(61_000L, coolantC = 85f)
+        advanceUntilIdle()
+        assertEquals(570_000L, d.warmup.greenInMillis.value)
+    }
+
+    @Test
+    fun `a cold engine resets the countdown to the full time`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+
+        d.coolantCycleAt(0L, coolantC = 85f)
+        advanceUntilIdle()
+        d.coolantCycleAt(30_000L, coolantC = 85f)
+        advanceUntilIdle()
+        assertEquals(570_000L, d.warmup.greenInMillis.value)
+
+        d.coolantCycleAt(60_000L, coolantC = 70f)   // <= 75: sofort zurueck
+        advanceUntilIdle()
+
+        assertEquals(600_000L, d.warmup.greenInMillis.value)
+    }
+
+    @Test
+    fun `a GPS refresh moves the countdown too - it follows the clock, not only new readings`() = runTest {
+        val d = drivenWithGears()
+        advanceUntilIdle()
+        d.coolantCycleAt(0L, coolantC = 85f)
+        advanceUntilIdle()
+        d.coolantCycleAt(30_000L, coolantC = 85f)
+        advanceUntilIdle()
+
+        d.vm.nowMillis = { 45_000L }
+        d.events.emit(
+            SessionEvent.Values(
+                listOf(
+                    SensorValue(pid = PidRegistry.RPM, value = 1200f, timestamp = 30_000L),
+                    SensorValue(pid = PidRegistry.COOLANT_TEMP, value = 85f, timestamp = 30_000L),
+                ),
+                gpsSpeedKmh = 5f,
+                isObdCycle = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(555_000L, d.warmup.greenInMillis.value)
     }
 
     private fun makeVmFrom(

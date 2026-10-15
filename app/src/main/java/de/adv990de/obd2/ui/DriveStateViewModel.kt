@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ui.dashboard.OilWarmupState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -15,8 +16,12 @@ import javax.inject.Inject
 @HiltViewModel
 class DriveStateViewModel @Inject constructor(
     private val obdRepository: ObdRepository,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    oilWarmupState: OilWarmupState = OilWarmupState(),
 ) : ViewModel() {
+
+    /** Restzeit bis der Oel-Balken gruen wird (Dashboard rechnet, die Ambient-Statuszeile zeigt sie), s. [OilWarmupState]. */
+    val oilGreenInMillis: StateFlow<Long> = oilWarmupState.greenInMillis
 
     val hideNavOnDrive: StateFlow<Boolean> = appPreferences.hideNavOnDrive
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)

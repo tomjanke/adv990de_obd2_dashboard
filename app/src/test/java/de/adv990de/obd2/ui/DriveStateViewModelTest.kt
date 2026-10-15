@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui
 
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.ui.dashboard.OilWarmupState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -18,6 +19,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -76,5 +78,20 @@ class DriveStateViewModelTest {
         vm.toggleHideNavOnDrive()
         advanceUntilIdle()
         coVerify { prefs.setHideNavOnDrive(true) }
+    }
+
+
+    @Test
+    fun `the oil timer comes from the shared warm-up state, starting with the full ten minutes`() = runTest {
+        val warmup = OilWarmupState()
+        val obdRepo = mockk<ObdRepository> { every { isMovingFlow } returns MutableStateFlow(true) }
+        val prefs = mockk<AppPreferences> { every { hideNavOnDrive } returns flowOf(true) }
+        val vm = DriveStateViewModel(obdRepo, prefs, warmup)
+        advanceUntilIdle()
+        assertEquals(600_000L, vm.oilGreenInMillis.value)
+
+        warmup.set(432_000L)
+
+        assertEquals(432_000L, vm.oilGreenInMillis.value)
     }
 }

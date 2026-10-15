@@ -27,6 +27,7 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
+import de.adv990de.obd2.ui.dashboard.OilWarmupState
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
@@ -147,7 +148,7 @@ class BottomNavTest {
         val prefs = mockk<AppPreferences> {
             every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
         }
-        return DriveStateViewModel(obdRepo, prefs)
+        return DriveStateViewModel(obdRepo, prefs, oilWarmup)
     }
 
     /** Mirrors `DisplaySettingsViewModelTest.makePrefs()`: every flow the constructor touches is
@@ -180,6 +181,9 @@ class BottomNavTest {
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
             )
         )
+
+    /** Die Restzeit bis Gruen, die das Dashboard sonst veroeffentlicht — hier setzt sie der Test selbst. */
+    private val oilWarmup = OilWarmupState()
 
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel
@@ -342,6 +346,35 @@ class BottomNavTest {
         launchBottomNav(isMoving = true, hideNavOnDrive = true, outsideTempC = 20f)
 
         composeRule.onNodeWithText("20 °C").assertIsDisplayed()
+    }
+
+    @Test
+    fun navHidden_true_showsTheOilTimerWithItsStartTimeBeforeItRuns() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true)
+
+        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 10:00").assertIsDisplayed()
+    }
+
+    @Test
+    fun navHidden_true_showsTheRunningCountdownAndFollowsIt() {
+        oilWarmup.set(372_000L)
+        launchBottomNav(isMoving = true, hideNavOnDrive = true)
+        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 6:12").assertIsDisplayed()
+
+        oilWarmup.set(371_000L)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("${label(R.string.ambient_oil_label)} 6:11").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 6:12").assertDoesNotExist()
+    }
+
+    @Test
+    fun navHidden_false_showsNoOilTimer() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = true)
+
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
+        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 10:00").assertDoesNotExist()
     }
 
     @Test

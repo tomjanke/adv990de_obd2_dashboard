@@ -313,6 +313,7 @@ Verhalten (`DashboardViewModel.applyReadings()`, reine Logik in `ui/dashboard/Oi
   mit), nicht die Wanduhr.
 - Die Kühlmitteltemperatur wird dafür **immer** abgefragt, wie RPM — unabhängig von Slot-Belegung und
   dynamischer Schwelle (`ReadingsPipeline.selectPids()`).
+- **Die Restzeit bis Grün steht in der Ambient-Statuszeile (seit 2026-10-15):** „Öl: 6:12“, Start 10:00 beim ersten Kühlmittelwert über 80 °C — s. „Ambient-Statuszeile“.
 - **Die angezeigte Farbe wird mit aufgezeichnet (seit 2026-10-14):** `OIL_BAR`, 0 = rot, 1 = gelb, 2 = grün, −1 = grau, je OBD-Zyklus — Einzelheiten unter „Was eine Fahrt aufzeichnet“.
 
 ### Ambient-Statuszeile (statt Hauptmenü während der Fahrt, seit 2026-09-27)
@@ -325,7 +326,7 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   `navigationBarsPadding()` außerhalb der Fläche — kein Höhen- oder Farbsprung beim Wechsel (s.
   M3-Abweichung „Hintergrund der Navigationsleiste" oben).
 - **Inhalt:** Datum/Uhrzeit links (`formatDashboardHeader`, tickt genau zum Minutenwechsel),
-  Außentemperatur rechts (`formatOutsideTemperature`: `convertUnit` wie `SensorCard`, also °F bei
+  **Öl-Timer in der Mitte** (s. nächster Punkt), Außentemperatur rechts (`formatOutsideTemperature`: `convertUnit` wie `SensorCard`, also °F bei
   imperialen Einheiten; NaN/∞ → weggelassen). Beides `LiveValueText` in `titleLarge.asLiveValue()`
   (~26sp effektiv), Farbe `onSurfaceVariant` — die Zeile ersetzt Chrome, sie ist kein primärer
   Live-Wert wie eine Sensor-Kachel (`ValueTileStyle`, ~53sp), bleibt aber klar größer als jedes
@@ -333,6 +334,9 @@ app-weiten `Scaffold` sitzt (User-bestätigt). Verbindlich:
   `labelSmall.asLiveValue()` (~13sp, kleinste Textrolle im ganzen Typografie-System) — auf der
   echten Fahrt unlesbar, unabhängig von der "sekundär, kein Live-Wert"-Einstufung. Design-Prinzip 1
   (Glanceability) gilt für alles Sichtbare während der Fahrt, nicht nur für Kachel-Werte.
+- **Öl-Timer in der Mitte (seit 2026-10-15, Nutzerwunsch):** „Öl: 6:12“ (`values-de`: „Öl:“, `values`: „Oil:“; `ambientOilText`, `ui/components/AmbientHeaderLayout.kt`) — die **Restzeit bis der Ölbalken grün wird**, als `m:ss`, auf ganze Sekunden aufgerundet (`formatOilTimer`: nie „0:00“, solange Zeit übrig ist). Schrift und Farbe wie Datum und Temperatur (`titleLarge.asLiveValue()`, `onSurfaceVariant`; die Balkenfarben `StatusColors` gelten für den Balken, nicht für diesen Text). **Startwert „Starttimerzeit“ = 10:00:** solange der Timer nicht läuft (noch nie über 80 °C, nach einem Rückfall auf ≤ 75 °C oder einem Einbruch von 120 s, kein erster Messwert, Lücke von mehr als 60 s) zeigt die Zeile die volle Dauer; **der Timer beginnt beim ersten Kühlmittelwert über 80 °C** (strikt: genau 80 startet nichts; nicht bei 75/76 °C — dort wird der Balken nur gelb), zählt Uhrzeit (ein kurzer Einbruch hält ihn nicht an) und erreicht „0:00“ genau dann, wenn der Balken grün wird (`oilBarGreenInMillis`, reine Funktion in `OilTemperatureBar.kt`, aus demselben Zustand wie `oilBarColor`; Test: Grün genau dann, wenn nichts mehr übrig ist). Die Zeile hat eine `contentDescription` („Öl-Warmlauf: noch 6:12, bis der Balken grün wird“).
+  **Woher der Wert kommt:** der Timer lebt im `DashboardViewModel` (`OilBarTracker.greenInMillis()`), die Zeile sitzt in der app-weiten Navigation außerhalb des Dashboard-Ziels. Beide teilen **einen** Wert: `OilWarmupState` (`ui/dashboard/`, `@Singleton`, `StateFlow<Long>`; ein Singleton ist hier unvermeidbar, weil zwei ViewModels verschiedener Ziele denselben Zustand brauchen). Das Dashboard schreibt ihn bei **jedem** Ereignis (OBD-Zyklus und GPS-Zwischenupdate — die Zeit läuft zwischen den Messwerten weiter), `DriveStateViewModel.oilGreenInMillis` reicht ihn durch, `BottomNav` sammelt ihn nur im Zweig der Zeile. Beide ViewModels haben `OilWarmupState` als letzten Konstruktorparameter mit Standardwert (für Tests; Hilt reicht den Singleton). Er überlebt keinen Neustart der App (der Timerzustand selbst schon, über das `SavedStateHandle`; der erste Zyklus schreibt ihn neu).
+  **Platz (gemessen, nicht geschätzt):** In der Titelgröße braucht das volle Datum („So. 27.09. · 14:32“) rund 265–280 dp, der Timer rund 140 dp, die Temperatur rund 80–110 dp — im Hochformat eines Pixel 8 Pro (~380 dp nutzbar) passt das nicht. Die Mitte steht exakt mittig (links und rechts je `weight(1f)`), und **passt das volle Datum nicht in seine Hälfte, zeigt die Zeile nur die Uhrzeit** (`ambientUsesCompactHeader`, reine Funktion; gemessen mit dem echten Stil über `TextMeasurer`, mit dem breitesten Timertext „10:00“, damit die Entscheidung nicht mit dem Countdown springt). Im Hochformat fehlt dem Fahrer also das Datum, solange die Zeile sichtbar ist; im Querformat bleibt es. Geprüft auf dem Pixel 8 Pro (Vorschau-Bilder, Hochformat) und mit `AmbientStatusRowDeviceTest` (schmal 360 dp: nur Uhrzeit, Timer exakt in der Mitte, Reihenfolge ohne Überlappung; breit: volles Datum).
 - **Anzeige-Persistenz wie beim Gang:** Ein fehlgeschlagener Abruf leert die Temperatur nicht;
   `holdOutsideTemp()` (`ui/weather/OutsideTemperatureHold.kt`, reine Funktion) hält den letzten
   guten Wert 30 Minuten (`OUTSIDE_TEMP_HOLD`, User-Entscheidung), gemessen auf einer
@@ -741,7 +745,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
 - **Die Vorschauen werden auf dem Gerät gerendert (seit v1.25.2):** `PreviewsRenderDeviceTest` komponiert jede `@Preview`-Funktion in einer eigenen Test-Umgebung (`runAndroidComposeUiTest`, Uhr angehalten wegen endloser Animationen) und
   verlangt, dass sie weder wirft noch nichts zeichnet (Fenster-Vorschauen = Dialoge: eine zweite Wurzel mit Inhalt). **Gefunden werden sie nach Form**, nicht nach der Annotation (BINARY, zur Laufzeit nicht lesbar): statische Methode
   `Preview…(Composer, int)` in einer `…Kt`-Klasse des APK (`DexFile`, `getDeclaredComposableMethod`). `CodeHygieneSourceTest` erzwingt die Form (**`private fun Preview…()` ohne Parameter**; umgekehrt heißt eine parameterlose Funktion, die keine
-  Vorschau ist, **nicht** `Preview…` — Hilfs-Composables `…PreviewContent`) und dass `PREVIEW_COUNT` im Geräte-Test (63) die Zahl der Quelltexte ist: wer eine Vorschau ergänzt oder entfernt, zieht die Zahl dort nach.
+  Vorschau ist, **nicht** `Preview…` — Hilfs-Composables `…PreviewContent`) und dass `PREVIEW_COUNT` im Geräte-Test (65) die Zahl der Quelltexte ist: wer eine Vorschau ergänzt oder entfernt, zieht die Zahl dort nach.
   Mit dem Instrumentation-Argument `previewShots=true` schreibt der Test je Vorschau ein Bild nach `files/preview_shots/` der Debug-App (nicht für Dialoge). **Falle:** `connectedDebugAndroidTest` deinstalliert die Debug-App danach, die Bilder sind
   weg — direkt laufen lassen: beide APKs per `adb install -r -t` (`app-debug.apk`, `app-debug-androidTest.apk`), dann `adb shell am instrument -w -e class de.adv990de.obd2.ui.PreviewsRenderDeviceTest -e previewShots true de.adv990de.obd2.debug.test/de.adv990de.obd2.HiltTestRunner`,
   Bilder per `adb exec-out run-as de.adv990de.obd2.debug cat files/preview_shots/<Name>.png`. Das Rendern fand zwei falsche Vorschauen (Kachel ohne Höhe füllte das Fenster und verdrängte die zweite Kachel und das Band; Einstellungszeilen ohne Seitenrand) — beide behoben.
@@ -986,8 +990,8 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 1504 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 327 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:testDebugUnitTest          # 1535 JVM-Unit-Tests
+./gradlew :app:connectedDebugAndroidTest  # 337 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

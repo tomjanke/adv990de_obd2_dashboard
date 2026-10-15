@@ -121,7 +121,8 @@ fun BottomNav(
     ) { hidden ->
         if (hidden) {
             val outsideTempC by weatherVm.outsideTempC.collectAsStateWithLifecycle()
-            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial)
+            val oilGreenInMillis by vm.oilGreenInMillis.collectAsStateWithLifecycle()
+            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial, oilGreenInMillis = oilGreenInMillis)
         } else {
             Column {
                 HorizontalDivider()

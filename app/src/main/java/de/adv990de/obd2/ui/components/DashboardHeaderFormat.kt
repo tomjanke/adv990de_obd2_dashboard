@@ -1,6 +1,7 @@
 package de.adv990de.obd2.ui.components
 
 import de.adv990de.obd2.obd.convertUnit
+import de.adv990de.obd2.ui.dashboard.OIL_BAR_GREEN_HOLD_MS
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -17,6 +18,23 @@ fun formatDashboardHeader(epochMillis: Long, locale: Locale, zone: ZoneId = Zone
     val datePart = DateTimeFormatter.ofPattern("EEE dd.MM.", locale).format(dateTime)
     val timePart = DateTimeFormatter.ofPattern("HH:mm", locale).format(dateTime)
     return "$datePart · $timePart"
+}
+
+/**
+ * Nur die Uhrzeit ("14:32") — die kompakte Form des Kopfes, wenn das volle Datum in einer schmalen Ambient-Statuszeile neben dem Oel-Timer
+ * keinen Platz hat (s. [ambientUsesCompactHeader]). Dieselbe Uhrzeit wie der hintere Teil von [formatDashboardHeader].
+ */
+fun formatDashboardTime(epochMillis: Long, locale: Locale, zone: ZoneId = ZoneId.systemDefault()): String =
+    DateTimeFormatter.ofPattern("HH:mm", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
+
+/**
+ * Restzeit des Oel-Timers als "m:ss" ("10:00", "6:12", "0:00"). Auf ganze Sekunden AUFgerundet, damit der Countdown nie "0:00" zeigt, solange noch
+ * Zeit uebrig ist; auf 0 bis [OIL_BAR_GREEN_HOLD_MS] begrenzt. Die Zahlen folgen der Sprache des Geraets ([locale] als Parameter, wie bei den
+ * anderen Formaten dieser Datei).
+ */
+fun formatOilTimer(remainingMillis: Long, locale: Locale): String {
+    val seconds = (remainingMillis.coerceIn(0L, OIL_BAR_GREEN_HOLD_MS) + 999L) / 1000L
+    return String.format(locale, "%d:%02d", seconds / 60L, seconds % 60L)
 }
 
 private const val MILLIS_PER_MINUTE = 60_000L

@@ -118,4 +118,62 @@ class OilBarTrackerTest {
         assertEquals(0L, handle.get<Long>("oilBarAboveGreenSinceMillis"))
         assertEquals(0L, handle.get<Long>("oilBarLastSampleAtMillis"))
     }
+
+
+    // --- greenInMillis: die Restzeit fuer die Anzeige, aus demselben Zustand wie die Farbe ---
+
+    @Test
+    fun `before any reading the full ten minutes remain`() {
+        assertEquals(600_000L, tracker.greenInMillis())
+    }
+
+    @Test
+    fun `the countdown starts with the first value above 80 and follows the clock`() {
+        clock = 1_000L
+        tracker.update(listOf(coolant(85f, 1)), previous = null)
+        assertEquals(600_000L, tracker.greenInMillis())
+
+        clock = 31_000L
+        tracker.update(listOf(coolant(85f, 2)), previous = OilBarColor.Yellow)
+        assertEquals(570_000L, tracker.greenInMillis())
+
+        clock = 41_000L   // zehn Sekunden ohne neuen Messwert: die Zeit laeuft trotzdem
+        assertEquals(560_000L, tracker.greenInMillis())
+    }
+
+    @Test
+    fun `at or below 80 the timer is not running - the full time is shown`() {
+        clock = 0L
+        tracker.update(listOf(coolant(80f, 1)), previous = null)      // genau 80 startet den Timer nicht
+        assertEquals(600_000L, tracker.greenInMillis())
+
+        clock = 30_000L
+        tracker.update(listOf(coolant(76f, 2)), previous = OilBarColor.Yellow)
+        assertEquals(600_000L, tracker.greenInMillis())
+    }
+
+    @Test
+    fun `a dip below 78 does not stop the countdown, a cold engine resets it`() {
+        clock = 0L
+        tracker.update(listOf(coolant(85f, 1)), previous = null)
+        clock = 30_000L
+        tracker.update(listOf(coolant(77f, 2)), previous = OilBarColor.Yellow)   // Einbruch: der Timer laeuft weiter
+        assertEquals(570_000L, tracker.greenInMillis())
+
+        clock = 60_000L
+        tracker.update(listOf(coolant(70f, 3)), previous = OilBarColor.Yellow)   // <= 75: sofort zurueck
+        assertEquals(600_000L, tracker.greenInMillis())
+    }
+
+    @Test
+    fun `the remaining time survives an activity recreation like the colour does`() {
+        clock = 0L
+        tracker.update(listOf(coolant(85f, 1)), previous = null)
+        clock = 30_000L
+        tracker.update(listOf(coolant(85f, 2)), previous = OilBarColor.Yellow)
+
+        val recreated = OilBarTracker(handle, now = { clock })
+
+        assertEquals(570_000L, recreated.greenInMillis())
+    }
 }

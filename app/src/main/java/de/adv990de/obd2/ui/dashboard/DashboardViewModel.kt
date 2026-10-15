@@ -40,6 +40,8 @@ class DashboardViewModel @Inject constructor(
     private val connectionCoordinator: ConnectionCoordinator,
     private val readingsPipeline: ReadingsPipeline,
     private val savedStateHandle: SavedStateHandle,
+    // Die Restzeit bis Gruen fuer die Ambient-Statuszeile (der Standardwert gilt nur fuer Tests; Hilt reicht den Singleton).
+    private val oilWarmupState: OilWarmupState = OilWarmupState(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -253,6 +255,8 @@ class DashboardViewModel @Inject constructor(
             ratios = gearRatios.value,
         )
         val newOilBarColor = oilBarTracker.update(values, previous = _uiState.value.oilBarColor)
+        // Die Restzeit laeuft mit der Uhr, nicht nur mit neuen Messwerten: auch ein GPS-Zwischenupdate rechnet sie neu.
+        oilWarmupState.set(oilBarTracker.greenInMillis())
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,

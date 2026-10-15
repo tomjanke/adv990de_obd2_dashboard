@@ -22,8 +22,11 @@ private const val GREEN_RESET_THRESHOLD_C = 78f
  */
 private const val RESET_DEBOUNCE_MS = 2 * 60 * 1000L
 
-/** Ununterbrochen ueber [GREEN_ENTER_THRESHOLD_C] fuer diese Dauer -> Gruen. */
-private const val GREEN_HOLD_MS = 10 * 60 * 1000L
+/**
+ * Ab dem ersten Messwert ueber [GREEN_ENTER_THRESHOLD_C] (strikt: genau 80 startet nichts) laeuft diese Dauer; ist sie um, zeigt der Balken Gruen.
+ * Die Ambient-Statuszeile zeigt die Restzeit (s. [oilBarGreenInMillis]), ihr Startwert ist diese Dauer.
+ */
+internal const val OIL_BAR_GREEN_HOLD_MS = 10 * 60 * 1000L
 
 /**
  * Laengste tolerierte Pause zwischen zwei Messwerten, ueber die hinweg der Gruen-Timer
@@ -105,6 +108,25 @@ fun updateOilBarTimer(coolantTempC: Float, nowMillis: Long, state: OilBarTimerSt
 fun oilBarColor(coolantTempC: Float, nowMillis: Long, state: OilBarTimerState): OilBarColor = when {
     coolantTempC <= RED_THRESHOLD_C -> OilBarColor.Red
     state.aboveGreenThresholdSinceMillis != null &&
-        nowMillis - state.aboveGreenThresholdSinceMillis >= GREEN_HOLD_MS -> OilBarColor.Green
+        nowMillis - state.aboveGreenThresholdSinceMillis >= OIL_BAR_GREEN_HOLD_MS -> OilBarColor.Green
     else -> OilBarColor.Yellow
+}
+
+/**
+ * Die Restzeit bis der Balken gruen wird, fuer die Anzeige in der Ambient-Statuszeile (Nutzerwunsch 2026-10-15). Gleicher Zustand wie
+ * [oilBarColor]: **Gruen genau dann, wenn nichts mehr uebrig ist.**
+ *
+ * Der Timer laeuft ab dem ersten Messwert ueber 80 °C und zaehlt Uhrzeit, nicht die Zeit ueber 80 °C: ein Einbruch (<= 78 °C, kuerzer als
+ * [RESET_DEBOUNCE_MS]) haelt ihn nicht an. Ohne laufenden Timer — noch nicht ueber 80 °C, nach einem Reset (<= 75 °C oder ein Einbruch von
+ * 120 s), ohne ersten Messwert — gilt die volle Dauer [OIL_BAR_GREEN_HOLD_MS] ("Starttimerzeit"). Liegt der letzte Messwert mehr als
+ * [MAX_SAMPLE_GAP_MS] zurueck, ist der Timer verfallen ([updateOilBarTimer] wuerde ihn mit dem naechsten Messwert zuruecksetzen): auch dann
+ * die volle Dauer, nicht eine Restzeit, die nicht mehr stimmt. Nie unter 0 und nie ueber der vollen Dauer.
+ *
+ * Reine Funktion; [nowMillis] ist dieselbe monotone Uhr wie bei [updateOilBarTimer].
+ */
+fun oilBarGreenInMillis(nowMillis: Long, state: OilBarTimerState): Long {
+    val since = state.aboveGreenThresholdSinceMillis
+    val lastSample = state.lastSampleAtMillis
+    if (since == null || lastSample == null || nowMillis - lastSample > MAX_SAMPLE_GAP_MS) return OIL_BAR_GREEN_HOLD_MS
+    return (OIL_BAR_GREEN_HOLD_MS - (nowMillis - since)).coerceIn(0L, OIL_BAR_GREEN_HOLD_MS)
 }
