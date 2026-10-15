@@ -1,5 +1,32 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.32.1 (versionCode 111)
+
+Die Tankanzeige steht jetzt nur noch im Dashboard und hat weniger Abstand um den Balken.
+
+### Anzeige
+
+- **Nur im Dashboard:** Die Tankzeile steht ganz unten im Dashboard, direkt über dem Hauptmenü bzw. der Statuszeile — nicht mehr auf jeder Seite (1.32.0 zeigte sie in der Navigation auf allen Screens). Auf Verlauf, Fehlercodes und Einstellungen erscheint sie nicht. Ein Quelltext-Test (`FuelGaugePlacementSourceTest`) hält fest, dass nur `DashboardScreen` sie aufruft.
+- **Weniger Abstand:** Die Zeile ist **40 dp** hoch statt 56 dp; der Balken (16 dp) hat damit 12 dp Luft oben und unten statt 20 dp. Das liegt unter der 56-dp-Regel für Touch-Ziele — eine bewusste, in CLAUDE.md dokumentierte Ausnahme (Ihr Wunsch); die Zeile bleibt über die ganze Breite berührbar, der lange Druck ist durch die Rückfrage abgesichert.
+- **Kacheln:** Im **Hochformat** unverändert 170 dp. Im **Querformat schrumpft die Kachelreihe** auf dem Pixel 8 Pro von 200 auf etwa **180 dp** (gemessen, ≈ 406 statt 450 px): die 200 dp sind eine Obergrenze, die Reihe nimmt die verfügbare Höhe. Das haben Sie so akzeptiert; eine flachere Zeile oder eine andere Platzierung im Querformat wurden verworfen.
+
+### Einstellung
+
+- **Die Taste „Fertig“ der Tastatur speichert die Reichweite**, wenn die Eingabe gültig ist (leer löscht sie, eine ungültige Zahl speichert nichts). Im Querformat verdeckt die Tastatur die Schaltflächen des Dialogs; am Gerät gesehen.
+
+### Korrektur zu 1.32.0
+
+- Die Release-Notes von 1.32.0 nannten für den Platz im Querformat „≈ 390 von ≈ 510 dp“. Das war **falsch gerechnet** (falsche Bildschirmdichte): das Display ist im Querformat 448 dp hoch, nicht 510. Die Messung am Gerät steht oben.
+
+### Grenzen
+
+- Unverändert: ein Streckenzähler, keine Kraftstoffmessung; kein Erkennen des Tankens, kein Verbrauch; gezählt wird nur bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“; die Genauigkeit der GPS-Strecke ist nicht gemessen; nicht während einer Fahrt geprüft.
+- Das Querformat wurde diesmal am Gerät gesehen (Pixel 8 Pro: Zeile, Dialog, Höhe der Kachelreihe), das Hochformat ebenfalls.
+
+### Tests
+
+- 1615 JVM-Tests (+2), 374 Instrumentation-Tests (+1: Tankzeile im Dashboard statt in der Navigation, Fertig-Taste, Höhe und Abstand der Zeile, keine Tankzeile auf der Einstellungsseite). Lint: 0 Fehler, 3 Warnungen. Auf dem Pixel 8 Pro (Android 17) geprüft, nicht auf älteren Android-Versionen und nicht am Fahrzeug.
+
 ## Version 1.32.0 (versionCode 110)
 
 Neu: eine virtuelle Tankanzeige — ein Balken, der die seit dem Tanken gefahrene GPS-Strecke gegen die Reichweite bei vollem Tank zählt.
