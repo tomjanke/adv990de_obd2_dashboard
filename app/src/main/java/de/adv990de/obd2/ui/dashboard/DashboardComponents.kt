@@ -173,9 +173,11 @@ internal fun RpmBar(
             // Oel-Zeile (Nutzerwunsch 2026-10-15): die Oelkanne direkt vor dem Streifen, analog zum Tankstellen-Symbol der Tankzeile; der Streifen ist
             // so hoch wie der Tankbalken (16 dp). Die Segmente nehmen den Rest der Spalte (62 - 2 - 20 = 40 dp, vorher 48), die Zeilenhoehe von
             // 78 dp und die Gang-Box bleiben. Das Symbol ist neutral (onSurfaceVariant), nur der Streifen traegt die Farbe.
+            // Kanne und Streifen stehen unten buendig in der Zeile (Nutzerwunsch 2026-10-15: mehr Abstand zu den Segmenten): sichtbare Luecke
+            // 2 dp Spacer + (OIL_ROW_HEIGHT - OIL_BAR_HEIGHT) = 6 dp statt 4 dp bei zentrierter Anordnung — ohne die Segmente niedriger zu machen.
             Row(
                 modifier = Modifier.fillMaxWidth().height(OIL_ROW_HEIGHT).padding(start = OIL_ROW_START_PADDING),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_oil_can),
@@ -239,7 +241,8 @@ internal const val OIL_BAR_ICON_TEST_TAG = "oil_bar_icon"
 
 /**
  * Oel-Zeile unter den Drehzahl-Segmenten: 20 dp hoch (Entscheidung 1b des Nutzers: die Segmente werden dafuer von 48 auf 40 dp niedriger), darin
- * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (ihre Breite folgt dem Seitenverhaeltnis 24:15), beide zentriert.
+ * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (ihre Breite folgt dem Seitenverhaeltnis 24:15), beide **unten buendig**
+ * (vorher zentriert): zwischen Segmenten und Streifen liegen damit 2 dp Luecke + 4 dp Luft der Zeile = 6 dp (Nutzerwunsch 2026-10-15; vorher 4 dp).
  */
 internal val OIL_ROW_HEIGHT = 20.dp
 internal val OIL_ICON_HEIGHT = 16.dp

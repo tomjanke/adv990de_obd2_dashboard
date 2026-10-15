@@ -310,11 +310,13 @@ class RpmBarTest {
 
         val segments = rpmSegments().fetchSemanticsNode().boundsInRoot
         val strip = oilStrip().fetchSemanticsNode().boundsInRoot
-        // Luecke 2 dp + (20 dp Zeile - 16 dp Streifen) / 2 = 4 dp zwischen Segmenten und Streifen; darunter noch 2 dp bis zum Zeilenende.
-        org.junit.Assert.assertEquals("Abstand Segmente -> Streifen", 4 * density, strip.top - segments.bottom, 1.5f)
+        // Nutzerwunsch 2026-10-15 („Abstand zwischen RPM-Bar und Oeltemperaturbalken etwas groesser, z. B. 2“): Streifen und Kanne stehen unten buendig in der
+        // 20-dp-Zeile statt mittig — Luecke 2 dp + (20 dp Zeile - 16 dp Streifen) = 6 dp zwischen Segmenten und Streifen (vorher mittig: 2 + 2 = 4 dp);
+        // der Streifen endet an der Unterkante der Spalte, die Segmente bleiben 40 dp hoch.
+        org.junit.Assert.assertEquals("Abstand Segmente -> Streifen", 6 * density, strip.top - segments.bottom, 1.5f)
         org.junit.Assert.assertEquals(
-            "Segmente + Luecke + Oel-Zeile = 40 + 2 + 20 dp",
-            62 * density, (strip.bottom + 2 * density) - segments.top, 1.5f,
+            "Segmente + Luecke + Oel-Zeile = 40 + 2 + 20 dp, der Streifen schliesst die Spalte unten ab",
+            62 * density, strip.bottom - segments.top, 1.5f,
         )
     }
 
