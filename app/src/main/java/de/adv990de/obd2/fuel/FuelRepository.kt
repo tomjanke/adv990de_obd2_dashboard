@@ -40,10 +40,10 @@ interface FuelDistanceSink {
 
 /**
  * Haelt den Zaehler der virtuellen Tankanzeige (gefahrene Kilometer seit dem letzten Zuruecksetzen) und macht daraus zusammen mit der
- * Reichweite bei vollem Tank den [state], den die Leiste zeigt (Nutzerwunsch 2026-10-15).
+ * Reichweite bei vollem Tank den [state], den die Tankzeile im Dashboard zeigt (Nutzerwunsch 2026-10-15).
  *
- * - **Ein Zaehler fuer die ganze App:** das Dashboard schreibt ([addDistance]), die app-weite Leiste liest — zwei ViewModels verschiedener
- *   Navigationsziele, deshalb ein Repository mit `@Singleton` (wie `OilWarmupState`, nur dass dieser Zustand einen Neustart ueberleben muss).
+ * - **Ein Zaehler fuer die ganze App:** das `DashboardViewModel` schreibt ([addDistance]), das `FuelGaugeViewModel` liest — zwei ViewModels, die
+ *   denselben Zustand brauchen, der einen Neustart ueberleben muss; deshalb ein Repository mit `@Singleton`.
  * - **Gespeichert wird gedrosselt:** der Zaehler waechst mehrmals je Sekunde, ein DataStore-Schreibvorgang je Meldung waere Verschwendung. Es wird
  *   geschrieben, sobald er um [PERSIST_STEP_KM] gewachsen ist, beim Zuruecksetzen sofort und per [flush] am Sitzungsende. Ein Prozess-Kill
  *   verliert so hoechstens [PERSIST_STEP_KM]. Alle Schreibvorgaenge laufen ueber **einen** Schreiber mit einem Kanal, der nur den
@@ -51,7 +51,7 @@ interface FuelDistanceSink {
  * - **Ein Wert, der noch nicht gelesen ist, wird nie ueberschrieben:** der Startwert wird synchron gelesen ([seedBlocking], ~3 ms); schlaegt das
  *   fehl (haengende Platte), bleibt der Zaehler `nicht geladen`, bis der Speicher antwortet, Kilometer davor werden aufaddiert, und solange
  *   ist [state] `null` (Leiste ausgeblendet) und nichts wird geschrieben. Ein Zuruecksetzen des Nutzers gewinnt gegen ein spaetes Laden.
- * - [state] ist `null`, wenn keine Reichweite hinterlegt ist (die Leiste bleibt dann ausgeblendet) oder der Zaehler noch nicht geladen ist.
+ * - [state] ist `null`, wenn keine Reichweite hinterlegt ist (die Tankzeile bleibt dann ausgeblendet) oder der Zaehler noch nicht geladen ist.
  */
 @Singleton
 class FuelRepository @Inject constructor(
@@ -70,7 +70,7 @@ class FuelRepository @Inject constructor(
 
     private val writeQueue = Channel<Float>(Channel.CONFLATED)
 
-    /** Reichweite bei voller Tankfuellung zusammen mit dem Zaehler; `null` = Leiste ausblenden. */
+    /** Reichweite bei voller Tankfuellung zusammen mit dem Zaehler; `null` = Tankzeile ausblenden. */
     val state: StateFlow<FuelGaugeState?> = combine(appPreferences.fuelRangeFullKm, odometer) { range, odo ->
         gaugeOf(range, odo)
     }.stateIn(

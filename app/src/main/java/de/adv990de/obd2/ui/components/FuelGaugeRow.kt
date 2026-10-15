@@ -44,7 +44,6 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.fuel.FuelGaugeState
 import de.adv990de.obd2.fuel.FuelLevel
 import de.adv990de.obd2.ui.theme.AppTypography
-import de.adv990de.obd2.ui.theme.MIN_TOUCH_TARGET
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.blueColorScheme
@@ -62,6 +61,9 @@ internal const val FUEL_BLINK_HALF_PERIOD_MS = 500L
 /** Deckkraft der Fuellung in der "aus"-Phase des Blinkens — nicht ganz weg, damit der Balken als Form lesbar bleibt. */
 internal const val FUEL_BLINK_OFF_ALPHA = 0.15f
 
+/** Hoehe der Zeile: 40 dp mit dem 16-dp-Balken in der Mitte = 12 dp Luft oben und unten (Nutzerwunsch 2026-10-15: engerer Abstand; vorher 56 dp mit 20 dp). */
+internal val FUEL_ROW_HEIGHT = 40.dp
+
 private val FuelBarHeight = 16.dp
 private val FuelIconSize = 24.dp
 
@@ -77,13 +79,15 @@ internal fun fuelBarColor(level: FuelLevel): Color = when (level) {
 }
 
 /**
- * Die virtuelle Tankanzeige (Nutzerwunsch 2026-10-15): ein Streckenzaehler, der als Balken ueber dem Hauptmenue bzw. der Statuszeile steht.
+ * Die virtuelle Tankanzeige (Nutzerwunsch 2026-10-15): ein Streckenzaehler, der als Balken ganz unten im **Dashboard** steht (direkt ueber dem
+ * Hauptmenue bzw. der Statuszeile; nur dort, nicht auf den anderen Seiten — Nutzerwunsch 2026-10-15).
  * Links das Tankstellen-Symbol (macht klar, dass es eine Tankanzeige ist), daneben ueber die ganze uebrige Breite der Balken — er fuellt
  * sich von links mit dem Anteil der Restreichweite ([FuelGaugeState.fraction]) und wechselt die Farbe nach [FuelLevel]; unter 5 %
  * blinkt er rot.
  *
- * Die Zeile ist [MIN_TOUCH_TARGET] hoch (56 dp, die Trefferflaeche der Regel fuer jeden Touch), der Balken darin schlanker und zentriert. Ein
- * Long-Press — der Standard des Systems, ca. 0,4 s — auf Symbol oder Balken ruft [onResetRequested]; die Rueckfrage stellt der Aufrufer. Ein
+ * Die Zeile ist [FUEL_ROW_HEIGHT] hoch (40 dp, volle Breite), der Balken darin 16 dp hoch und zentriert. **Bewusste Ausnahme von der 56-dp-Regel fuer
+ * Touch-Ziele** (CLAUDE.md): der Nutzer wollte weniger Abstand um den Balken; der Long-Press ist eine seltene, ueber eine Rueckfrage abgesicherte
+ * Handlung, die Zeile ist dafuer ueber die ganze Breite beruehrbar. Ein Long-Press — der Standard des Systems, ca. 0,4 s — auf Symbol oder Balken ruft [onResetRequested]; die Rueckfrage stellt der Aufrufer. Ein
  * einfacher Tipp tut nichts: die Zeile steht dauerhaft im Blick des Fahrers und darf nicht aus Versehen etwas ausloesen.
  *
  * Die Blink-Schleife laeuft nur, solange die Stufe blinkt (wie der Drehzahlbalken: keine Dauerschleife ohne Bedarf).
@@ -106,7 +110,7 @@ fun FuelGaugeRow(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(MIN_TOUCH_TARGET)
+                .height(FUEL_ROW_HEIGHT)
                 .testTag(FUEL_GAUGE_ROW_TEST_TAG)
                 .combinedClickable(onClick = {}, onLongClick = onResetRequested, onLongClickLabel = resetAction)
                 .semantics { contentDescription = description },

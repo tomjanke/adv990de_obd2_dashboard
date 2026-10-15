@@ -6,8 +6,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.longClick
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -31,19 +29,14 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
-import de.adv990de.obd2.fuel.FuelGaugeState
-import de.adv990de.obd2.fuel.FuelRepository
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
-import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.dashboard.OilWarmupState
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import io.mockk.coVerify
-import io.mockk.Runs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -200,15 +193,6 @@ class BottomNavTest {
     /** Die Restzeit bis Gruen, die das Dashboard sonst veroeffentlicht — hier setzt sie der Test selbst. */
     private val oilWarmup = OilWarmupState()
 
-    /** Die Tankanzeige: `null` = keine Reichweite hinterlegt (Leiste aus); der Test setzt sie vor dem Start oder spaeter. */
-    private val fuelGaugeFlow = MutableStateFlow<FuelGaugeState?>(null)
-    private val fuelRepository: FuelRepository = mockk {
-        every { state } returns fuelGaugeFlow
-        every { reset() } just Runs
-    }
-
-    private fun makeFuelVm() = FuelGaugeViewModel(fuelRepository)
-
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel
     private lateinit var exitAppObdRepo: ObdRepository
@@ -227,7 +211,6 @@ class BottomNavTest {
             val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
             exitAppObdRepo = remember { mockk(relaxed = true) }
             val exitAppVm = remember { makeExitAppVm(obdRepo = exitAppObdRepo) }
-            val fuelVm = remember { makeFuelVm() }
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
@@ -243,7 +226,6 @@ class BottomNavTest {
                 weatherVm = weatherVm,
                 displayVm = displayVm,
                 exitAppVm = exitAppVm,
-                fuelVm = fuelVm,
             )
         }
         if (restoration != null) restoration.setContent(content) else composeRule.setContent(content)
@@ -449,13 +431,12 @@ class BottomNavTest {
             val weatherVm = remember { makeWeatherVm(outsideTempC = 20f) }
             val displayVm = remember { makeDisplayVm(useImperial = false) }
             val exitAppVm = remember { makeExitAppVm() }
-            val fuelVm = remember { makeFuelVm() }
             val navController = rememberNavController()
             NavHost(navController = navController, startDestination = Screen.Dashboard.route) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
             }
             Box(Modifier.testTag(BOTTOM_AREA_TAG)) {
-                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm, fuelVm = fuelVm)
+                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm)
             }
         }
         composeRule.waitForIdle()
@@ -472,147 +453,6 @@ class BottomNavTest {
 
         val minimumPx = (65 * composeRule.activity.resources.displayMetrics.density).toInt() // Trennlinie 1 dp + 64 dp
         assertTrue("Hauptmenue nicht gemessen: $mainMenuHeight px", mainMenuHeight >= minimumPx)
-        assertTrue(
-            "Hauptmenue $mainMenuHeight px, Statuszeile $ambientRowHeight px — die Hoehe darf beim Wechsel nicht springen",
-            mainMenuHeight == ambientRowHeight,
-        )
-    }
-
-    // --- Tankanzeige (virtuell, s. FuelGaugeRow) ---
-
-    private val fuelGauge = FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f)
-
-    @Test
-    fun fuelGauge_withoutAConfiguredRange_showsNoFuelRow() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertDoesNotExist()
-        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
-    }
-
-    @Test
-    fun fuelGauge_withARange_showsTheFuelRowAboveTheMainMenu() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-        val fuelBottom = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.bottom
-        val menuTop = composeRule.onNodeWithText(label(R.string.nav_live)).fetchSemanticsNode().boundsInRoot.top
-        assertTrue("Tankanzeige (unten $fuelBottom) muss ueber dem Hauptmenue (oben $menuTop) stehen", fuelBottom <= menuTop)
-    }
-
-    @Test
-    fun fuelGauge_staysWhileTheStatusRowReplacesTheMainMenu() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = true, hideNavOnDrive = true)
-
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("${label(R.string.ambient_oil_label)} 10:00").assertIsDisplayed()
-        composeRule.onNodeWithText(label(R.string.nav_live)).assertDoesNotExist()
-    }
-
-    @Test
-    fun fuelGauge_appearsAndDisappearsWithTheConfiguredRange() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertDoesNotExist()
-
-        fuelGaugeFlow.value = fuelGauge
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-
-        fuelGaugeFlow.value = null
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertDoesNotExist()
-    }
-
-    @Test
-    fun fuelGauge_aSimpleTapOpensNoDialogAndResetsNothing() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performClick()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText(label(R.string.fuel_reset_title)).assertDoesNotExist()
-        verify(exactly = 0) { fuelRepository.reset() }
-    }
-
-    @Test
-    fun fuelGauge_aLongPressAsksFirst_andNamesTheRange() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText(label(R.string.fuel_reset_title)).assertIsDisplayed()
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_message, 320)).assertIsDisplayed()
-        verify(exactly = 0) { fuelRepository.reset() }
-    }
-
-    @Test
-    fun fuelGauge_confirmingTheDialogResetsTheGauge() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText(label(R.string.fuel_reset_confirm)).performClick()
-        composeRule.waitForIdle()
-
-        verify(exactly = 1) { fuelRepository.reset() }
-        composeRule.onNodeWithText(label(R.string.fuel_reset_title)).assertDoesNotExist()
-    }
-
-    @Test
-    fun fuelGauge_cancellingTheDialogKeepsTheGauge() {
-        fuelGaugeFlow.value = fuelGauge
-        launchBottomNav(isMoving = false, hideNavOnDrive = false)
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText(label(R.string.cancel)).performClick()
-        composeRule.waitForIdle()
-
-        verify(exactly = 0) { fuelRepository.reset() }
-        composeRule.onNodeWithText(label(R.string.fuel_reset_title)).assertDoesNotExist()
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-    }
-
-    @Test
-    fun theMainMenuAndTheAmbientStatusRowStayExactlyAsTall_withTheFuelRowShown() {
-        // Die Tankanzeige steht ausserhalb des Wechsels Hauptmenue <-> Statuszeile: er darf auch mit ihr nicht springen.
-        fuelGaugeFlow.value = fuelGauge
-        val moving = MutableStateFlow(false)
-        oilWarmup.set(372_000L)
-        composeRule.setContent {
-            val vm = remember { makeVm(moving, hideNavOnDrive = true) }
-            val weatherVm = remember { makeWeatherVm(outsideTempC = 20f) }
-            val displayVm = remember { makeDisplayVm(useImperial = false) }
-            val exitAppVm = remember { makeExitAppVm() }
-            val fuelVm = remember { makeFuelVm() }
-            val navController = rememberNavController()
-            NavHost(navController = navController, startDestination = Screen.Dashboard.route) {
-                composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
-            }
-            Box(Modifier.testTag(BOTTOM_AREA_TAG)) {
-                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm, fuelVm = fuelVm)
-            }
-        }
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText(label(R.string.nav_live)).assertIsDisplayed()
-        val mainMenuHeight = composeRule.onNodeWithTag(BOTTOM_AREA_TAG).fetchSemanticsNode().size.height
-
-        moving.value = true
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("${label(R.string.ambient_oil_label)} 6:12").fetchSemanticsNodes().isNotEmpty() &&
-                composeRule.onAllNodesWithText(label(R.string.nav_live)).fetchSemanticsNodes().isEmpty()
-        }
-        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-        val ambientRowHeight = composeRule.onNodeWithTag(BOTTOM_AREA_TAG).fetchSemanticsNode().size.height
-
-        val minimumPx = (121 * composeRule.activity.resources.displayMetrics.density).toInt() // Tankanzeige 1 + 56 dp, Trennlinie 1 + 64 dp
-        assertTrue("Hoehe mit Tankanzeige nicht gemessen: $mainMenuHeight px", mainMenuHeight >= minimumPx)
         assertTrue(
             "Hauptmenue $mainMenuHeight px, Statuszeile $ambientRowHeight px — die Hoehe darf beim Wechsel nicht springen",
             mainMenuHeight == ambientRowHeight,

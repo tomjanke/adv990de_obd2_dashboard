@@ -44,8 +44,11 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.components.FuelGaugeRow
+import de.adv990de.obd2.ui.components.FuelResetDialog
 import de.adv990de.obd2.ui.components.StatusDot
 import de.adv990de.obd2.ui.components.StatusDotState
+import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
@@ -56,7 +59,8 @@ import kotlinx.coroutines.delay
 fun DashboardScreen(
     navController: NavController,
     vm: DashboardViewModel = hiltViewModel(),
-    displayVm: DisplaySettingsViewModel = hiltViewModel()
+    displayVm: DisplaySettingsViewModel = hiltViewModel(),
+    fuelVm: FuelGaugeViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val placeholderReadings by vm.placeholderReadings.collectAsStateWithLifecycle()
@@ -68,6 +72,9 @@ fun DashboardScreen(
     val availablePids by vm.availablePids.collectAsStateWithLifecycle()
     // rememberSaveable (UID-23): eine Drehung mit offener Auswahl schloss sie bisher.
     var pickerSlot: Int? by rememberSaveable { mutableStateOf(null) }
+    // Die virtuelle Tankanzeige (null = keine Reichweite hinterlegt, dann gibt es die Zeile nicht) steht NUR hier, nicht in der app-weiten Navigation.
+    val fuelGauge by fuelVm.gauge.collectAsStateWithLifecycle()
+    var showFuelReset: Boolean by rememberSaveable { mutableStateOf(false) }
     // Vier Zustaende statt verstreuter Einzelabfragen (s. dashboardPhase): Kacheln, Drehzahlbalken und Band
     // zeigen nie widerspruechliches. Nur "Live" zeigt echte Zahlen; sonst "--" bzw. leer (Waiting, Stale,
     // Offline). Der Verbindungs-Punkt haengt weiter am Verbindungsstatus (der Adapter ist ja da).
@@ -302,6 +309,24 @@ fun DashboardScreen(
                         }
                     }
                 }
+            }
+            // Ganz unten im Dashboard, direkt ueber dem Hauptmenue bzw. der Statuszeile (die Kachelreihe oben nimmt die Resthoehe,
+            // diese Zeile liegt darunter): die Kacheln behalten ihre Hoehe, die Zeile kostet nur Platz unter ihnen.
+            fuelGauge?.let { gauge ->
+                FuelGaugeRow(state = gauge, onResetRequested = { showFuelReset = true })
+            }
+        }
+
+        fuelGauge?.let { gauge ->
+            if (showFuelReset) {
+                FuelResetDialog(
+                    rangeFullKm = gauge.rangeFullKm,
+                    onConfirm = {
+                        showFuelReset = false
+                        fuelVm.reset()
+                    },
+                    onDismiss = { showFuelReset = false },
+                )
             }
         }
 

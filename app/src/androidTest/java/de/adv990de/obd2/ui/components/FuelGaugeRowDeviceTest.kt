@@ -216,12 +216,19 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theRowIsAtLeast56DpHighAsATouchTarget() {
+    fun theRowIsExactly40DpHigh_withEqualSpaceAboveAndBelowTheBar() {
+        // Dokumentierte Ausnahme von der 56-dp-Regel (Nutzerwunsch 2026-10-15: engerer Abstand): 40 dp Zeile, 16 dp Balken, 12 dp Luft je Seite.
         show(FuelGaugeState(320, 100f))
+        val density = composeRule.activity.resources.displayMetrics.density
 
-        val bounds = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().touchBoundsInRoot
-        val minimumPx = 56 * composeRule.activity.resources.displayMetrics.density
+        val row = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val track = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val above = track.top - row.top
+        val below = row.bottom - track.bottom
 
-        assertTrue("Trefferflaeche ${bounds.height} px, erwartet >= $minimumPx px", bounds.height >= minimumPx - 1f)
+        assertEquals("Zeilenhoehe ${row.height} px", 40 * density, row.height, 1.5f)
+        assertEquals("Balkenhoehe ${track.height} px", 16 * density, track.height, 1.5f)
+        assertEquals("Luft oben $above px, unten $below px", above, below, 1.5f)
+        assertEquals("12 dp Luft", 12 * density, above, 1.5f)
     }
 }

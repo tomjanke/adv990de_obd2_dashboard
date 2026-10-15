@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
@@ -36,6 +38,7 @@ import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.ui.components.FUEL_GAUGE_ROW_TEST_TAG
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -45,6 +48,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -681,5 +685,90 @@ class DashboardScreenTest {
         composeRule.onAllNodesWithText(hint)[0].performTouchInput { longClick() }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(SLOT_PICKER_LIST_TEST_TAG).assertIsDisplayed()
+    }
+
+    // ── Tankanzeige (virtuell): steht NUR im Dashboard, ganz unten unter den Kacheln ──────────────────
+    // Echtes AppPreferences/FuelRepository (Hilt, eigener Test-DataStore): Reichweite und Zaehler werden vorgegeben, das Zuruecksetzen
+    // wird am DataStore geprueft.
+
+    private fun launchWithFuelRange(rangeKm: Int, drivenKm: Float) {
+        runBlocking {
+            appPreferences.setFuelRangeFullKm(rangeKm)
+            appPreferences.setFuelKmSinceFill(drivenKm)
+        }
+        launchDashboardScreen()
+    }
+
+    private fun fuelDescription(remainingKm: Int, percent: Int) =
+        composeRule.activity.getString(R.string.fuel_gauge_desc, remainingKm, percent)
+
+    @Test
+    fun fuelRow_isHidden_withoutAConfiguredRange() {
+        launchDashboardScreen()
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun fuelRow_isShownAtTheBottom_belowTheLastTileRow() {
+        launchWithFuelRange(rangeKm = 320, drivenKm = 100f)
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
+        val coolantTileLabel = composeRule.activity.getString(R.string.pid_coolant_temp).uppercase()
+        val tilesBottom = composeRule.onNodeWithText(coolantTileLabel).fetchSemanticsNode().boundsInRoot.bottom
+        val rowTop = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Tankzeile (oben $rowTop) muss unter der Kachel (Label unten $tilesBottom) stehen", rowTop >= tilesBottom)
+        val rootBottom = composeRule.onRoot().fetchSemanticsNode().boundsInRoot.bottom
+        val rowBottom = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.bottom
+        assertTrue("Tankzeile (unten $rowBottom) steht ganz unten im Dashboard (Fenster $rootBottom)", rootBottom - rowBottom <= 200f)
+    }
+
+    @Test
+    fun fuelRow_showsTheStoredCounter() {
+        launchWithFuelRange(rangeKm = 320, drivenKm = 100f) // 220 km = 69 %
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertContentDescriptionEquals(fuelDescription(220, 69))
+    }
+
+    @Test
+    fun fuelRow_aTapDoesNothing_aLongPressAsksFirst() {
+        launchWithFuelRange(rangeKm = 320, drivenKm = 100f)
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_title)).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_message, 320)).assertIsDisplayed()
+        assertEquals("noch nichts zurueckgesetzt", 100f, runBlocking { appPreferences.fuelKmSinceFill.first() }, 0.001f)
+    }
+
+    @Test
+    fun fuelRow_confirmingTheDialogResetsTheCounter() {
+        launchWithFuelRange(rangeKm = 320, drivenKm = 100f)
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_confirm)).performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { runBlocking { appPreferences.fuelKmSinceFill.first() } == 0f }
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_title)).assertDoesNotExist()
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertContentDescriptionEquals(fuelDescription(320, 100))
+    }
+
+    @Test
+    fun fuelRow_cancellingTheDialogKeepsTheCounter() {
+        launchWithFuelRange(rangeKm = 320, drivenKm = 100f)
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.cancel)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.fuel_reset_title)).assertDoesNotExist()
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertContentDescriptionEquals(fuelDescription(220, 69))
+        assertEquals(100f, runBlocking { appPreferences.fuelKmSinceFill.first() }, 0.001f)
     }
 }

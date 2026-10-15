@@ -8,15 +8,15 @@ import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 /**
- * Was die Tankanzeige in der Navigation zeigt, und ihr Zuruecksetzen. Eine duenne Huelle um das [FuelRepository]: der Zaehler gehoert ihm
- * (das Dashboard schreibt, diese Leiste liest), das ViewModel gibt der Oberflaeche nur den Zustand und den einen Befehl.
+ * Was die Tankanzeige im Dashboard zeigt, und ihr Zuruecksetzen. Eine duenne Huelle um das [FuelRepository]: der Zaehler gehoert ihm
+ * (das `DashboardViewModel` schreibt die Kilometer, dieses ViewModel liest den Zustand), die Oberflaeche bekommt nur den Zustand und den einen Befehl.
  */
 @HiltViewModel
 class FuelGaugeViewModel @Inject constructor(
     private val fuelRepository: FuelRepository,
 ) : ViewModel() {
 
-    /** `null` = keine Reichweite hinterlegt (oder der Zaehler noch nicht gelesen): die Leiste bleibt ausgeblendet. */
+    /** `null` = keine Reichweite hinterlegt (oder der Zaehler noch nicht gelesen): die Zeile im Dashboard bleibt ausgeblendet. */
     val gauge: StateFlow<FuelGaugeState?> = fuelRepository.state
 
     /** Setzt die Anzeige auf "voll" zurueck (nach dem Tanken). Die Rueckfrage stellt die Oberflaeche. */

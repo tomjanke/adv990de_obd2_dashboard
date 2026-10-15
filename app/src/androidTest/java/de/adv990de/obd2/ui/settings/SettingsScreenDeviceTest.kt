@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import de.adv990de.obd2.ui.components.FUEL_GAUGE_ROW_TEST_TAG
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -172,6 +173,14 @@ class SettingsScreenDeviceTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) { runBlocking { appPreferences.fuelRangeFullKm.first() } == 320 }
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_fuel_range_summary, 320)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theFuelGaugeRow_isNotShownOnTheSettingsPage_evenWithAConfiguredRange() {
+        runBlocking { appPreferences.setFuelRangeFullKm(320) }
+        launchSettingsScreen()
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertDoesNotExist()
     }
 
     @Test

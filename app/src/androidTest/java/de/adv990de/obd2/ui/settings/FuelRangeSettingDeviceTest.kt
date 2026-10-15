@@ -14,6 +14,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assert
@@ -179,6 +180,45 @@ class FuelRangeSettingDeviceTest {
         type("123456")
         composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).assert(hasText("1234"))
         composeRule.onNodeWithText(str(R.string.settings_fuel_range_save)).assertIsNotEnabled() // 1234 > 1000
+    }
+
+    @Test
+    fun theKeyboardDoneKeySavesAValidRange() {
+        // Im Querformat verdeckt die Tastatur die Schaltflaechen des Dialogs: "Fertig" muss speichern koennen.
+        showRow(0)
+        openDialog()
+
+        type("320")
+        composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).performImeAction()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(320), saved)
+        composeRule.onNodeWithText(str(R.string.settings_fuel_range_summary, 320)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theKeyboardDoneKeyDoesNotSaveAnInvalidRange() {
+        showRow(0)
+        openDialog()
+
+        type("10")
+        composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).performImeAction()
+        composeRule.waitForIdle()
+
+        assertTrue(saved.isEmpty())
+        composeRule.onNodeWithText(str(R.string.settings_fuel_range_error)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theKeyboardDoneKeyOnAnEmptyFieldClearsTheRange() {
+        showRow(320)
+        openDialog()
+
+        type("")
+        composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).performImeAction()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(0), saved)
     }
 
     @Test

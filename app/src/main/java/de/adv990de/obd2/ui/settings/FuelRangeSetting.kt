@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -89,7 +91,10 @@ internal fun FuelRangeDialog(
                 onValueChange = { text = it.filter { c -> c in '0'..'9' }.take(MAX_INPUT_DIGITS) },
                 label = { Text(stringResource(R.string.settings_fuel_range_label)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                // "Fertig" der Tastatur speichert (bei gueltiger Eingabe): im Querformat verdeckt die Tastatur die Schaltflaechen des Dialogs, dort
+                // waere "Speichern" sonst nur nach dem Schliessen der Tastatur erreichbar (am Pixel 8 Pro im Querformat gesehen).
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (!invalid) onSave((input as? FuelRangeInput.Valid)?.km ?: 0) }),
                 isError = invalid,
                 supportingText = {
                     if (invalid) {
