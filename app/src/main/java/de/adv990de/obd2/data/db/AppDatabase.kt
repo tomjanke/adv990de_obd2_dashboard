@@ -41,10 +41,21 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
 }
 
 /**
+ * Die Fehlercodes einer Fahrt bei ihrem Beginn (`sessions.dtcCodes`, Format: `SessionDtcs.kt`). Nullable und ohne Vorgabewert: bestehende
+ * Fahrten bleiben `NULL` = "nicht erfasst" — ein "keine Codes" (leerer Text) waere eine Behauptung, die niemand pruefte. Von Hand
+ * geschrieben wie [MIGRATION_3_4]; `AppDatabaseMigrationTest` validiert sie gegen das exportierte 5.json und prueft, dass Altdaten bleiben.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sessions ADD COLUMN dtcCodes TEXT")
+    }
+}
+
+/**
  * Die Version der Datenbank — die EINE Stelle (`@Database(version = …)` unten und die Pruefung in
  * `AppDatabaseMigrationsTest`, dass [ALL_MIGRATIONS] bis hierher reicht, lesen sie).
  */
-const val APP_DATABASE_VERSION = 4
+const val APP_DATABASE_VERSION = 5
 
 /**
  * Alle Migrationen, in der Reihenfolge ihrer Versionen. Produktion ([appDatabaseBuilder]) und Tests benutzen
@@ -52,7 +63,7 @@ const val APP_DATABASE_VERSION = 4
  * oder fehlt sie fuer eine neue Version, schlaegt `AppDatabaseMigrationsTest` auf dem JVM fehl, statt dass ein
  * Update-Nutzer beim ersten Start abstuerzt.
  */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
 /**
  * Der Produktions-Builder der Datenbank: Name und Migrationen. Kein destruktiver Fallback — ein Schema-Fehler

@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 private const val TEST_DB = "migration-test"
 
 /**
- * Covers [MIGRATION_1_2], [MIGRATION_2_3] and [MIGRATION_3_4], which hand-write their `CREATE TABLE` statements
+ * Covers [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4] and [MIGRATION_4_5], which hand-write their SQL statements
  * instead of relying on Room's generated migrations — a hand-written migration has no compile-time
  * guarantee of matching the exported schema, so this asserts the resulting table shape (Room validates
  * it against the exported JSON), that rows written before the migration survive it, and that the DAO
@@ -202,6 +202,71 @@ class AppDatabaseMigrationTest {
                 while (c.moveToNext()) sources.add(if (c.isNull(0)) null else c.getString(0))
             }
             assertEquals(listOf("ECU", "GPS", null), sources)
+        }
+    }
+
+    // ── 4 -> 5: the fault codes a trip had at its start ───────────────────────
+
+    @Test
+    fun migrate4To5_addsANullableDtcCodesColumnWithoutADefault() {
+        helper.createDatabase(TEST_DB, 4).close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        migratedDb.query("PRAGMA table_info(sessions)").use { cursor ->
+            val name = cursor.getColumnIndexOrThrow("name")
+            val notNull = cursor.getColumnIndexOrThrow("notnull")
+            val default = cursor.getColumnIndexOrThrow("dflt_value")
+            val column = generateSequence { if (cursor.moveToNext()) cursor else null }
+                .firstOrNull { it.getString(name) == "dtcCodes" }
+            assertEquals("the column exists", true, column != null)
+            assertEquals("nullable: an old trip has no known fault codes", 0, column!!.getInt(notNull))
+            assertEquals("no default: nothing is guessed", true, column.isNull(default))
+        }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate4To5_keepsTripsAndReadingsWrittenBeforeTheUpdate_andTheirFaultCodesStayNotRecorded() {
+        helper.createDatabase(TEST_DB, 4).apply {
+            execSQL("INSERT INTO sessions (id, startTime, endTime, vehicleVin) VALUES (1, 1000, 2000, 'VIN123')")
+            execSQL("INSERT INTO sensor_readings (id, sessionId, timestamp, pidId, value, source) VALUES (1, 1, 1500, '010D', 80.0, 'ECU')")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        migratedDb.query("SELECT startTime, endTime, vehicleVin, dtcCodes FROM sessions WHERE id = 1").use {
+            assertEquals(1, it.count); it.moveToFirst()
+            assertEquals(1000L, it.getLong(0))
+            assertEquals(2000L, it.getLong(1))
+            assertEquals("VIN123", it.getString(2))
+            assertEquals("a trip recorded before the update has no known fault codes — not 'none'", true, it.isNull(3))
+        }
+        migratedDb.query("SELECT value, source FROM sensor_readings WHERE sessionId = 1").use {
+            assertEquals(1, it.count); it.moveToFirst()
+            assertEquals(80.0f, it.getFloat(0), 0.001f)
+            assertEquals("ECU", it.getString(1))
+        }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate4To5_newTripsCarryTheirFaultCodesThroughTheDao_inAllThreeStates() {
+        helper.createDatabase(TEST_DB, 4).close()
+        helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5).close()
+
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
+        helper.closeWhenFinished(db)
+
+        runBlocking {
+            val withCodes = db.sessionDao().insert(de.adv990de.obd2.data.db.entity.SessionEntity(startTime = 1, dtcCodes = "P0301,P0420?"))
+            val noneFound = db.sessionDao().insert(de.adv990de.obd2.data.db.entity.SessionEntity(startTime = 2, dtcCodes = ""))
+            val notRecorded = db.sessionDao().insert(de.adv990de.obd2.data.db.entity.SessionEntity(startTime = 3))
+
+            assertEquals("P0301,P0420?", db.sessionDao().getById(withCodes)!!.dtcCodes)
+            assertEquals("the read found nothing: an empty text, not null", "", db.sessionDao().getById(noneFound)!!.dtcCodes)
+            assertEquals("not recorded: null", null, db.sessionDao().getById(notRecorded)!!.dtcCodes)
         }
     }
 }
