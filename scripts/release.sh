@@ -3,7 +3,7 @@
 # Release-Ablauf fuer den OBD2 Monitor.
 #
 # Haelt fest, was bei v1.23.0 schiefging (QS-Bericht B32): Das APK wurde aus einem NOCH NICHT COMMITTETEN Versions-Bump
-# gebaut — die eingebettete Revision (aa51583) war nicht die des Tags (17c37a5), und `mapping.txt` wurde nirgends
+# gebaut — die eingebettete Revision (96bf540) war nicht die des Tags (a6e8ce7), und `mapping.txt` wurde nirgends
 # aufgehoben. Die Reihenfolge ist deshalb fest: erst Version bumpen und COMMITTEN, dann bauen.
 #
 # Aufruf:
