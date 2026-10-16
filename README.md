@@ -122,10 +122,9 @@ Output: `app/build/outputs/apk/release/app-release.apk`
    ```
 2. Release bauen: `./gradlew assembleRelease`
 3. APK auf dem Gerät installieren und kurz gegenprüfen.
-4. Den Release-Commit taggen und beides pushen:
+4. Den Release-Commit taggen (das Repository ist rein lokal, es gibt keinen Remote und keinen Push):
    ```bash
    git tag -a v1.9.0 -m "Release 1.9.0 (versionCode 32)"
-   git push && git push --tags
    ```
 5. Änderungen in `RELEASE_NOTES.md` festhalten.
 
@@ -241,7 +240,7 @@ einem noch nicht committeten Bump gebaut, seine eingebettete Revision war nicht 
 
 `scripts/release.sh --check` macht nur die Vorprüfung. Der **Smoke-Test** am entsperrten Gerät ist `python3 -u scripts/smoke.py <versionName> <versionCode>`
 (uiautomator: Start, Reiter, Beenden-Dialog, App-Info mit Version und Build, Logcat ohne Absturz; er prüft keinen echten Adapter und läuft im Hoch- wie im Querformat). Mit `--simulator` (Debug-Build, Berechtigungen erteilt; Paket dann `de.adv990de.obd2.debug`) prüft er zusätzlich den Datenfluss gegen den ECU-Simulator: verbinden, Werte im Dashboard, „Trennen“ und danach kein Reconnect.
-**Taggen und Pushen bleiben Handarbeit** nach dem Smoke-Test: `git tag vX.Y.Z && git push origin main vX.Y.Z`. Der Test `ReleaseDocsConsistencyTest` hält Version und versionCode in `build.gradle.kts`, README und
+**Das Taggen bleibt Handarbeit** nach dem Smoke-Test: `git tag vX.Y.Z`. Das Repository ist rein lokal (seit 2026-10-16 ohne Remote), einen Push gibt es nicht. Der Test `ReleaseDocsConsistencyTest` hält Version und versionCode in `build.gradle.kts`, README und
 `RELEASE_NOTES.md` zusammen.
 
 ---

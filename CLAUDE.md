@@ -1015,7 +1015,7 @@ Bei Unsicherheit: **Material 3 default gewinnt**, aber wir biegen es Richtung Co
 
 ## Release
 
-Der Ablauf steht in `scripts/release.sh` (Beschreibung in der README, Abschnitt „Release-Ablauf“; Signatur-Prüfungen s. „Release-Signatur und Geheimnisse“ oben). Die eine Regel dahinter: **erst die Version bumpen und
+Der Ablauf steht in `scripts/release.sh` (Beschreibung in der README, Abschnitt „Release-Ablauf“; Signatur-Prüfungen s. „Release-Signatur und Geheimnisse“ oben). **Das Repository ist seit 2026-10-16 rein lokal (kein Remote, Nutzerentscheidung):** ein Release endet beim Tag, es gibt keinen Push; die Freigabe `git push` in `.claude/settings.local.json` und die Force-Push-Sperre sind damit ohne Wirkung, bleiben aber stehen. Die eine Regel dahinter: **erst die Version bumpen und
 committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der des Tags entspricht (B32). README („Aktuelle Version“), oberster
 `RELEASE_NOTES.md`-Eintrag und `app/build.gradle.kts` müssen dieselbe Version nennen (`ReleaseDocsConsistencyTest`). Die JVM-Tests laufen unter `de_DE`
 (`app/build.gradle.kts`); wer eine Anzeigeformatierung testet, pinnt die Locale mit `withDefaultLocale` und prüft beide Schreibweisen.
