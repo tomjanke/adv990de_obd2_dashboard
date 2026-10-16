@@ -42,7 +42,9 @@ private const val DELETE_THRESHOLD_SHARE = 0.5f
  * swipe state. It is deliberately NOT called from `confirmValueChange` (deprecated in Material3
  * 1.4.0, and it asks several times per gesture — measured: 4 calls for one swipe — so every extra
  * delete would commit the previous one at once): it hangs on `SwipeToDismissBox`'s `onDismiss`.
- * With [enabled] = false (e.g. the trip that is being recorded) the row does not react to swipes.
+ * With [enabled] = false (e.g. the trip that is being recorded) the row does not react to swipes: it neither moves nor deletes — but it still
+ * absorbs the drag, so a swipe is never a tap on a clickable [content] (Compose has no touch slop for clicks: a drag nobody consumes that ends
+ * inside the row is a click).
  *
  * The [content] needs an opaque background (a `ListItem` has one), otherwise the delete background
  * would shine through at rest — it is only drawn while a swipe is in progress.
@@ -64,7 +66,10 @@ fun SwipeToDeleteRow(
         // The disallowed direction is simply not an anchor (the Material3 1.4.0 way — no veto callback).
         enableDismissFromStartToEnd = false,
         enableDismissFromEndToStart = enabled,
-        gesturesEnabled = enabled,
+        // Immer an, auch bei enabled = false: ohne Anker bewegt sich die Zeile nicht und loescht nichts, nimmt die Wischbewegung aber auf.
+        // Mit gesperrten Gesten wuerde eine Wischbewegung, die in der Zeile endet, zum Tipp auf ihren Inhalt (Compose kennt fuer Klicks keine
+        // Toleranz) — die laufende Fahrt oeffnete beim Wischen ihre Details.
+        gesturesEnabled = true,
         onDismiss = { target -> if (target == SwipeToDismissBoxValue.EndToStart) currentOnDelete() },
         backgroundContent = {
             val swiping = state.dismissDirection == SwipeToDismissBoxValue.EndToStart

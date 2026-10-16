@@ -1,7 +1,9 @@
 package de.adv990de.obd2.ui.history
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -29,6 +31,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,6 +52,7 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.decodeSessionDtcs
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
@@ -71,6 +77,8 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // Die Fahrt, deren Details offen sind (nur die Id: eine Drehung baut die Seite neu auf, der Dialog gehoert dazu).
+    var detailSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect
     // umgeht die Recomposition bei Sprach- oder Konfigurationswechsel.
@@ -122,6 +130,13 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         )
     }
 
+    // Die Fahrt wird aus den geladenen Zeilen gesucht: ist sie (noch) nicht geladen, bleibt der Dialog zu und die Id erhalten.
+    detailSessionId?.let { id ->
+        sessions.itemSnapshotList.items.firstOrNull { it.id == id }?.let { session ->
+            SessionDetailDialog(session, isRecording = session.id == activeSessionId, onDismiss = { detailSessionId = null })
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -163,7 +178,8 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
                                 session,
                                 isRecording = isRecording,
                                 onExport = { vm.export(session.id) },
-                                onDelete = { vm.deleteSession(session) }
+                                onDelete = { vm.deleteSession(session) },
+                                onOpen = { detailSessionId = session.id },
                             )
                         }
                         HorizontalDivider()
@@ -196,12 +212,28 @@ fun SessionRow(
     isRecording: Boolean,
     onExport: () -> Unit,
     onDelete: () -> Unit,
+    onOpen: () -> Unit,
 ) {
+    val badge = remember(session.dtcCodes) { sessionDtcBadge(decodeSessionDtcs(session.dtcCodes)) }
     ListItem(
+        // Die ganze Zeile oeffnet die Details der Fahrt; Teilen und Loeschen bleiben eigene Knoepfe.
+        modifier = Modifier.clickable(onClickLabel = stringResource(R.string.history_cd_open_details), onClick = onOpen),
         headlineContent = { Text(formatDateTime(session.startTime)) },
-        // Aeltere Fahrten (bis v1.23.1) tragen die rohe Antwort auf Modus 09 ("NO DATA", Hexdump): nur eine
-        // echte FIN wird angezeigt, alles andere gilt als unbekannt.
-        supportingContent = { Text(session.vehicleVin?.takeIf(VinDecoder::isValidVin) ?: stringResource(R.string.history_vin_unknown)) },
+        supportingContent = {
+            Column {
+                // Aeltere Fahrten (bis v1.23.1) tragen die rohe Antwort auf Modus 09 ("NO DATA", Hexdump): nur eine
+                // echte FIN wird angezeigt, alles andere gilt als unbekannt.
+                Text(session.vehicleVin?.takeIf(VinDecoder::isValidVin) ?: stringResource(R.string.history_vin_unknown))
+                // Nur bei Fehlercodes ein Zeichen (rot, wenn ein bestaetigter dabei ist, sonst gelb); die Zeile darunter, damit sie auch
+                // auf schmalen Geraeten neben den Knoepfen Platz hat.
+                badge?.let {
+                    val chip = sessionDtcChipColors(it, MaterialTheme.colorScheme)
+                    Badge(containerColor = chip.container, contentColor = chip.content, modifier = Modifier.padding(top = 4.dp)) {
+                        Text(pluralStringResource(R.plurals.history_dtc_badge, it.count, it.count))
+                    }
+                }
+            }
+        },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isRecording) {
@@ -234,21 +266,45 @@ private val PREVIEW_SESSION = SessionEntity(id = 7, startTime = 1_791_000_000_00
 @Preview(name = "SessionRow · finished (light)", showBackground = true)
 @Composable
 private fun PreviewSessionRowLight() {
-    PreviewTheme(dark = false) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}) }
+    PreviewTheme(dark = false) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}, onOpen = {}) }
 }
 
 @Preview(name = "SessionRow · finished (dark)", showBackground = true)
 @Composable
 private fun PreviewSessionRowDark() {
-    PreviewTheme(dark = true) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}) }
+    PreviewTheme(dark = true) { SessionRow(PREVIEW_SESSION, isRecording = false, onExport = {}, onDelete = {}, onOpen = {}) }
 }
 
 @Preview(name = "SessionRow · recording, no VIN (dark)", showBackground = true)
 @Composable
 private fun PreviewSessionRowRecordingDark() {
     PreviewTheme(dark = true) {
-        SessionRow(PREVIEW_SESSION.copy(endTime = null, vehicleVin = null), isRecording = true, onExport = {}, onDelete = {})
+        SessionRow(PREVIEW_SESSION.copy(endTime = null, vehicleVin = null), isRecording = true, onExport = {}, onDelete = {}, onOpen = {})
     }
+}
+
+// Mit Fehlercodes: bestaetigt und ausstehend (rotes Zeichen) und nur ausstehend (gelbes Zeichen), in beiden Flaechen.
+private val PREVIEW_SESSION_FAULTS = PREVIEW_SESSION.copy(id = 8, dtcCodes = "P0301,P0420?")
+private val PREVIEW_SESSION_PENDING = PREVIEW_SESSION.copy(id = 9, dtcCodes = "P0171?")
+
+@Composable
+private fun SessionRowsWithFaultsPreviewContent() {
+    Column {
+        SessionRow(PREVIEW_SESSION_FAULTS, isRecording = false, onExport = {}, onDelete = {}, onOpen = {})
+        SessionRow(PREVIEW_SESSION_PENDING, isRecording = false, onExport = {}, onDelete = {}, onOpen = {})
+    }
+}
+
+@Preview(name = "SessionRow · with fault codes (light)", showBackground = true)
+@Composable
+private fun PreviewSessionRowFaultsLight() {
+    PreviewTheme(dark = false) { SessionRowsWithFaultsPreviewContent() }
+}
+
+@Preview(name = "SessionRow · with fault codes (dark)", showBackground = true)
+@Composable
+private fun PreviewSessionRowFaultsDark() {
+    PreviewTheme(dark = true) { SessionRowsWithFaultsPreviewContent() }
 }
 
 // endregion

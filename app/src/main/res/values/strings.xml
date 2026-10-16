@@ -208,6 +208,17 @@
         <item quantity="other">%1$d drives deleted</item>
     </plurals>
     <string name="history_recording_active">Recording</string>
+    <plurals name="history_dtc_badge">
+        <item quantity="one">%1$d fault</item>
+        <item quantity="other">%1$d faults</item>
+    </plurals>
+    <string name="history_cd_open_details">Show drive details and fault codes</string>
+    <string name="history_detail_ended_unknown">Unknown</string>
+    <string name="history_detail_meta">End: %1$s · VIN: %2$s</string>
+    <string name="history_detail_dtcs_heading">Fault codes at the start of the drive</string>
+    <string name="history_detail_dtcs_none">The vehicle reported no fault codes.</string>
+    <string name="history_detail_dtcs_unknown">Not recorded for this drive.</string>
+    <string name="close">Close</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
     <string name="undo">Undo</string>

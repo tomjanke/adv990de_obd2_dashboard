@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -8,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -114,6 +116,69 @@ class SwipeToDeleteRowTest {
         composeRule.waitForIdle()
 
         assertEquals(0, deleted)
+    }
+
+    // Inhalt mit eigenem Klick (die Zeile einer Fahrt oeffnet ihre Details): Compose kennt fuer Klicks keine Toleranz — eine Wischbewegung,
+    // die niemand konsumiert und die in der Zeile endet, ist ein Tipp. Die Zeile muss die Wischbewegung deshalb auch dann aufnehmen,
+    // wenn sie nicht geloescht werden darf (laufende Aufzeichnung), sonst oeffnet ein misslungenes Wischen die Details.
+
+    private var clicked = 0
+
+    private fun launchClickable(enabled: Boolean) {
+        composeRule.setContent {
+            MaterialTheme {
+                SwipeToDeleteRow(onDelete = { deleted++ }, enabled = enabled) {
+                    Text("Row content", Modifier.fillMaxWidth().height(80.dp).testTag(ROW_TAG).clickable { clicked++ })
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aSwipeOnAClickableDisabledRowIsNotATap() {
+        launchClickable(enabled = false)
+
+        composeRule.onNodeWithTag(ROW_TAG).performTouchInput { swipeLeft() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(ROW_TAG).performTouchInput { swipeRight() }
+        composeRule.waitForIdle()
+
+        assertEquals("a swipe is not a tap", 0, clicked)
+        assertEquals("and nothing is deleted", 0, deleted)
+    }
+
+    @Test
+    fun aSwipeOnAClickableEnabledRowIsNotATapEither() {
+        launchClickable(enabled = true)
+
+        composeRule.onNodeWithTag(ROW_TAG).performTouchInput { swipeRight() }
+        composeRule.waitForIdle()
+        assertEquals("the wrong direction: no tap, no delete", 0, clicked + deleted)
+
+        composeRule.onNodeWithTag(ROW_TAG).performTouchInput { swipeLeft() }
+        composeRule.waitForIdle()
+        assertEquals(1, deleted)
+        assertEquals("the swipe that deletes is no tap", 0, clicked)
+    }
+
+    @Test
+    fun aTapStillClicksTheContentOfADeletableRow() {
+        launchClickable(enabled = true)
+
+        composeRule.onNodeWithTag(ROW_TAG).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(1, clicked)
+    }
+
+    @Test
+    fun aTapStillClicksTheContentOfANonDeletableRow() {
+        launchClickable(enabled = false)
+
+        composeRule.onNodeWithTag(ROW_TAG).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(1, clicked)
     }
 
     private companion object {

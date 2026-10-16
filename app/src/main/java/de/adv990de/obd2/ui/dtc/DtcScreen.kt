@@ -27,6 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -49,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
@@ -286,15 +288,20 @@ private fun HistoryContent(
     }
 }
 
+/**
+ * Eine Zeile mit Code, Beschreibung und "Ausstehend"-Badge. [containerColor] ist die Fuellung der Zeile — auf der Seite die Flaeche
+ * des ListItem, in einem Dialog (Detail einer Fahrt) `Color.Transparent`, damit die Zeilen nicht als hellere Flaechen auf der Dialogfarbe liegen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DtcRow(dtc: DtcEntry) {
+fun DtcRow(dtc: DtcEntry, containerColor: Color = ListItemDefaults.containerColor) {
     ListItem(
         headlineContent = { Text(dtc.code) },
         supportingContent = { Text(stringResource(dtcDescriptionRes(dtc.code))) },
         trailingContent = {
             if (dtc.isPending) Badge { Text(stringResource(R.string.dtc_badge_pending)) }
-        }
+        },
+        colors = ListItemDefaults.colors(containerColor = containerColor),
     )
     HorizontalDivider()
 }

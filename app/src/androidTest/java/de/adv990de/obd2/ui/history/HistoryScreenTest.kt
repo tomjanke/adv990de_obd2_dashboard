@@ -1,11 +1,16 @@
 package de.adv990de.obd2.ui.history
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -13,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,6 +34,9 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.obd.dtcDescriptionRes
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.ui.formatDateTime
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -377,5 +387,132 @@ class HistoryScreenTest {
         waitForText("5YJSA1E26HF000337")
 
         composeRule.onNodeWithContentDescription(string(R.string.history_cd_delete_all)).assertIsNotEnabled()
+    }
+
+    // ── the fault codes of a trip: badge in the list, details on a tap ────────
+    // Die Fahrt aus setup() hat dtcCodes = null ("nicht erfasst"): so sehen aeltere Fahrten aus.
+
+    private fun insertTrip(minutesAgo: Long, vin: String, dtcCodes: String?) = runBlocking {
+        val start = insertedStartTime - minutesAgo * 60_000L
+        testDb.sessionDao().insert(SessionEntity(startTime = start, endTime = start + 60_000L, vehicleVin = vin, dtcCodes = dtcCodes))
+    }
+
+    private fun badgeText(count: Int) = composeRule.activity.resources.getQuantityString(R.plurals.history_dtc_badge, count, count)
+
+    private fun waitForDetails() = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithTag(SESSION_DETAIL_TEST_TAG).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    private fun waitForDetailsToClose() = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithTag(SESSION_DETAIL_TEST_TAG).fetchSemanticsNodes().isEmpty()
+    }
+
+    private fun closeDetails() {
+        composeRule.onNode(hasText(string(R.string.close)) and hasClickAction()).performClick()
+        waitForDetailsToClose()
+    }
+
+    @Test
+    fun aTripWithFaultCodes_showsABadgeWithTheirCount() {
+        insertTrip(5, "1HGBH41JXMN109186", "P0301,P0420?")
+
+        launchHistoryScreen()
+        waitForText("1HGBH41JXMN109186")
+
+        composeRule.onNodeWithText(badgeText(2)).assertIsDisplayed()
+    }
+
+    @Test
+    fun tripsThatFoundNoCodes_orWereNotRecorded_haveNoBadge() {
+        insertTrip(5, "1HGBH41JXMN109186", "") // gelesen, nichts gefunden; die Fahrt aus setup(): nicht erfasst
+
+        launchHistoryScreen()
+        waitForText("1HGBH41JXMN109186")
+        waitForText("WP0ZZZ99ZTS392124")
+
+        for (count in 1..3) composeRule.onAllNodesWithText(badgeText(count)).assertCountEquals(0)
+    }
+
+    @Test
+    fun tappingATrip_opensItsDetails_withTheCodesAndTheirDescriptions() {
+        insertTrip(5, "1HGBH41JXMN109186", "P0301,P0420?")
+        launchHistoryScreen()
+        waitForText("1HGBH41JXMN109186")
+
+        composeRule.onNodeWithText("1HGBH41JXMN109186").performClick()
+
+        waitForDetails()
+        // Der Beginn der Fahrt ist der Titel des Dialogs: er steht zweimal da, in der Zeile und im Dialog.
+        composeRule.onAllNodesWithText(formatDateTime(insertedStartTime - 5 * 60_000L)).assertCountEquals(2)
+        // Ende und FIN stehen in einer Zeile (die Fahrt dauerte 60 s).
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.history_detail_meta, formatDateTime(insertedStartTime - 5 * 60_000L + 60_000L), "1HGBH41JXMN109186"),
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_detail_dtcs_heading).uppercase()).assertIsDisplayed()
+        composeRule.onNodeWithText("P0301").assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(dtcDescriptionRes("P0301"))).assertIsDisplayed()
+        composeRule.onNodeWithText("P0420").assertIsDisplayed()
+        // Nur P0420 ist ausstehend (Modus 07): genau ein "Ausstehend".
+        composeRule.onAllNodesWithText(string(R.string.dtc_badge_pending)).assertCountEquals(1)
+
+        closeDetails()
+    }
+
+    @Test
+    fun theDetails_sayWhetherTheReadFoundNothing_orTheCodesWereNotRecorded() {
+        insertTrip(5, "1HGBH41JXMN109186", "")
+        launchHistoryScreen()
+        waitForText("1HGBH41JXMN109186")
+        waitForText("WP0ZZZ99ZTS392124")
+
+        composeRule.onNodeWithText("1HGBH41JXMN109186").performClick()
+        waitForText(string(R.string.history_detail_dtcs_none))
+        composeRule.onAllNodesWithText(string(R.string.history_detail_dtcs_unknown)).assertCountEquals(0)
+        closeDetails()
+
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").performClick()
+        waitForText(string(R.string.history_detail_dtcs_unknown))
+        composeRule.onAllNodesWithText(string(R.string.history_detail_dtcs_none)).assertCountEquals(0)
+    }
+
+    @Test
+    fun theDetailsOfTheTripThatIsBeingRecorded_showItAsRunning_andItsCodes() {
+        runBlocking { sessionRepository.startSession("5YJSA1E26HF000337", listOf(DtcEntry("P0171", true))) }
+        launchHistoryScreen()
+        waitForText("5YJSA1E26HF000337")
+
+        composeRule.onNodeWithText("5YJSA1E26HF000337").performClick()
+
+        waitForDetails()
+        // "Aufzeichnung läuft": das Zeichen der Zeile, und im Detail steht sie als Ende der Fahrt (Ende und FIN in einer Zeile).
+        composeRule.onAllNodesWithText(string(R.string.history_recording_active)).assertCountEquals(1)
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.history_detail_meta, string(R.string.history_recording_active), "5YJSA1E26HF000337"))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("P0171").assertIsDisplayed()
+    }
+
+    @Test
+    fun theCloseButtonOfTheDetails_isAtLeast56dpHigh() {
+        launchHistoryScreen()
+        waitForText("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").performClick()
+        waitForDetails()
+
+        composeRule.onNode(hasText(string(R.string.close)) and hasClickAction()).assertHeightIsAtLeast(56.dp)
+    }
+
+    @Test
+    fun theOpenDetails_surviveARestoreOfTheSavedState() {
+        // Eine Drehung baut die Oberflaeche neu auf; der geoeffnete Dialog gehoert zur Seite (rememberSaveable).
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { HistoryScreen(navController = rememberNavController()) }
+        composeRule.waitForIdle()
+        waitForText("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").performClick()
+        waitForDetails()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        waitForDetails()
     }
 }
