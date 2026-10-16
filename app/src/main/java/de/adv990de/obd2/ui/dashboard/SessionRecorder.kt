@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.dashboard
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
 
@@ -29,10 +30,13 @@ internal class SessionRecorder(
     @Volatile private var sessionId = NO_SESSION
     private var failureReported = false
 
-    /** Legt die Fahrt an. Scheitert das, laeuft die Anzeige ohne Aufzeichnung weiter. */
-    suspend fun start(vin: String?) {
+    /**
+     * Legt die Fahrt an, mit den Fehlercodes, die das Fahrzeug beim Verbinden gemeldet hat ([dtcs]: `null` = nicht erfasst, leer = keine).
+     * Scheitert das, laeuft die Anzeige ohne Aufzeichnung weiter.
+     */
+    suspend fun start(vin: String?, dtcs: List<DtcEntry>? = null) {
         sessionId = try {
-            sessionRepository.startSession(vin)
+            sessionRepository.startSession(vin, dtcs)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             reportFailure(e)

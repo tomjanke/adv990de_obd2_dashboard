@@ -8,6 +8,7 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.dashboard.GearReading
 import de.adv990de.obd2.ui.dashboard.OilBarColor
@@ -55,6 +56,30 @@ class SessionRepositoryDeviceTest {
     private fun readingCount(sessionId: Long): Int = db.openHelper.readableDatabase
         .query("SELECT COUNT(*) FROM sensor_readings WHERE sessionId = $sessionId")
         .use { it.moveToFirst(); it.getInt(0) }
+
+    @Test
+    fun startSession_storesTheFaultCodesWithTheTrip_andTheyReadBackInAllThreeStates() = runBlocking {
+        val withCodes = repo.startSession("VIN", listOf(DtcEntry("P0301", false), DtcEntry("P0420", true)))
+        val noneFound = repo.startSession("VIN", emptyList())
+        val notRecorded = repo.startSession("VIN")
+
+        assertEquals("P0301,P0420?", db.sessionDao().getById(withCodes)!!.dtcCodes)
+        assertEquals(listOf(DtcEntry("P0301", false), DtcEntry("P0420", true)), decodeSessionDtcs(db.sessionDao().getById(withCodes)!!.dtcCodes))
+        assertEquals("gelesen, nichts gefunden: leer", "", db.sessionDao().getById(noneFound)!!.dtcCodes)
+        assertEquals(emptyList<DtcEntry>(), decodeSessionDtcs(db.sessionDao().getById(noneFound)!!.dtcCodes))
+        assertNull("nicht erfasst: null", db.sessionDao().getById(notRecorded)!!.dtcCodes)
+        assertNull(decodeSessionDtcs(db.sessionDao().getById(notRecorded)!!.dtcCodes))
+    }
+
+    @Test
+    fun deletingATrip_takesItsFaultCodesWithIt() = runBlocking {
+        val id = repo.startSession("VIN", listOf(DtcEntry("P0301", false)))
+        repo.endSession(id) // die laufende Aufzeichnung ist unloeschbar (deleteSessions ueberspringt sie)
+
+        repo.deleteSessions(listOf(id))
+
+        assertNull("the codes live in the trip row: nothing is left behind", db.sessionDao().getById(id))
+    }
 
     @Test
     fun endSession_inACancelledCoroutine_stillSetsTheEndTime() = runBlocking {

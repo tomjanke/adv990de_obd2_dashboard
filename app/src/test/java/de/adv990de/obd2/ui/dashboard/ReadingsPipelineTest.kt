@@ -73,7 +73,7 @@ class ReadingsPipelineTest {
     }
 
     private fun makeSessionRepo(): SessionRepository = mockk {
-        coEvery { startSession(any()) } returns 7L
+        coEvery { startSession(any(), any()) } returns 7L
         coEvery { writeReadings(any(), any()) } just Runs
         coEvery { endSession(any()) } just Runs
         coEvery { discardSession(any()) } just Runs
@@ -110,7 +110,7 @@ class ReadingsPipelineTest {
             .events(backgroundScope).take(1).toList()
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
-        coVerify { sessionRepo.startSession("VIN") }
+        coVerify { sessionRepo.startSession("VIN", emptyList()) }
         coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
     }
 
@@ -222,7 +222,7 @@ class ReadingsPipelineTest {
         // am Ende verworfen: unnoetige Schreiblast, und ein Prozess-Kill dazwischen hinterliess eine
         // DTC-lose Fahrt entgegen der Einstellung.
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
-        coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.startSession(any(), any()) }
         coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
         coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
@@ -858,7 +858,7 @@ class ReadingsPipelineTest {
     @Test
     fun `a trip that cannot be created does not end the live display either`() = runTest {
         val sessionRepo = makeSessionRepo()
-        coEvery { sessionRepo.startSession(any()) } throws IllegalStateException("database is locked")
+        coEvery { sessionRepo.startSession(any(), any()) } throws IllegalStateException("database is locked")
         val logRepo: AppLogRepository = mockk(relaxed = true)
 
         val events = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo, logRepo = logRepo)
@@ -912,7 +912,7 @@ class ReadingsPipelineTest {
             makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope)
                 .first { it == SessionEvent.ConnectionLost }
 
-            coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+            coVerify(exactly = 0) { sessionRepo.startSession(any(), any()) }
         }
 
     @Test
@@ -1010,5 +1010,55 @@ class ReadingsPipelineTest {
         // The history is a side record: whatever goes wrong there must not cost the user the live session.
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify { sessionRepo.writeReadings(7L, listOf(rpm)) }
+    }
+
+    // --- Test 17: the fault codes of a trip ---
+    // Die Pipeline liest die Codes beim Verbinden ohnehin; dieselbe Antwort geht an die Fahrt (drei Zustaende: Liste, leer, nicht erfasst).
+
+    @Test
+    fun `the fault codes read at connect go to the trip as they were read`() = runTest {
+        val dtcs = listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } returns dtcs
+        val sessionRepo = makeSessionRepo()
+
+        makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { sessionRepo.startSession("VIN", dtcs) }
+    }
+
+    @Test
+    fun `a read that found no codes goes to the trip as an empty list, not as not recorded`() = runTest {
+        val sessionRepo = makeSessionRepo() // makeRepo: readDtcs() liefert emptyList()
+
+        makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { sessionRepo.startSession("VIN", emptyList()) }
+        coVerify(exactly = 0) { sessionRepo.startSession(any(), null) }
+    }
+
+    @Test
+    fun `a failed read goes to the trip as not recorded, and the trip is still recorded`() = runTest {
+        val repo = makeRepo(connected = true)
+        // Keine positive Antwort (NO DATA): das Fahrzeug hat nichts gesagt — "nicht erfasst", kein "keine Fehler".
+        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
+        val sessionRepo = makeSessionRepo()
+
+        makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { sessionRepo.startSession("VIN", null) }
+    }
+
+    @Test
+    fun `with only trips with DTCs on, the trip that is recorded carries its codes`() = runTest {
+        val dtcs = listOf(DtcEntry("P0171", true))
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcs() } returns dtcs
+        val sessionRepo = makeSessionRepo()
+
+        makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(logOnlyDtcSessions = true))
+            .events(backgroundScope).take(1).toList()
+
+        coVerify(exactly = 1) { sessionRepo.startSession("VIN", dtcs) }
     }
 }

@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -56,13 +57,18 @@ class SessionRepository @Inject constructor(
      * therefore runs in [NonCancellable]; if the caller was cancelled meanwhile, the empty trip is
      * discarded again before the cancellation continues. A caller that is already cancelled starts
      * no trip at all.
+     *
+     * [dtcCodes] are the fault codes the vehicle reported when the trip started (`SessionDtcs.kt`: `null` = not recorded,
+     * empty = none found). They go into THIS insert — no second step that a process kill could separate from the trip.
      */
-    suspend fun startSession(vin: String? = null): Long {
+    suspend fun startSession(vin: String? = null, dtcCodes: List<DtcEntry>? = null): Long {
         currentCoroutineContext().ensureActive()
         var created: Long? = null
         try {
             return withContext(Dispatchers.IO + NonCancellable) {
-                val id = db.sessionDao().insert(SessionEntity(startTime = System.currentTimeMillis(), vehicleVin = vin))
+                val id = db.sessionDao().insert(
+                    SessionEntity(startTime = System.currentTimeMillis(), vehicleVin = vin, dtcCodes = encodeSessionDtcs(dtcCodes)),
+                )
                 _activeSessionId.value = id
                 created = id
                 id

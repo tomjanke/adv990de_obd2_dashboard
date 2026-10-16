@@ -10,6 +10,7 @@ import de.adv990de.obd2.data.db.SessionDao
 import de.adv990de.obd2.data.db.SensorReadingDao
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.obd.model.ValueSource
@@ -123,6 +124,39 @@ class SessionRepositoryTest {
         repo.startSession(vin = "1HGBH41JXMN109186")
 
         assertEquals("1HGBH41JXMN109186", inserted.captured.vehicleVin)
+    }
+
+    // Die Fehlercodes gehen in DEMSELBEN Insert mit hinein (kein zweiter Schritt, den ein Prozess-Kill trennen koennte), in den drei Zustaenden.
+
+    @Test
+    fun `startSession stores the fault codes in the same insert, pending ones marked`() = runTest {
+        val inserted = slot<SessionEntity>()
+        coEvery { sessionDao.insert(capture(inserted)) } returns 1L
+
+        repo.startSession(vin = null, dtcCodes = listOf(DtcEntry("P0301", false), DtcEntry("P0420", true)))
+
+        assertEquals("P0301,P0420?", inserted.captured.dtcCodes)
+        coVerify(exactly = 1) { sessionDao.insert(any()) }
+    }
+
+    @Test
+    fun `startSession stores an empty text when the read found no codes`() = runTest {
+        val inserted = slot<SessionEntity>()
+        coEvery { sessionDao.insert(capture(inserted)) } returns 1L
+
+        repo.startSession(vin = null, dtcCodes = emptyList())
+
+        assertEquals("gelesen, nichts gefunden: leer, nicht null", "", inserted.captured.dtcCodes)
+    }
+
+    @Test
+    fun `startSession stores null when the codes were not recorded`() = runTest {
+        val inserted = slot<SessionEntity>()
+        coEvery { sessionDao.insert(capture(inserted)) } returns 1L
+
+        repo.startSession()
+
+        assertNull("nicht erfasst: null", inserted.captured.dtcCodes)
     }
 
     // ── endSession ────────────────────────────────────────────────────────────

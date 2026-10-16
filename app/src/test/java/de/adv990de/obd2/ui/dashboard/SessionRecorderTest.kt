@@ -4,6 +4,7 @@ import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.obd.model.ValueSource
 import io.mockk.Runs
@@ -32,7 +33,7 @@ class SessionRecorderTest {
     ): SessionRecorder = SessionRecorder(sessions, crash) { level, message -> logged += level to message }
 
     private fun sessions(startResult: Long = 7L): SessionRepository = mockk {
-        coEvery { startSession(any()) } returns startResult
+        coEvery { startSession(any(), any()) } returns startResult
         coEvery { writeReadings(any(), any()) } just Runs
         coEvery { endSession(any()) } just Runs
     }
@@ -45,8 +46,28 @@ class SessionRecorderTest {
         recorder.start("WP0ZZZ99ZTS392124")
         recorder.record(listOf(rpm, speed))
 
-        coVerify { repo.startSession("WP0ZZZ99ZTS392124") }
+        coVerify { repo.startSession("WP0ZZZ99ZTS392124", null) }
         coVerify { repo.writeReadings(42L, listOf(rpm, speed)) }
+    }
+
+    @Test
+    fun `start hands the fault codes of the vehicle to the trip, in the same call that creates it`() = runTest {
+        val repo = sessions()
+        val dtcs = listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
+
+        recorder(repo).start("WP0ZZZ99ZTS392124", dtcs)
+
+        coVerify(exactly = 1) { repo.startSession("WP0ZZZ99ZTS392124", dtcs) }
+    }
+
+    @Test
+    fun `start without fault codes creates the trip as not recorded, not as none found`() = runTest {
+        val repo = sessions()
+
+        recorder(repo).start(null)
+
+        coVerify(exactly = 1) { repo.startSession(null, null) }
+        coVerify(exactly = 0) { repo.startSession(any(), emptyList()) }
     }
 
     @Test
@@ -67,7 +88,7 @@ class SessionRecorderTest {
     @Test
     fun `a failing start is reported once and the display goes on without a recording`() = runTest {
         val repo = sessions()
-        coEvery { repo.startSession(any()) } throws IllegalStateException("disk full")
+        coEvery { repo.startSession(any(), any()) } throws IllegalStateException("disk full")
         val crash = mockk<CrashReporter>(relaxed = true)
         val recorder = recorder(repo, crash)
 

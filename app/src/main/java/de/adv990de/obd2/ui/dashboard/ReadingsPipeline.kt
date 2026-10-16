@@ -313,7 +313,9 @@ class ReadingsPipeline @Inject constructor(
         val recorder = SessionRecorder(sessionRepository, crashReporter, ::logBestEffort)
         activeRecorder = recorder
         try {
-            if (recordThisTrip) recorder.start(vin)
+            // Dieselbe Antwort, die oben die Historie fuellt und "Nur Fahrten mit DTCs" entschieden hat, geht an die Fahrt:
+            // null (Lesefehler) = nicht erfasst, leer = keine Codes, sonst die Liste.
+            if (recordThisTrip) recorder.start(vin, dtcList)
             emitAll(
                 obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].

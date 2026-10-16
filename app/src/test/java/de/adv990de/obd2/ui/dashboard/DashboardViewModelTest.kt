@@ -86,7 +86,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 42L
+            coEvery { startSession(any(), any()) } returns 42L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -95,7 +95,7 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        coVerify { sessionRepo.startSession("TESTVIN123") }
+        coVerify { sessionRepo.startSession("TESTVIN123", any()) }
         coVerify { sessionRepo.writeReadings(42L, any()) }
     }
 
@@ -107,7 +107,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -129,7 +129,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(reading))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -151,7 +151,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(null) } returns 1L
+            coEvery { startSession(null, any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -160,7 +160,7 @@ class DashboardViewModelTest {
         isConnectedFlow.value = true
         advanceUntilIdle()
 
-        coVerify { sessionRepo.startSession(null) }
+        coVerify { sessionRepo.startSession(null, any()) }
     }
 
     @Test
@@ -171,7 +171,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flow { throw Exception("BT disconnected") }
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -197,7 +197,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } throws Exception("DB failure")
+            coEvery { startSession(any(), any()) } throws Exception("DB failure")
             coEvery { endSession(any()) } just Runs
         }
         val vm = makeVmFrom(obdRepo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
@@ -220,7 +220,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -253,7 +253,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -280,7 +280,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -312,7 +312,7 @@ class DashboardViewModelTest {
             coEvery { connectIfDisconnected(persistedDevice) } just Runs
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -339,7 +339,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -367,7 +367,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -396,7 +396,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -418,7 +418,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(speedReading))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -439,7 +439,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(speedReading))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -462,7 +462,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 99L
+            coEvery { startSession(any(), any()) } returns 99L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
             coEvery { discardSession(any()) } just Runs
@@ -478,7 +478,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
 
         // Die Entscheidung steht vor dem Start fest: keine Fahrt anlegen, statt aufzuzeichnen und zu verwerfen.
-        coVerify(exactly = 0) { sessionRepo.startSession(any()) }
+        coVerify(exactly = 0) { sessionRepo.startSession(any(), any()) }
         coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
         coVerify(exactly = 0) { sessionRepo.discardSession(any()) }
         coVerify(exactly = 0) { sessionRepo.endSession(any()) }
@@ -494,7 +494,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(makeSensorValue()))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 77L
+            coEvery { startSession(any(), any()) } returns 77L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
             coEvery { discardSession(any()) } just Runs
@@ -521,7 +521,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -556,7 +556,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -585,7 +585,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -616,7 +616,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -749,7 +749,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -774,7 +774,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         },
         sessionRepo: SessionRepository = mockk {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         },
@@ -818,7 +818,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(emptyList())
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -844,7 +844,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("fail")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -872,7 +872,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("fail") andThen Unit
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -964,7 +964,7 @@ class DashboardViewModelTest {
             coEvery { reconnect() } throws Exception("reconnect failed")
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -993,7 +993,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(rpm))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1023,7 +1023,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(rpm))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1052,7 +1052,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(listOf(speedReading))
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1076,7 +1076,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1110,7 +1110,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1142,7 +1142,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1191,7 +1191,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1242,7 +1242,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings[0], readings[1], readings[2])
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1281,7 +1281,7 @@ class DashboardViewModelTest {
             }
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1355,7 +1355,7 @@ class DashboardViewModelTest {
             }
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -1398,7 +1398,7 @@ class DashboardViewModelTest {
     fun `a silent ECU turns the display stale - no readings, no rpm, no speed, no gear - but the link stays connected`() = runTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(1_000)
@@ -1424,7 +1424,7 @@ class DashboardViewModelTest {
             isConnected,
             kotlinx.coroutines.flow.flow { emit(liveCycle); delay(15_000); emit(liveCycle); kotlinx.coroutines.awaitCancellation() },
         )
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
@@ -1439,7 +1439,7 @@ class DashboardViewModelTest {
     // ── B24/B23: the link is up before the first values; values for no slot are still "live" ──
 
     private fun makeStaleVm(repo: ObdRepository, prefs: AppPreferences = fakeAppPreferences()): DashboardViewModel {
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         return makeVmFrom(repo, sessionRepo, prefs, makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
     }
 
@@ -1520,7 +1520,7 @@ class DashboardViewModelTest {
             isConnected.value = false
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val prefs = fakeAppPreferences()
         val vm = DashboardViewModel(
             repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
@@ -1545,7 +1545,7 @@ class DashboardViewModelTest {
             delay(1_000)
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val prefs = fakeAppPreferences()
         val vm = DashboardViewModel(
             repo, prefs, mockk<ConnectionCoordinator>(relaxed = true),
@@ -1586,7 +1586,7 @@ class DashboardViewModelTest {
             isConnected.value = false
             throw de.adv990de.obd2.obd.model.ObdException.ConnectionLost()
         })
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val prefs = fakeAppPreferences()
         // Ein relaxter Koordinator: der echte wuerde den Reconnect tatsaechlich durchspielen.
         val vm = DashboardViewModel(
@@ -1611,7 +1611,7 @@ class DashboardViewModelTest {
     fun `losing the connection ends the stale state - the not-connected banner takes over`() = runTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
-        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any()) } returns 1L }
+        val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
         val vm = makeVmFrom(repo, sessionRepo, fakeAppPreferences(), makeCrashReporter(), makeBluetoothAdapter(), makeAppLogRepository(), makeGpsSpeedSource(), mockk(relaxed = true))
         isConnected.value = true
         advanceTimeBy(OBD_STALE_AFTER_MS + 1_000)
@@ -2030,7 +2030,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2063,7 +2063,7 @@ class DashboardViewModelTest {
         makeVmFrom(
             makeConnectedObdRepo(flowOf(*cycles)),
             mockk<SessionRepository> {
-                coEvery { startSession(any()) } returns 1L
+                coEvery { startSession(any(), any()) } returns 1L
                 coEvery { writeReadings(any(), any()) } just Runs
                 coEvery { endSession(any()) } just Runs
             },
@@ -2259,7 +2259,7 @@ class DashboardViewModelTest {
             }
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2301,7 +2301,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2329,7 +2329,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2360,7 +2360,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2392,7 +2392,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2423,7 +2423,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2456,7 +2456,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(readings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2623,7 +2623,7 @@ class DashboardViewModelTest {
             every { livePids(any()) } returns flowOf(firstReadings, secondReadings)
         }
         val sessionRepo = mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         }
@@ -2707,7 +2707,7 @@ class DashboardViewModelTest {
     ): DashboardViewModel = makeVmFrom(
         obdRepo,
         mockk<SessionRepository> {
-            coEvery { startSession(any()) } returns 1L
+            coEvery { startSession(any(), any()) } returns 1L
             coEvery { writeReadings(any(), any()) } just Runs
             coEvery { endSession(any()) } just Runs
         },
