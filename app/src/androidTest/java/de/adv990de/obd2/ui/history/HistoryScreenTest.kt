@@ -493,6 +493,26 @@ class HistoryScreenTest {
     }
 
     @Test
+    fun theDetailsOfATripWithoutAVin_sayItOnce_insteadOfRepeatingTheLabel() {
+        // Ein Motorrad, das keine FIN meldet, ist der Normalfall: "FIN: FIN unbekannt" waere in jedem Dialog zu lesen.
+        runBlocking {
+            testDb.sessionDao().insert(SessionEntity(startTime = insertedStartTime - 10 * 60_000L, endTime = insertedStartTime - 9 * 60_000L, vehicleVin = null))
+        }
+        launchHistoryScreen()
+        waitForText(string(R.string.history_vin_unknown))
+
+        composeRule.onNodeWithText(string(R.string.history_vin_unknown)).performClick()
+        waitForDetails()
+
+        // Im Dialog steht der Platzhalter genau einmal in der Metazeile (dazu die Zeile in der Liste), nie hinter einer Beschriftung.
+        composeRule.onAllNodesWithText(string(R.string.history_vin_unknown), substring = true).assertCountEquals(2)
+        composeRule.onAllNodesWithText(": " + string(R.string.history_vin_unknown), substring = true).assertCountEquals(0)
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.history_detail_meta_no_vin, formatDateTime(insertedStartTime - 9 * 60_000L)),
+        ).assertIsDisplayed()
+    }
+
+    @Test
     fun theCloseButtonOfTheDetails_isAtLeast56dpHigh() {
         launchHistoryScreen()
         waitForText("WP0ZZZ99ZTS392124")

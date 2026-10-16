@@ -215,6 +215,7 @@
     <string name="history_cd_open_details">Fahrtdetails und Fehlercodes anzeigen</string>
     <string name="history_detail_ended_unknown">Unbekannt</string>
     <string name="history_detail_meta">Ende: %1$s · FIN: %2$s</string>
+    <string name="history_detail_meta_no_vin">Ende: %1$s · FIN unbekannt</string>
     <string name="history_detail_dtcs_heading">Fehlercodes bei Fahrtbeginn</string>
     <string name="history_detail_dtcs_none">Das Fahrzeug meldete keine Fehlercodes.</string>
     <string name="history_detail_dtcs_unknown">Für diese Fahrt nicht erfasst.</string>

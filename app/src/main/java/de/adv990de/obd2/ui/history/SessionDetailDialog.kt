@@ -89,9 +89,11 @@ internal fun SessionDetailDialog(
                     session.endTime != null -> formatDateTime(session.endTime)
                     else -> stringResource(R.string.history_detail_ended_unknown)
                 }
-                val vin = session.vehicleVin?.takeIf(VinDecoder::isValidVin) ?: stringResource(R.string.history_vin_unknown)
+                // Eigene Zeichenkette ohne FIN: der Platzhalter "FIN unbekannt" traegt das Wort schon, hinter der Beschriftung stuende "FIN: FIN unbekannt"
+                // (ein Motorrad, das keine FIN meldet, ist der Normalfall).
+                val vin = session.vehicleVin?.takeIf(VinDecoder::isValidVin)
                 Text(
-                    stringResource(R.string.history_detail_meta, ended, vin),
+                    if (vin != null) stringResource(R.string.history_detail_meta, ended, vin) else stringResource(R.string.history_detail_meta_no_vin, ended),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
