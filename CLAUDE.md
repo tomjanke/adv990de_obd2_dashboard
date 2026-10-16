@@ -1029,6 +1029,31 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
 
+### Teststufen
+
+Welche Tests bei welcher Änderung laufen (QS-Empfehlung, vom Nutzer freigegeben am 2026-10-16). Es gibt kein CI: der Lauf vor dem Commit ist das einzige Netz vor `main`. Die Stufen sparen nur Zwischenläufe, nie das Gate.
+
+| Stufe | Wann | Lauf |
+|---|---|---|
+| Doku | nur Markdown geändert | `de.adv990de.obd2.docs.*` |
+| Gezielt | Zwischenläufe beim Arbeiten | die betroffenen Testklassen plus das Netz (s. u.) |
+| Gate | vor jedem Code-Commit, ohne Ausnahme | die volle JVM-Suite (`:app:testDebugUnitTest`) |
+| Gerät | UI/Compose, Datenbank/Migration, Dienst/Berechtigungen, Manifest, Ressourcen, Hilt-Module | `:app:connectedDebugAndroidTest`, danach die Debug-App neu installieren |
+| Release | ein Release | alles, über `scripts/release.sh` samt Smoke-Test |
+
+```bash
+./gradlew :app:testDebugUnitTest --tests 'de.adv990de.obd2.docs.*'   # Doku und Regel-Tests
+./gradlew :app:testDebugUnitTest --tests '*GearTrackerTest'     # eine Klasse
+```
+
+- **Das Netz über Dateien hinweg:** das Paket `de.adv990de.obd2.docs.*` (darin `CodeHygieneSourceTest`, `UiRulesSourceTest`, `BuildIntegrityTest`) und dazu `FuelGaugePlacementSourceTest`, `FakeAppPreferencesTest` und `LicenseCatalogTest` — sie prüfen Regeln über Dateien hinweg (neue Vorschau, neuer Preferences-Flow, neue Abhängigkeit) und fangen Brüche an Stellen, die man nicht angefasst hat. **Kein Glob `*SourceTest`:** er träfe auch `GpsSpeedSourceTest` und `SpeedSourceTest` (Fachtests) und verfehlte `FakeAppPreferencesTest` und `LicenseCatalogTest`.
+- **Im Zweifel die höhere Stufe:** die Teilmenge wird nach Namen gewählt, nicht nach der tatsächlichen Abhängigkeit — eine Fehlwahl ist das eigentliche Risiko.
+- **Abhängigkeits- oder Toolchain-Änderung** (Gradle, AGP, Kotlin, Bibliotheken): immer Gate und Gerät.
+- **Berichten:** bei jeder Änderung nennen, welche Stufe lief und was nicht lief (z. B. „nur gezielt, Geräte-Tests nicht gelaufen“).
+- **Testzahlen** in README und CLAUDE.md nur aus einem vollen Lauf, nie aus einem gezielten (ein gezielter Lauf zählt nur einen Bruchteil).
+- **Frisches Ergebnis:** ein unveränderter Lauf ist bei Gradle UP-TO-DATE und schreibt kein neues XML — für ein frisches Ergebnis `:app:cleanTestDebugUnitTest` voranstellen und das XML in `app/build/test-results/testDebugUnitTest/` lesen (Zeitstempel, `tests=`/`failures=`), nicht die Konsole und keine Zahl aus einem Subagenten.
+- **Nicht gemessen:** die gesparte Zeit und die Trefferquote der Teilmengen. Ein gezielter Lauf kann Probleme übersehen, die nur im Zusammenspiel auftreten (z. B. Reihenfolge-Abhängigkeiten zwischen Tests) — dafür gibt es das Gate. Abgesichert ist diese Regel durch `TestLevelsDocsTest`: er hält die genannten Klassen, das Paket und den Gate-Satz fest.
+
 ## Bei UI-Änderungen IMMER
 
 1. Vorher: bestehende Composables im selben Bereich gelesen — Pattern reused, nicht dupliziert
