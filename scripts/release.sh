@@ -11,7 +11,7 @@
 #   scripts/release.sh              Vorpruefung, Unit-Tests, assembleRelease, Pruefung des APK, mapping.txt archivieren
 #   scripts/release.sh --install    zusaetzlich: auf das angeschlossene Geraet installieren und die Version pruefen
 #
-# Taggen und Pushen bleiben bewusst Handarbeit (`git tag vX.Y.Z && git push origin main vX.Y.Z`), nach dem Smoke-Test
+# Taggen und Pushen bleiben bewusst Handarbeit (`git tag -a vX.Y.Z -m "Release X.Y.Z (versionCode N)" && git push origin main vX.Y.Z`), nach dem Smoke-Test
 # (`python3 -u scripts/smoke.py <versionName> <versionCode>`, Geraet entsperrt).
 #
 # Umgebung:
@@ -138,4 +138,4 @@ fi
 
 step "Fertig"
 echo "Naechste Schritte (von Hand): Smoke-Test auf dem Geraet (python3 -u scripts/smoke.py $VERSION_NAME $VERSION_CODE), dann"
-echo "  git tag v$VERSION_NAME && git push origin main v$VERSION_NAME"
+echo "  git tag -a v$VERSION_NAME -m \"Release $VERSION_NAME (versionCode $VERSION_CODE)\" && git push origin main v$VERSION_NAME"

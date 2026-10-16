@@ -125,4 +125,36 @@ class ReleaseDocsConsistencyTest {
         assertTrue(readme.contains("KEYSTORE_FILE"))
         assertTrue(readme.contains("release-cert.sha256"))
     }
+
+    // ── Tag-Befehl: eine Form an allen Stellen ────────────────────────────
+
+    /** Die Zeilen von [relative], die [needle] nennen — mit Zeilennummer, damit ein Fehlschlag die Stelle zeigt. */
+    private fun linesWith(relative: String, needle: String): List<String> =
+        read(relative).lines().withIndex().filter { needle in it.value }.map { "$relative:${it.index + 1}: ${it.value.trim()}" }
+
+    @Test
+    fun `every place that names the release tag command uses an annotated tag with the release message`() {
+        // README ("Tag-Konvention: annotierte Tags"), Schritt 4 der README, der Hinweis darunter, der Kopf von release.sh und dessen Abschlusszeile
+        // nannten zwei Formen: `git tag -a … -m …` und das leichte `git tag vX.Y.Z`. Die ausgelieferten Tags sind annotiert ("Release 1.32.9 (versionCode 119)").
+        // Im Skript steht der Befehl in einem `echo "…"`, die Anfuehrungszeichen sind dort maskiert (`\"`).
+        val form = Regex("""git tag -a v\S+ -m \\?"Release \S+ \(versionCode \S+\)\\?"""")
+        for (file in listOf("README.md", "scripts/release.sh")) {
+            val mentions = linesWith(file, "git tag ")
+            assertTrue("$file nennt den Tag-Befehl mindestens zweimal, war: $mentions", mentions.size >= 2)
+            mentions.forEach { assertTrue("kein annotierter Tag mit Release-Meldung: $it", form.containsMatchIn(it)) }
+        }
+    }
+
+    @Test
+    fun `every place that pushes a release pushes main together with the tag, never all tags`() {
+        // `git push && git push --tags` schickt jeden lokalen Tag mit; die Freigabeliste der Sitzung erlaubt nur `origin main` und `origin v*`.
+        for (file in listOf("README.md", "scripts/release.sh")) {
+            val mentions = linesWith(file, "git push")
+            assertTrue("$file nennt den Push mindestens zweimal, war: $mentions", mentions.size >= 2)
+            mentions.forEach {
+                assertTrue("Push ohne `origin main v<Tag>`: $it", Regex("""git push origin main v\S+""").containsMatchIn(it))
+                assertTrue("`--tags` schickt alle Tags: $it", "--tags" !in it)
+            }
+        }
+    }
 }
