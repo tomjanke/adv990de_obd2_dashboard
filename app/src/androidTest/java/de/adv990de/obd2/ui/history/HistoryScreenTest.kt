@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -499,6 +500,21 @@ class HistoryScreenTest {
         waitForDetails()
 
         composeRule.onNode(hasText(string(R.string.close)) and hasClickAction()).assertHeightIsAtLeast(56.dp)
+    }
+
+    @Test
+    fun theDetails_areAsWideAsTheWindowAllows_inEveryOrientation() {
+        launchHistoryScreen()
+        waitForText("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithText("WP0ZZZ99ZTS392124").performClick()
+        waitForDetails()
+
+        // Erwartung unabhaengig von der Rechnung im Produktivcode, aus der Konfiguration des Geraets: 400 dp, in einem schmalen Fenster (Hochformat)
+        // der Platz abzueglich der Raender (96 dp). Das Plattformfenster eines Dialogs ist im Querformat nur rund 320 dp breit — ohne die Mindestbreite
+        // bricht die Beschreibung eines Codes auf mehrere Zeilen.
+        val windowWidthDp = composeRule.activity.resources.configuration.screenWidthDp
+        val expected = minOf(400, windowWidthDp - 96).coerceAtLeast(0).dp
+        composeRule.onNodeWithTag(SESSION_DETAIL_TEST_TAG).assertWidthIsAtLeast(expected)
     }
 
     @Test

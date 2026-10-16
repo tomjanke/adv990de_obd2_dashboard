@@ -15,10 +15,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import de.adv990de.obd2.R
@@ -36,6 +38,15 @@ private val DialogButtonMinHeight = 56.dp
 
 /** Mindestbreite des Dialoginhalts (s. [SessionDetailDialog]). */
 private val DialogContentMinWidth = 400.dp
+
+/** Rand zwischen Dialoginhalt und Fensterkante: je Seite 24 dp Fensterrand und 24 dp Dialogpolster. */
+private val DialogSideMargins = 96.dp
+
+/**
+ * Die Mindestbreite des Dialoginhalts bei einer Fensterbreite: [DialogContentMinWidth], in einem schmalen Fenster der verfuegbare Platz
+ * abzueglich der Raender ([DialogSideMargins]) — nie negativ.
+ */
+internal fun detailContentMinWidth(windowWidth: Dp): Dp = minOf(DialogContentMinWidth, (windowWidth - DialogSideMargins).coerceAtLeast(0.dp))
 
 /** Test tag of the scrollable body of the details dialog. */
 internal const val SESSION_DETAIL_TEST_TAG = "session_detail"
@@ -58,9 +69,11 @@ internal fun SessionDetailDialog(
     val dtcs = remember(session.dtcCodes) { decodeSessionDtcs(session.dtcCodes) }
     // Breite: das Dialogfenster der Plattform ist im Querformat nur ~320 dp breit (am Pixel 8 Pro gesehen), das brach die Beschreibung eines
     // Codes auf drei Zeilen und die Zeile mit Ende und FIN auf zwei und schob den zweiten Code unter den Rand. Ohne die Plattformbreite
-    // bestimmt der Inhalt die Breite: mindestens DialogContentMinWidth, in einem schmalen Fenster der verfuegbare Platz (24 dp Rand und
-    // 24 dp Dialogpolster je Seite). Der Dialog bleibt durch AlertDialog auf 560 dp begrenzt.
-    val contentMinWidth = minOf(DialogContentMinWidth, (LocalConfiguration.current.screenWidthDp.dp - 96.dp).coerceAtLeast(0.dp))
+    // bestimmt der Inhalt die Breite: mindestens DialogContentMinWidth, in einem schmalen Fenster der verfuegbare Platz (detailContentMinWidth).
+    // Der Dialog bleibt durch AlertDialog auf 560 dp begrenzt. Die Fensterbreite wird hier gelesen, in der Komposition des Aufrufers (dem Fenster der
+    // Activity) und nicht im Slot des Dialogs: dort waere es das Fenster des Dialogs selbst, dessen Groesse von dieser Breite abhaengt.
+    val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val contentMinWidth = detailContentMinWidth(windowWidth)
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
