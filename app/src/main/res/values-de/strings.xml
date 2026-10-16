@@ -97,6 +97,7 @@
     <string name="dtc_freeze_frame_link">Freeze Frame anzeigen</string>
     <string name="dtc_tab_current">Aktuell</string>
     <string name="dtc_tab_history">Historie</string>
+    <string name="trips_section_trips">Fahrten</string>
     <string name="not_connected">Nicht verbunden</string>
     <string name="dtc_no_answer">Keine Antwort vom Steuergerät — ob Fehlercodes gespeichert sind, lässt sich so nicht sagen.</string>
     <string name="dtc_badge_active">Aktiv</string>
@@ -184,8 +185,7 @@
 
     <!-- BottomNav labels -->
     <string name="nav_live">Live</string>
-    <string name="nav_dtcs">DTCs</string>
-    <string name="nav_history">Verlauf</string>
+    <string name="nav_trips">Fahrten</string>
     <string name="nav_exit">Beenden</string>
 
     <!-- Shared actions -->

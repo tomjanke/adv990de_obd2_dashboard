@@ -31,6 +31,8 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.ui.formatDate
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.trips.TripsAndFaultsScreen
+import de.adv990de.obd2.ui.trips.TripsSection
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -93,7 +95,9 @@ class DtcScreenTest {
     private fun launchDtcScreen() {
         composeRule.setContent {
             val navController = rememberNavController()
-            DtcScreen(navController = navController)
+            // Der Umschalter "Aktuell | Historie" gehoert seit 1.33.0 zum Menuepunkt "Fahrten" (TripsAndFaultsScreen): die Tests starten dort
+            // in der Ansicht "Aktuell" und pruefen so auch, dass die Verdrahtung von Umschalter und Seite stimmt.
+            TripsAndFaultsScreen(navController = navController, initialSection = TripsSection.Current)
         }
     }
 
@@ -246,8 +250,10 @@ class DtcScreenTest {
         val freezeFrameMarker = "FREEZE_FRAME_DESTINATION_MARKER"
         composeRule.setContent {
             val navController = rememberNavController()
-            NavHost(navController = navController, startDestination = Screen.Dtc.route) {
-                composable(Screen.Dtc.route) { DtcScreen(navController = navController) }
+            NavHost(navController = navController, startDestination = Screen.TripsAndFaults.route) {
+                composable(Screen.TripsAndFaults.route) {
+                    TripsAndFaultsScreen(navController = navController, initialSection = TripsSection.Current)
+                }
                 composable(Screen.FreezeFrame.route) { Text(freezeFrameMarker) }
             }
         }

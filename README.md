@@ -178,7 +178,8 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── dashboard/               # Live-Werte
 │   ├── dtc/                     # Fehlercodes: Aktuell | Historie (lokale Fehlerhistorie)
 │   ├── freezeframe/             # Snapshot-Daten
-│   ├── history/                 # Fahrtenverlauf (Papierkorb/Swipe mit Undo, Alle löschen, aktive Fahrt geschützt)
+│   ├── history/                 # Fahrtenverlauf (Papierkorb/Swipe mit Undo, Alle löschen, aktive Fahrt geschützt;
+│   │                            # Fehler-Zeichen je Fahrt, Details-Dialog mit den Codes bei Fahrtbeginn)
 │   ├── settings/                # gruppierte Einstellungsseite (Verbindung · Dashboard & Anzeige · Aufzeichnung · Fahrzeug · Info),
 │   │                            # App-Logs, Getriebe-/Gangverhältnisse, Drehzahl-Blinkgrenze
 │   ├── vehicleinfo/             # Mode 09 (VIN etc.)
@@ -186,6 +187,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── licenses/                # Open-Source-Lizenzen (Katalog + Volltexte aus den Assets)
 │   ├── permission/              # Runtime-Permissions Gate
 │   ├── navigation/              # Compose-Navigation
+│   ├── trips/                   # Menüpunkt „Fahrten“: Umschalter Fahrten | Aktuell | Historie über Verlauf und DTC-Seite
 │   ├── theme/                   # Material 3 Theme, Statusleisten-Symbole (SystemBars), System-Splash-Themes (SplashTheme)
 │   └── weather/                 # WeatherViewModel (Polling nur bei sichtbarer Zeile) +
 │                                # 30-Minuten-Halte-Logik (OutsideTemperatureHold)

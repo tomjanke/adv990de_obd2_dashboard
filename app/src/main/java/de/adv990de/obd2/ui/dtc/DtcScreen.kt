@@ -1,6 +1,5 @@
 package de.adv990de.obd2.ui.dtc
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
@@ -30,9 +29,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -44,10 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,11 +66,8 @@ import de.adv990de.obd2.ui.navigation.Screen
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
-/** The two views of the DTC page: what the vehicle reports now, and what it has reported before. */
-private enum class DtcView(@StringRes val labelRes: Int) {
-    Current(R.string.dtc_tab_current),
-    History(R.string.dtc_tab_history),
-}
+/** The two views of the DTC page: what the vehicle reports now, and what it has reported before. The switch between them lives in `TripsAndFaultsScreen`. */
+private enum class DtcView { Current, History }
 
 /** Glove-friendly touch size of the segments and the buttons (CLAUDE.md design principle 4). */
 private val TouchSize = 56.dp
@@ -107,14 +97,20 @@ internal fun dtcHistoryRowTestTag(code: String) = "dtc_history_row_$code"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) {
+fun DtcScreen(
+    navController: NavController,
+    showHistory: Boolean = false,
+    header: @Composable () -> Unit = {},
+    vm: DtcViewModel = hiltViewModel(),
+) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
     val undoCount by vm.undoCount.collectAsStateWithLifecycle()
     val confirmationVisible by vm.deleteAllConfirmationVisible.collectAsStateWithLifecycle()
-    var view by rememberSaveable { mutableStateOf(DtcView.Current) }
+    // Welche Ansicht gilt, entscheidet der Umschalter des Hosts (TripsAndFaultsScreen) — er kommt als [header] in den Inhalt.
+    val view = if (showHistory) DtcView.History else DtcView.Current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -168,7 +164,7 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            ViewSwitch(selected = view, onSelect = { view = it })
+            header()
             when (view) {
                 DtcView.Current -> CurrentContent(
                     state = state,
@@ -182,25 +178,6 @@ fun DtcScreen(navController: NavController, vm: DtcViewModel = hiltViewModel()) 
                     onDelete = vm::deleteEntry,
                     modifier = Modifier.weight(1f),
                 )
-            }
-        }
-    }
-}
-
-/** "Aktuell | Historie" — segments ≥ 56 dp, the minimum height sits on EACH button (the row alone does not stretch them). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ViewSwitch(selected: DtcView, onSelect: (DtcView) -> Unit) {
-    val views = DtcView.entries
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        views.forEachIndexed { index, view ->
-            SegmentedButton(
-                selected = view == selected,
-                onClick = { onSelect(view) },
-                shape = SegmentedButtonDefaults.itemShape(index, views.size),
-                modifier = Modifier.heightIn(min = TouchSize),
-            ) {
-                Text(stringResource(view.labelRes))
             }
         }
     }
@@ -376,12 +353,6 @@ private fun PreviewDtcHistoryRowLight() {
 @Composable
 private fun PreviewDtcHistoryRowDark() {
     PreviewTheme(dark = true) { DtcHistoryRow(PREVIEW_HISTORY, onDelete = {}) }
-}
-
-@Preview(name = "ViewSwitch (dark)", showBackground = true)
-@Composable
-private fun PreviewViewSwitchDark() {
-    PreviewTheme(dark = true) { ViewSwitch(selected = DtcView.History, onSelect = {}) }
 }
 
 // endregion

@@ -97,6 +97,7 @@
     <string name="dtc_freeze_frame_link">Show Freeze Frame</string>
     <string name="dtc_tab_current">Current</string>
     <string name="dtc_tab_history">History</string>
+    <string name="trips_section_trips">Drives</string>
     <string name="not_connected">Not connected</string>
     <string name="dtc_no_answer">No answer from the ECU, so it is unknown whether fault codes are stored.</string>
     <string name="dtc_badge_active">Active</string>
@@ -184,8 +185,7 @@
 
     <!-- BottomNav labels -->
     <string name="nav_live">Live</string>
-    <string name="nav_dtcs">DTCs</string>
-    <string name="nav_history">History</string>
+    <string name="nav_trips">Drives</string>
     <string name="nav_exit">Exit</string>
 
     <!-- Shared actions -->

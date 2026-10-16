@@ -14,7 +14,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -59,8 +58,7 @@ import kotlinx.coroutines.launch
 
 private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
     Triple(Screen.Dashboard, Icons.Default.Home,     R.string.nav_live),
-    Triple(Screen.Dtc,       Icons.Default.Info,     R.string.nav_dtcs),
-    Triple(Screen.History,   Icons.AutoMirrored.Filled.List, R.string.nav_history),
+    Triple(Screen.TripsAndFaults, Icons.AutoMirrored.Filled.List, R.string.nav_trips),
     Triple(Screen.Settings,  Icons.Default.Settings, R.string.settings_title),
 )
 

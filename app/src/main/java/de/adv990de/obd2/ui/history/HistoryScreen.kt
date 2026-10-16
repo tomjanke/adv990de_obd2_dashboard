@@ -65,7 +65,7 @@ import de.adv990de.obd2.ui.theme.PreviewTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(navController: NavController, header: @Composable () -> Unit = {}, vm: HistoryViewModel = hiltViewModel()) {
     val sessions = vm.sessions.collectAsLazyPagingItems()
     val shareUri by vm.shareUri.collectAsStateWithLifecycle()
     val exportError by vm.exportError.collectAsStateWithLifecycle()
@@ -160,40 +160,44 @@ fun HistoryScreen(navController: NavController, vm: HistoryViewModel = hiltViewM
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 8.dp, end = 8.dp)
-            ) {
-                items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
-                    sessions[i]?.let { session ->
-                        val isRecording = session.id == activeSessionId
-                        // The swipe is only an addition to the trash button; the trip that is being
-                        // recorded can be neither swiped nor deleted.
-                        SwipeToDeleteRow(
-                            onDelete = { vm.deleteSession(session) },
-                            modifier = Modifier.testTag(historyRowTestTag(session.id)),
-                            enabled = !isRecording,
-                        ) {
-                            SessionRow(
-                                session,
-                                isRecording = isRecording,
-                                onExport = { vm.export(session.id) },
+        // Der Umschalter des Hosts (TripsAndFaultsScreen) steht ueber der Liste, wie auf der DTC-Seite.
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            header()
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp)
+                ) {
+                    items(sessions.itemCount, key = { sessions.peek(it)?.id ?: it }) { i ->
+                        sessions[i]?.let { session ->
+                            val isRecording = session.id == activeSessionId
+                            // The swipe is only an addition to the trash button; the trip that is being
+                            // recorded can be neither swiped nor deleted.
+                            SwipeToDeleteRow(
                                 onDelete = { vm.deleteSession(session) },
-                                onOpen = { detailSessionId = session.id },
-                            )
+                                modifier = Modifier.testTag(historyRowTestTag(session.id)),
+                                enabled = !isRecording,
+                            ) {
+                                SessionRow(
+                                    session,
+                                    isRecording = isRecording,
+                                    onExport = { vm.export(session.id) },
+                                    onDelete = { vm.deleteSession(session) },
+                                    onOpen = { detailSessionId = session.id },
+                                )
+                            }
+                            HorizontalDivider()
                         }
-                        HorizontalDivider()
+                    }
+                    if (sessions.loadState.append is LoadState.Loading) {
+                        item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(8.dp)) }
                     }
                 }
-                if (sessions.loadState.append is LoadState.Loading) {
-                    item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(8.dp)) }
+                if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
+                    EmptyState(
+                        icon = ImageVector.vectorResource(R.drawable.ic_history),
+                        text = stringResource(R.string.history_empty),
+                    )
                 }
-            }
-            if (sessions.itemCount == 0 && sessions.loadState.refresh !is LoadState.Loading) {
-                EmptyState(
-                    icon = ImageVector.vectorResource(R.drawable.ic_history),
-                    text = stringResource(R.string.history_empty),
-                )
             }
         }
     }

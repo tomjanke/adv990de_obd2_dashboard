@@ -4,7 +4,7 @@
     python3 -u scripts/smoke.py <versionName> <versionCode> [--package de.adv990de.obd2]
     python3 -u scripts/smoke.py <versionName> <versionCode> --simulator [--package de.adv990de.obd2.debug]
 
-Prueft: die App startet und zeigt das Dashboard, die Reiter DTCs/Verlauf/Einstellungen oeffnen, der Beenden-Dialog erscheint
+Prueft: die App startet und zeigt das Dashboard, die Reiter Fahrten/Einstellungen oeffnen (in Fahrten die Bereiche Aktuell/Historie/Fahrten), der Beenden-Dialog erscheint
 (und wird abgebrochen), App-Info nennt Version und Build, und Logcat enthaelt keinen Absturz. Endet mit "ALL PASS" bzw. "FAILURES"
 (Exit-Code 0 bzw. 1).
 
@@ -267,10 +267,17 @@ def main():
     t = texts()
     check("App startet, Dashboard sichtbar", alive() and "Live" in t and any("DREHZAHL" in x.upper() for x in t), f"{len(t)} Texte")
 
-    for tab in ("DTCs", "Verlauf", "Einstellungen"):
+    for tab in ("Fahrten", "Einstellungen"):
         ok = tap_text(tab)
         time.sleep(2.5)
         check(f"Reiter {tab} oeffnet", ok and alive())
+        if tab == "Fahrten":
+            # Seit 1.33.0 sind DTCs und Verlauf EIN Reiter mit dem Umschalter "Fahrten | Aktuell | Historie". Ohne Fahrzeug liest "Aktuell"
+            # nichts ("Nicht verbunden"); es zaehlt, dass jeder Bereich oeffnet und die App weiterlaeuft.
+            for section in ("Aktuell", "Historie", "Fahrten"):
+                ok = tap_text(section)
+                time.sleep(1.5)
+                check(f"Bereich {section} oeffnet", ok and alive())
     tap_text("Live")
     time.sleep(2)
     check("Reiter Live zurueck", any("DREHZAHL" in x.upper() for x in texts()))

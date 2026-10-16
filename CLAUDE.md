@@ -108,8 +108,8 @@ Leiste während der Fahrt ersetzt, ist eine `surface`-Fläche — mit dem Defaul
 neutrale M3-Grau (`#211F26`) zurück statt auf die Cockpit-Tönung. Nebenwirkung im Default-Farbschema:
 dort sind `surface` und `background` gleich, die Leiste hebt sich nur noch über die Trennlinie ab.
 
-**Fünftes Hauptmenü-Item „Beenden" (seit 2026-09-29, User-Wunsch):** Rechts neben „Einstellungen"
-sitzt ein fünftes `NavigationBarItem` (`Icons.Default.PowerSettingsNew`, kein Navigationsziel —
+**Hauptmenü-Item „Beenden" (seit 2026-09-29, User-Wunsch; seit 1.33.0 das vierte von vier Items — „DTCs“ und „Verlauf“ sind der eine Punkt „Fahrten“, s. „Menüpunkt „Fahrten““):** Rechts neben „Einstellungen"
+sitzt ein `NavigationBarItem` (`Icons.Default.PowerSettingsNew`, kein Navigationsziel —
 `onClick` öffnet einen Bestätigungsdialog statt `navController.navigate()`). Bestätigt, ruft
 `ExitAppViewModel.exitApp()` (dieselbe Logik wie der bestehende `SettingsViewModel.disconnect()`:
 `ObdRepository.disconnect()` + `ObdForegroundService`-Stop) und danach `Activity.finishAffinity()`
@@ -118,7 +118,7 @@ auf — vollständiges Beenden, kein Monitoring läuft im Hintergrund weiter. De
 das Icon sitzt permanent im Hauptmenü, ein Griff mit Handschuhen auf holpriger Strecke könnte es
 sonst versehentlich treffen.
 
-**Nav-Label-Schriftgröße 10sp, unskaliert (seit demselben Tag):** Mit fünf statt vier Spalten reichte
+**Nav-Label-Schriftgröße 10sp, unskaliert (seit demselben Tag; gilt unverändert auch mit den vier Spalten seit 1.33.0):** Mit fünf statt vier Spalten reichte
 im Hochformat (~72dp pro Spalte) selbst `MaterialTheme.typography.labelSmall` nicht mehr für
 „Einstellungen" auf einer Zeile — das Wort brach um, die zweite Zeile wurde vom festen
 64dp-Leistenrahmen abgeschnitten (auf dem Pixel 8 Pro visuell bestätigt). `labelSmall` trägt wie
@@ -915,7 +915,7 @@ lokale Aufzeichnung, nie den Fehlerspeicher des Fahrzeugs (kein Modus 04).
   Stellen, beide nur nach erfolgreichem Lesen: `ReadingsPipeline.runSession` (passiv bei jedem Verbinden, zusätzlich per try/catch abgesichert, weil
   eine Ausnahme dort die ganze Sitzung kosten würde) und `DtcViewModel.refresh()` (Seite öffnen, Pull-to-Refresh). Bewusst **nicht** in
   `ObdRepository.readDtcs()`: Persistenz gehört nicht in die Protokollschicht.
-- **DTC-Seite:** Umschalter „Aktuell | Historie“ (Segmente ≥ 56 dp). „Aktuell“ = Live-Liste; **ohne Verbindung wird nichts gelesen** und die Seite sagt
+- **DTC-Seite:** Umschalter „Aktuell | Historie“ (Segmente ≥ 56 dp; seit 1.33.0 zwei der drei Segmente des Umschalters „Fahrten | Aktuell | Historie“ im Menüpunkt „Fahrten“, s. dort). „Aktuell“ = Live-Liste; **ohne Verbindung wird nichts gelesen** und die Seite sagt
   „Nicht verbunden“ — `readDtcs()` liefert dann `emptyList()`, was als „Keine Fehlercodes vorhanden“ ein falscher Entwarnungs-Hinweis wäre. „Historie“ =
   Code · Beschreibung · „Erstmals … · Zuletzt …“; Badge „Aktiv“ nur, wenn der Code im letzten erfolgreichen Auslesen stand UND die Verbindung steht
   (nach Abbruch oder fehlgeschlagenem Lesen nie), „Ausstehend“, wenn er zuletzt nur als pending gesehen wurde. Löschen nach dem Lösch-Vertrag
@@ -935,6 +935,16 @@ Eine Fahrt merkt sich die Fehlercodes, die das Fahrzeug **bei ihrem Beginn** gem
 - **Details:** `SessionDetailDialog` (`AlertDialog`, bewusst keine eigene Seite und kein Bottom Sheet; `ProvideMinTouchTarget` im Button-Slot): Titel = Beginn der Fahrt, dann in einer gedämpften Zeile „Ende: … · FIN: …“ (die laufende Aufzeichnung zeigt „Aufzeichnung läuft“, eine Fahrt ohne Ende „Unbekannt“), dann die Codes mit Beschreibung (`DtcRow`, dieselbe Zeile wie die DTC-Seite; `containerColor = Transparent`, damit sie nicht als hellere Flächen auf der Dialogfarbe liegen) oder „Das Fahrzeug meldete keine Fehlercodes.“ / „Für diese Fahrt nicht erfasst.“ Der geöffnete Dialog gehört zur Seite (`rememberSaveable` mit der Fahrt-Id, überlebt eine Drehung). **Die Codes stehen oben, nicht die Metadaten:** im Querformat (Nutzer nutzt es überwiegend) ist die Höhe knapp, mit Start/Ende/FIN davor lag der zweite Code unter dem Rand (am Pixel 8 Pro gesehen). **Breite:** `usePlatformDefaultWidth = false` plus eine Mindestbreite des Inhalts von 400 dp (in schmalen Fenstern der verfügbare Platz abzüglich 96 dp) — das Plattformfenster ist im Querformat nur ~320 dp breit und brach die Beschreibung auf drei Zeilen. Am Gerät im Querformat gesehen: beide Codes, Ende/FIN und der Knopf ohne Scrollen sichtbar. **Im Hochformat nicht am Gerät gesehen** (das Testgerät dreht der Nutzer), nur die Mindestbreite-Rechnung.
 - **`SwipeToDeleteRow` nimmt die Wischbewegung immer auf** (`gesturesEnabled = true`, auch bei `enabled = false`): Compose kennt für Klicks keine Toleranz — eine Wischbewegung, die niemand konsumiert und in der Zeile endet, ist ein Tipp. Mit gesperrten Gesten öffnete ein misslungenes Wischen auf der laufenden Fahrt (nicht löschbar) die Details; jetzt bewegt sich die Zeile ohne Anker nicht und löscht nichts, schluckt aber das Wischen (`SwipeToDeleteRowTest`: Wischen ist nie ein Tipp, ein echter Tipp klickt weiter).
 - **Tests:** `SessionDtcsTest`, `SessionDtcBadgeTest` (JVM); `SessionRepositoryTest`, `SessionRecorderTest`, `ReadingsPipelineTest` (JVM, drei Zustände durch die Kette); `AppDatabaseMigrationTest` 4→5, `SessionRepositoryDeviceTest`, `HistoryScreenTest` (Gerät: Zeichen, Tipp, Zustände, 56 dp, Wiederherstellung). **Test-Falle:** mit dem zweiten Parameter greift ein strenger Stub `startSession(any())` nicht mehr (ein Standardargument wird als `eq` mitgezählt) — Stubs heißen `startSession(any(), any())`. **Am Fahrzeug nicht geprüft:** der ECU-Simulator meldet nie Fehlercodes; Zeichen und Dialog sind per Geräte-Test mit eingetragenen Fahrten belegt, nicht durch eine Fahrt mit echtem Code.
+
+### Menüpunkt „Fahrten“ (seit 1.33.0, Auftrag des Nutzers 2026-10-16)
+
+„DTCs“ und „Verlauf“ sind **ein** Menüpunkt, beschriftet nur **„Fahrten“** (EN „Drives“ — die englischen Texte der App sagen „drive“, nicht „trip“): das Hauptmenü hat vier statt fünf Punkte (Live, Fahrten, Einstellungen, Beenden). Entwurf und Gründe: `docs/superpowers/archive/specs/2026-10-16-trips-and-faults-design.md`.
+- **Route:** `Screen.TripsAndFaults` (`trips_faults`) ersetzt `Screen.History` und `Screen.Dtc` (beide gibt es nicht mehr; `ParentTabTest` hält fest, dass `dtc` und `history` keinen Reiter markieren). Der Freeze-Frame bleibt Unterseite und gehört über `parentTab` zu „Fahrten“; ein erneuter Tipp auf den Reiter dort führt zur Startseite des Reiters (`PopToTabRoot`). Icon `Icons.AutoMirrored.Filled.List`, Label `R.string.nav_trips`.
+- **Host `TripsAndFaultsScreen`** (`ui/trips/`, `internal`): ein **dreiteiliger** Umschalter „Fahrten | Aktuell | Historie“ (`SectionSwitch`, Segmente ≥ 56 dp, `TripsSection`; „Aktuell“ und „Historie“ sind die unveränderten Ansichten der DTC-Seite), **nicht** verschachtelt in einen zweiten Umschalter: im Querformat, das der Nutzer überwiegend nutzt, ist die Höhe knapp. `HistoryScreen` und `DtcScreen` behalten ihr eigenes Scaffold, ihre Top-Bar (Titel je Bereich: „Fahrtenverlauf“ bzw. „Fehlercodes (DTCs)“) und ihre Snackbar; der Umschalter kommt als Slot `header` in ihren Inhalt (`DtcScreen(showHistory, header)`, `HistoryScreen(header)`). Der Bereich ist `rememberSaveable`: eine Drehung und die Rückkehr aus dem Freeze-Frame zeigen denselben Bereich; Start ist „Fahrten“ (`initialSection` nur für Tests).
+- **Ein Aufrufpunkt für die DTC-Seite:** ein Wechsel zwischen „Aktuell“ und „Historie“ baut sie nicht neu auf — sie liest beim Betreten vom Fahrzeug (`LaunchedEffect(isConnected)`), zwei Zweige im Host lasen bei jedem Wechsel erneut (`TripsAndFaultsScreenTest`: genau ein `readDtcs()` über mehrere Wechsel).
+- **Löschen und Rückgängig:** wie beim Reiterwechsel von heute — die ViewModels bleiben (der `NavBackStackEntry` des Reiters), eine offene Löschung (10-s-Fenster) läuft bis zu ihrem Ende weiter, auch wenn die Snackbar mit ihrem Scaffold verschwindet (bestätigt wird erst in `onCleared`). Ein zusätzliches Bestätigen beim Bereichswechsel wäre strenger als der Reiterwechsel und wurde nicht gebaut.
+- **Zugewinn und Preis:** vier statt fünf Spalten geben dem Label mehr Breite (die 10 sp bleiben). Die Fahrtenliste verliert gegenüber dem alten „Verlauf“ die Höhe der Umschalter-Zeile (56 dp + 16 dp Rand).
+- **Tests:** `ParentTabTest`, `BottomNavActionTest`, `TripsSectionTest` (JVM); `BottomNavTest` (vier Punkte, „DTCs“/„Verlauf“/„History“ sind keine Reiter mehr), `DtcScreenTest` (startet über den Host in „Aktuell“), `TripsAndFaultsScreenTest` (Gerät). `scripts/smoke.py` tippt jetzt „Fahrten“ und darin „Aktuell“, „Historie“, „Fahrten“.
 
 ### Animation-Disziplin
 

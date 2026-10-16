@@ -15,7 +15,7 @@ class BottomNavActionTest {
 
     @Test
     fun `tapping the tab you are on at its start page does nothing`() {
-        for (tab in listOf(Screen.Dashboard, Screen.Dtc, Screen.History, Screen.Settings)) {
+        for (tab in listOf(Screen.Dashboard, Screen.TripsAndFaults, Screen.Settings)) {
             assertEquals("tab ${tab.route}", BottomNavAction.Ignore, bottomNavAction(tab.route, tab))
         }
     }
@@ -34,13 +34,13 @@ class BottomNavActionTest {
     }
 
     @Test
-    fun `tapping the DTC tab on the freeze frame page returns to the DTC start page`() {
-        assertEquals(BottomNavAction.PopToTabRoot, bottomNavAction(Screen.FreezeFrame.route, Screen.Dtc))
+    fun `tapping the Fahrten tab on the freeze frame page returns to its start page`() {
+        assertEquals(BottomNavAction.PopToTabRoot, bottomNavAction(Screen.FreezeFrame.route, Screen.TripsAndFaults))
     }
 
     @Test
     fun `tapping another tab switches tabs - from a start page and from a sub-page`() {
-        assertEquals(BottomNavAction.SwitchTab, bottomNavAction(Screen.Dashboard.route, Screen.History))
+        assertEquals(BottomNavAction.SwitchTab, bottomNavAction(Screen.Dashboard.route, Screen.TripsAndFaults))
         assertEquals(BottomNavAction.SwitchTab, bottomNavAction(Screen.AppInfo.route, Screen.Dashboard))
         assertEquals(BottomNavAction.SwitchTab, bottomNavAction(Screen.FreezeFrame.route, Screen.Settings))
     }

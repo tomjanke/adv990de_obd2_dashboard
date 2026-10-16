@@ -11,6 +11,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -210,8 +211,7 @@ class BottomNavTest {
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
-                composable(Screen.Dtc.route) { Text(DTC_MARKER) }
-                composable(Screen.History.route) { Text(HISTORY_MARKER) }
+                composable(Screen.TripsAndFaults.route) { Text(TRIPS_MARKER) }
                 composable(Screen.Settings.route) { Text(SETTINGS_MARKER) }
                 composable(Screen.AppLogs.route) { Text(APP_LOGS_MARKER) }
                 composable(Screen.FreezeFrame.route) { Text(FREEZE_FRAME_MARKER) }
@@ -233,8 +233,7 @@ class BottomNavTest {
     companion object {
         private const val BOTTOM_AREA_TAG = "BOTTOM_AREA"
         private const val DASHBOARD_MARKER = "DASHBOARD_DESTINATION_MARKER"
-        private const val DTC_MARKER = "DTC_DESTINATION_MARKER"
-        private const val HISTORY_MARKER = "HISTORY_DESTINATION_MARKER"
+        private const val TRIPS_MARKER = "TRIPS_DESTINATION_MARKER"
         private const val SETTINGS_MARKER = "SETTINGS_DESTINATION_MARKER"
         private const val APP_LOGS_MARKER = "APP_LOGS_DESTINATION_MARKER"
         private const val FREEZE_FRAME_MARKER = "FREEZE_FRAME_DESTINATION_MARKER"
@@ -244,14 +243,14 @@ class BottomNavTest {
 
     @Test
     fun itemMatchingCurrentRoute_isSelected() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.TripsAndFaults.route)
 
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsSelected()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).assertIsSelected()
     }
 
     @Test
     fun itemNotMatchingCurrentRoute_isNotSelected() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.TripsAndFaults.route)
 
         composeRule.onNodeWithText(label(R.string.nav_live)).assertIsNotSelected()
     }
@@ -261,15 +260,15 @@ class BottomNavTest {
         launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.AppLogs.route)
 
         composeRule.onNodeWithText(label(R.string.settings_title)).assertIsSelected()
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsNotSelected()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).assertIsNotSelected()
         composeRule.onNodeWithText(label(R.string.nav_live)).assertIsNotSelected()
     }
 
     @Test
-    fun onTheFreezeFramePage_theDtcItemStaysSelected() {
+    fun onTheFreezeFramePage_theTripsItemStaysSelected() {
         launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.FreezeFrame.route)
 
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsSelected()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).assertIsSelected()
         composeRule.onNodeWithText(label(R.string.settings_title)).assertIsNotSelected()
     }
 
@@ -309,41 +308,52 @@ class BottomNavTest {
     }
 
     @Test
-    fun reTappingTheDtcItem_onTheFreezeFramePage_returnsToTheDtcStartPage() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+    fun reTappingTheTripsItem_onTheFreezeFramePage_returnsToTheTripsStartPage() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.TripsAndFaults.route)
         composeRule.runOnUiThread { navController.navigate(Screen.FreezeFrame.route) }
         composeRule.waitForIdle()
         composeRule.onNodeWithText(FREEZE_FRAME_MARKER).assertIsDisplayed()
 
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).performClick()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(DTC_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithText(TRIPS_MARKER).assertIsDisplayed()
     }
 
     @Test
     fun reTappingTheSelectedItem_atItsStartPage_staysThere() {
-        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dtc.route)
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.TripsAndFaults.route)
 
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).performClick()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(DTC_MARKER).assertIsDisplayed()
-        composeRule.onNodeWithText(label(R.string.nav_dtcs)).assertIsSelected()
+        composeRule.onNodeWithText(TRIPS_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).assertIsSelected()
+    }
+
+    @Test
+    fun theMenuHasFourItems_andDtcsAndHistoryAreNoTabsAnyMore() {
+        // Seit 1.33.0 sind "DTCs" und "Verlauf" der eine Punkt "Fahrten".
+        launchBottomNav(isMoving = false, hideNavOnDrive = false)
+
+        for (item in listOf(R.string.nav_live, R.string.nav_trips, R.string.settings_title, R.string.nav_exit)) {
+            composeRule.onNodeWithText(label(item)).assertIsDisplayed()
+        }
+        for (gone in listOf("DTCs", "Verlauf", "History")) composeRule.onAllNodesWithText(gone).assertCountEquals(0)
     }
 
     @Test
     fun clickingNavItem_navigatesToItsRoute() {
         launchBottomNav(isMoving = false, hideNavOnDrive = false, startDestination = Screen.Dashboard.route)
 
-        composeRule.onNodeWithText(label(R.string.nav_history)).performClick()
+        composeRule.onNodeWithText(label(R.string.nav_trips)).performClick()
         composeRule.waitForIdle()
 
         assertTrue(
-            "expected current destination ${Screen.History.route}, was ${navController.currentDestination?.route}",
-            navController.currentDestination?.route == Screen.History.route,
+            "expected current destination ${Screen.TripsAndFaults.route}, was ${navController.currentDestination?.route}",
+            navController.currentDestination?.route == Screen.TripsAndFaults.route,
         )
-        composeRule.onNodeWithText(HISTORY_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithText(TRIPS_MARKER).assertIsDisplayed()
     }
 
     @Test
