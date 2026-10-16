@@ -1,5 +1,46 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.33.0 (versionCode 120)
+
+Fahrten zeigen jetzt, ob das Fahrzeug bei ihrem Beginn Fehlercodes meldete, und „DTCs“ und „Verlauf“ sind ein gemeinsamer Menüpunkt „Fahrten“. Das Hauptmenü hat damit vier statt fünf Punkte: Live, Fahrten, Einstellungen, Beenden.
+
+### Fehlercodes je Fahrt
+
+- **Eine Fahrt merkt sich die Fehlercodes, die das Fahrzeug bei ihrem Beginn meldete.** Es ist dasselbe Auslesen, das die App beim Verbinden ohnehin macht (für die Fehlerhistorie und für „Nur Fahrten mit DTCs speichern“); das Ergebnis geht im selben Schreibvorgang in die Fahrt, ohne zweiten Schritt. „Nur Fahrten mit DTCs speichern“ ist unverändert.
+- **Fahrtenliste:** eine Fahrt mit Codes trägt unter der FIN ein Zeichen „N Fehler“ — **rot**, sobald ein bestätigter Code dabei ist, **gelb**, wenn nur ausstehende (Modus 07) dabei sind; dieselben Farben wie die Log-Zeichen mit gleicher Bedeutung. Fahrten ohne Codes und „nicht erfasste“ Fahrten haben kein Zeichen.
+- **Details:** ein Tipp auf die Zeile öffnet einen Dialog (kein eigener Bildschirm): Beginn als Titel, Ende und FIN in einer Zeile, darunter die Codes mit Beschreibung (dieselbe Zeile wie auf der Fehlercode-Seite). Drei Zustände: die Codes · „Das Fahrzeug meldete keine Fehlercodes.“ · „Für diese Fahrt nicht erfasst.“ Teilen und Löschen bleiben eigene Knöpfe der Zeile.
+- **„Nicht erfasst“ ist nicht „keine Fehler“:** ältere Fahrten (vor 1.33.0) und Fahrten, bei denen das Auslesen scheiterte, werden nicht als fehlerfrei gezeigt — das wäre eine Entwarnung, die das Fahrzeug nie gegeben hat. Ältere Fahrten werden **nicht nachträglich zugeordnet**: der Zeitstempel in der Fehlerhistorie wandert nur vorwärts, eine Zuordnung über Zeitfenster markierte Fahrten dazwischen fälschlich.
+- **Datenbank v5:** neue Spalte `sessions.dtcCodes` (Text; `NULL` = nicht erfasst, leerer Text = keine Codes), von Hand geschriebene Migration `4 → 5`, gegen das exportierte Schema geprüft, bestehende Fahrten bleiben erhalten. Format der Spalte: `P0301,P0420?` (ein Fragezeichen markiert einen ausstehenden Code). Kein Rückweg: ein APK bis 1.32.9 kann eine v5-Datenbank nicht öffnen (wie bei v3 und v4).
+
+### Menüpunkt „Fahrten“
+
+- **Ein Punkt statt zwei:** „Fahrten“ (englisch „Drives“) ersetzt „DTCs“ und „Verlauf“. Darin ein **dreiteiliger Umschalter „Fahrten | Aktuell | Historie“** (Segmente mindestens 56 dp hoch); „Aktuell“ und „Historie“ sind die unveränderten Ansichten der Fehlercode-Seite, „Fahrten“ der Fahrtenverlauf. Der Freeze Frame bleibt Unterseite und gehört zu diesem Reiter. Der gewählte Bereich überlebt eine Drehung und die Rückkehr aus dem Freeze Frame; Start ist „Fahrten“.
+- **Ein Wechsel zwischen „Aktuell“ und „Historie“ liest das Fahrzeug nicht neu** (die Fehlercode-Seite wird nicht neu aufgebaut).
+- **Löschen und Rückgängig** verhalten sich wie beim Reiterwechsel von bisher: eine offene Löschung läuft bis zum Ende ihres 10-s-Fensters weiter, auch wenn der Bereich gewechselt wird.
+- Mit vier statt fünf Spalten hat jedes Label mehr Breite (die 10 sp bleiben). Der Preis: die Fahrtenliste verliert gegenüber dem alten „Verlauf“ die Höhe der Umschalter-Zeile.
+
+### Behoben
+
+- **Ein Wischen auf einer nicht löschbaren Zeile ist kein Tipp mehr.** Compose kennt für Klicks keine Toleranz: eine Wischbewegung, die niemand aufnimmt und in der Zeile endet, zählt als Tipp. Auf der laufenden Aufzeichnung (nicht löschbar) öffnete ein misslungenes Wischen deshalb die Details. `SwipeToDeleteRow` nimmt die Wischbewegung jetzt immer auf (die Zeile bewegt sich nicht und löscht nichts, ein echter Tipp klickt weiter).
+
+### Meine Auslegung des Auftrags
+
+- **Ein Release statt zwei:** Menü und Fehlercodes je Fahrt erscheinen zusammen als 1.33.0. Der Umfang ist A (Fehlercodes je Fahrt) und B (ein Menüpunkt); die Messwert-Diagramme je Fahrt (C) sind auf Wunsch des Nutzers **nicht** gebaut.
+- Englisches Label „Drives“ (die englischen Texte der App sagen „drive“, nicht „trip“); die Details als Dialog statt als eigene Seite; ein einziger dreiteiliger Umschalter statt zweier verschachtelter (im Querformat ist die Höhe knapp).
+
+### Grenzen
+
+- **Am Fahrzeug nicht geprüft:** der ECU-Simulator meldet nie Fehlercodes. Zeichen, Farben und Dialog sind mit eingetragenen Fahrten geprüft (Geräte-Tests, Bildschirmfotos), nicht mit einer Fahrt, deren Fahrzeug einen echten Code meldete.
+- **Ein Code, der erst mitten in der Fahrt auftritt, wird nicht erfasst:** ihn zu erkennen hieße, Modus 03 laufend abzufragen (längere Zykluszeit). Erfasst ist der Stand bei Fahrtbeginn.
+- **Der Dialog ist nur im Querformat am Gerät gesehen** (Pixel 8 Pro); das Hochformat ist gerechnet (Mindestbreite 400 dp, in schmalen Fenstern der verfügbare Platz abzüglich 96 dp: `detailContentMinWidth`, JVM-getestet), nicht gesehen. Ein Geräte-Test misst die Dialogbreite in jeder Ausrichtung, lief aber nur im Querformat. Ebenso das Menü mit den vier Spalten nur im Querformat.
+- **Lint:** die Breite des Dialogs las zuerst `Configuration.screenWidthDp` (neue Warnung `ConfigurationScreenWidthHeight`); jetzt `LocalWindowInfo.containerSize` im Aufrufer. Ergebnis: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert) — wie bei 1.32.9.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft, nicht am Fahrzeug.
+
+### Tests
+
+- 1667 JVM-Tests (davon 64 Doku-Tests) und 412 Instrumentation-Tests, alle grün. Gegenüber 1.32.9 netto 40 JVM-Tests mehr (Breite des Dialogs, Codec der Fehlercodes, Zeichen-Entscheidung, Aufzeichnung durch Repository, Recorder und Pipeline in allen drei Zuständen, Menü und Reiter-Zuordnung, Bereiche des Umschalters) und netto 23 Geräte-Tests mehr (Dialogbreite in der Ausrichtung des Geräts, Migration 4 → 5 mit alten Zeilen und allen drei Zuständen über das DAO, Fahrtenliste mit Zeichen/Details/Zuständen/Zielgröße/Wiederherstellung, Wischen ist nie ein Tipp, vier Menüpunkte, Umschalter samt genau einem Auslesen über mehrere Wechsel). Probe der Migration: ein falscher Spaltenname lässt alle 4→5-Tests scheitern (Room prüft das Schema); das Wischen war vor der Korrektur rot („a swipe is not a tap“). Die Zahlen stammen aus vollen Läufen (JVM frisch nach `cleanTestDebugUnitTest`, Geräte-Suite 412 von 412).
+- Vorschauen: 79 (vorher 74): neu die Fahrtenzeile mit Fehlern, der Detail-Dialog und der Umschalter, je in beiden Flächen; entfallen ist die Vorschau des alten Umschalters der Fehlercode-Seite. Alle 79 werden auf dem Gerät gerendert (`PREVIEW_COUNT`).
+
 ## Version 1.32.9 (versionCode 119)
 
 Der Öl-Timer steht jetzt im Ölstreifen selbst: der gelbe Balken färbt sich während der Timerphase von links nach rechts grün. Der Text „Öl: m:ss“ in der Statuszeile entfällt.

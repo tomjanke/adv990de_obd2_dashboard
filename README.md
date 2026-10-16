@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.32.9** (versionCode 119) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
+> Aktuelle Version: **1.33.0** (versionCode 120) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
 ---
 
@@ -18,7 +18,8 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 - **Simulierte Öltemperatur-Leiste** — Farbstreifen (16 dp hoch, mit einer Ölkanne davor) unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten über 80 °C, kurze Einbrüche unter 78 °C bis zu 2 Minuten werden toleriert); solange der 10-Minuten-Timer läuft, färbt sich der gelbe Streifen anteilig von links nach rechts grün (grüner Anteil = verstrichene Zeit); grau ohne Verbindung
 - **Virtuelle Tankanzeige** — ein Balken ganz unten im Dashboard (nur dort), direkt über dem Hauptmenü bzw. der Statuszeile (volle Breite, 40 dp hoch, links ein Tankstellen-Symbol), in **zehn Segmenten** (Lücke wie beim Drehzahlbalken; die Anzeige sinkt segmentweise, nicht stufenlos — ein Segment steht für ein Zehntel der Reichweite und geht erst aus, wenn dieses Zehntel verbraucht ist), der die seit dem letzten Tanken per GPS gefahrenen Kilometer gegen die hinterlegte **Reichweite bei vollem Tank** (Einstellungen → Fahrzeug, 50–1000 km) zählt: die Farbe hängt an der Zahl leuchtender Segmente: 5–10 Segmente grün, 3–4 gelb, 2 rot, das letzte Segment rot blinkend (also ab höchstens 10 % Rest); sie wechselt genau dann, wenn ein Segment erlischt. Ein langer Druck auf Symbol oder Balken setzt sie nach Rückfrage wieder auf „voll“ (nach dem Tanken). Es ist ein Streckenzähler, keine Kraftstoffmessung: kein Erkennen des Tankens, kein Verbrauch; gezählt wird nur bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“. Ohne hinterlegte Reichweite gibt es die Zeile nicht
 - **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
-- **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export; einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug)
+- **Ein Menüpunkt „Fahrten“** — Fahrtenverlauf und Fehlercodes teilen sich einen Punkt im Hauptmenü (Live, Fahrten, Einstellungen, Beenden) mit einem Umschalter „Fahrten | Aktuell | Historie“; „Aktuell“ und „Historie“ sind die beiden Ansichten der Fehlercode-Seite, der Freeze Frame bleibt ihre Unterseite
+- **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export; einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug). **Fehlercodes je Fahrt:** jede neue Fahrt merkt sich die Codes, die das Fahrzeug bei ihrem Beginn meldete; die Zeile zeigt dann „N Fehler“ (rot, sobald ein bestätigter Code dabei ist, gelb bei nur ausstehenden), ein Tipp auf die Zeile öffnet die Details mit Ende, FIN und den Codes samt Beschreibung. Drei Zustände: Codes · „das Fahrzeug meldete keine“ · „nicht erfasst“ (Fahrten vor 1.33.0 und ein gescheitertes Auslesen — sie werden nicht nachträglich zugeordnet). Ein Code, der erst mitten in der Fahrt auftritt, wird nicht erfasst; „Nur Fahrten mit DTCs speichern“ ist unverändert
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
 - **Connection-Backends**:
   - **Klassisches Bluetooth (RFCOMM)** — gekoppelter ELM327-Adapter (Seriell-Profil SPP). Einen BLE-Zweig gibt es seit 1.24.9 nicht mehr: Die Geräteliste hat nie BLE-Adapter angeboten (der Scan wurde nirgends aufgerufen), der Code war tot.
@@ -136,7 +137,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1627 Tests, < 30 Sekunden)
+# JVM Unit Tests (1667 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -145,9 +146,9 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1627 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 389 (Dashboard, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 54 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1667 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 412 (Dashboard, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 59 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4→5, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
@@ -366,8 +367,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1627) |
-| `app/src/androidTest/` | Instrumented Tests (389, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1667) |
+| `app/src/androidTest/` | Instrumented Tests (412, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
