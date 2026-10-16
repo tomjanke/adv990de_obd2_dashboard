@@ -142,4 +142,16 @@ class CodeHygieneSourceTest {
         val clashes = names("app/src/test/java").intersect(names("app/src/androidTest/java"))
         assertTrue("gleiche Namen in test und androidTest: $clashes - die Geraete-Klasse bekommt das Suffix DeviceTest", clashes.isEmpty())
     }
+
+    @Test
+    fun `no Kotlin file imports the same name twice`() {
+        // HistoryScreenTest importierte swipeLeft und idleObdRepository je zweimal: harmlos fuer den Compiler, aber ein Zeichen dafuer, dass beim
+        // Zusammenfuehren von Hand ein Import doppelt blieb. Geprueft wird jede Quelldatei (main, test, androidTest) auf identische Import-Zeilen.
+        val offenders = File(projectRoot, "app/src").walkTopDown().filter { it.extension == "kt" }.mapNotNull { file ->
+            val twice = file.readLines().filter { it.startsWith("import ") }.map { it.trim() }
+                .groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+            if (twice.isEmpty()) null else relative(file) to twice
+        }.toList()
+        assertTrue("doppelte Imports: $offenders - die zweite Zeile loeschen", offenders.isEmpty())
+    }
 }

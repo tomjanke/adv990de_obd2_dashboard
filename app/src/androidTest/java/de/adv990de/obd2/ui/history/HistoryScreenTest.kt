@@ -19,7 +19,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
-import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
@@ -34,7 +33,6 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SessionEntity
-import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.dtcDescriptionRes
 import de.adv990de.obd2.obd.model.DtcEntry
