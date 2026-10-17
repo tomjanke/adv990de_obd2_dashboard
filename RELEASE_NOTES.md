@@ -21,7 +21,8 @@ Alle Fahrten lassen sich in **einer** CSV-Datei exportieren — wahlweise über 
 
 ### Grenzen
 
-- **Am echten Dateidialog nicht ausprobiert:** der Systemdialog zum Speichern und das Teilen-Menü lassen sich im Geräte-Test nicht bedienen (sie erschienen vor der Test-App). Getestet sind das Schreiben ins Ziel (mit einer Datei-Adresse als Stellvertreter), das ViewModel und der Dialog; ob „Speichern“ am Pixel in Downloads sauber landet, ist durch Ausprobieren zu bestätigen.
+- **„Speichern“ am echten Dateidialog ausprobiert (nach dem Release-Build, Release-App auf dem Pixel 8 Pro, 2026-10-18):** Export-Symbol → Dialog „8 Fahrten als eine CSV-Datei“ → Speichern → der Dateidialog des Systems öffnet in Downloads mit dem vorgeschlagenen Namen → Speichern → Meldung „8 Fahrten gespeichert“. Die Datei (1,6 MB, 37 580 Datenzeilen) hat die Kopfzeile mit `session`, die acht Fahrten zusammenhängend und aufsteigend, und die Zeilenzahl je Fahrt stimmt mit den früheren Einzel-Exporten überein; die Testdatei wurde danach gelöscht. **Nicht ausprobiert:** „Teilen“ mit dem neuen Export (das Teilen-Menü lässt sich im Geräte-Test nicht bedienen und wurde am Gerät nicht gestartet) und der Abbruch im Dateidialog. Der Systemdialog bleibt im Geräte-Test unerreichbar; getestet sind dort das Schreiben ins Ziel (mit einer Datei-Adresse als Stellvertreter), das ViewModel und der Dialog.
+- **Schönheitsfehler:** im Querformat steht „Abbrechen“ im Dialog in einer zweiten Reihe unter „Speichern“ und „Teilen“ (das Dialogfenster ist schmal); bedienbar, aber nicht ideal.
 - Nur auf dem Pixel 8 Pro (Android 17) geprüft.
 
 ### Tests
