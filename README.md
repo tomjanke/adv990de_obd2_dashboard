@@ -371,6 +371,9 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | `app/src/androidTest/` | Instrumented Tests (415, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
+| `docs/superpowers/archive/` | Pläne und Spezifikationen umgesetzter Funktionen (Dokumentation, nicht Build-Input) |
+| `docs/qa/` | QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten (Gang-Toleranzen, Batteriespannung) mit den Skripten dazu — die CSVs selbst liegen nicht im Repo |
+| `docs/ideas/` | Funktionsideen (kein Backlog, nichts beschlossen) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
 
 ---
