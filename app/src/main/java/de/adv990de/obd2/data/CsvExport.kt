@@ -42,6 +42,13 @@ internal fun csvField(value: String): String =
 internal fun csvPidName(pidId: String): String =
     (PidRegistry.all[pidId] ?: DerivedPids.all[pidId])?.name.orEmpty()
 
+/**
+ * Die Spalten des Exports. Die ersten fuenf sind unveraendert (ein Parser, der nach Position liest, laeuft weiter); `session` — die Fahrt-ID — steht
+ * hinten, damit sich die Fahrten in der Datei trennen lassen, wenn mehrere in einer stehen (seit 1.34.0, auch beim Export einer einzelnen Fahrt:
+ * gleiches Format, Dateien lassen sich zusammenfuehren).
+ */
+internal val EXPORT_COLUMNS = arrayOf("timestamp", "pid", "value", "name", "source", "session")
+
 /** Eine CSV-Zeile samt abschliessendem Zeilenumbruch. */
 internal fun csvRow(vararg fields: String): String = fields.joinToString(",") { csvField(it) } + "\n"
 
@@ -55,13 +62,24 @@ private val EXPORT_TIME_FORMAT: DateTimeFormatter =
 internal fun exportFileName(sessionId: Long, nowMillis: Long): String =
     "session_${sessionId}_${EXPORT_TIME_FORMAT.format(Instant.ofEpochMilli(nowMillis))}.csv"
 
+/** `session_all_<UTC-Zeit auf die Millisekunde>.csv`: der Export mehrerer Fahrten in EINER Datei. Der Name passt zum Aufraeumen alter Exporte (`session_*.csv`). */
+internal fun exportAllFileName(nowMillis: Long): String =
+    "session_all_${EXPORT_TIME_FORMAT.format(Instant.ofEpochMilli(nowMillis))}.csv"
+
+/** Der Dateiname fuer die Fahrten [sessionIds]: eine einzelne Fahrt heisst wie bisher nach ihrer ID, mehrere tragen den gemeinsamen Namen. */
+internal fun exportFileNameFor(sessionIds: List<Long>, nowMillis: Long): String =
+    if (sessionIds.size == 1) exportFileName(sessionIds.single(), nowMillis) else exportAllFileName(nowMillis)
+
+/** Wie [createExportFile] fuer eine einzelne Fahrt (Name nach ihrer ID). */
+internal fun createExportFile(dir: File, sessionId: Long, nowMillis: Long): File =
+    createExportFile(dir, exportFileName(sessionId, nowMillis))
+
 /**
  * Legt die (leere) Exportdatei an und garantiert, dass sie neu ist: Gibt es den Namen schon (zwei Exporte in
  * derselben Millisekunde), kommt `-1`, `-2` ... davor `.csv`. `createNewFile` ist atomar — kein Pruefen-dann-Anlegen.
  */
-internal fun createExportFile(dir: File, sessionId: Long, nowMillis: Long): File {
+internal fun createExportFile(dir: File, name: String): File {
     dir.mkdirs()
-    val name = exportFileName(sessionId, nowMillis)
     var attempt = 0
     while (true) {
         val candidate = File(dir, if (attempt == 0) name else name.removeSuffix(".csv") + "-$attempt.csv")

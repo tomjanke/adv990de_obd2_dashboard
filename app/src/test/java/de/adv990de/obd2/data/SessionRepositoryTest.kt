@@ -1,9 +1,11 @@
 package de.adv990de.obd2.data
 
+import android.content.ContentResolver
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.sqlite.db.SupportSQLiteProgram
 import androidx.sqlite.db.SupportSQLiteQuery
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.SessionDao
@@ -37,13 +39,17 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRepositoryTest {
@@ -549,7 +555,7 @@ class SessionRepositoryTest {
         assertEquals(1, files.size)
         assertTrue("name carries the trip id: ${files[0].name}", files[0].name.startsWith("session_7_"))
         assertEquals(
-            "timestamp,pid,value,name,source\n1000,010C,1200.0,RPM,\n2000,010D,80.5,Speed,\n",
+            "timestamp,pid,value,name,source,session\n1000,010C,1200.0,RPM,,7\n2000,010D,80.5,Speed,,7\n",
             files[0].readText()
         )
     }
@@ -568,7 +574,7 @@ class SessionRepositoryTest {
         repo.exportToCsv(sessionId = 7L)
 
         assertEquals(
-            "timestamp,pid,value,name,source\n1000,010D,50.0,Speed,ECU\n2000,010D,49.0,Speed,GPS\n3000,010D,48.0,Speed,\n",
+            "timestamp,pid,value,name,source,session\n1000,010D,50.0,Speed,ECU,7\n2000,010D,49.0,Speed,GPS,7\n3000,010D,48.0,Speed,,7\n",
             exportedFiles().single().readText(),
         )
     }
@@ -580,7 +586,7 @@ class SessionRepositoryTest {
 
         repo.exportToCsv(sessionId = 99L)
 
-        assertEquals("timestamp,pid,value,name,source\n", exportedFiles().single().readText())
+        assertEquals("timestamp,pid,value,name,source,session\n", exportedFiles().single().readText())
     }
 
     @Test
@@ -590,7 +596,7 @@ class SessionRepositoryTest {
 
         repo.exportToCsv(sessionId = 1L)
 
-        assertEquals("timestamp,pid,value,name,source\n5,01FF,1.0,,\n", exportedFiles().single().readText())
+        assertEquals("timestamp,pid,value,name,source,session\n5,01FF,1.0,,,1\n", exportedFiles().single().readText())
     }
 
     @Test
@@ -639,5 +645,135 @@ class SessionRepositoryTest {
 
         assertEquals(1, repo.purgeStaleExports())
         assertEquals(listOf("session_2_b.csv"), exportedFiles().map { it.name })
+    }
+
+    // ── Export mehrerer Fahrten in EINE Datei, und Speichern auf dem Geraet ──────────────
+
+    /** Welche Fahrt die Abfrage meint: liest das gebundene Argument ueber ein Attrappen-Programm aus. */
+    private fun boundTripId(query: SupportSQLiteQuery): Long {
+        val bound = slot<Long>()
+        val program = mockk<SupportSQLiteProgram>(relaxed = true) { every { bindLong(1, capture(bound)) } just Runs }
+        query.bindTo(program)
+        return bound.captured
+    }
+
+    /** Je Fahrt ein eigener Cursor, gefragt wird nach der gebundenen Fahrt-ID. */
+    private fun stubTrips(rowsByTrip: Map<Long, List<Triple<Long, String, Float>>>) {
+        every { sensorReadingDao.getBySessionCursor(any()) } answers { makeCursor(rowsByTrip[boundTripId(firstArg())].orEmpty()) }
+    }
+
+    @Test
+    fun `exportSessionsToCsv writes one header and the trips one after the other, every row ending with its trip id`() = runTest {
+        stubExportEnvironment()
+        stubTrips(
+            mapOf(
+                3L to listOf(Triple(1_000L, "010C", 900f)),
+                5L to listOf(Triple(2_000L, "0105", 85f), Triple(2_100L, "010C", 1_400f)),
+            ),
+        )
+
+        repo.exportSessionsToCsv(listOf(3L, 5L))
+
+        val files = exportedFiles()
+        assertEquals(1, files.size)
+        assertTrue("der gemeinsame Name: ${files[0].name}", files[0].name.startsWith("session_all_"))
+        assertEquals(
+            "timestamp,pid,value,name,source,session\n1000,010C,900.0,RPM,,3\n2000,0105,85.0,Coolant Temp,,5\n2100,010C,1400.0,RPM,,5\n",
+            files[0].readText(),
+        )
+    }
+
+    @Test
+    fun `the trips are written in the order they are given`() = runTest {
+        stubExportEnvironment()
+        stubTrips(mapOf(3L to listOf(Triple(1L, "010C", 1f)), 5L to listOf(Triple(2L, "010C", 2f))))
+
+        repo.exportSessionsToCsv(listOf(5L, 3L))
+
+        assertEquals(
+            "timestamp,pid,value,name,source,session\n2,010C,2.0,RPM,,5\n1,010C,1.0,RPM,,3\n",
+            exportedFiles().single().readText(),
+        )
+    }
+
+    @Test
+    fun `a list with a single trip gives the file of that trip, named after it`() = runTest {
+        stubExportEnvironment()
+        stubTrips(mapOf(7L to listOf(Triple(1L, "010C", 1f))))
+
+        repo.exportSessionsToCsv(listOf(7L))
+
+        assertTrue(exportedFiles().single().name.startsWith("session_7_"))
+    }
+
+    @Test
+    fun `an export without a trip is refused and writes nothing`() = runTest {
+        stubExportEnvironment()
+
+        assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { repo.exportSessionsToCsv(emptyList()) } }
+
+        assertFalse("kein Export-Ordner, keine Datei", File(tempFolder.root, "exports").exists())
+        verify(exactly = 0) { sensorReadingDao.getBySessionCursor(any()) }
+    }
+
+    @Test
+    fun `a failure while reading a later trip leaves no half-written file`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } answers {
+            if (boundTripId(firstArg()) == 3L) makeCursor(listOf(Triple(1L, "010C", 1f))) else throw IllegalStateException("database is locked")
+        }
+
+        try { repo.exportSessionsToCsv(listOf(3L, 5L)) } catch (_: IllegalStateException) { }
+
+        assertTrue("keine Reste im Export-Ordner", exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `saveSessionsCsv writes the same CSV into the chosen target and leaves nothing in the cache`() = runTest {
+        stubExportEnvironment()
+        stubTrips(mapOf(3L to listOf(Triple(1_000L, "010C", 900f)), 5L to listOf(Triple(2_000L, "010C", 950f))))
+        val target = mockk<Uri>()
+        val out = ByteArrayOutputStream()
+        val resolver = mockk<ContentResolver>()
+        every { context.contentResolver } returns resolver
+        every { resolver.openOutputStream(target, "w") } returns out
+
+        repo.saveSessionsCsv(listOf(3L, 5L), target)
+
+        assertEquals(
+            "timestamp,pid,value,name,source,session\n1000,010C,900.0,RPM,,3\n2000,010C,950.0,RPM,,5\n",
+            out.toString(Charsets.UTF_8.name()),
+        )
+        assertTrue("die Zwischendatei im Cache ist weg", exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `saveSessionsCsv reports a target that cannot be opened, and leaves nothing in the cache`() = runTest {
+        stubExportEnvironment()
+        stubTrips(mapOf(3L to listOf(Triple(1L, "010C", 1f))))
+        val target = mockk<Uri>()
+        val resolver = mockk<ContentResolver>()
+        every { context.contentResolver } returns resolver
+        every { resolver.openOutputStream(target, "w") } returns null
+
+        try {
+            repo.saveSessionsCsv(listOf(3L), target)
+            org.junit.Assert.fail("ein Ziel ohne Ausgabestrom muss einen Fehler melden")
+        } catch (_: IOException) { }
+
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `a failing read never touches the chosen target`() = runTest {
+        stubExportEnvironment()
+        every { sensorReadingDao.getBySessionCursor(any()) } throws IllegalStateException("database is locked")
+        val target = mockk<Uri>()
+        val resolver = mockk<ContentResolver>()
+        every { context.contentResolver } returns resolver
+
+        try { repo.saveSessionsCsv(listOf(3L), target) } catch (_: IllegalStateException) { }
+
+        verify(exactly = 0) { resolver.openOutputStream(any<Uri>(), any<String>()) }
     }
 }

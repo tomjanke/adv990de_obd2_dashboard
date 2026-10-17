@@ -63,8 +63,12 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 - **Overlay über der Navigations-App:** entfällt (Navigation läuft getrennt).
 - Nicht empfohlen: Schaltempfehlung (im Gelände unzuverlässig), Cloud-Funktionen.
 
-## Offene Fragen an den Nutzer
+## Antworten des Nutzers auf die offenen Fragen (2026-10-17)
 
-1. Waren in den Fahrten **41, 48 und 51** (die drei Morgenfahrten) die **Heizgriffe** an, in den übrigen sechs nicht? Dann wäre der Zusammenhang belegt statt nur wahrscheinlich. *(Beantwortet am 2026-10-17: „die Fahrten morgens sind häufig mit Heizgriffen in mittlerer Stufe“ — „häufig“ ist nicht je Fahrt.)*
-2. Gibt es **Sommer- oder Geländefahrten** mit Aufzeichnung? Damit ließen sich die Kühlmittel-Schwellen und die Entladung über Minuten absichern.
-3. Soll mit **F1 (mit F2 und F3)** begonnen werden? Das ist die Empfehlung; ein Auftrag steht aus.
+1. **Heizgriffe je Fahrt:** „kann ich nicht genau sagen“ — der Zusammenhang mit den Morgenfahrten bleibt wahrscheinlich, nicht belegt.
+2. **Sommer- oder Geländefahrten mit Aufzeichnung:** keine. Die Kühlmittel-Schwellen und die Entladung über Minuten sind damit vorerst nicht absicherbar.
+3. **F1 (Alarme) als Start:** **erstmal nein.** F1 bis F3 ruhen.
+
+## Vorrang des Nutzers: Export der Fahrten einfacher machen — umgesetzt
+
+Der Nutzer nannte es **wichtiger** als diese Ideen, die Fahrtaufzeichnungen einfacher exportieren zu können, zum Beispiel **alle Fahrten in einer CSV**. Das war kein Eintrag dieser Liste, sondern ein Auftrag; umgesetzt in **1.34.0**: Export-Symbol in der Kopfleiste des Bereichs „Fahrten“, alle abgeschlossenen Fahrten in einer Datei mit der Spalte `session`, **Teilen oder auf dem Gerät speichern** (Entscheidungsprotokoll Punkt 48, `README.md` Abschnitt CSV-Export, `CLAUDE.md` „CSV-Export“). Als Auswertungs-Hilfe: mit „Speichern“ liegt die Datei lokal auf dem Gerät, ohne Cloud-Umweg.

@@ -342,6 +342,168 @@ class HistoryViewModelTest {
         job.cancel()
     }
 
+    // ── export of all trips into one CSV: share or save ───────────────────────
+
+    @Test
+    fun `the export dialog opens only when there is a finished trip`() = runTest {
+        val empty = fixture(ids = listOf(5), active = 5)   // nur die laufende Aufzeichnung
+        val job1 = collect(empty.vm); runCurrent()
+        empty.vm.requestExportAll()
+        assertFalse(empty.vm.canExportAll.value)
+        assertFalse(empty.vm.exportAllDialogVisible.value)
+        job1.cancel()
+
+        val f = fixture(ids = listOf(1, 2), active = 2)
+        val job2 = collect(f.vm); runCurrent()
+        f.vm.requestExportAll()
+        assertTrue(f.vm.canExportAll.value)
+        assertTrue(f.vm.exportAllDialogVisible.value)
+        f.vm.cancelExportAll()
+        assertFalse(f.vm.exportAllDialogVisible.value)
+        job2.cancel()
+    }
+
+    @Test
+    fun `finishedTripCount is what the dialog announces - the recording and hidden trips are not counted`() = runTest {
+        val f = fixture(ids = listOf(1, 2, 3, 4), active = 4)
+        val job = launch { f.vm.finishedTripCount.collect {} }
+        runCurrent()
+        assertEquals(3, f.vm.finishedTripCount.value)
+
+        f.vm.deleteSession(session(1))
+        runCurrent()
+
+        assertEquals("die ausgeblendete Fahrt zaehlt nicht mehr", 2, f.vm.finishedTripCount.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `exportAll shares one CSV of the finished trips, oldest first, and closes the dialog`() = runTest {
+        val f = fixture(ids = listOf(1, 2, 3), active = 3)
+        val uri = mockk<Uri>()
+        coEvery { f.repo.exportSessionsToCsv(any()) } returns uri
+        val job = collect(f.vm); runCurrent()
+        f.vm.requestExportAll()
+
+        f.vm.exportAll()
+        runCurrent()
+
+        coVerify(exactly = 1) { f.repo.exportSessionsToCsv(listOf(1L, 2L)) }
+        assertEquals(uri, f.vm.shareUri.value)
+        assertFalse(f.vm.exportAllDialogVisible.value)
+        assertNull(f.vm.exportError.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `the trips are exported oldest first whatever order the ids arrive in`() = runTest {
+        val f = fixture(ids = listOf(3, 1, 2))
+        coEvery { f.repo.exportSessionsToCsv(any()) } returns mockk<Uri>()
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.exportAll()
+        runCurrent()
+
+        coVerify(exactly = 1) { f.repo.exportSessionsToCsv(listOf(1L, 2L, 3L)) }
+        job.cancel()
+    }
+
+    @Test
+    fun `a trip whose delete can still be taken back is not exported`() = runTest {
+        val f = fixture(ids = listOf(1, 2, 3))
+        coEvery { f.repo.exportSessionsToCsv(any()) } returns mockk<Uri>()
+        val job = collect(f.vm); runCurrent()
+        f.vm.deleteSession(session(2))
+        runCurrent()
+
+        f.vm.exportAll()
+        runCurrent()
+
+        coVerify(exactly = 1) { f.repo.exportSessionsToCsv(listOf(1L, 3L)) }
+        job.cancel()
+    }
+
+    @Test
+    fun `exportAll with nothing to export says so and exports nothing`() = runTest {
+        val f = fixture(ids = listOf(5), active = 5)
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.exportAll()
+        runCurrent()
+
+        assertTrue(f.vm.nothingToExport.value)
+        coVerify(exactly = 0) { f.repo.exportSessionsToCsv(any()) }
+        assertNull(f.vm.shareUri.value)
+        f.vm.consumeNothingToExport()
+        assertFalse(f.vm.nothingToExport.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `a failing exportAll sets the error, not the share`() = runTest {
+        val f = fixture(ids = listOf(1, 2))
+        coEvery { f.repo.exportSessionsToCsv(any()) } throws Exception("write failed")
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.exportAll()
+        runCurrent()
+
+        assertEquals("write failed", f.vm.exportError.value)
+        assertNull(f.vm.shareUri.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `saveAllTo writes the finished trips into the chosen target and reports how many`() = runTest {
+        val f = fixture(ids = listOf(1, 2, 3), active = 3)
+        val target = mockk<Uri>()
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.saveAllTo(target)
+        runCurrent()
+
+        coVerify(exactly = 1) { f.repo.saveSessionsCsv(listOf(1L, 2L), target) }
+        assertEquals(2, f.vm.savedCount.value)
+        assertNull(f.vm.shareUri.value)
+        f.vm.consumeSaved()
+        assertNull(f.vm.savedCount.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `a failing save sets the error and reports nothing as saved`() = runTest {
+        val f = fixture(ids = listOf(1, 2))
+        coEvery { f.repo.saveSessionsCsv(any(), any()) } throws java.io.IOException("no space left")
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.saveAllTo(mockk())
+        runCurrent()
+
+        assertEquals("no space left", f.vm.exportError.value)
+        assertNull(f.vm.savedCount.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `saveAllTo with nothing to export says so and writes nothing`() = runTest {
+        val f = fixture(ids = listOf(5), active = 5)
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.saveAllTo(mockk())
+        runCurrent()
+
+        assertTrue(f.vm.nothingToExport.value)
+        coVerify(exactly = 0) { f.repo.saveSessionsCsv(any(), any()) }
+        job.cancel()
+    }
+
+    @Test
+    fun `the suggested file name of the save dialog is the shared name of an export of several trips`() {
+        val name = fixture().vm.exportAllFileName()
+
+        assertTrue(name, name.startsWith("session_all_") && name.endsWith(".csv"))
+    }
+
     // ── leaving the screen ────────────────────────────────────────────────────
 
     @Test

@@ -22,10 +22,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val DELETE_CHUNK_SIZE = 50
+
+/** An export checks for cancellation after this many rows. */
+private const val CANCELLATION_CHECK_ROWS = 2_000
 
 @Singleton
 class SessionRepository @Inject constructor(
@@ -160,44 +164,84 @@ class SessionRepository @Inject constructor(
     }
 
     /**
-     * Exports a session to a CSV file and returns a shareable [Uri].
+     * Exports ONE trip to a CSV file and returns a shareable [Uri] — the same as [exportSessionsToCsv] with a single trip
+     * (the file is named after the trip, `session_<id>_<time>.csv`).
+     */
+    suspend fun exportToCsv(sessionId: Long): Uri = exportSessionsToCsv(listOf(sessionId))
+
+    /**
+     * Exports the given trips, one after the other in the order given, to ONE CSV file and returns a shareable [Uri]
+     * (`session_all_<time>.csv`; a single trip keeps its own name). [sessionIds] must not be empty — the caller decides which
+     * trips (the history passes the finished ones the user still sees).
      *
-     * Cursor-based: rows are written as they are read, and the query ([EXPORT_QUERY_SQL]) needs no sort, so memory
-     * stays constant however long the trip is. Columns: `timestamp,pid,value,name,source` — the first three are the
-     * original ones (a parser that reads by position keeps working), `name` is the stable English PID name: Excel
-     * turns `0105` into the number 105 when the file is opened by double click, the name column still identifies the PID.
-     * `source` is `ECU` or `GPS` (the GPS speed has the same PID id as the vehicle's); empty for rows recorded before 1.25.0.
+     * Cursor-based: rows are written as they are read, one trip after the other, and the query ([EXPORT_QUERY_SQL]) needs no sort,
+     * so memory stays constant however many trips and rows there are. Columns ([EXPORT_COLUMNS]): `timestamp,pid,value,name,source,session` —
+     * the first three are the original ones (a parser that reads by position keeps working), `name` is the stable English PID name:
+     * Excel turns `0105` into the number 105 when the file is opened by double click, the name column still identifies the PID.
+     * `source` is `ECU`, `GPS` or `DERIVED` (the GPS speed has the same PID id as the vehicle's); empty for rows recorded before 1.25.0.
+     * `session` is the trip id, so the trips stay apart when several share one file (since 1.34.0, in every export).
      *
      * Every export gets its own file (DAT-06: a fixed name was deleted under a share that was still reading it);
      * exports older than a day are removed first (DAT-07: they were never deleted). A failed export leaves no
      * half-written file behind.
      */
-    suspend fun exportToCsv(sessionId: Long): Uri = withContext(Dispatchers.IO) {
+    suspend fun exportSessionsToCsv(sessionIds: List<Long>): Uri = withContext(Dispatchers.IO) {
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", writeExportFile(sessionIds))
+    }
+
+    /**
+     * Writes the same CSV as [exportSessionsToCsv] into a file the user chose with the system file dialog ([target], from `CreateDocument`).
+     * The CSV is written to the cache first and copied only when it is complete: a failure while reading never touches the target, so no
+     * half-written document is left there. The cache file is removed afterwards, whatever happened. A target that cannot be opened for
+     * writing is an [IOException].
+     */
+    suspend fun saveSessionsCsv(sessionIds: List<Long>, target: Uri) = withContext(Dispatchers.IO) {
+        val file = writeExportFile(sessionIds)
+        try {
+            val out = context.contentResolver.openOutputStream(target, "w")
+                ?: throw IOException("The chosen file could not be opened for writing")
+            out.use { stream -> file.inputStream().use { it.copyTo(stream) } }
+        } finally {
+            file.delete()
+        }
+    }
+
+    /** The one place that writes the export: the trips into a new file in the cache directory. */
+    private suspend fun writeExportFile(sessionIds: List<Long>): File {
+        require(sessionIds.isNotEmpty()) { "There is no trip to export" }
         val exportDir = File(context.cacheDir, "exports")
         val now = System.currentTimeMillis()
         deleteStaleExports(exportDir, now)
-        val file = createExportFile(exportDir, sessionId, now)
+        val file = createExportFile(exportDir, exportFileNameFor(sessionIds, now))
 
         try {
-            val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(sessionId))
-            db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
-                file.bufferedWriter().use { writer ->
-                    writer.write(csvRow("timestamp", "pid", "value", "name", "source"))
-                    val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
-                    val colPid       = cursor.getColumnIndexOrThrow("pidId")
-                    val colValue     = cursor.getColumnIndexOrThrow("value")
-                    val colSource    = cursor.getColumnIndexOrThrow("source")
-                    while (cursor.moveToNext()) {
-                        val pidId = cursor.getString(colPid).orEmpty()
-                        writer.write(
-                            csvRow(
-                                cursor.getLong(colTimestamp).toString(),
-                                pidId,
-                                cursor.getFloat(colValue).toString(),
-                                csvPidName(pidId),
-                                cursor.getString(colSource).orEmpty(),
+            file.bufferedWriter().use { writer ->
+                writer.write(csvRow(*EXPORT_COLUMNS))
+                var written = 0
+                for (id in sessionIds) {
+                    currentCoroutineContext().ensureActive()
+                    val tripId = id.toString()
+                    val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(id))
+                    db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
+                        val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
+                        val colPid       = cursor.getColumnIndexOrThrow("pidId")
+                        val colValue     = cursor.getColumnIndexOrThrow("value")
+                        val colSource    = cursor.getColumnIndexOrThrow("source")
+                        while (cursor.moveToNext()) {
+                            val pidId = cursor.getString(colPid).orEmpty()
+                            writer.write(
+                                csvRow(
+                                    cursor.getLong(colTimestamp).toString(),
+                                    pidId,
+                                    cursor.getFloat(colValue).toString(),
+                                    csvPidName(pidId),
+                                    cursor.getString(colSource).orEmpty(),
+                                    tripId,
+                                )
                             )
-                        )
+                            // A long export (many trips) must stop when the caller is cancelled, not run to the end.
+                            if (++written % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
+                        }
                     }
                 }
             }
@@ -205,7 +249,6 @@ class SessionRepository @Inject constructor(
             file.delete()
             throw e
         }
-
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        return file
     }
 }

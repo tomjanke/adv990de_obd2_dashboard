@@ -10,6 +10,7 @@ import androidx.paging.cachedIn
 import androidx.paging.filter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.data.exportAllFileName as sharedExportFileName
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.di.ApplicationScope
 import de.adv990de.obd2.ui.components.UndoableDeletion
@@ -68,6 +69,14 @@ class HistoryViewModel @Inject constructor(
         finishedSessionIds.map { it.isNotEmpty() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /** How many finished trips the user still sees — the export dialog announces it ("n Fahrten als eine CSV-Datei"). */
+    val finishedTripCount: StateFlow<Int> =
+        finishedSessionIds.map { it.size }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** Enables the top-bar export: the same trips as "delete all" — finished ones the user still sees, never the recording. */
+    val canExportAll: StateFlow<Boolean> get() = canDeleteAll
+
     /** Non-null while a delete can still be taken back — drives the "Rückgängig" snackbar. */
     val undoBatchId: StateFlow<Long?> = deletion.openBatchId
 
@@ -84,6 +93,21 @@ class HistoryViewModel @Inject constructor(
 
     private val _exportError = MutableStateFlow<String?>(null)
     val exportError: StateFlow<String?> = _exportError
+
+    private val _exportAllDialogVisible = MutableStateFlow(false)
+
+    /** The dialog "Alle Fahrten exportieren" (share or save); lives here so a rotation keeps it open. */
+    val exportAllDialogVisible: StateFlow<Boolean> = _exportAllDialogVisible.asStateFlow()
+
+    private val _savedCount = MutableStateFlow<Int?>(null)
+
+    /** Non-null after the trips were written into the file the user chose: how many (the snackbar says "n Fahrten gespeichert"). */
+    val savedCount: StateFlow<Int?> = _savedCount.asStateFlow()
+
+    private val _nothingToExport = MutableStateFlow(false)
+
+    /** True when an export was asked for but no finished trip is left (they were deleted meanwhile) — the screen says so. */
+    val nothingToExport: StateFlow<Boolean> = _nothingToExport.asStateFlow()
 
     /** Row trash button or swipe: no dialog, the snackbar offers undo. The recording is refused. */
     fun deleteSession(session: SessionEntity) {
@@ -129,6 +153,75 @@ class HistoryViewModel @Inject constructor(
                 _exportError.value = e.message ?: e.javaClass.simpleName
             }
         }
+    }
+
+    /** Top-bar export: ask how (share or save) — but only if there is something to export. */
+    fun requestExportAll() {
+        if (canExportAll.value) _exportAllDialogVisible.value = true
+    }
+
+    fun cancelExportAll() {
+        _exportAllDialogVisible.value = false
+    }
+
+    /**
+     * The trips an export of "all" takes, taken at this moment: the finished ones the user still sees (not the recording, not the ones
+     * whose delete can be taken back — [finishedSessionIds] trails the pending set by one emission, hence the explicit filter), oldest first.
+     */
+    private fun exportableIds(): List<Long> {
+        val pending = deletion.pending.value
+        return finishedSessionIds.value.filter { it !in pending }.sorted()
+    }
+
+    /** "Teilen": all finished trips in ONE CSV, handed to the share chooser. */
+    fun exportAll() {
+        _exportAllDialogVisible.value = false
+        val ids = exportableIds()
+        if (ids.isEmpty()) {
+            _nothingToExport.value = true
+            return
+        }
+        viewModelScope.launch {
+            _exportError.value = null
+            try {
+                _shareUri.value = sessionRepository.exportSessionsToCsv(ids)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _exportError.value = e.message ?: e.javaClass.simpleName
+            }
+        }
+    }
+
+    /** "Speichern": the same CSV, written into the file the user chose with the system dialog ([target]). */
+    fun saveAllTo(target: Uri) {
+        val ids = exportableIds()
+        if (ids.isEmpty()) {
+            _nothingToExport.value = true
+            return
+        }
+        viewModelScope.launch {
+            _exportError.value = null
+            try {
+                sessionRepository.saveSessionsCsv(ids, target)
+                _savedCount.value = ids.size
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _exportError.value = e.message ?: e.javaClass.simpleName
+            }
+        }
+    }
+
+    /** The name the system file dialog proposes: the shared name of an export of several trips, with the export time in UTC. */
+    fun exportAllFileName(): String = sharedExportFileName(System.currentTimeMillis())
+
+    fun consumeSaved() {
+        _savedCount.value = null
+    }
+
+    fun consumeNothingToExport() {
+        _nothingToExport.value = false
     }
 
     fun consumeShareUri() {

@@ -178,7 +178,7 @@ class SessionRepositoryDeviceTest {
 
         val file = exportDir.listFiles()!!.single()
         assertEquals(
-            "timestamp,pid,value,name,source\n300,010C,1.5,RPM,ECU\n100,0105,1.5,Coolant Temp,GPS\n200,01FF,1.5,,\n",
+            "timestamp,pid,value,name,source,session\n300,010C,1.5,RPM,ECU,$trip\n100,0105,1.5,Coolant Temp,GPS,$trip\n200,01FF,1.5,,,$trip\n",
             file.readText()
         )
     }
@@ -197,11 +197,11 @@ class SessionRepositoryDeviceTest {
         repo.exportToCsv(trip)
 
         assertEquals(
-            "timestamp,pid,value,name,source\n" +
-                "100,010C,3000.0,RPM,ECU\n" +
-                "100,GEAR,3.0,Gear,DERIVED\n" +
-                "200,GEAR,0.0,Gear,DERIVED\n" +
-                "300,GEAR,-1.0,Gear,DERIVED\n",
+            "timestamp,pid,value,name,source,session\n" +
+                "100,010C,3000.0,RPM,ECU,$trip\n" +
+                "100,GEAR,3.0,Gear,DERIVED,$trip\n" +
+                "200,GEAR,0.0,Gear,DERIVED,$trip\n" +
+                "300,GEAR,-1.0,Gear,DERIVED,$trip\n",
             exportDir.listFiles()!!.single().readText()
         )
     }
@@ -220,13 +220,58 @@ class SessionRepositoryDeviceTest {
         repo.exportToCsv(trip)
 
         assertEquals(
-            "timestamp,pid,value,name,source\n" +
-                "100,OIL_BAR,-1.0,Oil bar,DERIVED\n" +
-                "200,OIL_BAR,0.0,Oil bar,DERIVED\n" +
-                "300,OIL_BAR,1.0,Oil bar,DERIVED\n" +
-                "400,OIL_BAR,2.0,Oil bar,DERIVED\n",
+            "timestamp,pid,value,name,source,session\n" +
+                "100,OIL_BAR,-1.0,Oil bar,DERIVED,$trip\n" +
+                "200,OIL_BAR,0.0,Oil bar,DERIVED,$trip\n" +
+                "300,OIL_BAR,1.0,Oil bar,DERIVED,$trip\n" +
+                "400,OIL_BAR,2.0,Oil bar,DERIVED,$trip\n",
             exportDir.listFiles()!!.single().readText()
         )
     }
-}
 
+    @Test
+    fun exportSessionsToCsv_writesTheGivenTripsIntoOneFile_oneHeader_eachRowWithItsTripId() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exportDir = java.io.File(ctx.cacheDir, "exports").also { it.deleteRecursively() }
+        val first = repo.startSession().also { repo.endSession(it) }
+        val second = repo.startSession().also { repo.endSession(it) }
+        val recording = repo.startSession() // laeuft noch und wird nicht uebergeben
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = first, timestamp = 100L, pidId = "010C", value = 900f, source = "ECU"))
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = second, timestamp = 200L, pidId = "0142", value = 13.6f, source = "ECU"))
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = second, timestamp = 300L, pidId = "0105", value = 88f, source = "ECU"))
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = recording, timestamp = 400L, pidId = "010C", value = 1f, source = "ECU"))
+
+        repo.exportSessionsToCsv(listOf(first, second))
+
+        val file = exportDir.listFiles()!!.single()
+        assertEquals(true, file.name.startsWith("session_all_"))
+        assertEquals(
+            "timestamp,pid,value,name,source,session\n" +
+                "100,010C,900.0,RPM,ECU,$first\n" +
+                "200,0142,13.6,Control Module Voltage,ECU,$second\n" +
+                "300,0105,88.0,Coolant Temp,ECU,$second\n",
+            file.readText(),
+        )
+    }
+
+    @Test
+    fun saveSessionsCsv_writesTheSameCsvIntoTheFileTheUserChose_andLeavesNothingInTheCache() = runBlocking<Unit> {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exportDir = java.io.File(ctx.cacheDir, "exports").also { it.deleteRecursively() }
+        // Eine Datei-Uri steht fuer das Ergebnis des Dateidialogs (CreateDocument); der Systemdialog selbst laesst sich im Test nicht bedienen.
+        val target = java.io.File(ctx.cacheDir, "saved-by-the-user.csv").also { it.delete() }
+        val first = repo.startSession().also { repo.endSession(it) }
+        val second = repo.startSession().also { repo.endSession(it) }
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = first, timestamp = 100L, pidId = "010C", value = 900f, source = "ECU"))
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = second, timestamp = 200L, pidId = "010C", value = 950f, source = "ECU"))
+
+        repo.saveSessionsCsv(listOf(first, second), android.net.Uri.fromFile(target))
+
+        assertEquals(
+            "timestamp,pid,value,name,source,session\n100,010C,900.0,RPM,ECU,$first\n200,010C,950.0,RPM,ECU,$second\n",
+            target.readText(),
+        )
+        assertEquals("die Zwischendatei im Cache ist weg", emptyList<String>(), exportDir.listFiles().orEmpty().map { it.name })
+        target.delete()
+    }
+}

@@ -1,6 +1,9 @@
 package de.adv990de.obd2.ui.history
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +36,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +57,7 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
+import kotlinx.coroutines.launch
 import de.adv990de.obd2.data.decodeSessionDtcs
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.VinDecoder
@@ -74,8 +80,18 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
     val undoCount by vm.undoCount.collectAsStateWithLifecycle()
     val deleteAllConfirmationVisible by vm.deleteAllConfirmationVisible.collectAsStateWithLifecycle()
+    val canExportAll by vm.canExportAll.collectAsStateWithLifecycle()
+    val exportAllDialogVisible by vm.exportAllDialogVisible.collectAsStateWithLifecycle()
+    val finishedTripCount by vm.finishedTripCount.collectAsStateWithLifecycle()
+    val savedCount by vm.savedCount.collectAsStateWithLifecycle()
+    val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) vm.saveAllTo(uri)
+    }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // Die Fahrt, deren Details offen sind (nur die Id: eine Drehung baut die Seite neu auf, der Dialog gehoert dazu).
     var detailSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -85,6 +101,9 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
     val shareChooserTitle = stringResource(R.string.history_share_chooser)
     val shareNoAppMessage = stringResource(R.string.history_share_no_app)
     val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
+    val savedMessage = savedCount?.let { pluralStringResource(R.plurals.history_export_saved, it, it) }
+    val nothingToExportMessage = stringResource(R.string.history_export_none)
+    val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
@@ -99,6 +118,20 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
                 snackbarHostState.showSnackbar(shareNoAppMessage)
             }
             vm.consumeShareUri()
+        }
+    }
+
+    LaunchedEffect(savedMessage) {
+        savedMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.consumeSaved()
+        }
+    }
+
+    LaunchedEffect(nothingToExport) {
+        if (nothingToExport) {
+            snackbarHostState.showSnackbar(nothingToExportMessage)
+            vm.consumeNothingToExport()
         }
     }
 
@@ -118,6 +151,22 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
         snackbarHostState = snackbarHostState,
         onUndo = vm::undoDelete,
     )
+
+    if (exportAllDialogVisible) {
+        ExportAllDialog(
+            tripCount = finishedTripCount,
+            onShare = vm::exportAll,
+            onSave = {
+                vm.cancelExportAll()
+                try {
+                    saveLauncher.launch(vm.exportAllFileName())
+                } catch (_: ActivityNotFoundException) {
+                    scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
+                }
+            },
+            onDismiss = vm::cancelExportAll,
+        )
+    }
 
     if (deleteAllConfirmationVisible) {
         ConfirmDeleteDialog(
@@ -143,6 +192,15 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
             TopAppBar(
                 title = { Text(stringResource(R.string.history_title)) },
                 actions = {
+                    // Alle Fahrten in einer CSV: Teilen oder auf dem Geraet speichern. Gleiche Voraussetzung wie der Papierkorb daneben:
+                    // mindestens eine abgeschlossene, sichtbare Fahrt (die laufende Aufzeichnung ist nicht dabei).
+                    IconButton(
+                        onClick = vm::requestExportAll,
+                        enabled = canExportAll,
+                        modifier = Modifier.size(RowButtonSize),
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = stringResource(R.string.history_cd_export_all))
+                    }
                     // 56 dp touch target (glove-friendly); disabled while there is nothing to delete —
                     // which includes the undo window, when the list is already hidden, and a list
                     // that holds only the trip being recorded.

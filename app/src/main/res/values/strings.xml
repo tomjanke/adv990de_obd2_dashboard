@@ -199,6 +199,20 @@
     <string name="history_share_no_app">No app found to share CSV files</string>
     <string name="history_export_error_prefix">Export failed: %1$s</string>
     <string name="history_cd_export">Export CSV</string>
+    <string name="history_cd_export_all">Export all drives</string>
+    <string name="history_export_all_title">Export all drives</string>
+    <plurals name="history_export_all_message">
+        <item quantity="one">%1$d drive as one CSV file. The recording in progress is not included.</item>
+        <item quantity="other">%1$d drives as one CSV file. The recording in progress is not included.</item>
+    </plurals>
+    <string name="history_export_share">Share</string>
+    <string name="history_export_save">Save</string>
+    <plurals name="history_export_saved">
+        <item quantity="one">%1$d drive saved</item>
+        <item quantity="other">%1$d drives saved</item>
+    </plurals>
+    <string name="history_export_none">No finished drive to export.</string>
+    <string name="history_save_unavailable">No file dialog available</string>
     <string name="history_cd_delete">Delete session</string>
     <string name="history_cd_delete_all">Delete all drives</string>
     <string name="history_delete_all_title">Delete all drives?</string>

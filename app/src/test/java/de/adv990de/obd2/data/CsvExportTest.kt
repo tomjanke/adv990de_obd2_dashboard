@@ -54,6 +54,37 @@ class CsvExportTest {
         assertNotEquals(exportFileName(7L, 1_000L), exportFileName(7L, 1_001L))
     }
 
+    // ── Export mehrerer Fahrten: Spalten und Dateiname ────────────────────
+
+    @Test
+    fun `the first five columns stay as they were and the trip id is appended last`() {
+        // Positions-Parser lesen die ersten fuenf Spalten weiter; `session` (die Fahrt-ID) steht hinten, damit sich mehrere Fahrten in einer Datei trennen lassen.
+        assertEquals(listOf("timestamp", "pid", "value", "name", "source", "session"), EXPORT_COLUMNS.toList())
+    }
+
+    @Test
+    fun `the file of an export of several trips is called session_all with the export time in UTC`() {
+        assertEquals("session_all_20261005T143005123Z.csv", exportAllFileName(nowMillis = 1_791_210_605_123L))
+    }
+
+    @Test
+    fun `the name for one trip stays the name of that trip, for several trips it is the common one`() {
+        assertEquals(exportFileName(7L, 1_000L), exportFileNameFor(listOf(7L), 1_000L))
+        assertEquals(exportAllFileName(1_000L), exportFileNameFor(listOf(3L, 5L), 1_000L))
+    }
+
+    @Test
+    fun `createExportFile with a name creates the file and never shares it with an earlier one`() {
+        val dir = File(tempFolder.root, "exports")
+
+        val first = createExportFile(dir, "session_all_x.csv").also { it.writeText("first") }
+        val second = createExportFile(dir, "session_all_x.csv")
+
+        assertNotEquals(first, second)
+        assertEquals("session_all_x-1.csv", second.name)
+        assertEquals("die erste Datei bleibt unberuehrt", "first", first.readText())
+    }
+
     // ── createExportFile ──────────────────────────────────────────────────
 
     @Test
@@ -99,6 +130,17 @@ class CsvExportTest {
         assertEquals(1, deleted)
         assertFalse(old.exists())
         assertTrue(recent.exists())
+    }
+
+    @Test
+    fun `an old file of an export of several trips is cleaned up like any other`() {
+        val dir = File(tempFolder.root, "exports")
+        val now = 10_000_000_000L
+        val old = exportFile(dir, "session_all_20260101T000000000Z.csv", ageMs = EXPORT_MAX_AGE_MS + 1, now = now)
+
+        assertEquals(1, deleteStaleExports(dir, now))
+
+        assertFalse(old.exists())
     }
 
     @Test

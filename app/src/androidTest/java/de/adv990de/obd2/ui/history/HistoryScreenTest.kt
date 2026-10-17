@@ -549,4 +549,85 @@ class HistoryScreenTest {
 
         waitForDetails()
     }
+
+    // ── alle Fahrten in EINER CSV: Teilen oder Speichern ──────────────────────
+    // Der Systemdialog zum Speichern und das Teilen-Menue lassen sich im Test nicht bedienen (sie erschienen vor der Test-App):
+    // "Teilen" laeuft deshalb gegen ein Repository, dessen Export einen Fehler wirft; das Schreiben ins Ziel prueft SessionRepositoryDeviceTest.
+
+    private fun exportAllDescription() = string(R.string.history_cd_export_all)
+
+    private fun waitForExportAllEnabled() = composeRule.waitUntil(timeoutMillis = 5_000) {
+        runCatching { composeRule.onNodeWithContentDescription(exportAllDescription()).assertIsEnabled() }.isSuccess
+    }
+
+    private fun exportAllMessage(count: Int) =
+        composeRule.activity.resources.getQuantityString(R.plurals.history_export_all_message, count, count)
+
+    @Test
+    fun theExportAllButton_isEnabled_whenAFinishedTripExists() {
+        launchHistoryScreen()
+
+        waitForExportAllEnabled()
+    }
+
+    @Test
+    fun theExportAllButton_isDisabled_whenThereIsNothingFinished_onlyTheRecording() {
+        runBlocking {
+            testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
+            sessionRepository.startSession("5YJSA1E26HF000337")
+        }
+        launchHistoryScreen()
+        waitForText("5YJSA1E26HF000337")
+
+        composeRule.onNodeWithContentDescription(exportAllDescription()).assertIsNotEnabled()
+    }
+
+    @Test
+    fun theExportAllDialog_announcesTheTripCount_andOffersSaveShareAndCancel_eachAtLeast56dpHigh() {
+        insertTrip(5, "1HGBH41JXMN109186", dtcCodes = null)
+        runBlocking { sessionRepository.startSession("5YJSA1E26HF000337") } // die laufende Aufzeichnung zaehlt nicht mit
+        launchHistoryScreen()
+        waitForExportAllEnabled()
+        waitForText("5YJSA1E26HF000337")
+
+        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
+
+        waitForText(exportAllMessage(2))
+        composeRule.onNodeWithText(string(R.string.history_export_all_title)).assertIsDisplayed()
+        composeRule.onNodeWithTag(EXPORT_ALL_SAVE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
+        composeRule.onNodeWithTag(EXPORT_ALL_SHARE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
+        composeRule.onNode(hasText(string(R.string.cancel)) and hasClickAction()).assertHeightIsAtLeast(56.dp)
+        composeRule.onNodeWithText(string(R.string.history_export_save)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_export_share)).assertIsDisplayed()
+    }
+
+    @Test
+    fun cancellingTheExportAllDialog_closesIt_andExportsNothing() {
+        launchHistoryScreen()
+        waitForExportAllEnabled()
+        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
+        waitForText(exportAllMessage(1))
+
+        composeRule.onNode(hasText(string(R.string.cancel)) and hasClickAction()).performClick()
+
+        waitForTextToDisappear(exportAllMessage(1))
+        coVerify(exactly = 0) { sessionRepository.exportSessionsToCsv(any()) }
+    }
+
+    @Test
+    fun share_exportsTheFinishedTripsIntoOneFile_closesTheDialog_andShowsAFailureAsASnackbar() {
+        insertTrip(5, "1HGBH41JXMN109186", dtcCodes = null)
+        coEvery { sessionRepository.exportSessionsToCsv(any()) } throws RuntimeException("boom")
+        launchHistoryScreen()
+        waitForExportAllEnabled()
+        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
+        waitForText(exportAllMessage(2))
+
+        composeRule.onNodeWithTag(EXPORT_ALL_SHARE_TEST_TAG).performClick()
+
+        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "boom"))
+        waitForTextToDisappear(exportAllMessage(2))
+        // Beide Fahrten in einem Aufruf, die aeltere zuerst (die der Test selbst angelegt hat, ist die juengere).
+        coVerify(exactly = 1) { sessionRepository.exportSessionsToCsv(match { it.size == 2 && it == it.sorted() }) }
+    }
 }

@@ -199,6 +199,20 @@
     <string name="history_share_no_app">Keine App zum Teilen von CSV-Dateien gefunden</string>
     <string name="history_export_error_prefix">Export fehlgeschlagen: %1$s</string>
     <string name="history_cd_export">CSV exportieren</string>
+    <string name="history_cd_export_all">Alle Fahrten exportieren</string>
+    <string name="history_export_all_title">Alle Fahrten exportieren</string>
+    <plurals name="history_export_all_message">
+        <item quantity="one">%1$d Fahrt als eine CSV-Datei. Die laufende Aufzeichnung ist nicht dabei.</item>
+        <item quantity="other">%1$d Fahrten als eine CSV-Datei. Die laufende Aufzeichnung ist nicht dabei.</item>
+    </plurals>
+    <string name="history_export_share">Teilen</string>
+    <string name="history_export_save">Speichern</string>
+    <plurals name="history_export_saved">
+        <item quantity="one">%1$d Fahrt gespeichert</item>
+        <item quantity="other">%1$d Fahrten gespeichert</item>
+    </plurals>
+    <string name="history_export_none">Keine abgeschlossene Fahrt zum Exportieren.</string>
+    <string name="history_save_unavailable">Kein Dateidialog verfügbar</string>
     <string name="history_cd_delete">Fahrt löschen</string>
     <string name="history_cd_delete_all">Alle Fahrten löschen</string>
     <string name="history_delete_all_title">Alle Fahrten löschen?</string>
