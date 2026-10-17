@@ -1,5 +1,34 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.34.0 (versionCode 122)
+
+Alle Fahrten lassen sich in **einer** CSV-Datei exportieren — wahlweise über das Teilen-Menü oder direkt auf dem Gerät gespeichert.
+
+### Export
+
+- **Alle Fahrten in einer Datei.** Im Bereich „Fahrten“ sitzt links vom Papierkorb ein Export-Symbol. Es öffnet den Dialog „Alle Fahrten exportieren“ („n Fahrten als eine CSV-Datei. Die laufende Aufzeichnung ist nicht dabei.“) mit den Knöpfen Abbrechen, **Speichern** und **Teilen** (je mindestens 56 dp hoch). Das Symbol ist wie der Papierkorb nur aktiv, wenn es mindestens eine abgeschlossene, sichtbare Fahrt gibt.
+- **Teilen oder Speichern.** „Teilen“ öffnet das Teilen-Menü wie bisher. „Speichern“ öffnet den Dateidialog des Systems: Ort und Name wählst du selbst (vorgeschlagen wird `session_all_<UTC-Zeit>.csv`), die Datei liegt dann lokal auf dem Gerät, ohne Cloud-Umweg.
+- **Welche Fahrten:** alle abgeschlossenen, die du noch siehst — nicht die laufende Aufzeichnung und nicht die Fahrten im Rückgängig-Fenster nach einem Löschen. Die älteste steht zuerst, die Datei hat **eine** Kopfzeile.
+- **Neue Spalte `session` (die Fahrt-ID), hinten angehängt, in beiden Exporten** — auch beim Export einer einzelnen Fahrt: gleiches Format, Dateien lassen sich zusammenführen. Die Spalten sind jetzt `timestamp,pid,value,name,source,session`; die ersten fünf sind unverändert (ein Parser, der nach Position liest, läuft weiter). Dateien, die vor 1.34.0 exportiert wurden, haben die Spalte nicht.
+- **Sicherheit beim Speichern:** die App schreibt zuerst eine vollständige Datei in den Cache und kopiert sie erst dann ins gewählte Ziel. Ein Lesefehler lässt am Ziel keine halbe Datei zurück; die Cache-Datei wird immer entfernt. Ein Ziel, das sich nicht beschreiben lässt, ergibt eine Fehlermeldung. Sind zwischen Dialog und Tipp alle Fahrten verschwunden, sagt eine Meldung „Keine abgeschlossene Fahrt zum Exportieren.“; nach dem Speichern steht „n Fahrten gespeichert“.
+- **Größe:** etwa 0,7 MB je Stunde Fahrt (gemessen an 9 Fahrten mit 141 min = 1,6 MB). Große Dateien nehmen nicht alle Teilen-Ziele an (E-Mail-Anhänge sind oft auf 25 MB begrenzt) — dann „Speichern“.
+
+### Meine Auslegung des Wunsches
+
+- „Fahrtaufzeichnungen einfacher exportieren, zum Beispiel alle Fahrten in einer CSV“ = ein Knopf für alle abgeschlossenen Fahrten plus lokales Speichern. Spalte in beiden Exporten und „Speichern“ zusätzlich zu „Teilen“ hast du so entschieden.
+- **Von mir entschieden, nicht gefragt:** die Versionsnummer (neue Funktion, 1.34.0); „Speichern“ gibt es nur im Dialog „Alle Fahrten“ — der Teilen-Knopf in der Zeile einer Fahrt bleibt unverändert und hat kein „Speichern“.
+- Nicht gebaut: Mehrfachauswahl einzelner Fahrten, Zeitraum-Filter, ZIP, Speichern je Fahrt.
+
+### Grenzen
+
+- **Am echten Dateidialog nicht ausprobiert:** der Systemdialog zum Speichern und das Teilen-Menü lassen sich im Geräte-Test nicht bedienen (sie erschienen vor der Test-App). Getestet sind das Schreiben ins Ziel (mit einer Datei-Adresse als Stellvertreter), das ViewModel und der Dialog; ob „Speichern“ am Pixel in Downloads sauber landet, ist durch Ausprobieren zu bestätigen.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 1692 JVM-Tests (davon 65 Doku-Tests) und 422 Instrumentation-Tests, alle grün. Netto 24 JVM-Tests mehr (Spalten, Dateinamen und Aufräumen; Repository: mehrere Fahrten, Reihenfolge, leere Liste, Fehlerfälle, Speichern; ViewModel: Dialog, Teilen, Speichern, nichts zu exportieren, Fehler, ausgeblendete und laufende Fahrt) und 7 Geräte-Tests mehr (echte Datenbank: eine Datei mit mehreren Fahrten und Speichern in eine Zieldatei; Bildschirm: Knopf aktiv und inaktiv, Dialog mit Anzahl und 56-dp-Knöpfen, Abbrechen, Teilen ruft den Export einmal mit beiden Fahrten auf und zeigt einen Fehler als Meldung), dazu 2 Vorschauen (81). Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+- **Unterwegs:** ein Geräte-Test von mir gab einen Boolean statt `void` zurück, JUnit lehnte die ganze Klasse ab — behoben. Ein erster Lauf der Geräte-Suite brach nach 205 Tests ab, weil das Gerät die USB-Verbindung verlor; der Wiederholungslauf war vollständig.
+
 ## Version 1.33.1 (versionCode 121)
 
 Die Ölkanne vor dem Ölstreifen ist jetzt eine Kontur nach dem Öldruck-Symbol statt einer gefüllten Silhouette.
