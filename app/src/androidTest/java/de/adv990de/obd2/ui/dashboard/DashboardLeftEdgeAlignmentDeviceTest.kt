@@ -114,6 +114,56 @@ class DashboardLeftEdgeAlignmentDeviceTest {
         assertEquals("sichtbare linke Kante: Kanne $canEdge px, Tankstellen-Symbol $pumpEdge px", pumpEdge.toFloat(), canEdge.toFloat(), 1.5f)
     }
 
+    /** Die Tinte eines Symbols: Umriss (px) und Anteil der Tintenpunkte an der Box. Tinte = weicht deutlich (> 260 von 765) vom Hintergrund der Zeile ab (Bildpunkt x = 0). */
+    private data class Ink(val left: Int, val right: Int, val top: Int, val bottom: Int, val share: Float)
+
+    private fun inkOf(bitmap: Bitmap, box: androidx.compose.ui.geometry.Rect): Ink {
+        var left = Int.MAX_VALUE; var right = -1; var top = Int.MAX_VALUE; var bottom = -1; var ink = 0
+        val x0 = box.left.toInt(); val x1 = box.right.toInt(); val y0 = box.top.toInt(); val y1 = box.bottom.toInt()
+        for (y in y0 until y1) {
+            val background = bitmap.getPixel(0, y)
+            for (x in x0 until x1) {
+                if (distance(bitmap.getPixel(x, y), background) > 260) {
+                    ink++
+                    if (x < left) left = x
+                    if (x > right) right = x
+                    if (y < top) top = y
+                    if (y > bottom) bottom = y
+                }
+            }
+        }
+        return Ink(left, right, top, bottom, ink.toFloat() / ((x1 - x0) * (y1 - y0)))
+    }
+
+    @Test
+    fun theOilCan_isAnOutlineLikeTheOilPressureSymbol_notASolidSilhouette() {
+        showBarAboveFuelRow()
+
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val can = composeRule.onNodeWithTag(OIL_BAR_ICON_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val ink = inkOf(bitmap, can)
+
+        // Nutzerwunsch 2026-10-16: die Kanne "analog zum Oeldruck-Symbol" (ISO 7000): hohler Koerper, hohler Griff, Umriss statt Flaeche. Die fruehere gefuellte
+        // Silhouette deckte 45 % ihrer Box (am Geraet gemessen: 0,4527), die Kontur etwa ein Drittel (aus den Pfaden gerechnet: 0,33). Die Obergrenze 0,40 trennt
+        // beide; die Untergrenze faengt eine verschwundene Zeichnung ab.
+        assertTrue("Anteil der Tinte in der Kanne: ${ink.share}", ink.share in 0.15f..0.40f)
+    }
+
+    @Test
+    fun theOilCan_fillsItsBoxWithOnly1DpOfMarginOnTheLeft() {
+        showBarAboveFuelRow()
+
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val can = composeRule.onNodeWithTag(OIL_BAR_ICON_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val ink = inkOf(bitmap, can)
+
+        // Auf den Inhalt zugeschnitten: die Hoehe der Box ist die Hoehe der Zeichnung (16 dp), links 1 dp Eigenrand (darauf beruht OIL_ROW_START_PADDING),
+        // rechts hoechstens 1 dp. Ein Symbol mit mehr leerem Rand verschoeben die sichtbare Kante gegen die Tankstelle und liessen die Kanne kleiner wirken.
+        assertEquals("Tinte oben bis unten: ${ink.top}..${ink.bottom} von ${can.top}..${can.bottom}", can.height, (ink.bottom - ink.top + 1).toFloat(), 1.5f)
+        assertEquals("linker Eigenrand 1 dp: ${ink.left - can.left} px", 1 * density, ink.left - can.left, 1.5f)
+        assertTrue("rechter Rand hoechstens 1,5 dp: ${can.right - ink.right} px", can.right - ink.right <= 1.5f * density)
+    }
+
     @Test
     fun thePumpIcon_sitsAt12DpFromTheLeftEdge() {
         showBarAboveFuelRow()

@@ -1,36 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Oelkanne (Nutzerwunsch 2026-10-15: "analog zur Tankstelle eine Oelkanne" vor dem Oel-Temperatur-Streifen). Die Material-Icons haben
-  keine Oelkanne (nur ein Oelfass und einen Tropfen), deshalb selbst gezeichnet — im Stil der gefuellten Material-Icons: 24x24, eine
-  Flaeche, einfarbig (die Farbe setzt der Aufrufer per tint). Die klassische Silhouette des Oeldruck-Symbols: Kannenkoerper mit Deckelknopf,
-  Griff links, langer schraeger Ausguss rechts oben und ein Tropfen darunter.
+  Oelkanne vor dem Oel-Temperatur-Streifen (Nutzerwunsch 2026-10-15: "analog zur Tankstelle eine Oelkanne"; 2026-10-16: "nochmal optimieren, analog zu
+  Kontrollleuchte_Oeldruck.svg"). Die Material-Icons haben keine Oelkanne (nur ein Oelfass und einen Tropfen), deshalb selbst gezeichnet.
+
+  Form: das Oeldruck-Symbol (ISO 7000) als KONTUR — hohler Koerper, hohler schraeger Griff links, T-Deckelknopf, langer Ausguss nach rechts oben und ein
+  Tropfen darunter. Vorlage: "Kontrollleuchte Oeldruck.svg", Wikimedia Commons, Urheber chris828, gemeinfrei (PD-user); die Koordinaten sind auf eine
+  Nachkommastelle gerundet, die Umrisse und die zwei Aussparungen stehen in EINEM Pfad (even-odd), die Farbe setzt der Aufrufer per tint.
+
+  Auf den Inhalt zugeschnitten (kein leerer Rand ausser dem 1 dp links, auf dem OIL_ROW_START_PADDING beruht): Hoehe 37 Einheiten = 16 dp (OIL_ICON_HEIGHT),
+  also 0,4324 dp je Einheit; links 2,31 Einheiten = 1 dp Eigenrand, die Breite folgt dem Seitenverhaeltnis der Zeichnung.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="15dp"
-    android:viewportWidth="24"
-    android:viewportHeight="15">
-    <!-- Auf den Inhalt zugeschnitten (statt 24x24 mit leerem Rand): die Kanne fuellt ihre Hoehe, die der Aufrufer festlegt; die Breite folgt dem Seitenverhaeltnis 24:15. -->
-    <group android:translateY="-5">
-    <!-- Kannenkoerper -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M5.5,10.5h10.5a1.5,1.5 0 0 1 1.5,1.5v6a1.5,1.5 0 0 1 -1.5,1.5H5.5A1.5,1.5 0 0 1 4,18v-6a1.5,1.5 0 0 1 1.5,-1.5z" />
-    <!-- Deckelknopf -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M8,7.5h5.5a0.75,0.75 0 0 1 0.75,0.75V9.5h-7V8.25A0.75,0.75 0 0 1 8,7.5z" />
-    <!-- Griff -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M1,11.5h3.5v1.75H2.75v3.5H4.5V18.5H1z" />
-    <!-- Ausguss -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M15.5,11.5L20.5,5.5l1.9,1.6L17.5,13z" />
-    <!-- Tropfen -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M21.6,10c0,0 -1.8,2.1 -1.8,3.3a1.8,1.8 0 0 0 3.6,0c0,-1.2 -1.8,-3.3 -1.8,-3.3z" />
+    android:width="40.5dp"
+    android:height="16dp"
+    android:viewportWidth="93.6"
+    android:viewportHeight="37">
+    <group
+        android:translateX="-7.69"
+        android:translateY="-6">
+        <!-- Umriss mit den Aussparungen von Koerper und Griff -->
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M95.7,17.8 L97.7,19.8 L99.8,17.5 L93.4,12.5 L63.9,21.6 L59.4,16.9 L48,16.9 L48.1,12 L52.1,12 L52.1,6 L38,6 L38,12 L42,12 L42,17.1 L31.7,17.2 L31.8,12.5 L13.3,6.6 L10,21.8 L27,26.1 L27,43 L67.6,42.9 L92.7,17.8 z M85.2,18.9 L66.5,26.1 L60.3,26.1 L55.3,21.1 L36.4,21 L32.1,22 L32.1,37.1 L66.8,37 z M26.9,15.1 L16.4,11.8 L14.9,18.1 L26.7,21 z" />
+        <!-- Tropfen unter dem Ausguss -->
+        <path
+            android:fillColor="#FF000000"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="1"
+            android:pathData="M93.5,33 C91,38 102.4,38.5 100.5,33.1 C97.6,28 97.7,27 97.1,25 C96.4,26.9 96.6,28.1 93.5,33 z" />
     </group>
 </vector>

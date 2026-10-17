@@ -283,13 +283,12 @@ bei echtem Stillstand oder fehlendem GPS-Fix. `DashboardViewModel.applyReadings(
 **Öl-Temperatur-Balken (seit 2026-09-27):** Direkt unterhalb der RPM-Segmente sitzt ein schmaler,
 simulierter Öl-Temperatur-Streifen (`OilTemperatureBarStrip`) — ohne Textbeschriftung, reine Farb-Anzeige mit
 invertierter Semantik (s. „Statusfarben” oben). **Seit 2026-10-15 (Nutzerwunsch) steht direkt links vor dem Streifen eine Ölkanne**
-(`R.drawable.ic_oil_can`, **selbst gezeichnet**, weil die Material-Icons nur ein Ölfass und einen Tropfen haben: ein auf den Inhalt zugeschnittener 24×15-Vektor
-in der Art der gefüllten Material-Icons, 16 dp hoch, Farbe `onSurfaceVariant` — nur der Streifen trägt die Farbe), analog zum Tankstellen-Symbol der Tankzeile; sie macht klar, was der Streifen ist.
+(`R.drawable.ic_oil_can`, **selbst gezeichnet**, weil die Material-Icons nur ein Ölfass und einen Tropfen haben: seit 2026-10-16 als **Kontur** nach dem Öldruck-Symbol (ISO 7000; Vorlage `Kontrollleuchte_Oeldruck.svg`, Wikimedia Commons, Urheber chris828, gemeinfrei: hohler Körper, hohler schräger Griff, T-Deckelknopf, langer Ausguss, Tropfen; ein Pfad mit zwei Aussparungen, Koordinaten auf eine Stelle gerundet) — ein auf den Inhalt zugeschnittener Vektor, **16 dp hoch und 40,5 dp breit** (vorher eine gefüllte Silhouette, 24 dp breit), Farbe `onSurfaceVariant` — nur der Streifen trägt die Farbe), analog zum Tankstellen-Symbol der Tankzeile; sie macht klar, was der Streifen ist.
 Aufbau: Das `weight(1f)`-Feld der Segmente in `RpmBar` ist eine `Column` aus Segment-Box (der Rest der Höhe), 2 dp Lücke und **Öl-Zeile (20 dp: Kanne, 8 dp Abstand, Streifen
 16 dp hoch — wie der Tankbalken —, beide unten bündig in der Zeile)** — bei 62 dp Innenhöhe **40 dp / 2 dp / 20 dp** (vorher 48 / 2 / 12: Entscheidung 1b des Nutzers, die Segmente wurden um 8 dp niedriger,
 die Zeilenhöhe von 78 dp bleibt). Der Streifen liegt damit **links neben** der Gang-Box,
 nicht über oder unter ihr: Die Gang-Box ist eine eigene Spalte der äußeren `Row` über die volle
-Zeilenhöhe und bleibt unverändert, ebenso die 78 dp Zeilenhöhe. Breite: der Streifen endet an der rechten Kante der Segmente und beginnt rechts von Kanne und Abstand (bei 43 dp: 11 dp Rand + 24 dp Kanne + 8 dp Abstand),
+Zeilenhöhe und bleibt unverändert, ebenso die 78 dp Zeilenhöhe. Breite: der Streifen endet an der rechten Kante der Segmente und beginnt rechts von Kanne und Abstand (bei rund 59,5 dp: 11 dp Rand + 40,5 dp Kanne + 8 dp Abstand; bis 1.33.0 waren es 43 dp mit der 24 dp breiten Silhouette — der Streifen wurde mit der Kontur-Kanne 16,5 dp kürzer, im Querformat etwa 2 %, im Hochformat etwa 5 %),
 die Segmente behalten die volle Breite (nicht über Gang-Box oder Icons hinaus). **Linker Rand (seit 2026-10-15, Nutzerwunsch):** die Segmente stehen **bündig am Bildschirmrand (0 dp)** wie die Kachel — vorher
 8 dp, seit der ersten Version des Balkens; rechts, oben und unten bleiben 8 dp (rechts stehen Gang-Box und Bluetooth-Symbol, kein Balken). Die **Ölkanne** steht an derselben **sichtbaren** Kante wie das Tankstellen-Symbol der Tankzeile, beide **12 dp vom linken Rand** (Nutzer, 2026-10-15: „der Abstand … kann ruhig auf 12 dp reduziert werden“; zuerst 20 dp,
 dort 16 dp Zeilenrand + 4 dp Eigenrand des Material-Symbols): Das Symbol hat 4 dp Eigenrand, die Kanne nur 1 dp, ihr Rand `OIL_ROW_START_PADDING` ist deshalb der der Tankzeile `FUEL_ROW_START_PADDING` (8 dp) **plus 3 dp = 11 dp** —
@@ -1045,7 +1044,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 1668 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 413 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 415 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

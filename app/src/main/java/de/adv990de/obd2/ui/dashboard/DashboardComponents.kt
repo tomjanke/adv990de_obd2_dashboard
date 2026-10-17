@@ -251,7 +251,7 @@ internal const val OIL_BAR_STRIP_TEST_TAG = "oil_bar_strip"
 
 /**
  * Oel-Zeile unter den Drehzahl-Segmenten: 20 dp hoch (Entscheidung 1b des Nutzers: die Segmente werden dafuer von 48 auf 40 dp niedriger), darin
- * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (ihre Breite folgt dem Seitenverhaeltnis 24:15), beide **unten buendig**
+ * der Streifen 16 dp hoch (wie der Tankbalken) und die Oelkanne, ebenfalls 16 dp hoch (die Zeichnung fuellt ihre Box: 40,5 dp breit, seit 2026-10-16 als Kontur; vorher 24 dp), beide **unten buendig**
  * (vorher zentriert): zwischen Segmenten und Streifen liegen damit 2 dp Luecke + 4 dp Luft der Zeile = 6 dp (Nutzerwunsch 2026-10-15; vorher 4 dp).
  */
 internal val OIL_ROW_HEIGHT = 20.dp
@@ -261,8 +261,8 @@ internal val OIL_ICON_GAP = 8.dp
 
 /**
  * Linker Rand der Oel-Zeile: die Oelkanne steht an derselben **sichtbaren** Kante wie das Tankstellen-Symbol der Tankzeile (Nutzerwunsch 2026-10-15; seit der
- * Aenderung am selben Tag 12 dp vom Rand). Das Material-Symbol hat 4 dp Eigenrand, die selbstgezeichnete Kanne nur 1 dp (der Henkel beginnt bei x = 1 im 24er-Raster
- * von `ic_oil_can`) — der Rand ist also der der Tankzeile ([FUEL_ROW_START_PADDING]) **plus 3 dp**: gleiche Boxen laegen 3 dp daneben. Die Segmente darueber
+ * Aenderung am selben Tag 12 dp vom Rand). Das Material-Symbol hat 4 dp Eigenrand, die selbstgezeichnete Kanne nur 1 dp (die Zeichnung beginnt 2,31 Einheiten = 1 dp vom Rand
+ * der Box, s. `ic_oil_can`) — der Rand ist also der der Tankzeile ([FUEL_ROW_START_PADDING]) **plus 3 dp**: gleiche Boxen laegen 3 dp daneben. Die Segmente darueber
  * stehen bewusst buendig (0 dp), nur die Zeile mit dem Symbol ist eingerueckt; der Streifen endet weiter an der rechten Kante der Segmente.
  * `DashboardLeftEdgeAlignmentDeviceTest` misst die sichtbaren Kanten gegen die echte Tankzeile.
  */
@@ -422,12 +422,12 @@ private fun PreviewOilCanIcon() {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(16.dp)) {
         MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
             Surface(color = MaterialTheme.colorScheme.background) {
-                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 120.dp, height = 75.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 190.dp, height = 77.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
             Surface(color = MaterialTheme.colorScheme.background) {
-                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 120.dp, height = 75.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(painterResource(R.drawable.ic_oil_can), contentDescription = null, modifier = Modifier.size(width = 190.dp, height = 77.dp).padding(8.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
