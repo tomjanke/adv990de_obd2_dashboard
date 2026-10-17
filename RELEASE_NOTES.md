@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.33.1 (versionCode 121)
+
+Die Ölkanne vor dem Ölstreifen ist jetzt eine Kontur nach dem Öldruck-Symbol statt einer gefüllten Silhouette.
+
+### Anzeige
+
+- **Form:** hohler Körper, hohler schräger Griff, T-Deckelknopf, langer Ausguss nach rechts oben und ein Tropfen darunter — die Kontur des Öldruck-Symbols (ISO 7000). Vorlage: `Kontrollleuchte_Oeldruck.svg` von Wikimedia Commons (Urheber chris828, gemeinfrei); die Koordinaten sind auf eine Nachkommastelle gerundet und auf die Zeichnung zugeschnitten (ein Pfad mit zwei Aussparungen).
+- **Größe:** wie bisher 16 dp hoch, aber **40,5 statt 24 dp breit** (das Original hat etwa 2,4 : 1). Folge: der Ölstreifen beginnt bei rund 59,5 statt 43 dp und ist **16,5 dp kürzer**, im Querformat etwa 2 %, im Hochformat etwa 5 %. Unverändert: die sichtbare Kante 12 dp vom Rand (wie das Tankstellen-Symbol), 8 dp Abstand zum Streifen, die Farbe (`onSurfaceVariant`, nur der Streifen trägt die Farbe).
+
+### Meine Auslegung des Wunsches
+
+- „Optimieren analog zu“ = die Form des Referenz-Symbols übernehmen (Kontur, hohl) und sein Seitenverhältnis beibehalten, statt es auf die alte Breite zu stauchen. Die Form hast du nach dem Vergleich bestätigt („Form passt so“).
+- Die Versionsnummer (Patch 1.33.1) habe ich gewählt: reine Darstellungsänderung, keine Funktion und keine Daten.
+
+### Grenzen
+
+- **Die neue Kanne habe ich nur im Hochformat am Gerät gesehen** (Bildschirmfoto der Debug-App im Vorschau-Zustand ohne Verbindung), nicht im Querformat und nicht im Release-Build.
+- **Ablesbarkeit am Motorrad ungeprüft:** die Linien sind rund 2,4 dp stark, die Kanne ist als Kontur heller-auf-dunkel feiner als die frühere Fläche.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 1668 JVM-Tests (davon 65 Doku-Tests) und 415 Instrumentation-Tests, alle grün; die Geräte-Suite lief im Hochformat. Neu: zwei Geräte-Tests in `DashboardLeftEdgeAlignmentDeviceTest` — die Kanne ist eine Kontur (Tintenanteil 0,15 bis 0,40; die frühere Silhouette maß 0,4527, vorher rot) und die Zeichnung füllt ihre Box mit 1 dp Rand links. Gegenprobe: mit aufgefüllten Aussparungen meldet der Test 0,5317 und scheitert; der Anteil der echten Kontur ist aus den Pfaden zu 0,33 gerechnet (die Rechnung stimmte beim aufgefüllten Icon auf 1 % mit der Messung überein). Lint: 0 Fehler, 1 Warnung (Gradle 9.8.1, bewusst ignoriert).
+
 ## Version 1.33.0 (versionCode 120)
 
 Fahrten zeigen jetzt, ob das Fahrzeug bei ihrem Beginn Fehlercodes meldete, und „DTCs“ und „Verlauf“ sind ein gemeinsamer Menüpunkt „Fahrten“. Das Hauptmenü hat damit vier statt fünf Punkte: Live, Fahrten, Einstellungen, Beenden.
