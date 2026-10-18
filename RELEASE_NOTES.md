@@ -1,5 +1,31 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.35.1 (versionCode 124)
+
+Die Kachel **„Gelände“** zeigt ihre Werte jetzt auch ohne Verbindung zum Fahrzeug, und die Einstellung „Geschwindigkeit per GPS“ nennt sie.
+
+### Was sich ändert
+
+- **Ohne Verbindung zeigt die Kachel ihre Werte.** In 1.35.0 rechnete sie nur bei stehender Verbindung und zeigte sonst „--“. Höhe, Steigung und Peilung kommen aber vom Telefon (Drucksensor und GPS). Jetzt rechnet die Kachel, sobald ein Slot „Gelände“ trägt und der GPS-Schalter an ist — auch im Zustand „Vorschau · nicht verbunden“. Bis zum ersten GPS-Fix nennt der Slot den Grund („Warte auf GPS-Signal“, „GPS-Geschwindigkeit in den Einstellungen einschalten“ oder die fehlende Berechtigung). Das Band „Vorschau · nicht verbunden“ bleibt und gilt dann nur für die Fahrzeug-Kacheln.
+- **Der Hinweistext von „Geschwindigkeit per GPS“ nennt die Kachel** (Deutsch und Englisch): „Auch die Kachel „Gelände“ (Höhe, Steigung, Peilung) braucht diese Einstellung.“
+
+### Meine Auslegung des Wunsches
+
+- „Es könnte doch sofort und immer etwas angezeigt werden“ = die Kachel hängt nicht mehr an der Verbindung zum Fahrzeug, aber weiter am GPS-Schalter (ohne ihn gibt es keine Standortabfrage).
+- **Von mir entschieden, nicht gefragt:** die Werte stehen in einem eigenen Zustand im ViewModel und nicht mehr im Dashboard-Zustand, den jedes Verbindungsereignis zurücksetzt; gerechnet wird nur, solange das Dashboard zu sehen ist — fünf Sekunden nach dem Verlassen (anderer Reiter, App im Hintergrund) halten GPS und Drucksensor an, beim Zurückkommen beginnt die Kalibrierung neu und der Graph startet leer.
+- **Preis:** auf dem Dashboard ohne Verbindung laufen GPS (1 Hz) und Drucksensor, solange die Kachel gewählt ist. Der Bildschirm bleibt dort ohnehin an.
+
+### Grenzen
+
+- **Wie in 1.35.0:** am Motorrad nicht geprüft, und ein echter GPS-Fix wurde nie erzeugt. Rauschen und Drift des Barometers, die GPS-Höhe unter Bäumen und in Tälern und die Ablesbarkeit während der Fahrt sind nicht gemessen.
+- Die Kachel selbst wurde mit der Release-App nicht gewählt oder gesehen; der Smoke-Test wählt sie nicht. Belegt sind die Geräte-Tests im echten Dashboard (mit und ohne Verbindung, mit und ohne GPS-Schalter) mit einer Attrappe für die Eingaben.
+- Der Text-Test für die Einstellung entstand nach den Strings, nicht davor; eine Mutationsprobe schlug an (mit `cleanTest`, sonst überspringt Gradle den Test).
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 1820 JVM-Tests (davon 65 Doku-Tests) und 444 Instrumentation-Tests, alle grün; 83 Vorschauen; Lint 0 Fehler, 1 bekannte Warnung. Netto 6 JVM- und 1 Geräte-Test mehr gegenüber 1.35.0 (Differenz der Gesamtzahlen; neu geschrieben wurden die ViewModel-Tests der Kachel, der Text-Test der Einstellung und die Geräte-Tests des Slots im echten Dashboard ohne Verbindung).
+
 ## Version 1.35.0 (versionCode 123)
 
 Neue wählbare Kachel **„Gelände“**: Höhe, Steigung und Peilung in einer Kachel, aus Drucksensor und GPS des Telefons.
