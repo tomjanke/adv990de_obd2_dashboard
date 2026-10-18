@@ -107,6 +107,7 @@ class AlarmBannerDeviceTest {
 
     private val alarm = mutableStateOf(coolant)
     private val more = mutableIntStateOf(0)
+    private val showValue = mutableStateOf(true)
     private val scheme = mutableStateOf<ColorScheme>(lightColorScheme())
     private val fontScale = mutableFloatStateOf(1f)
     private val widthDp = mutableFloatStateOf(0f) // 0 = die ganze Breite des Fensters
@@ -132,7 +133,7 @@ class AlarmBannerDeviceTest {
                     titleLargeSp = MaterialTheme.typography.titleLarge.fontSize.value
                     val sized = if (widthDp.floatValue > 0f) Modifier.width(widthDp.floatValue.dp) else Modifier.fillMaxWidth()
                     Box(sized) {
-                        AlarmBanner(alarm = alarm.value, moreCount = more.intValue, onAcknowledge = { acknowledged++ })
+                        AlarmBanner(alarm = alarm.value, moreCount = more.intValue, onAcknowledge = { acknowledged++ }, showValue = showValue.value)
                     }
                 }
             }
@@ -164,6 +165,29 @@ class AlarmBannerDeviceTest {
         show(coolant)
 
         composeRule.onNodeWithText("Kühlmittel heiß: 97 °C").assertIsDisplayed()
+    }
+
+    @Test
+    fun withoutTheLiveValueTheBandNamesOnlyTheKind_theNumberIsNotShownWhileTheTilesShowDashes() {
+        show(coolant)
+        update { showValue.value = false }
+
+        composeRule.onNodeWithText("Kühlmittel heiß").assertIsDisplayed()
+        assertEquals("die Zahl steht nicht im Text", 0, composeRule.onAllNodes(hasText("97", substring = true), useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        update { alarm.value = voltage }
+        composeRule.onNodeWithText("Spannung niedrig").assertIsDisplayed()
+
+        update { showValue.value = true }
+        composeRule.onNodeWithText("Spannung niedrig: 12,3 V").assertIsDisplayed()
+    }
+
+    @Test
+    fun aFaultAlarmKeepsItsCodesWithoutTheLiveValue_theyAreNoLiveNumber() {
+        show(twoFaults)
+        update { showValue.value = false }
+
+        composeRule.onNodeWithText("Neue Fehlercodes: P0301, P0420").assertIsDisplayed()
     }
 
     @Test

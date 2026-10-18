@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.dashboard
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -85,5 +86,15 @@ class AlarmBannerLogicTest {
 
         assertEquals(0, span.start)
         assertEquals(2, span.end)
+    }
+
+    // --- Die Live-Zahl im Band gilt nur, solange Werte fliessen ("Nur Live zeigt Zahlen", Dashboard-Phasen) ---
+
+    @Test
+    fun `only the live phase shows the number in the band`() {
+        assertTrue(alarmBannerShowsValue(DashboardPhase.Live))
+        assertFalse(alarmBannerShowsValue(DashboardPhase.Stale))      // the number would be up to 30 s old while the tiles show dashes
+        assertFalse(alarmBannerShowsValue(DashboardPhase.Waiting))
+        assertFalse(alarmBannerShowsValue(DashboardPhase.Offline))
     }
 }

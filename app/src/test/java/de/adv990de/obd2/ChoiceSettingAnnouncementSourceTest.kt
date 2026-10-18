@@ -24,7 +24,7 @@ class ChoiceSettingAnnouncementSourceTest {
             if (start > 0 && text[start - 1].isLetterOrDigit()) continue                   // `VoltageChoiceSetting(` ist ein anderer Name
             val lineStart = text.lastIndexOf('\n', start) + 1
             val before = text.substring(lineStart, start)
-            if (before.contains("fun ") || before.trimStart().startsWith("*") || before.trimStart().startsWith("//") || before.endsWith("`")) continue
+            if (isDefinition(before) || before.trimStart().startsWith("*") || before.trimStart().startsWith("//") || before.endsWith("`")) continue
             var depth = 0
             var end = start
             for (i in start until text.length) {
@@ -35,6 +35,12 @@ class ChoiceSettingAnnouncementSourceTest {
         return calls
     }
 
+    /** `fun ChoiceSetting(` — die Definition selbst; ein Wrapper `fun X() = ChoiceSetting(` ist ein Aufruf. */
+    private fun isDefinition(before: String) = Regex("""\bfun\s+$""").containsMatchIn(before)
+
+    /** `optionDescription = …` oder `optionDescriptionPlural = …` mit einem Wert — `= null` sagt nichts. */
+    private fun announces(call: String) = Regex("""optionDescription(Plural)?\s*=\s*+(?!null\b)""").containsMatchIn(call)
+
     private fun allCalls(): List<Pair<String, String>> =
         main.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { file -> callsIn(file.readText()).map { file.name to it } }.toList()
 
@@ -44,7 +50,7 @@ class ChoiceSettingAnnouncementSourceTest {
 
         assertTrue("es sollten mindestens fuenf Aufrufe sein (Watchdog, Reconnect, die Wrapper fuer Spannung und Kuehlmittel, die Vorschau), gefunden: ${calls.size}", calls.size >= 5)
         for ((file, call) in calls) {
-            assertTrue("$file: ChoiceSetting ohne optionDescription oder optionDescriptionPlural: ${call.take(90).replace('\n', ' ')}", call.contains("optionDescription"))
+            assertTrue("$file: ChoiceSetting ohne optionDescription oder optionDescriptionPlural: ${call.take(90).replace('\n', ' ')}", announces(call))
         }
     }
 
@@ -58,5 +64,15 @@ class ChoiceSettingAnnouncementSourceTest {
         """.trimIndent()
 
         assertTrue(callsIn(text).size == 1)
+    }
+
+    @Test
+    fun `an expression-bodied wrapper is a call, and a null description is no announcement`() {
+        val wrapper = "private fun Volt() = ChoiceSetting(headline = \"x\")"
+        val nullDescription = "ChoiceSetting(headline = \"x\", optionDescription = null)"
+
+        assertTrue("the wrapper's call is found", callsIn(wrapper).size == 1)
+        assertTrue("... and it announces nothing", !announces(callsIn(wrapper).single()))
+        assertTrue("= null announces nothing", !announces(callsIn(nullDescription).single()))
     }
 }

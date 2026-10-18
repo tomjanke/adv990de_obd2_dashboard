@@ -17,6 +17,8 @@ import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.UiText
 import io.mockk.Runs
+import io.mockk.coVerify
+import io.mockk.spyk
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
@@ -287,6 +289,74 @@ class DashboardViewModelAlarmTest {
 
         assertTrue("the values stayed away: the alarm ends", s.vm.alarms.value.isEmpty())
         assertEquals(listOf(AlarmKind.COOLANT), notifier.cleared)
+    }
+
+    /**
+     * Idle, ConnectionLost and Failed end the alarms at once and cancel the grace timer: it must not call `onSessionEnded()` a second time later (into whatever the next session
+     * has built up in the meantime). Observable only as the number of calls: a late second call is a no-op on an empty state, but it is the call the cancel exists to prevent.
+     */
+    private suspend fun TestScope.staleThenSessionEnd(end: SessionEvent) {
+        val controller = spyk(AlarmController(RecordingNotifier(), AlarmLog.None))
+        val s = setUp(testScheduler, controller)
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)
+        advanceUntilIdle()
+        s.events.emit(SessionEvent.Stale)
+        testScheduler.advanceTimeBy(5_000)
+        testScheduler.runCurrent()
+        s.events.emit(end)                                            // a reconnect or an error: the alarms end now, as before
+        testScheduler.runCurrent()
+        coVerify(exactly = 1) { controller.onSessionEnded() }
+
+        testScheduler.advanceTimeBy(grace + 1_000)                    // the OLD grace timer would fire now ...
+        testScheduler.runCurrent()
+
+        coVerify(exactly = 1) { controller.onSessionEnded() }         // ... and call it a second time
+    }
+
+    @Test
+    fun `Idle after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.Idle) }
+
+    @Test
+    fun `ConnectionLost after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.ConnectionLost) }
+
+    @Test
+    fun `Failed after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.Failed(UiText.DynamicString("boom"))) }
+
+    @Test
+    fun `a second Stale keeps the first deadline - the values have been away since the first one`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)
+        advanceUntilIdle()
+
+        s.events.emit(SessionEvent.Stale)
+        testScheduler.advanceTimeBy(15_000)
+        testScheduler.runCurrent()
+        s.events.emit(SessionEvent.Stale)                             // e.g. a slot change restarted the session while stale
+        testScheduler.advanceTimeBy(6_000)                            // 21 s after the FIRST Stale
+        testScheduler.runCurrent()
+
+        assertTrue("the grace ran from the first Stale", s.vm.alarms.value.isEmpty())
+    }
+
+    @Test
+    fun `a gap of up to 30 s without values still counts as one run - the warning comes with the first cycle after a short stale phase`() = runTest {
+        // Dokumentiertes Verhalten (GAP_MS = 30 s der Regeln): eine Luecke unter 30 s unterbricht den Lauf nicht, auch nicht mit "veraltet" dazwischen. Vor der
+        // Schonfrist setzte "veraltet" die Regeln nach 10 s zurueck; jetzt zaehlt der Lauf ueber die Luecke (die 5 s der Kuehlmittel-Warnung sind dann erfuellt).
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        assertTrue(s.vm.alarms.value.isEmpty())
+        s.events.emit(SessionEvent.Stale)
+        testScheduler.advanceTimeBy(10_000)
+        testScheduler.runCurrent()
+
+        s.cycle(25, coolant = 101f)                                   // 25 s after the first breach sample
+
+        assertEquals(listOf(AlarmKind.COOLANT), s.vm.alarms.value.map { it.kind })
     }
 
     @Test

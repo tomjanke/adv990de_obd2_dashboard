@@ -334,6 +334,7 @@ fun DashboardScreen(
                         moreCount = alarms.size - 1,
                         onAcknowledge = { vm.acknowledgeAlarm(alarm.kind) },
                         modifier = Modifier.align(Alignment.TopCenter),
+                        showValue = alarmBannerShowsValue(phase),
                     )
                 }
             }

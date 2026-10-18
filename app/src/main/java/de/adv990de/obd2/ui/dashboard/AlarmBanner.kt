@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -79,8 +80,11 @@ internal fun AlarmBanner(
     moreCount: Int,
     onAcknowledge: () -> Unit,
     modifier: Modifier = Modifier,
+    showValue: Boolean = true,
 ) {
-    val message = alarmMessage(LocalResources.current, alarm)
+    // Ohne Live-Zahl ([showValue] falsch, s. [alarmBannerShowsValue]) nennt das Band nur die Art; ein Fehler-Alarm hat keine Live-Zahl und bleibt, wie er ist.
+    val plain = !showValue && alarm.kind != AlarmKind.FAULT_CODE
+    val message = if (plain) alarmSummary(LocalResources.current, alarm) else alarmMessage(LocalResources.current, alarm)
     val severityLabel = stringResource(
         if (alarm.severity == AlarmSeverity.WARNING) R.string.alarm_severity_warning else R.string.alarm_severity_notice,
     )
@@ -91,7 +95,7 @@ internal fun AlarmBanner(
     val container = StatusColors.container(alarmStatusColor(alarm.severity), surface)
     val accent = if (alarm.severity == AlarmSeverity.WARNING) StatusColors.criticalOn(surface) else StatusColors.warningOn(surface)
     val titleStyle = MaterialTheme.typography.titleLarge
-    val styledMessage = emphasizeValue(message, alarmValueText(alarm), titleStyle.asLiveValue().toSpanStyle())
+    val styledMessage = if (plain) AnnotatedString(message) else emphasizeValue(message, alarmValueText(alarm), titleStyle.asLiveValue().toSpanStyle())
 
     // Die Reihenfolge ist Absicht und weicht von "padding vor background" ab: der Rand liegt INNEN, hinter dem clickable — Fläche und Trefferfläche sind das ganze Band,
     // nicht nur das, was vom Rand übrig bleibt.

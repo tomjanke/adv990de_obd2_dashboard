@@ -6,6 +6,13 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 
 /**
+ * Zeigt das Band die Live-Zahl (Volt, °C)? Nur, solange Werte fließen: außerhalb von [DashboardPhase.Live] stehen die Kacheln auf „--“ („Nur Live zeigt Zahlen“, Dashboard-Phasen),
+ * und das Band zeigte sonst eine bis zu 30 s alte Zahl (die Schonfrist nach „veraltet“, [AlarmStaleGrace]) neben leeren Kacheln. Dann nennt es nur die Art („Kühlmittel heiß“).
+ * Fehlercodes sind keine Live-Zahl und bleiben immer stehen.
+ */
+internal fun alarmBannerShowsValue(phase: DashboardPhase): Boolean = phase == DashboardPhase.Live
+
+/**
  * Der Text des Alarmbands: [message] (der fertige Wortlaut von `alarmMessage`) mit [style] auf der Stelle, an der [value] (die Zahl bzw. die Codes, `alarmValueText`) darin steht.
  * Die Zahl erscheint so in der Zahlenschrift (Plex Mono, `tnum`: stabile Ziffernbreite, Design-Prinzip 3), die Worte und die Einheit bleiben in der Text-Schrift — und der Text bleibt **ein**
  * Knoten mit genau dem Wortlaut von [message] (TalkBack liest ihn ganz, Tests finden ihn am Text), statt aus drei Teilen zusammengesetzt zu sein.
