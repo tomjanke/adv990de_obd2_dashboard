@@ -251,15 +251,19 @@ class ReadingsPipeline @Inject constructor(
         val userDisconnectsAtStart = obdRepository.userDisconnectCount.value
         fun lostLinkWantsReconnect() = obdRepository.userDisconnectCount.value == userDisconnectsAtStart
 
+        val supported = obdRepository.supportedPidIds.value
         val selectedPids = selectPids(
             slotIds,
-            supported = obdRepository.supportedPidIds.value,
+            supported = supported,
             dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first(),
         )
 
         // Aufzeichnungs-Einstellung einmal pro Sitzung lesen, nicht pro Zyklus.
         val logOnlyDtc = appPreferences.logOnlyDtcSessions.first()
         val watchdogTimeoutMs = appPreferences.obdWatchdogTimeoutSeconds.first() * 1_000L
+        // Die Spannung nur fuer den Alarm: jeden 4. Zyklus, wenn sie keine Kachel ist. Wie die dynamische Schwelle einmal je Sitzung gelesen —
+        // eingeschaltet waehrend der Verbindung wirkt die Abfrage ab der naechsten (der Tracker liest den Schalter selbst live).
+        val slowPids = selectSlowPids(selectedPids, supported, appPreferences.alarmSettings.first().voltageEnabled)
 
         val vin = try { obdRepository.readVin() } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -317,7 +321,7 @@ class ReadingsPipeline @Inject constructor(
             // null (Lesefehler) = nicht erfasst, leer = keine Codes, sonst die Liste.
             if (recordThisTrip) recorder.start(vin, dtcList)
             emitAll(
-                obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs)
+                obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs, slowPids = slowPids)
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
                     .onEach { readings ->
                         lastObdReadings.value = readings

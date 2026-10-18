@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
@@ -1171,6 +1172,7 @@ class ObdRepositoryTest {
         repo: ObdRepository,
         pids: List<PidDefinition>,
         windowMs: Long = 60_000L,
+        slowPids: List<PidDefinition> = emptyList(),
     ): Long? {
         val pollStart = currentTime
         return withTimeoutOrNull(windowMs) {
@@ -1180,6 +1182,7 @@ class ObdRepositoryTest {
                     pollIntervalMs = 1_000L,
                     watchdogTimeoutMs = 3_000L,
                     timeSource = testTimeSource,
+                    slowPids = slowPids,
                 ).collect {}
                 throw AssertionError("the poll loop ended on its own instead of polling or escalating")
             } catch (_: ObdException.ConnectionLost) {
@@ -1301,6 +1304,152 @@ class ObdRepositoryTest {
             sinceLastNoDataMs <= 3_000L + 1_000L,
         )
         assertFalse(repo.isConnectedFlow.value)
+    }
+
+    // ── Langsame PIDs: jeder n-te Zyklus (Spannung fuer den Spannungsalarm) ─────────
+
+    private val rpmAnswer = PidRegistry.RPM.id to "41 0C 1A F8"
+    private val voltageAnswer = PidRegistry.CONTROL_MODULE_VOLTAGE.id to "41 42 30 39"
+
+    /**
+     * Ein verbundenes Repository, dessen Adapter [answer] auf jeden Befehl antwortet (Standard: Drehzahl und Spannung gueltig); alle
+     * Befehle landen in [sent]. Die Discovery-Befehle zaehlen nicht mit (makeConnectedRepo registriert sie danach).
+     */
+    private suspend fun slowPidRepo(
+        sent: MutableList<String> = mutableListOf(),
+        answer: (String) -> String = { mapOf(rpmAnswer, voltageAnswer).getValue(it) },
+    ): ObdRepository {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            val command = firstArg<String>()
+            sent += command
+            answer(command)
+        }
+        return makeConnectedRepo(elmCtrl, PidParser())
+    }
+
+    /** Die PID-IDs der Messwerte der ersten [cycles] Zyklen, je Zyklus eine Liste. */
+    private suspend fun ObdRepository.idsPerCycle(
+        cycles: Int,
+        slowPids: List<PidDefinition> = listOf(PidRegistry.CONTROL_MODULE_VOLTAGE),
+        slowEveryCycles: Int = 4,
+    ): List<List<String>> = livePids(
+        listOf(PidRegistry.RPM), pollIntervalMs = 0L, slowPids = slowPids, slowEveryCycles = slowEveryCycles,
+    ).take(cycles).toList().map { values -> values.map { it.pid.id } }
+
+    @Test
+    fun `livePids asks the slow PIDs in the first cycle and then every fourth one`() = runTest {
+        val repo = slowPidRepo()
+
+        val cycles = repo.idsPerCycle(cycles = 6)
+
+        val withVoltage = listOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id)
+        val rpmOnly = listOf(PidRegistry.RPM.id)
+        assertEquals(
+            "Zyklus 0 und 4 mit Spannung (der Zaehler beginnt bei 0: die erste Spannung kommt sofort), 1-3 und 5 ohne",
+            listOf(withVoltage, rpmOnly, rpmOnly, rpmOnly, withVoltage, rpmOnly),
+            cycles,
+        )
+    }
+
+    @Test
+    fun `livePids sends the slow PID command only in those cycles`() = runTest {
+        val sent = mutableListOf<String>()
+        val repo = slowPidRepo(sent)
+
+        repo.idsPerCycle(cycles = 5)
+
+        val rpm = PidRegistry.RPM.id
+        val voltage = PidRegistry.CONTROL_MODULE_VOLTAGE.id
+        assertEquals(listOf(rpm, voltage, rpm, rpm, rpm, rpm, voltage), sent)
+    }
+
+    @Test
+    fun `livePids without slow PIDs queries exactly what it queried before`() = runTest {
+        val sent = mutableListOf<String>()
+        val repo = slowPidRepo(sent)
+
+        val cycles = repo.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 0L).take(5).toList()
+            .map { values -> values.map { it.pid.id } }
+
+        assertEquals(List(5) { listOf(PidRegistry.RPM.id) }, cycles)
+        assertEquals(List(5) { PidRegistry.RPM.id }, sent)
+    }
+
+    @Test
+    fun `livePids slow PIDs default to every fourth cycle`() = runTest {
+        // slowEveryCycles bewusst weggelassen: der Standard ist ObdRepository.SLOW_PID_EVERY_CYCLES = 4.
+        val repo = slowPidRepo()
+
+        val cycles = repo.livePids(
+            listOf(PidRegistry.RPM), pollIntervalMs = 0L, slowPids = listOf(PidRegistry.CONTROL_MODULE_VOLTAGE),
+        ).take(5).toList().map { values -> values.size }
+
+        assertEquals(4, ObdRepository.SLOW_PID_EVERY_CYCLES)
+        assertEquals(listOf(2, 1, 1, 1, 2), cycles)
+    }
+
+    @Test
+    fun `livePids with slowEveryCycles 1 asks the slow PIDs in every cycle`() = runTest {
+        val repo = slowPidRepo()
+
+        val cycles = repo.idsPerCycle(cycles = 3, slowEveryCycles = 1)
+
+        assertEquals(
+            List(3) { listOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id) },
+            cycles,
+        )
+    }
+
+    @Test
+    fun `livePids rejects a slowEveryCycles below 1 instead of dividing by zero`() = runTest {
+        val repo = slowPidRepo()
+
+        for (invalid in listOf(0, -1)) {
+            val error = runCatching { repo.idsPerCycle(cycles = 1, slowEveryCycles = invalid) }.exceptionOrNull()
+            assertTrue("slowEveryCycles = $invalid must be rejected, got $error", error is IllegalArgumentException)
+        }
+    }
+
+    @Test
+    fun `a NoData of the slow PID costs nothing and is no watchdog event, the other values still come`() = runTest {
+        // Die Spannung antwortet nie (NO DATA); Drehzahl laeuft. Jeder Zyklus liefert die Drehzahl, die Verbindung bleibt stehen.
+        val repo = slowPidRepo(answer = { command ->
+            if (command == PidRegistry.CONTROL_MODULE_VOLTAGE.id) throw ObdException.NoData(command)
+            rpmAnswer.second
+        })
+
+        val cycles = repo.idsPerCycle(cycles = 9)
+
+        assertEquals(List(9) { listOf(PidRegistry.RPM.id) }, cycles)
+        assertTrue(repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `cycles of nothing but NoData, slow PIDs included, never trip the watchdog`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("pid")
+        val repo = makeConnectedRepo(elmCtrl)
+
+        assertNull(
+            "NoData alone must never trip the watchdog, also when a slow PID is in the cycle (60 s window)",
+            msUntilWatchdogEscalates(repo, listOf(PidRegistry.RPM), slowPids = listOf(PidRegistry.CONTROL_MODULE_VOLTAGE)),
+        )
+    }
+
+    @Test
+    fun `a BusInit on the slow PID suppresses that partial cycle like on any other PID`() = runTest {
+        // Zyklus 0: die Drehzahl antwortet, die Spannung meldet BusInit — der Zyklus wird nicht halb ausgegeben. Die Zyklen 1-3 fragen die
+        // Spannung nicht, liefern also wieder; der BusInit-Zaehler (5 in Folge) wird dazwischen zurueckgesetzt.
+        val repo = slowPidRepo(answer = { command ->
+            if (command == PidRegistry.CONTROL_MODULE_VOLTAGE.id) throw ObdException.BusInit()
+            rpmAnswer.second
+        })
+
+        val cycles = repo.idsPerCycle(cycles = 3)
+
+        assertEquals(List(3) { listOf(PidRegistry.RPM.id) }, cycles)
+        assertTrue(repo.isConnectedFlow.value)
     }
 
     // ── PID Discovery ─────────────────────────────────────────────────────────

@@ -44,3 +44,22 @@ internal fun selectPids(
         .mapNotNull { PidRegistry.all[it] }
         .distinctBy { it.id }
 }
+
+/**
+ * Die PIDs, die nur jeden vierten Zyklus gefragt werden (`ObdRepository.livePids(slowPids = …)`): heute die Spannung (`0142`), und nur,
+ * wenn der Spannungsalarm an ist ([voltageAlarmEnabled]), sie in [selected] nicht ohnehin steht (als Kachel wird sie jeden Zyklus gefragt)
+ * **und** das Steuergeraet sie meldet ([supported] nicht leer und enthaelt `0142`).
+ *
+ * Dieselbe Begruendung wie bei der Geschwindigkeit in [selectPids]: ohne Discovery-Ergebnis oder bei einem Fahrzeug, das `0142` nicht meldet,
+ * kostete der Befehl regelmaessig einen vergeblichen Versuch (bei einem Zeitlimit 5 s). Der Schalter wird je Sitzung einmal gelesen —
+ * eingeschaltet waehrend der Verbindung, wirkt die Abfrage ab der naechsten; die Spannung steht dann auch in der Aufzeichnung der Fahrt.
+ */
+internal fun selectSlowPids(
+    selected: List<PidDefinition>,
+    supported: Set<String>?,
+    voltageAlarmEnabled: Boolean,
+): List<PidDefinition> {
+    val voltage = PidRegistry.CONTROL_MODULE_VOLTAGE
+    val reported = !supported.isNullOrEmpty() && voltage.id in supported
+    return if (voltageAlarmEnabled && reported && selected.none { it.id == voltage.id }) listOf(voltage) else emptyList()
+}

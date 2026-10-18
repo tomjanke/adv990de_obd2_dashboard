@@ -303,15 +303,23 @@ class ObdRepository @Inject constructor(
      * (`testTimeSource`); production uses the default [TimeSource.Monotonic]. It has to be real
      * time: a single Timeout already blocks for ElmController's 5 s read timeout, so the earlier
      * approach of adding [pollIntervalMs] per empty cycle undercounted a real stall 30-40x.
+     *
+     * [slowPids] (nicht in [pids]) kommen zusaetzlich in jedem [slowEveryCycles]-ten Zyklus dran, der erste (Zaehler 0) eingeschlossen — die
+     * Spannung fuer den Spannungsalarm aendert sich langsam und kostet 0,15-0,3 s je Befehl. Watchdog, BusInit und Teilzyklen behandeln so
+     * einen Zyklus wie jeden anderen.
      */
     fun livePids(
         pids: List<PidDefinition> = PidRegistry.defaults,
         pollIntervalMs: Long = 500L,
         watchdogTimeoutMs: Long = DEFAULT_WATCHDOG_TIMEOUT_MS,
         timeSource: TimeSource = TimeSource.Monotonic,
+        slowPids: List<PidDefinition> = emptyList(),
+        slowEveryCycles: Int = SLOW_PID_EVERY_CYCLES,
     ): Flow<List<SensorValue>> = flow {
+        require(slowEveryCycles >= 1) { "slowEveryCycles must be at least 1, was $slowEveryCycles" }
         var consecutiveBusInitErrors = 0
         var lastSuccessMark = timeSource.markNow()
+        var cycle = 0L
         while (true) {
             // elm is @Volatile; capture into a local so the reference stays alive even if
             // a concurrent disconnect() nulls elm after the null check.
@@ -319,7 +327,8 @@ class ObdRepository @Inject constructor(
             val values = mutableListOf<SensorValue>()
             var busInitOccurred = false
             var timeoutOrUnknownOccurred = false
-            for (pid in pids) {
+            val cyclePids = if (slowPids.isNotEmpty() && cycle % slowEveryCycles == 0L) pids + slowPids else pids
+            for (pid in cyclePids) {
                 try {
                     val raw = controller.sendCommand(pid.id)
                     values.add(pidParser.parse(pid, raw))
@@ -378,6 +387,7 @@ class ObdRepository @Inject constructor(
                 // on the spot.
                 lastSuccessMark = timeSource.markNow()
             }
+            cycle++
             delay(pollIntervalMs)
         }
     }
@@ -388,4 +398,9 @@ class ObdRepository @Inject constructor(
     suspend fun readFreezeFrame(): Map<String, String> = elm?.let { diagnostics.readFreezeFrame(it) } ?: emptyMap()
 
     suspend fun readVin(): String? = elm?.let { diagnostics.readVin(it) }
+
+    companion object {
+        /** Jeder wievielte Zyklus die `slowPids` von [livePids] mitfragt: die Spannung kostet 0,15-0,3 s je Befehl und aendert sich langsam. */
+        const val SLOW_PID_EVERY_CYCLES = 4
+    }
 }

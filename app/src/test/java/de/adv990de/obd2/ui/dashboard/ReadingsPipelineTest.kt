@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.alarm.AlarmSettings
 import de.adv990de.obd2.crash.CrashReporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
@@ -490,6 +491,94 @@ class ReadingsPipelineTest {
         assertTrue(PidRegistry.SPEED.id in pidsSlot.captured.map { it.id })
     }
 
+    // --- Test 12c: langsame PIDs (Spannung fuer den Spannungsalarm) ---
+
+    /**
+     * Die `slowPids`, die die Pipeline an `livePids` gibt. Alle sechs Parameter offen: der Stub `livePids(any())` von [makeRepo] passt nur
+     * auf die Standardwerte der uebrigen (MockK zeichnet Kotlin-Standardargumente als feste Werte auf) und wuerde eine nicht leere Liste
+     * nicht beantworten.
+     */
+    private suspend fun TestScope.slowPidsPassedToLivePids(
+        supported: Set<String>?,
+        slotPids: List<String> = listOf(PidRegistry.ENGINE_LOAD.id, "", "", ""),
+        alarms: AlarmSettings = AlarmSettings(),
+    ): List<PidDefinition> {
+        val repo = makeRepo(connected = true, supported = supported)
+        val slowSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(any(), any(), any(), any(), capture(slowSlot), any()) } returns flowOf(listOf(rpm))
+        val prefs = fakeAppPreferences(slotPids = slotPids, alarmSettings = alarms)
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        return slowSlot.captured
+    }
+
+    @Test
+    fun `the voltage is slow-polled when the alarm is on and the vehicle reports it`() = runTest {
+        val slow = slowPidsPassedToLivePids(supported = setOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id))
+
+        assertEquals(listOf(PidRegistry.CONTROL_MODULE_VOLTAGE), slow)
+    }
+
+    @Test
+    fun `no slow PIDs when the voltage alarm is off`() = runTest {
+        val slow = slowPidsPassedToLivePids(
+            supported = setOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id),
+            alarms = AlarmSettings(voltageEnabled = false),
+        )
+
+        assertEquals(emptyList<PidDefinition>(), slow)
+    }
+
+    @Test
+    fun `no slow PIDs without a discovery result or when the vehicle does not report the voltage`() = runTest {
+        assertEquals("keine Discovery", emptyList<PidDefinition>(), slowPidsPassedToLivePids(supported = null))
+        assertEquals(
+            "Fahrzeug meldet 0142 nicht",
+            emptyList<PidDefinition>(),
+            slowPidsPassedToLivePids(supported = setOf(PidRegistry.RPM.id)),
+        )
+    }
+
+    @Test
+    fun `no slow PIDs when the voltage is a tile, it is queried every cycle then`() = runTest {
+        val supported = setOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id)
+        val repo = makeRepo(connected = true, supported = supported)
+        val pidsSlot = slot<List<PidDefinition>>()
+        val slowSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(capture(pidsSlot), any(), any(), any(), capture(slowSlot), any()) } returns flowOf(listOf(rpm))
+        val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.CONTROL_MODULE_VOLTAGE.id, "", "", ""))
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+
+        assertTrue(PidRegistry.CONTROL_MODULE_VOLTAGE.id in pidsSlot.captured.map { it.id })
+        assertEquals(emptyList<PidDefinition>(), slowSlot.captured)
+    }
+
+    @Test
+    fun `the alarm switch is read once per session, a later change does not reach the running session`() = runTest {
+        // Der Schalter kommt als feste Liste in die Sitzung (livePids bekommt keinen Fluss): eine Aenderung waehrend der Fahrt wirkt ab
+        // der naechsten Verbindung. Gezaehlt wird, wie oft die Pipeline den Fluss abonniert — ein Lesen je Zyklus waere hier 3.
+        var reads = 0
+        val alarms = MutableStateFlow(AlarmSettings(voltageEnabled = true))
+        val prefs = fakeAppPreferences()
+        every { prefs.alarmSettings } returns flow { reads++; emit(alarms.value) }
+        val repo = makeRepo(connected = true, supported = setOf(PidRegistry.RPM.id, PidRegistry.CONTROL_MODULE_VOLTAGE.id))
+        val slowSlot = slot<List<PidDefinition>>()
+        every { repo.livePids(any(), any(), any(), any(), capture(slowSlot), any()) } returns flow {
+            emit(listOf(rpm))
+            alarms.value = AlarmSettings(voltageEnabled = false)   // der Nutzer schaltet den Alarm waehrend der Sitzung aus
+            emit(listOf(rpm))
+            emit(listOf(rpm))
+        }
+
+        makePipeline(repo, prefs = prefs).events(backgroundScope).take(3).toList()
+
+        assertEquals(1, reads)
+        assertEquals(listOf(PidRegistry.CONTROL_MODULE_VOLTAGE), slowSlot.captured)
+        verify(exactly = 1) { repo.livePids(any(), any(), any(), any(), any(), any()) }
+    }
+
     // --- Test 13 ---
 
     @Test
@@ -522,7 +611,7 @@ class ReadingsPipelineTest {
         // Every parameter open: makeRepo's `livePids(any())` stub only matches the DEFAULT values of
         // the remaining parameters (MockK records Kotlin default arguments as concrete values), so
         // it would not answer a call carrying the non-default 45_000 ms.
-        every { repo.livePids(any(), any(), any(), any()) } returns flowOf(listOf(rpm))
+        every { repo.livePids(any(), any(), any(), any(), any(), any()) } returns flowOf(listOf(rpm))
 
         makePipeline(repo, prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = 45))
             .events(backgroundScope).take(1).toList()
@@ -533,6 +622,8 @@ class ReadingsPipelineTest {
                 pollIntervalMs = any(),
                 watchdogTimeoutMs = 45_000L,
                 timeSource = any(),
+                slowPids = any(),
+                slowEveryCycles = any(),
             )
         }
     }
