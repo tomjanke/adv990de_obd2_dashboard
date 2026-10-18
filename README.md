@@ -18,6 +18,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 - **Simulierte Öltemperatur-Leiste** — Farbstreifen (16 dp hoch, mit einer Ölkanne davor) unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten über 80 °C, kurze Einbrüche unter 78 °C bis zu 2 Minuten werden toleriert); solange der 10-Minuten-Timer läuft, färbt sich der gelbe Streifen anteilig von links nach rechts grün (grüner Anteil = verstrichene Zeit); grau ohne Verbindung
 - **Virtuelle Tankanzeige** — ein Balken ganz unten im Dashboard (nur dort), direkt über dem Hauptmenü bzw. der Statuszeile (volle Breite, 40 dp hoch, links ein Tankstellen-Symbol), in **zehn Segmenten** (Lücke wie beim Drehzahlbalken; die Anzeige sinkt segmentweise, nicht stufenlos — ein Segment steht für ein Zehntel der Reichweite und geht erst aus, wenn dieses Zehntel verbraucht ist), der die seit dem letzten Tanken per GPS gefahrenen Kilometer gegen die hinterlegte **Reichweite bei vollem Tank** (Einstellungen → Fahrzeug, 50–1000 km) zählt: die Farbe hängt an der Zahl leuchtender Segmente: 5–10 Segmente grün, 3–4 gelb, 2 rot, das letzte Segment rot blinkend (also ab höchstens 10 % Rest); sie wechselt genau dann, wenn ein Segment erlischt. Ein langer Druck auf Symbol oder Balken setzt sie nach Rückfrage wieder auf „voll“ (nach dem Tanken). Es ist ein Streckenzähler, keine Kraftstoffmessung: kein Erkennen des Tankens, kein Verbrauch; gezählt wird nur bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“. Ohne hinterlegte Reichweite gibt es die Zeile nicht
 - **Gelände-Kachel** — ein wählbarer Eintrag der Slot-Auswahl („Gelände“), der drei Werte des **Telefons** zeigt (nicht des Fahrzeugs): die **Höhe** als große Zahl, die **Steigung** als Verlauf der letzten 1000 m (Graph mit Nulllinie, daneben der aktuelle Wert) und die **Peilung** als Windrose (Nord oben fest, die Nadel zeigt die Fahrtrichtung, darunter Himmelsrichtung und Grad). Die Höhe kommt aus dem Drucksensor, kalibriert gegen die GPS-Höhe (ohne Sensor: geglättete GPS-Höhe), die Steigung aus der Druckänderung über mindestens 100 m Fahrstrecke, die Peilung ist der GPS-Kurs über Grund (kein Kompass; im Stand wird die letzte Peilung 30 s gehalten). Sie läuft offline, braucht keine neue Berechtigung, nur den GPS-Schalter („Geschwindigkeit per GPS“; dessen Beschreibung in den Einstellungen nennt die Kachel), und zeigt ihre Werte **auch ohne Verbindung zum Fahrzeug** — sie kommen vom Telefon. Sie rechnet nur, solange ein Slot sie trägt und das Dashboard zu sehen ist (5 s nach dem Verlassen halten GPS und Barometer an). Es wird nichts aufgezeichnet. Ohne Werte nennt der Slot den Grund (GPS aus, Berechtigung fehlt, wartet auf Signal). Nicht am Motorrad geprüft
+- **Alarme unterwegs** *(gebaut, noch nicht released — nächste Version)* — drei Alarme, alle rein lesend: **Spannung** (Steuergerätespannung `0142`, bei eingeschaltetem Alarm alle 4 Zyklen zusätzlich abgefragt und dann auch in der Fahrt aufgezeichnet), **Kühlmittel** und **neuer Fehlercode unterwegs** (die App liest Modus 03/07 alle 60 s nach, ein neuer Code zählt erst in zwei aufeinanderfolgenden Auslesungen). Ein Wert allein alarmiert nie, er muss anhalten, und nur bei laufendem Motor (die Spannung 15 s nach dem Start): Spannung unter 12,2 V ≥ 10 s = Warnung (rot), unter 12,5 V ≥ 20 s = Hinweis (gelb), unter 13,0 V ≥ 3 min = Hinweis (Entladung); Kühlmittel ab 100 °C ≥ 5 s = Warnung, ab 95 °C ≥ 10 s = Hinweis; ein neuer bestätigter Fehlercode = Warnung, ein nur ausstehender = Hinweis. Anzeige: ein **Alarmband** (56 dp, volle Breite, kein Blinken) über den Kacheln mit dem wichtigsten Alarm und „+N“ für weitere — **ein Tipp quittiert** — und eine **Systembenachrichtigung** (eigener Kanal „Alarme“, hohe Wichtigkeit: Ton und Vibration nach Systemeinstellung, auch auf anderen Seiten und bei gesperrtem Bildschirm). Einstellungen → Alarme: drei Schalter (Standard an) und je Alarm zwei wählbare Schwellen; ein Hinweis erscheint, wenn Benachrichtigungen gesperrt sind. Ein Fehler-Alarm bleibt, bis er quittiert wird (auch nach dem Ende der Fahrt). **Nicht am Fahrzeug geprüft** (der Simulator meldet keine Fehlercodes und löst die anderen Alarme nicht aus), die Schwellen stammen aus 9 kühlen Fahrten (Heizgriffe können den Spannungshinweis auslösen), der Ton am Lenker ist ungemessen, A9 Teil 2 (Mehrframe-Antworten) bleibt offen. Im Querformat verkleinert das Band die Kachelreihe (200 → 156 dp, mit vollem Vorschau-Band weniger). Einzelheiten: `CLAUDE.md`, Abschnitt „Alarme“
 - **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
 - **Ein Menüpunkt „Fahrten“** — Fahrtenverlauf und Fehlercodes teilen sich einen Punkt im Hauptmenü (Live, Fahrten, Einstellungen, Beenden) mit einem Umschalter „Fahrten | Aktuell | Historie“; „Aktuell“ und „Historie“ sind die beiden Ansichten der Fehlercode-Seite, der Freeze Frame bleibt ihre Unterseite
 - **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export (je Fahrt über das Teilen-Symbol der Zeile, oder **alle abgeschlossenen Fahrten in einer Datei** über das Export-Symbol der Kopfleiste: teilen oder mit dem Dateidialog des Systems **auf dem Gerät speichern**, z. B. in Downloads); einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug). **Fehlercodes je Fahrt:** jede neue Fahrt merkt sich die Codes, die das Fahrzeug bei ihrem Beginn meldete; die Zeile zeigt dann „N Fehler“ (rot, sobald ein bestätigter Code dabei ist, gelb bei nur ausstehenden), ein Tipp auf die Zeile öffnet die Details mit Ende, FIN und den Codes samt Beschreibung. Drei Zustände: Codes · „das Fahrzeug meldete keine“ · „nicht erfasst“ (Fahrten vor 1.33.0 und ein gescheitertes Auslesen — sie werden nicht nachträglich zugeordnet). Ein Code, der erst mitten in der Fahrt auftritt, wird nicht erfasst; „Nur Fahrten mit DTCs speichern“ ist unverändert
@@ -138,7 +139,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1820 Tests, < 30 Sekunden)
+# JVM Unit Tests (2068 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -147,13 +148,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1820 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 444 (Dashboard, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2068 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 528 (Dashboard, Alarmband samt Dashboard-Alarme, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 59 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4→5, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
-| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 83 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
+| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 87 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
 
 ---
@@ -182,7 +183,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── freezeframe/             # Snapshot-Daten
 │   ├── history/                 # Fahrtenverlauf (Papierkorb/Swipe mit Undo, Alle löschen, aktive Fahrt geschützt;
 │   │                            # Fehler-Zeichen je Fahrt, Details-Dialog mit den Codes bei Fahrtbeginn)
-│   ├── settings/                # gruppierte Einstellungsseite (Verbindung · Dashboard & Anzeige · Aufzeichnung · Fahrzeug · Info),
+│   ├── settings/                # gruppierte Einstellungsseite (Verbindung · Dashboard & Anzeige · Alarme · Aufzeichnung · Fahrzeug · Info),
 │   │                            # App-Logs, Getriebe-/Gangverhältnisse, Drehzahl-Blinkgrenze
 │   ├── vehicleinfo/             # Mode 09 (VIN etc.)
 │   ├── appinfo/                 # Über-Bildschirm
@@ -194,12 +195,14 @@ app/src/main/java/de/adv990de/obd2/
 │   └── weather/                 # WeatherViewModel (Polling nur bei sichtbarer Zeile) +
 │                                # 30-Minuten-Halte-Logik (OutsideTemperatureHold)
 ├── terrain/                     # Gelände-Kachel: Höhe, Steigung, Peilung (reine Schätzer, Drucksensor, Eingaben aus GPS-Fix + Druck)
+├── alarm/                       # Alarme: reine Regeln (SustainedRule, EngineGate, AlarmTracker, FaultCodeWatcher), AlarmController,
+│                                # AlarmNotifier (Schnittstelle) + AndroidAlarmNotifier (Kanal „Alarme“), alarmMessage
 ├── location/                    # GpsSpeedSource (Geschwindigkeit aus dem GPS-Fix),
 │                                # CurrentLocationProvider (Standort fürs Wetter: jüngster Cache-Fix ≤ 10 min, sonst aktiver Fix)
 ├── weather/                     # WeatherApi/OpenMeteoApi (HTTP ohne Zusatz-Library),
 │                                # WeatherRepository
 ├── di/                          # Hilt-Module (AppModule, CrashReporterModule, LocationModule,
-│                                # WeatherModule, FuelModule, TerrainModule)
+│                                # WeatherModule, FuelModule, TerrainModule, AlarmModule)
 └── crash/                       # CrashReporter (Sentry-Wrapper), CrashReportingController (Schalter)
 ```
 
@@ -264,7 +267,7 @@ Die übrigen sind „normale“ Berechtigungen ohne Dialog.
 | `ACCESS_FINE_LOCATION` | alle | Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt) und Standort für die Außentemperatur; für Bluetooth wird kein Standort gebraucht |
 | `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen); genügt allein für die Außentemperatur |
 | `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde: hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
-| `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification (optional: ohne sie läuft der Dienst, nur die Benachrichtigung fehlt) |
+| `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification und Alarm-Benachrichtigungen (optional: ohne sie läuft der Dienst und zeigt das Dashboard die Alarme, nur die Benachrichtigungen fehlen; die Einstellungen weisen darauf hin) |
 | `FOREGROUND_SERVICE` | alle | Foreground Service (normale Berechtigung, kein Dialog) |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 (normale Berechtigung) |
 | `FOREGROUND_SERVICE_LOCATION` | 34+ | Service-Typ `location` für die GPS-Geschwindigkeit im Hintergrund (normale Berechtigung; der Typ wird nur angefordert, wenn auch `ACCESS_BACKGROUND_LOCATION` erteilt ist) |
@@ -308,7 +311,8 @@ Ein Export (Fahrten → Teilen) schreibt `session_<Fahrt>_<UTC-Zeit>.csv` in den
 Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - **Verbindung:** gekoppeltes Gerät (Auto-Connect zum letzten Gerät), „Alle gekoppelten Geräte“ anzeigen, Reconnect bei eingefrorenen Werten (OBD-Watchdog), Reconnect-Basisverzögerung
 - **Dashboard & Anzeige:** Farbschema (drei Cockpit-Schemata plus Standard mit Hell/Dunkel/System), Einheiten (metrisch/imperial), Navigationsleiste beim Fahren ausblenden (an ihrer Stelle Datum, Uhrzeit und Außentemperatur), Geschwindigkeit per GPS (wenn das Fahrzeug keine liefert), Drehzahl-Blinkgrenze mit dynamischer Schwelle, Getriebe (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang für die virtuelle Ganganzeige)
-- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“. Gespeichert wird, was die App abfragt: die Werte der Kacheln (zur Auswahl stehen nur Werte, die das Steuergerät als unterstützt meldet), immer Drehzahl und Kühlmittel und die Geschwindigkeit — vom Fahrzeug, wenn es sie meldet, sonst per GPS („Geschwindigkeit per GPS“) — und der **angezeigte Gang** (1–6, „N“ als 0, nicht bestimmbar als −1; Herkunft `DERIVED`, je OBD-Zyklus eine Zeile, auch wenn die Gang-Box „–“ zeigt) sowie die **angezeigte Farbe des Ölbalkens** (0 = rot, 1 = gelb, 2 = grün, −1 = grau; PID `OIL_BAR`, ebenfalls `DERIVED`, je OBD-Zyklus eine Zeile). Mehr Werte in einer Fahrt: als Kachel belegen
+- **Aufzeichnung:** „Nur Fahrten mit DTCs speichern“. Gespeichert wird, was die App abfragt: die Werte der Kacheln (zur Auswahl stehen nur Werte, die das Steuergerät als unterstützt meldet), immer Drehzahl und Kühlmittel und die Geschwindigkeit — vom Fahrzeug, wenn es sie meldet, sonst per GPS („Geschwindigkeit per GPS“) — und der **angezeigte Gang** (1–6, „N“ als 0, nicht bestimmbar als −1; Herkunft `DERIVED`, je OBD-Zyklus eine Zeile, auch wenn die Gang-Box „–“ zeigt) sowie die **angezeigte Farbe des Ölbalkens** (0 = rot, 1 = gelb, 2 = grün, −1 = grau; PID `OIL_BAR`, ebenfalls `DERIVED`, je OBD-Zyklus eine Zeile). Bei eingeschaltetem Spannungsalarm (noch nicht released) kommt die **Spannung** (`0142`) alle 4 Zyklen dazu, auch ohne Kachel, sofern das Steuergerät sie meldet. Mehr Werte in einer Fahrt: als Kachel belegen
+- **Alarme:** Spannungsalarm, Kühlmittelalarm, „Fehler unterwegs melden“ (je ein Schalter, Standard an); je Alarm zwei wählbare Schwellen, nur sichtbar, solange der Schalter an ist: Spannung Hinweis unter 12,3 / **12,5** / 12,8 V und Warnung unter 11,8 / 12,0 / **12,2** V, Kühlmittel Hinweis ab 92 / **95** / 98 °C und Warnung ab **100** / 105 / 110 °C (Kühlmittel immer in °C, auch bei imperialen Einheiten); ein Hinweis mit Knopf zu den App-Einstellungen, wenn Benachrichtigungen gesperrt sind (nicht erkannt wird ein nur stummgeschalteter Kanal „Alarme“); die Spannung wird nach dem Einschalten ab der nächsten Verbindung mitgelesen
 - **Fahrzeug:** Reichweite bei vollem Tank (für die Tankanzeige), Fahrzeuginfo (FIN)
 - **Info & Wartung:** „Absturzberichte senden“ (nur in einer Version mit eingebautem Sentry-DSN), App-Logs, App-Info (zeigt u. a. den Stand der Absturzberichte; von dort die Open-Source-Lizenzen)
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
@@ -369,8 +373,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1820) |
-| `app/src/androidTest/` | Instrumented Tests (444, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (2068) |
+| `app/src/androidTest/` | Instrumented Tests (528, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `docs/superpowers/archive/` | Pläne und Spezifikationen umgesetzter Funktionen (Dokumentation, nicht Build-Input) |
