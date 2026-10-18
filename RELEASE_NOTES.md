@@ -1,5 +1,35 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.36.1 (versionCode 126)
+
+Aufräum-Runde nach dem Alarm-Release: ein Alarm überlebt eine kurze „veraltet“-Phase, die Fehlerwache gibt nicht mehr auf, das Alarmband ist für Screenreader ruhiger und das rote Warnsymbol auf hellen Flächen besser zu sehen.
+
+### Was sich ändert
+
+- **„Veraltet“ beendet die Zahlen-Alarme erst nach 20 s Schonfrist.** Ein Zyklus, in dem zwei Abfragen ins Zeitlimit laufen (rund 10,5 s), löst „veraltet“ aus. Bisher löschte das Alarm, Quittierung und Einschwingzeit sofort und ließ denselben Alarm nach seiner Dauer erneut klingeln. Jetzt bleibt er bestehen, wenn die Werte innerhalb von 20 s zurückkommen (30 s ohne Werte insgesamt). Bleiben sie weg (Zündung aus), endet der Alarm wie bisher, nur später. **Während der Frist zeigt das Band keine Zahl** (die Kacheln zeigen „--“, eine bis zu 30 s alte Zahl wäre falsch), sondern nur die Art („Kühlmittel heiß“); Fehlercodes bleiben stehen.
+- **Die Fehlerwache gibt nicht mehr auf.** Scheiterte das Nachlesen mit einem Verbindungsverlust, obwohl die Verbindung noch stand (ersetzt durch eine neue), beendete das die Wache für den Rest der Sitzung. Jetzt liest sie in der nächsten Minute weiter.
+- **Der Tankzähler wird beim Beenden immer gespeichert,** auch wenn das Zurücknehmen der Alarm-Benachrichtigungen scheitert.
+- **TalkBack:** die Beschreibung des Alarmbands nennt Stufe und Art, nicht mehr die Live-Zahl („Warnung: Kühlmittel heiß. Zum Quittieren tippen.“). Vorher wechselte sie mit jedem Messwert.
+- **Das rote Warnsymbol im Band** hat auf hellen Flächen mehr Kontrast (4,29:1 statt 2,49:1 im hellen Standard-Schema; auf allen Schemata und Stufen mindestens 3:1, aus den gerenderten Bildpunkten gelesen).
+- **Intern:** die Fehlerwache (`FaultWatch`), die Alarm-Einstellungen (`AlarmPreferences`), die Gelände-Rechnung und die Schonfrist stehen in eigenen Dateien; `ReadingsPipeline` hat 393 statt 490 Zeilen, `AppPreferences` 399 statt 461, `DashboardViewModel` 475 statt 490 (**bleibt über 400**). `ThresholdAlarm` ignoriert nicht endliche Proben, bevor es die letzte Zahl merkt (über den Tracker bisher nicht erreichbar); die Schalter-Standards der Alarme stehen nur noch einmal.
+
+### Meine Auslegung des Wunsches
+
+- „Alle Punkte unter ‚Kleine Reste aus den Alarmen‘ bearbeiten“, dann „ja“ zum Release. Die Entwurfsfrage zu „veraltet“ war offen und ich habe sie entschieden: Schonfrist von 20 s (eine Konstante, einzeln rückgängig zu machen).
+- **Folge, ausdrücklich:** eine Lücke ohne Werte bis 30 s unterbricht den Lauf der Regeln nicht mehr (vorher setzte „veraltet“ sie nach 10 s zurück): 101 °C Kühlmittel bei t = 0, „veraltet“, dann 101 °C bei t = 25 s löst die Warnung mit dem zweiten Zyklus aus. Das ist die 30-s-Lücke der Regeln, jetzt auch mit „veraltet“ dazwischen; ein Test hält es fest. Bei ausgeschalteter Zündung steht ein Zahlen-Alarm 30 statt 10 s nach dem letzten Zyklus im Band.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft;** die Schonfrist ist nur gegen eingespielte Ereignisse getestet, nicht mit einem Adapter, der zwei Zeitlimits in einem Zyklus liefert.
+- **TalkBack nicht geprüft:** der sichtbare Text im Band (mit der Zahl) wechselt weiter mit jedem Messwert, und Compose meldet solche Änderungen in einer Live-Region. Ob TalkBack trotz gleicher Beschreibung neu ansagt, ist nicht am Gerät geprüft (ein TalkBack-Audit gab es nie). Abhilfe wäre `clearAndSetSemantics` am Band, mit Umbau der Text-Tests.
+- Das Alarmband überlagert weiter die oberen 72 dp der Kacheln (unverändert gegenüber 1.36.0).
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 2100 JVM-Tests (davon 65 Doku-Tests) und 540 Instrumentation-Tests, alle grün; 87 Vorschauen; Lint 0 Fehler, 1 bekannte Warnung. Netto 19 JVM- und 7 Geräte-Tests mehr gegenüber 1.36.0.
+- **Verfahren:** Test zuerst, wo es ging; ein unabhängiges Review (opus) fand nur kleine Punkte, alle übernommen (u. a. die Zahl im Band während der Frist, die erste Frist bei einem zweiten „veraltet“, ein unabbrechbares Ende). Mutationsproben: Schonfrist sofort beenden, Abbruch durch den nächsten Zyklus entfernen, die drei `cancel()`-Aufrufe entfernen (anfangs überlebte diese Mutation; der Test zählt jetzt die Aufrufe von `onSessionEnded`), die erste Frist ersetzen, die Basis-Kandidaten-Logik des Fehlerwächters — alle rot.
+
 ## Version 1.36.0 (versionCode 125)
 
 Drei **Alarme** unterwegs — Spannung, Kühlmittel und neue Fehlercodes — mit einem Alarmband im Dashboard und einer Systembenachrichtigung. Die Gelände-Kachel zeichnet ihre Steigungslinie jetzt so dick wie die übrigen Sparklines.
