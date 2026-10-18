@@ -11,12 +11,20 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+
+/**
+ * Strichstaerke und Punktradius der Linien in den Kacheln: **eine** Stelle fuer die Sparkline und den Steigungs-Verlauf der Gelaende-Kachel (`GradeGraph`), damit beide gleich dick sind
+ * (Nutzerwunsch 2026-10-18; die Steigung zeichnete vorher 3 dp / 3,5 dp). `SparklineStrokeSourceTest` haelt fest, dass `GradeGraph` diese Konstanten nutzt.
+ */
+internal val SPARKLINE_STROKE_WIDTH: Dp = 4.dp
+internal val SPARKLINE_DOT_RADIUS: Dp = 4.dp
 
 /**
  * Leichte Glaettung fuer die Sparkline-Trendlinie: zentrierter gleitender Mittelwert.
@@ -130,13 +138,13 @@ fun Sparkline(
         drawPath(
             path,
             color,
-            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(width = SPARKLINE_STROKE_WIDTH.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
         // Punkt auf dem juengsten Wert: markiert, wo "jetzt" liegt — ohne ihn liest sich die
         // Kurve in beide Richtungen gleich.
         val lastPoint =
             sparklinePointOffset(smoothed.size - 1, smoothed.last(), smoothed.size, min, max, size.width, size.height, inset)
-        drawCircle(color, radius = 4.dp.toPx(), center = Offset(size.width, lastPoint.y))
+        drawCircle(color, radius = SPARKLINE_DOT_RADIUS.toPx(), center = Offset(size.width, lastPoint.y))
     }
 }
 

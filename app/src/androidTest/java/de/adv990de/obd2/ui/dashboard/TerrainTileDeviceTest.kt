@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.dashboard
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -9,6 +11,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
@@ -31,6 +34,7 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.terrain.CompassPoint
 import de.adv990de.obd2.terrain.TerrainDisplay
+import de.adv990de.obd2.ui.components.Sparkline
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import org.junit.Assert.assertEquals
@@ -255,5 +259,36 @@ class TerrainTileDeviceTest {
         }
 
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.dashboard_slot_terrain_gps_off)).assertExists()
+    }
+
+    // --- Linienstaerke: die Steigung ist so dick wie eine Sparkline ---
+
+    /** Die Hoehe der Linie in Bildpunkten an der mittleren Spalte: die Punkte in der Farbe `primary` (ein vollstaendig gedeckter Strich, weder Saum noch Verlauf darunter). */
+    private fun lineThicknessPx(tag: String): Int {
+        val primary = blueColorScheme.primary
+        val image = composeRule.onNodeWithTag(tag).captureToImage().toPixelMap()
+        val x = image.width / 2
+        fun close(c: Color) = abs(c.red - primary.red) < 0.08f && abs(c.green - primary.green) < 0.08f && abs(c.blue - primary.blue) < 0.08f
+        return (0 until image.height).count { y -> close(image[x, y]) }
+    }
+
+    @Test
+    fun theGradeLineIsAsThickAsASparkline() {
+        composeRule.setContent {
+            MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+                Column {
+                    GradeGraph(values = List(40) { 0f }, modifier = Modifier.size(200.dp, 48.dp).testTag("grade_line"))
+                    Sparkline(points = List(40) { 5f }, modifier = Modifier.size(200.dp, 48.dp).testTag("spark_line"))
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        val grade = lineThicknessPx("grade_line")
+        val spark = lineThicknessPx("spark_line")
+        Log.i("TerrainTileDeviceTest", "Linienstaerke (Bildpunkte, Dichte %.2f): Steigung %d, Sparkline %d".format(composeRule.activity.resources.displayMetrics.density, grade, spark))
+
+        assertTrue("die Sparkline-Linie wurde gemessen ($spark px)", spark >= 6)
+        assertTrue("die Steigungslinie ist $grade px dick, die Sparkline $spark px", abs(grade - spark) <= 1)
     }
 }

@@ -45,6 +45,8 @@ import de.adv990de.obd2.terrain.CompassPoint
 import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.MIN_VALUE_FONT_SIZE
+import de.adv990de.obd2.ui.components.SPARKLINE_DOT_RADIUS
+import de.adv990de.obd2.ui.components.SPARKLINE_STROKE_WIDTH
 import de.adv990de.obd2.ui.components.TileFrame
 import de.adv990de.obd2.ui.components.TileStatus
 import de.adv990de.obd2.ui.components.liveValueTileAccentColor
@@ -197,7 +199,7 @@ internal fun TerrainTile(
 }
 
 /**
- * Der Steigungs-Verlauf der letzten 1000 m: Linie in `primary` (wie die Sparkline), die Nulllinie als Haarlinie in `outline`, der juengste Wert am rechten Rand mit einem Punkt.
+ * Der Steigungs-Verlauf der letzten 1000 m: Linie in `primary` (wie die Sparkline, **gleiche Strichstaerke und gleicher Punktradius**: `SPARKLINE_STROKE_WIDTH`, `SPARKLINE_DOT_RADIUS`), die Nulllinie als Haarlinie in `outline`, der juengste Wert am rechten Rand mit einem Punkt.
  * Die Skala ist **symmetrisch um null** ([gradeGraphScale]) und wird nicht auf den Verlauf gespreizt wie bei der Sparkline: Rauschen auf der Ebene bleibt eine flache Linie.
  * Ohne Punkte zeigt er nur die Nulllinie.
  */
@@ -216,8 +218,8 @@ internal fun GradeGraph(values: List<Float>, modifier: Modifier = Modifier) {
             moveTo(points.first().x, points.first().y)
             points.drop(1).forEach { lineTo(it.x, it.y) }
         }
-        drawPath(path, line, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawCircle(line, radius = 3.5.dp.toPx(), center = points.last())
+        drawPath(path, line, style = Stroke(width = SPARKLINE_STROKE_WIDTH.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawCircle(line, radius = SPARKLINE_DOT_RADIUS.toPx(), center = points.last())
     }
 }
 
