@@ -9,8 +9,8 @@ android {
     namespace = "de.adv990de.obd2"
     compileSdk = 37
 
-    val appVersionCode = 124
-    val appVersionName = "1.35.1"
+    val appVersionCode = 125
+    val appVersionName = "1.36.0"
 
     fun prop(key: String) = (findProperty(key) ?: System.getenv(key))?.toString()
 

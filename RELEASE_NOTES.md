@@ -1,5 +1,43 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.36.0 (versionCode 125)
+
+Drei **Alarme** unterwegs — Spannung, Kühlmittel und neue Fehlercodes — mit einem Alarmband im Dashboard und einer Systembenachrichtigung. Die Gelände-Kachel zeichnet ihre Steigungslinie jetzt so dick wie die übrigen Sparklines.
+
+### Was sich ändert
+
+- **Spannung:** Warnung (rot) bei unter 12,2 V für mindestens 10 s, Hinweis (gelb) bei unter 12,5 V für mindestens 20 s, dazu ein fester Hinweis „Entladung“ bei unter 13,0 V für mindestens 3 min. Die Spannung (`0142`) wird bei eingeschaltetem Alarm alle 4 Zyklen zusätzlich abgefragt und steht dann auch in der Fahrtaufzeichnung und im CSV, auch ohne Kachel.
+- **Kühlmittel:** Warnung ab 100 °C für mindestens 5 s, Hinweis ab 95 °C für mindestens 10 s.
+- **Neuer Fehlercode unterwegs:** die App liest Modus 03/07 alle 60 s nach (nach einer Änderung schon nach 10 s). Ein neuer Code zählt erst, wenn er in zwei Auslesungen hintereinander auftaucht; ein bestätigter Code ist eine Warnung, ein nur ausstehender ein Hinweis. Jedes erfolgreiche Auslesen geht auch in die Fehlerhistorie.
+- **Ein Wert allein alarmiert nie:** er muss anhalten, und nur bei laufendem Motor (ab 500 rpm; die Spannung zählt erst 15 s nach dem Start). Ein einzelner Ausreißer setzt den Lauf nicht zurück. Ein Alarm endet, wenn der Wert 5 s lang ununterbrochen jenseits des Rückkehr-Abstands liegt (0,2 V bzw. 3 °C), auch wenn gar keine Werte mehr kommen.
+- **Alarmband im Dashboard:** eine volle Zeile, die die obere Kante der Kacheln **überlagert**, mindestens 72 dp hoch, mit größerer Schrift; nichts verschiebt sich. Es zeigt immer nur den wichtigsten Alarm, weitere stehen als „+N“ daneben. **Ein Tipp quittiert:** ein Fehlercode-Alarm endet damit, ein Spannungs- oder Kühlmittel-Alarm bleibt aktiv, aber verborgen, und kommt bei höherer Stufe oder nach Erlöschen und Wiederkehr zurück. Kein Blinken.
+- **Systembenachrichtigung** (Kanal „Alarme“, hohe Wichtigkeit, Warndreieck-Symbol): Ton und Vibration nach Systemeinstellung, auch auf anderen Seiten und bei gesperrtem Bildschirm; Antippen öffnet die App. Ein Fehlercode-Alarm bleibt stehen, bis er quittiert wird (auch nach dem Ende der Sitzung, solange die App geöffnet bleibt).
+- **Einstellungen → Alarme:** drei Schalter (nach dem Update alle an) und je Alarm zwei wählbare Schwellen (Spannung 11,8/12,0/12,2 V und 12,3/12,5/12,8 V; Kühlmittel 100/105/110 °C und 92/95/98 °C). Eine Zeile weist darauf hin, wenn Benachrichtigungen gesperrt sind.
+- **App-Log:** WARN „Alarm raised: …“ beim Auslösen, INFO „Alarm cleared: …“ beim Erlöschen.
+- **Gelände-Kachel:** die Steigungslinie ist jetzt 4 dp stark mit 4 dp Endpunkt (vorher 3 dp / 3,5 dp), wie die Sparklines.
+
+### Meine Auslegung des Wunsches
+
+- Auf „F1 und F4 konzeptionieren, planen und umsetzen“ hast du entschieden: Alarmform **Band + Systembenachrichtigung**, **Schwellen wählbar**, Spannung **nur jeden 4. Zyklus**, Standard **an**; das Band **überlagert** die Kacheln (statt eine Zeile einzuschieben), **72 dp** mit größerer Schrift; Warndreieck als Symbol der Benachrichtigung; die Einblendung der Benachrichtigung bleibt, wie gebaut.
+- **Von mir entschieden, nicht gefragt:** F2 (Lüfter-Ausfall) ist nicht dabei; das Band blinkt nicht; es zeigt nur einen Alarm mit „+N“; die Kühlmittel-Schwellen sind auch bei imperialen Einheiten in °C; die Dauern beim Kühlmittel (5 s und 10 s) sind meine Wahl (keine Daten); ein Fehlercode-Alarm erlischt nur durch Quittieren; der Hinweis auf gesperrte Benachrichtigungen entfällt, wenn alle drei Alarme aus sind.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft, kein echter Alarm wurde unterwegs ausgelöst:** der ECU-Simulator meldet nie Fehlercodes und löst die anderen Alarme nicht aus.
+- **Die Schwellen stammen aus 9 kühlen Fahrten** (Maximum Kühlmittel 90 °C; ein Spannungshinweis in 1 von 9 Fahrten); Sommer, Gelände und Stau fehlen. **Mit Heizgriffen kann der Spannungshinweis auslösen.**
+- **Ton am Lenker:** vermutlich schwer zu hören (Einschätzung, nicht gemessen); das Band ist die Hauptanzeige. Die Einblendung der Benachrichtigung verdeckt kurz Drehzahlbalken und Ganganzeige.
+- **Das Band verdeckt, solange es steht, die oberen 72 dp der Kacheln:** die Beschriftungen, im Hochformat fast die ganze Sparkline der oberen Reihe, im Querformat am Gerät (rund 180 dp Kachelhöhe) rund 13 dp vom oberen Sparkline-Rand (gerechnet, nicht am echten Dashboard nachgemessen). Der Wert jeder Kachel bleibt sichtbar. Zwei Fehlercodes werden bei 360 dp Breite und Schriftskala 1,3 mit „…“ gekürzt.
+- **Mehrere Fehlercodes (A9 Teil 2) bleiben offen:** bei mehr Codes, als ein Frame fasst, kann die Antwort falsch gelesen werden; das Entprellen mildert es, behebt es nicht. Ein Code, den das Steuergerät später löscht, lässt den Alarm stehen, bis er quittiert wird.
+- Ein Zyklus, in dem zwei PIDs ins Zeitlimit laufen (rund 10,5 s), löst „veraltet“ aus und löscht Zahlen-Alarme samt Quittierung; kommen die Werte wieder, klingelt derselbe Alarm nach seiner Dauer erneut (Entwurfsfrage, dokumentiert).
+- TalkBack sagt das Band bei jeder Änderung der Zahl neu an (kein TalkBack-Audit); das rote Warnsymbol hat im hellen Standard-Schema nur 2,49:1 Kontrast; ein stummgeschalteter Alarm-Kanal wird nicht erkannt.
+- Nicht gemessen: der Mehraufwand der Spannungsabfrage am Takt (Schätzung 0,15–0,3 s je 4. Zyklus) und die Dauer des Fehlercode-Auslesens am Motorrad.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 2081 JVM-Tests (davon 65 Doku-Tests) und 533 Instrumentation-Tests, alle grün; 87 Vorschauen; Lint 0 Fehler, 1 bekannte Warnung. Netto 261 JVM- und 89 Geräte-Tests mehr gegenüber 1.35.1.
+- **Verfahren:** Subagenten-gestützt (je Aufgabe Implementierer, Review, Fix-Runde) und ein Schluss-Review; es fand zwei wichtige Fehler, beide behoben: die Haltezeit der Drehzahl (5 s) entsprach dem Lese-Zeitlimit, ein einzelnes Zeitlimit löschte laufende Zahlen-Alarme samt Quittierung und löste sie neu aus (jetzt 12 s); und nach „veraltet“ ging die Basis der Fehlerwache verloren. In mehreren Aufgaben überlebten Mutationen zunächst und schärften die Tests; beide Mutationen der Linienstärke wurden erkannt.
+
 ## Version 1.35.1 (versionCode 124)
 
 Die Kachel **„Gelände“** zeigt ihre Werte jetzt auch ohne Verbindung zum Fahrzeug, und die Einstellung „Geschwindigkeit per GPS“ nennt sie.
