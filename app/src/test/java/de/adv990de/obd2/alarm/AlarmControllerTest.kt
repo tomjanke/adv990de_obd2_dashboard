@@ -60,16 +60,18 @@ class AlarmControllerTest {
         val notifier = RecordingNotifier()
         val controller = AlarmController(notifier, log, tracker)
 
-        /** Ein OBD-Zyklus zum Zeitpunkt [s] Sekunden; null = der Wert fehlt in diesem Zyklus. */
-        suspend fun cycle(s: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) {
-            val t = s * 1000
+        /** Ein OBD-Zyklus zum Zeitpunkt [ms] Millisekunden; null = der Wert fehlt in diesem Zyklus. */
+        suspend fun cycleMs(ms: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) {
             val values = buildList {
-                if (rpm != null) add(SensorValue(PidRegistry.RPM, rpm, timestamp = t))
-                if (volt != null) add(SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, volt, timestamp = t))
-                if (coolant != null) add(SensorValue(PidRegistry.COOLANT_TEMP, coolant, timestamp = t))
+                if (rpm != null) add(SensorValue(PidRegistry.RPM, rpm, timestamp = ms))
+                if (volt != null) add(SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, volt, timestamp = ms))
+                if (coolant != null) add(SensorValue(PidRegistry.COOLANT_TEMP, coolant, timestamp = ms))
             }
-            controller.onCycle(t, values)
+            controller.onCycle(ms, values)
         }
+
+        /** Ein OBD-Zyklus zum Zeitpunkt [s] Sekunden; null = der Wert fehlt in diesem Zyklus. */
+        suspend fun cycle(s: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) = cycleMs(s * 1000, rpm, volt, coolant)
 
         suspend fun cycles(seconds: LongProgression, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) =
             seconds.forEach { cycle(it, rpm, volt, coolant) }
@@ -164,6 +166,36 @@ class AlarmControllerTest {
         f.cycles(31L..40L, coolant = 101f)
         assertEquals(2, f.notifier.shown().size)
         assertEquals(1, f.controller.alarms.value.size)
+    }
+
+    // --- Ein Drehzahl-Zeitlimit ---
+
+    @Test
+    fun `one rpm timeout neither clears nor shows a numeric alarm again`() = runTest {
+        val f = Fixture()
+        f.cycles(0L..6L, coolant = 101f)                             // warning at 5 s, last rpm at 6 s
+        assertEquals(1, f.notifier.shown().size)
+        // Nur die Drehzahl lief ins Zeitlimit: der Zyklus kommt 6,5 s nach dem letzten mit Drehzahl, ohne Drehzahl, mit Kuehlmittel.
+        f.cycleMs(12_500, rpm = null, coolant = 101f)
+        f.cycleMs(13_500, coolant = 101f)                            // the rpm is back
+        f.cycles(14L..30L, coolant = 101f)                           // long enough for a restarted five-second rule to fire again
+        assertEquals("no second alert", 1, f.notifier.shown().size)
+        assertTrue("no clear: the alarm never ended", f.notifier.cleared().isEmpty())
+        assertEquals(1, f.rec().entries.size)                        // the one "raised" line, no "cleared"
+        assertEquals(listOf(AlarmKind.COOLANT), f.controller.alarms.value.map { it.kind })
+    }
+
+    @Test
+    fun `one rpm timeout does not bring back an acknowledged alarm`() = runTest {
+        val f = Fixture()
+        f.cycles(0L..25L step 5, volt = 12.0f)                       // voltage warning at 25 s
+        f.controller.acknowledge(AlarmKind.VOLTAGE)
+        assertEquals(listOf(AlarmKind.VOLTAGE), f.notifier.cleared())    // the clear of the acknowledgement
+        f.cycleMs(31_500, rpm = null, volt = 12.0f)                  // one rpm timeout
+        f.cycles(33L..60L, volt = 12.0f)                             // a restarted 15 s settle time would be over by now and alarm again
+        assertEquals("no second alert", 1, f.notifier.shown().size)
+        assertEquals("only the clear of the acknowledgement", listOf(AlarmKind.VOLTAGE), f.notifier.cleared())
+        assertTrue(f.controller.alarms.value.isEmpty())
     }
 
     // --- Fehler-Alarm ---

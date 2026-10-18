@@ -9,16 +9,19 @@ import org.junit.Test
 
 class AlarmTrackerTest {
 
-    /** Ein OBD-Zyklus zum Zeitpunkt [s] Sekunden; null = der Wert fehlt in diesem Zyklus. */
-    private fun AlarmTracker.cycle(s: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) {
-        val t = s * 1000
+    /** Ein OBD-Zyklus zum Zeitpunkt [ms] Millisekunden; null = der Wert fehlt in diesem Zyklus. */
+    private fun AlarmTracker.cycleMs(ms: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) {
         val values = buildList {
-            if (rpm != null) add(SensorValue(PidRegistry.RPM, rpm, timestamp = t))
-            if (volt != null) add(SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, volt, timestamp = t))
-            if (coolant != null) add(SensorValue(PidRegistry.COOLANT_TEMP, coolant, timestamp = t))
+            if (rpm != null) add(SensorValue(PidRegistry.RPM, rpm, timestamp = ms))
+            if (volt != null) add(SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, volt, timestamp = ms))
+            if (coolant != null) add(SensorValue(PidRegistry.COOLANT_TEMP, coolant, timestamp = ms))
         }
-        onCycle(t, values)
+        onCycle(ms, values)
     }
+
+    /** Ein OBD-Zyklus zum Zeitpunkt [s] Sekunden; null = der Wert fehlt in diesem Zyklus. */
+    private fun AlarmTracker.cycle(s: Long, rpm: Float? = 2_000f, volt: Float? = null, coolant: Float? = null) =
+        cycleMs(s * 1000, rpm, volt, coolant)
 
     private fun AlarmTracker.kinds() = active().map { it.kind to it.severity }
 
@@ -73,14 +76,44 @@ class AlarmTrackerTest {
     }
 
     @Test
-    fun `a missing rpm is held for five seconds`() {
+    fun `a missing rpm is held for RPM_HOLD_MS`() {
         val tracker = AlarmTracker()
         tracker.cycle(0, coolant = 101f)
-        tracker.cycle(3, rpm = null, coolant = 101f)
-        tracker.cycle(5, rpm = null, coolant = 101f)
+        tracker.cycle(5, coolant = 101f)                            // the warning starts at 5 s (last rpm: 5 s)
         assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
-        tracker.cycle(6, rpm = null, coolant = 101f)                // 6 s after the last rpm: engine counts as off
+        tracker.cycleMs(5_000 + EngineGate.RPM_HOLD_MS, rpm = null, coolant = 101f)       // exactly the hold time after the last rpm: still running
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        tracker.cycleMs(5_000 + EngineGate.RPM_HOLD_MS + 1, rpm = null, coolant = 101f)   // just after: the engine counts as off
         assertTrue(tracker.active().isEmpty())
+    }
+
+    @Test
+    fun `a single rpm timeout does not end an acknowledged coolant alarm or show it again`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..6L) tracker.cycle(s, coolant = 101f)           // warning at 5 s, last rpm at 6 s
+        tracker.acknowledge(AlarmKind.COOLANT)
+        assertTrue(tracker.visible().isEmpty())
+        // Nur die Drehzahl lief ins Zeitlimit: der Zyklus kommt 6,5 s nach dem letzten mit Drehzahl, ohne Drehzahl, mit Kühlmittel.
+        tracker.cycleMs(12_500, rpm = null, coolant = 101f)
+        assertEquals("the alarm did not end", listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        assertTrue("and it stays acknowledged", tracker.visible().isEmpty())
+        tracker.cycleMs(13_500, coolant = 101f)                      // the rpm is back
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        assertTrue("no second showing after the engine counted as running all along", tracker.visible().isEmpty())
+    }
+
+    @Test
+    fun `a single rpm timeout does not restart the settle time of an active voltage alarm`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f)     // warning at 25 s, last rpm at 25 s
+        tracker.acknowledge(AlarmKind.VOLTAGE)
+        assertTrue(tracker.visible().isEmpty())
+        tracker.cycleMs(31_500, rpm = null, volt = 12.0f)            // 6.5 s after the last rpm: one rpm timeout
+        assertEquals("the alarm did not end", listOf(AlarmKind.VOLTAGE to AlarmSeverity.WARNING), tracker.kinds())
+        assertTrue("and it stays acknowledged", tracker.visible().isEmpty())
+        tracker.cycleMs(32_500, volt = 12.0f)                        // the rpm is back: no new 15 s of settle time
+        assertEquals(listOf(AlarmKind.VOLTAGE to AlarmSeverity.WARNING), tracker.kinds())
+        assertTrue(tracker.visible().isEmpty())
     }
 
     @Test
