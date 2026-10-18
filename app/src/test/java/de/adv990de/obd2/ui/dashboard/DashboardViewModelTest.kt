@@ -651,6 +651,12 @@ class DashboardViewModelTest {
     // availablePids ist ein WhileSubscribed(5_000)-StateFlow (derselbe Trick wie bei
     // rpmDynamicThreshold oben) — ohne aktiven Collector bliebe `.value` fuer immer auf dem
     // Default (voller PidRegistry-Fallback) stehen, egal was supportedPidIds/useGpsSpeed liefern.
+    //
+    // Diese Tests pruefen den Teil der Liste, der vom Fahrzeug abhaengt: die Gelaende-Kachel (DerivedPids.TERRAIN) ist immer dabei, kein Wert des Fahrzeugs
+    // (DashboardViewModelTerrainTest: `the picker offers the terrain entry even when the vehicle lists its PIDs`) — [vehiclePickerIds] lässt sie aussen vor.
+
+    private fun DashboardViewModel.vehiclePickerIds(): List<String> =
+        availablePids.value.map { it.id }.filter { it != DerivedPids.TERRAIN_ID }
 
     @Test
     fun `availablePids returns the full registry when supportedPidIds is null`() = runTest {
@@ -662,8 +668,8 @@ class DashboardViewModelTest {
         job.cancel()
 
         val expectedIds = PidRegistry.all.values.map { it.id }.toSet()
-        assertEquals(expectedIds, vm.availablePids.value.map { it.id }.toSet())
-        assertEquals(PidRegistry.all.size, vm.availablePids.value.size)
+        assertEquals(expectedIds, vm.vehiclePickerIds().toSet())
+        assertEquals(PidRegistry.all.size, vm.vehiclePickerIds().size)
     }
 
     @Test
@@ -681,7 +687,7 @@ class DashboardViewModelTest {
         job.cancel()
 
         val expectedIds = PidRegistry.all.values.map { it.id }.toSet()
-        assertEquals(expectedIds, vm.availablePids.value.map { it.id }.toSet())
+        assertEquals(expectedIds, vm.vehiclePickerIds().toSet())
     }
 
     @Test
@@ -696,7 +702,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        assertEquals(supported, vm.availablePids.value.map { it.id }.toSet())
+        assertEquals(supported, vm.vehiclePickerIds().toSet())
     }
 
     @Test
@@ -713,7 +719,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        val resultIds = vm.availablePids.value.map { it.id }.toSet()
+        val resultIds = vm.vehiclePickerIds().toSet()
         assertEquals(supported + PidRegistry.SPEED.id, resultIds)
     }
 
@@ -731,7 +737,7 @@ class DashboardViewModelTest {
         advanceUntilIdle()
         job.cancel()
 
-        val resultIds = vm.availablePids.value.map { it.id }.toSet()
+        val resultIds = vm.vehiclePickerIds().toSet()
         assertEquals(supported, resultIds)
         assertFalse(PidRegistry.SPEED.id in resultIds)
     }

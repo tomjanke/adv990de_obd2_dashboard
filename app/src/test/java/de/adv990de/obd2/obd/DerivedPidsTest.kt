@@ -46,4 +46,16 @@ class DerivedPidsTest {
     fun `the source names are stored as text in the database and the CSV - they never change`() {
         assertEquals(listOf("ECU", "GPS", "DERIVED"), ValueSource.entries.map { it.name })
     }
+
+    @Test
+    fun `the terrain tile has the stable slot id that the preferences carry`() {
+        assertEquals("TERRAIN", DerivedPids.TERRAIN.id)
+        assertEquals("TERRAIN", DerivedPids.TERRAIN_ID)
+    }
+
+    @Test
+    fun `the terrain entry is a slot entry only - never recorded, never queried`() {
+        assertFalse("nie aufgezeichnet, also nicht in all (der CSV-Export benennt damit Zeilen)", DerivedPids.all.containsKey(DerivedPids.TERRAIN_ID))
+        assertFalse("nie abgefragt, also nicht in der Registry", PidRegistry.all.containsKey(DerivedPids.TERRAIN_ID))
+    }
 }

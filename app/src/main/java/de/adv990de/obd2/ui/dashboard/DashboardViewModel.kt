@@ -10,13 +10,20 @@ import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.fuel.DistanceIntegrator
 import de.adv990de.obd2.fuel.FuelDistanceSink
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.terrain.TerrainInputs
+import de.adv990de.obd2.terrain.TerrainTracker
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -44,6 +51,8 @@ class DashboardViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     // Wohin die GPS-Kilometer der Tankanzeige gehen (der Standardwert gilt nur fuer Tests; Hilt bindet das FuelRepository, s. FuelModule).
     private val fuelDistanceSink: FuelDistanceSink = FuelDistanceSink.None,
+    // Die Eingaben der Gelaende-Kachel (GPS-Fix und Barometer); der Standardwert gilt nur fuer Tests, Hilt bindet die TerrainSource (s. TerrainModule).
+    private val terrainInputs: TerrainInputs = TerrainInputs.None,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -100,13 +109,16 @@ class DashboardViewModel @Inject constructor(
      *  Die UI unterscheidet damit "Slot nicht belegt" von "Fahrzeug liefert den Wert nicht". */
     val supportedPidIds: StateFlow<Set<String>?> get() = obdRepository.supportedPidIds
 
-    /** PIDs available in the picker: ECU-supported when connected, full registry otherwise. */
+    /**
+     * PIDs available in the picker: ECU-supported when connected, full registry otherwise — dazu immer die Gelaende-Kachel ([DerivedPids.TERRAIN]): sie ist
+     * kein Wert des Fahrzeugs, sondern des Telefons, und haengt nicht an der PID-Liste des Steuergeraets.
+     */
     val availablePids: StateFlow<List<PidDefinition>> = combine(
         obdRepository.supportedPidIds,
         appPreferences.useGpsSpeed,
     ) { supported, gpsEnabled ->
         val all = PidRegistry.all.values.sortedBy { it.name }
-        if (supported.isNullOrEmpty()) {
+        val vehicle = if (supported.isNullOrEmpty()) {
             all
         } else {
             // Die Geschwindigkeit bleibt waehlbar, solange das GPS sie liefern kann — sonst
@@ -114,11 +126,12 @@ class DashboardViewModel @Inject constructor(
             // gebaut wurde.
             all.filter { it.id in supported || (gpsEnabled && it.id == PidRegistry.SPEED.id) }
         }
+        vehicle + DerivedPids.TERRAIN
     }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            PidRegistry.all.values.sortedBy { it.name }
+            PidRegistry.all.values.sortedBy { it.name } + DerivedPids.TERRAIN
         )
 
     /** Persists a slot → PID assignment. */
@@ -154,6 +167,9 @@ class DashboardViewModel @Inject constructor(
     /** Farbe des Oel-Balkens samt Timer-Zustand im [SavedStateHandle] — s. [OilBarTracker]. */
     private val oilBarTracker = OilBarTracker(savedStateHandle, now = { nowMillis() })
 
+    /** Hoehe, Steigung und Peilung der Gelaende-Kachel ueber die Zeit einer Verbindung — s. [TerrainTracker]. */
+    private val terrainTracker = TerrainTracker()
+
     /** Die GPS-Kilometer fuer die Tankanzeige (Strecke = Integral der GPS-Geschwindigkeit) — s. [DistanceIntegrator] und `FuelRepository`. */
     private val fuelIntegrator = DistanceIntegrator()
 
@@ -179,7 +195,37 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             obdRepository.isConnectedFlow.collect { up -> if (up) onLinkUp() }
         }
+        viewModelScope.launch { collectTerrain() }
         connectionCoordinator.start(viewModelScope, ::onConnectionEvent)
+    }
+
+    // ── Gelaende-Kachel ──────────────────────────────────────────────────────
+
+    /**
+     * Sammelt die Eingaben der Gelaende-Kachel **nur, solange sie jemand sieht**: ein Slot traegt [DerivedPids.TERRAIN_ID], der GPS-Schalter ist an (die Kachel nutzt
+     * dessen Berechtigung und Einstellung) und die Verbindung steht (ohne sie zeigt das Dashboard nur die Vorschau). Sonst laufen weder GPS noch Barometer.
+     * Das Zuruecksetzen steht **im** `flatMapLatest`-Zweig, nicht davor: dort ist der vorige Sammler schon abgebrochen, ein spaeter Wert kann den Zustand nicht
+     * mehr neu fuellen. Jede Aktivierung beginnt mit einem frischen [TerrainTracker], weil jede Deaktivierung ihn zuruecksetzt (Kalibrierung und Verlauf gelten
+     * nicht ueber eine Luecke hinweg).
+     * Die Werte kommen vom Telefon und laufen bei [SessionEvent.Stale] weiter; die Kachel zeigt sie nur in der Phase "Live".
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun collectTerrain() {
+        combine(slotPids, appPreferences.useGpsSpeed, obdRepository.isConnectedFlow) { slots, gps, connected ->
+            DerivedPids.TERRAIN_ID in slots && gps && connected
+        }
+            .distinctUntilChanged()
+            .flatMapLatest { active ->
+                if (active) terrainInputs.inputs else flow { clearTerrain() }
+            }
+            .collect { input ->
+                _uiState.value = _uiState.value.copy(terrain = terrainTracker.update(nowMillis(), input))
+            }
+    }
+
+    private fun clearTerrain() {
+        terrainTracker.reset()
+        if (_uiState.value.terrain != null) _uiState.value = _uiState.value.copy(terrain = null)
     }
 
     // ── Messwert-Ereignisse ──────────────────────────────────────────────────

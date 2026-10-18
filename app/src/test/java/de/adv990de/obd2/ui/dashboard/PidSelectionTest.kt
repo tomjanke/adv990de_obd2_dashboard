@@ -90,4 +90,17 @@ class PidSelectionTest {
             ids(listOf("FFFF", "")),
         )
     }
+
+    @Test
+    fun `the terrain slot is never queried from the vehicle`() {
+        val terrain = de.adv990de.obd2.obd.DerivedPids.TERRAIN_ID
+        assertEquals(
+            listOf(PidRegistry.SPEED.id, PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id),
+            ids(listOf(terrain, PidRegistry.SPEED.id)),
+        )
+        assertEquals(
+            listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id),
+            ids(listOf(terrain), supported = setOf(PidRegistry.RPM.id, terrain)),
+        )
+    }
 }

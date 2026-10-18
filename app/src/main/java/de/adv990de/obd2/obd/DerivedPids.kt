@@ -16,6 +16,9 @@ object DerivedPids {
     const val GEAR_ID = "GEAR"
     const val OIL_BAR_ID = "OIL_BAR"
 
+    /** Die Slot-ID der Gelaende-Kachel (Hoehe, Steigung, Peilung). **Persistierter Zustand (`slot_pids`) — nie umbenennen.** */
+    const val TERRAIN_ID = "TERRAIN"
+
     /** Der angezeigte Gang: 1-6, 0 = "N", -1 = nicht bestimmbar. Die Formel liest nie Bytes (`NaN`): der Wert kommt nicht vom Fahrzeug. */
     val GEAR = PidDefinition(
         id = GEAR_ID,
@@ -39,6 +42,20 @@ object DerivedPids {
         formula = { Float.NaN },
     )
 
-    /** Alle abgeleiteten Werte nach Id — der CSV-Export nennt damit auch sie beim Namen. */
+    /**
+     * Die Gelaende-Kachel als **Eintrag der Slot-Auswahl**: kein Messwert, sondern eine Kachel, die drei Werte des Telefons (Hoehe, Steigung, Peilung) zeigt
+     * (`DashboardUiState.terrain`, Rechnung in `de.adv990de.obd2.terrain`). Steht bewusst **nicht** in [all] (wird nie aufgezeichnet — der CSV-Export benennt
+     * damit Zeilen) und nicht in der [PidRegistry] (wird nie abgefragt). Die Formel liest nie Bytes (`NaN`).
+     */
+    val TERRAIN = PidDefinition(
+        id = TERRAIN_ID,
+        name = "Terrain", labelRes = R.string.pid_terrain,
+        unit = "",
+        minValue = 0f,
+        maxValue = 0f,
+        formula = { Float.NaN },
+    )
+
+    /** Alle abgeleiteten, aufgezeichneten Werte nach Id — der CSV-Export nennt damit auch sie beim Namen. */
     val all: Map<String, PidDefinition> = listOf(GEAR, OIL_BAR).associateBy { it.id }
 }
