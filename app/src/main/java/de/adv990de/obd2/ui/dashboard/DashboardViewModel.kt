@@ -5,6 +5,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.adv990de.obd2.alarm.Alarm
+import de.adv990de.obd2.alarm.AlarmController
+import de.adv990de.obd2.alarm.AlarmKind
+import de.adv990de.obd2.alarm.AlarmLog
+import de.adv990de.obd2.alarm.AlarmNotifier
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.data.ObdRepository
@@ -55,6 +60,8 @@ class DashboardViewModel @Inject constructor(
     private val fuelDistanceSink: FuelDistanceSink = FuelDistanceSink.None,
     // Die Eingaben der Gelaende-Kachel (GPS-Fix und Barometer); der Standardwert gilt nur fuer Tests, Hilt bindet die TerrainSource (s. TerrainModule).
     private val terrainInputs: TerrainInputs = TerrainInputs.None,
+    // Treibt die Alarme (Spannung, Kuehlmittel, Fehlercodes) und meldet sie an Benachrichtigung und App-Log; der Standardwert gilt nur fuer Tests, Hilt baut ihn ueber seinen @Inject-Konstruktor (s. AlarmModule).
+    private val alarmController: AlarmController = AlarmController(AlarmNotifier.None, AlarmLog.None),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -189,9 +196,24 @@ class DashboardViewModel @Inject constructor(
     // fuer das Luecken-Limit also auch eine Stunde Pause.
     internal var nowMillis: () -> Long = { SystemClock.elapsedRealtime() }
 
+    /**
+     * Die anzuzeigenden Alarme (nicht quittiert, nach Stufe und Art sortiert). Sie stehen bewusst **nicht** im [DashboardUiState]: dessen Zuruecksetzen bei jedem Verbindungsereignis
+     * (`disconnected()`) loeschte sonst den Fehler-Alarm, der das Ende der Sitzung ueberleben soll. Sie leben so lange wie die Sitzung (Vertrag B1), nicht wie ein sichtbares Dashboard.
+     */
+    val alarms: StateFlow<List<Alarm>> = alarmController.alarms
+
+    /** Quittiert den Alarm einer Art (Tipp auf das Band): Band und Benachrichtigung verschwinden. */
+    fun acknowledgeAlarm(kind: AlarmKind) {
+        viewModelScope.launch { alarmController.acknowledge(kind) }
+    }
+
     init {
         viewModelScope.launch {
             readingsPipeline.events(viewModelScope).collect { onSessionEvent(it) }
+        }
+        // Die Alarm-Einstellungen wirken sofort, auch auf einen bestehenden Alarm (ausgeschaltet = erloschen).
+        viewModelScope.launch {
+            appPreferences.alarmSettings.collect { alarmController.updateSettings(it) }
         }
         // Der Link steht, sobald das Repository es sagt — nicht erst mit dem ersten Messwert (B24).
         viewModelScope.launch {
@@ -246,6 +268,8 @@ class DashboardViewModel @Inject constructor(
                 // Der angezeigte Gang und die Farbe des Oel-Balkens gehoeren in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem
                 // GPS-Zwischenupdate (dasselbe Raster wie die anderen Werte), beide Zeilen in einem Aufruf. Ein Ereignis ohne Wert ist kein Zyklus.
                 if (event.isObdCycle) {
+                    // Die Alarme werten nur echte OBD-Zyklen aus: ein GPS-Zwischenupdate wiederholt die alten Werte, die Dauer-Regeln liefen sonst allein mit der Uhr weiter.
+                    alarmController.onCycle(nowMillis(), event.values)
                     event.values.maxOfOrNull { it.timestamp }?.let { timestamp ->
                         readingsPipeline.recordDerived(
                             listOf(gearSensorValue(shown.gear, timestamp), oilBarSensorValue(shown.oilBarColor, timestamp))
@@ -253,17 +277,19 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
             }
-            SessionEvent.Idle -> { endFuelInterval(); applyIdle() }
-            SessionEvent.Stale -> { endFuelInterval(); applyStale() }
-            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting() }
+            // Ohne Werte erloeschen Spannungs- und Kuehlmittelalarm; der Fehler-Alarm bleibt (AlarmTracker.onSessionEnded). Nach dem Zustand der Anzeige, damit
+            // dessen Zuruecksetzen nicht auf das App-Log wartet.
+            SessionEvent.Idle -> { endFuelInterval(); applyIdle(); alarmController.onSessionEnded() }
+            SessionEvent.Stale -> { endFuelInterval(); applyStale(); alarmController.onSessionEnded() }
+            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting(); alarmController.onSessionEnded() }
             is SessionEvent.Failed -> {
                 endFuelInterval()
                 sparklines.clear()
                 gearTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
+                alarmController.onSessionEnded()
             }
-            // Noch ohne Wirkung — der Fehler-Alarm haengt sich hier ein (Fehlerwache, Alarm-Konzept).
-            is SessionEvent.FaultCodes -> Unit
+            is SessionEvent.FaultCodes -> alarmController.onFaultCodes(event.codes, event.isBaseline)
         }
     }
 
