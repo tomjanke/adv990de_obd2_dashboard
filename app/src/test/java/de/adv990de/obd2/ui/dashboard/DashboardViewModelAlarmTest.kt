@@ -9,6 +9,7 @@ import de.adv990de.obd2.alarm.AlarmNotifier
 import de.adv990de.obd2.alarm.AlarmSettings
 import de.adv990de.obd2.alarm.AlarmSeverity
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.fuel.FuelDistanceSink
 import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.fakeObdRepository
 import de.adv990de.obd2.obd.PidRegistry
@@ -27,7 +28,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -62,6 +65,7 @@ class DashboardViewModelAlarmTest {
     private fun setUp(
         scheduler: TestCoroutineScheduler,
         alarmController: AlarmController = AlarmController(AlarmNotifier.None, AlarmLog.None),
+        fuelSink: FuelDistanceSink = FuelDistanceSink.None,
     ): Setup {
         val events = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 64)
         val settings = MutableStateFlow(AlarmSettings())
@@ -78,6 +82,7 @@ class DashboardViewModelAlarmTest {
         val vm = DashboardViewModel(
             obdRepo, prefs, mockk(relaxed = true), pipeline, SavedStateHandle(),
             alarmController = alarmController,
+            fuelDistanceSink = fuelSink,
         ).also { it.nowMillis = { clock[0] } }
         return Setup(vm, events, settings, clock, scheduler)
     }
@@ -228,6 +233,80 @@ class DashboardViewModelAlarmTest {
         assertEquals(listOf(AlarmKind.FAULT_CODE), s.vm.alarms.value.map { it.kind })
     }
 
+    // --- "Veraltet" ist eine Schonfrist, kein sofortiges Sitzungsende ---
+    // Ein Zyklus, in dem zwei PIDs ins Zeitlimit laufen (rund 10,5 s), loest "veraltet" aus. Das darf Zahlen-Alarme samt Quittierung nicht sofort loeschen und
+    // denselben Alarm kurz darauf neu klingeln lassen: die Alarme enden erst, wenn die Werte ALARM_STALE_GRACE_MS lang ausbleiben.
+
+    private val grace = AlarmStaleGrace.GRACE_MS
+
+    @Test
+    fun `a stale phase shorter than the grace keeps the numeric alarm and its acknowledgement - no second ring`() = runTest {
+        val notifier = RecordingNotifier()
+        val s = setUp(testScheduler, AlarmController(notifier, AlarmLog.None))
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)                                    // the alarm is raised ...
+        s.vm.acknowledgeAlarm(AlarmKind.COOLANT)                       // ... and acknowledged
+        advanceUntilIdle()
+        assertEquals(listOf(AlarmKind.COOLANT), notifier.shown)
+        assertTrue(s.vm.alarms.value.isEmpty())
+
+        s.events.emit(SessionEvent.Stale)                             // ten seconds without values
+        testScheduler.advanceTimeBy(grace - 1_000)
+        testScheduler.runCurrent()
+        s.cycle(18, coolant = 101f)                                   // the values are back before the grace is over
+        s.cycle(24, coolant = 101f)                                   // ... and keep breaching: without the grace this would raise the alarm again
+        testScheduler.advanceTimeBy(grace * 2)                        // the old timer must not fire later (it would end the alarm now) ...
+        testScheduler.runCurrent()
+        s.cycle(30, coolant = 101f)                                   // ... which the next breaching cycles would show: the alarm would ring again
+        s.cycle(36, coolant = 101f)
+
+        assertEquals("no second show: the alarm never ended", listOf(AlarmKind.COOLANT), notifier.shown)
+        assertEquals("nothing but the acknowledgement was cleared", listOf(AlarmKind.COOLANT), notifier.cleared)
+        assertTrue("the acknowledgement held: no band", s.vm.alarms.value.isEmpty())
+    }
+
+    @Test
+    fun `a stale phase longer than the grace ends the numeric alarm`() = runTest {
+        val notifier = RecordingNotifier()
+        val s = setUp(testScheduler, AlarmController(notifier, AlarmLog.None))
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)
+        advanceUntilIdle()
+        assertEquals(listOf(AlarmKind.COOLANT), s.vm.alarms.value.map { it.kind })
+
+        s.events.emit(SessionEvent.Stale)
+        testScheduler.advanceTimeBy(grace - 1)
+        testScheduler.runCurrent()
+        assertEquals("the alarm stands during the grace", listOf(AlarmKind.COOLANT), s.vm.alarms.value.map { it.kind })
+        assertTrue(notifier.cleared.isEmpty())
+
+        testScheduler.advanceTimeBy(2)
+        testScheduler.runCurrent()
+
+        assertTrue("the values stayed away: the alarm ends", s.vm.alarms.value.isEmpty())
+        assertEquals(listOf(AlarmKind.COOLANT), notifier.cleared)
+    }
+
+    @Test
+    fun `an OBD cycle cancels the end of the grace - a GPS-only update does not`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)
+        advanceUntilIdle()
+
+        s.events.emit(SessionEvent.Stale)
+        testScheduler.advanceTimeBy(5_000)
+        testScheduler.runCurrent()
+        s.cycle(11, isObdCycle = false, coolant = 101f)               // a GPS refresh repeats old values: it proves nothing
+        testScheduler.advanceTimeBy(grace)
+        testScheduler.runCurrent()
+
+        assertTrue("the grace ran out although only GPS updates came", s.vm.alarms.value.isEmpty())
+    }
+
     @Test
     fun `Idle clears voltage and coolant but not the fault alarm`() = runTest { sessionEndKeepsOnlyTheFault(SessionEvent.Idle) }
 
@@ -325,6 +404,30 @@ class DashboardViewModelAlarmTest {
         val onCleared = DashboardViewModel::class.java.getDeclaredMethod("onCleared")
         onCleared.isAccessible = true
         onCleared.invoke(vm)
+    }
+
+    /** Ein Notifier, dessen `clear` mit einem `Error` scheitert — den faengt der Controller (er faengt `Exception`) nicht: die Probe fuer ein Beiwerk, das den Rest des Aufraeumens nicht verhindern darf. */
+    private class CrashingNotifier : AlarmNotifier {
+        override fun show(alarm: Alarm) = Unit
+        override fun clear(kind: AlarmKind) { throw AssertionError("notifier crashed") }
+    }
+
+    @Test
+    fun `the fuel counter is saved even when taking the notifications back fails`() = runTest {
+        var flushes = 0
+        val sink = object : FuelDistanceSink {
+            override fun addDistance(km: Float) = Unit
+            override fun flush() { flushes++ }
+        }
+        val s = setUp(testScheduler, AlarmController(CrashingNotifier(), AlarmLog.None), fuelSink = sink)
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)                                    // a coolant alarm stands: releasing the view model clears its notification
+        advanceUntilIdle()
+
+        runCatching { clearViewModel(s.vm) }                          // the Error may propagate, the counter must be saved nevertheless
+
+        assertEquals("der Zaehler wird auch dann gespeichert", 1, flushes)
     }
 
     @Test

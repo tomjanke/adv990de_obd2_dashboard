@@ -22,16 +22,11 @@ import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.terrain.TerrainInputs
 import de.adv990de.obd2.terrain.TerrainTracker
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -207,6 +202,9 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { alarmController.acknowledge(kind) }
     }
 
+    /** Die Schonfrist der Zahlen-Alarme nach "veraltet" — s. [AlarmStaleGrace]. */
+    private val alarmStaleGrace = AlarmStaleGrace(viewModelScope, alarmController)
+
     init {
         viewModelScope.launch {
             readingsPipeline.events(viewModelScope).collect { onSessionEvent(it) }
@@ -224,37 +222,15 @@ class DashboardViewModel @Inject constructor(
 
     // ── Gelaende-Kachel ──────────────────────────────────────────────────────
 
-    /**
-     * Was die Gelaende-Kachel zeigt (Hoehe, Steigung, Peilung, Verlauf der Steigung); `null`, solange keine Rechnung laeuft oder noch kein Wert da ist — dann sagt der
-     * Slot, was fehlt (`slotPlaceholderRes`).
-     *
-     * **Unabhaengig von der Verbindung zum Fahrzeug:** die Werte kommen vom Telefon (GPS und Drucksensor), nicht vom Steuergeraet; die Kachel zeigt sie sofort, auch wenn
-     * kein Adapter verbunden ist (Nutzerwunsch 2026-10-18; bis 1.35.0 hing sie an der Verbindung). Gerechnet wird, wenn ein Slot [DerivedPids.TERRAIN_ID] traegt und der
-     * GPS-Schalter an ist (die Kachel nutzt dessen Einstellung und Berechtigung) — **und nur, solange die Oberflaeche sammelt:** `WhileSubscribed` haelt GPS und Barometer
-     * an, sobald das Dashboard 5 s lang nicht zu sehen ist (anderer Reiter, App im Hintergrund). Das ist zulaessig, weil der Fluss nur die Anzeige speist (s. `README`/`CLAUDE.md`,
-     * „Zustand sammeln“) — nichts anderes haengt an ihm. Die Werte stehen bewusst **nicht** im [DashboardUiState]: dessen Zuruecksetzen bei jedem Verbindungsereignis
-     * (`disconnected()`) loeschte sie sonst jedes Mal, obwohl sie mit der Verbindung nichts zu tun haben.
-     *
-     * Jede Aktivierung beginnt mit einem frischen [TerrainTracker] (Kalibrierung und Verlauf gelten nicht ueber eine Luecke hinweg): `onStart` setzt ihn zurueck, ob der Fluss neu
-     * anlaeuft (Dashboard wieder sichtbar) oder die Bedingung wieder wahr wird (GPS-Schalter, Slot). Bei Abschalten der Bedingung ist der Stand sofort `null` — `flatMapLatest`
-     * hat den vorigen Sammler vorher abgebrochen, ein spaeter Wert kann ihn nicht neu fuellen. `replayExpirationMillis = 0` setzt den Stand nach dem Anhalten auf `null` zurueck:
-     * wer zum Dashboard zurueckkommt, sieht keinen alten Wert.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val terrain: StateFlow<TerrainDisplay?> = combine(slotPids, appPreferences.useGpsSpeed) { slots, gps ->
-        DerivedPids.TERRAIN_ID in slots && gps
-    }
-        .distinctUntilChanged()
-        .flatMapLatest<Boolean, TerrainDisplay?> { active ->
-            if (active) {
-                terrainInputs.inputs
-                    .onStart { terrainTracker.reset() }
-                    .map { input -> terrainTracker.update(nowMillis(), input) }
-            } else {
-                flowOf(null)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), null)
+    /** Was die Gelaende-Kachel zeigt — Rechnung, Zeitpunkte und Gruende stehen in [terrainDisplayFlow]. */
+    val terrain: StateFlow<TerrainDisplay?> = terrainDisplayFlow(
+        scope = viewModelScope,
+        slotPids = slotPids,
+        useGpsSpeed = appPreferences.useGpsSpeed,
+        inputs = terrainInputs,
+        tracker = terrainTracker,
+        now = { nowMillis() },
+    )
 
     // ── Messwert-Ereignisse ──────────────────────────────────────────────────
 
@@ -269,6 +245,8 @@ class DashboardViewModel @Inject constructor(
                 // GPS-Zwischenupdate (dasselbe Raster wie die anderen Werte), beide Zeilen in einem Aufruf. Ein Ereignis ohne Wert ist kein Zyklus.
                 if (event.isObdCycle) {
                     // Die Alarme werten nur echte OBD-Zyklen aus: ein GPS-Zwischenupdate wiederholt die alten Werte, die Dauer-Regeln liefen sonst allein mit der Uhr weiter.
+                    // Ein echter Zyklus beendet auch die Schonfrist nach "veraltet": die Werte sind zurueck.
+                    alarmStaleGrace.cancel()
                     alarmController.onCycle(nowMillis(), event.values)
                     event.values.maxOfOrNull { it.timestamp }?.let { timestamp ->
                         readingsPipeline.recordDerived(
@@ -279,14 +257,16 @@ class DashboardViewModel @Inject constructor(
             }
             // Ohne Werte erloeschen Spannungs- und Kuehlmittelalarm; der Fehler-Alarm bleibt (AlarmTracker.onSessionEnded). Nach dem Zustand der Anzeige, damit
             // dessen Zuruecksetzen nicht auf das App-Log wartet.
-            SessionEvent.Idle -> { endFuelInterval(); applyIdle(); alarmController.onSessionEnded() }
-            SessionEvent.Stale -> { endFuelInterval(); applyStale(); alarmController.onSessionEnded() }
-            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting(); alarmController.onSessionEnded() }
+            SessionEvent.Idle -> { endFuelInterval(); applyIdle(); alarmStaleGrace.cancel(); alarmController.onSessionEnded() }
+            // "Veraltet" ist keine beendete Sitzung: die Zahlen-Alarme bekommen eine Schonfrist (s. [AlarmStaleGrace]).
+            SessionEvent.Stale -> { endFuelInterval(); applyStale(); alarmStaleGrace.start() }
+            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting(); alarmStaleGrace.cancel(); alarmController.onSessionEnded() }
             is SessionEvent.Failed -> {
                 endFuelInterval()
                 sparklines.clear()
                 gearTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
+                alarmStaleGrace.cancel()
                 alarmController.onSessionEnded()
             }
             is SessionEvent.FaultCodes -> alarmController.onFaultCodes(event.codes, event.isBaseline)
@@ -300,10 +280,13 @@ class DashboardViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        // Ohne Sitzung gibt es keinen Spannungs- und Kuehlmittelalarm mehr: ihre Benachrichtigungen bleiben nicht im Schatten stehen (der Fehler-Alarm schon, bis zum Quittieren).
-        alarmController.release()
-        // Das ViewModel endet mit der Activity: der Zaehler soll nicht nur im Speicher stehen.
-        fuelDistanceSink.flush()
+        try {
+            // Ohne Sitzung gibt es keinen Spannungs- und Kuehlmittelalarm mehr: ihre Benachrichtigungen bleiben nicht im Schatten stehen (der Fehler-Alarm schon, bis zum Quittieren).
+            alarmController.release()
+        } finally {
+            // Das ViewModel endet mit der Activity: der Zaehler soll nicht nur im Speicher stehen — auch dann nicht verloren gehen, wenn das Beiwerk oben scheitert.
+            fuelDistanceSink.flush()
+        }
     }
 
     /**
@@ -481,7 +464,9 @@ class DashboardViewModel @Inject constructor(
         )
         connectionCoordinator.requestReconnect()
     }
+
 }
+
 
 /** Die Platzhalter-Kacheln einer Belegung: je PID ein Wert 0; unbekannte IDs fallen auf die Standard-PIDs zurueck. */
 private fun placeholdersFor(ids: List<String>): List<SensorValue> {
