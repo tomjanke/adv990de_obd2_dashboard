@@ -1,5 +1,35 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.35.0 (versionCode 123)
+
+Neue wählbare Kachel **„Gelände“**: Höhe, Steigung und Peilung in einer Kachel, aus Drucksensor und GPS des Telefons.
+
+### Die Kachel
+
+- **Höhe** als große Zahl (Meter, bei imperialen Einheiten Fuß). Sie kommt aus dem Drucksensor, kalibriert gegen die GPS-Höhe; ohne Drucksensor zeigt die Kachel die geglättete GPS-Höhe. Bis die erste brauchbare GPS-Probe da ist (Vertikalgenauigkeit höchstens 20 m), steht dort „--“ statt einer ungeprüften Zahl.
+- **Steigung** als Graph der letzten 1000 m Fahrstrecke (ein Punkt je 25 m) mit Nulllinie; daneben der aktuelle Wert („+4 %“). Die Skala ist fest und symmetrisch um null (±10 %, bei steilerem Verlauf größer), Rauschen auf der Ebene bleibt eine flache Linie. Die Steigung gilt ab 10 km/h und nach mindestens 100 m Strecke.
+- **Peilung** als Windrose: Nord bleibt oben, die Nadel zeigt die Fahrtrichtung, darunter Himmelsrichtung und Grad („NO 45°“). Es ist der **GPS-Kurs über Grund**, kein Kompass; er gilt ab 8 km/h, darunter bleibt die letzte Peilung 30 s stehen.
+- **Wählen:** Long-Press auf eine Kachel → „Gelände“ in der Slot-Auswahl. Die Kachel braucht den GPS-Schalter („Geschwindigkeit per GPS“) und fragt die Standortberechtigung nicht selbst an. Ohne Werte nennt der Slot den Grund: GPS-Schalter aus, Berechtigung fehlt oder wartet auf GPS-Signal.
+- **Rechnet nur, wenn man sie sieht:** GPS-Listener (1 Hz) und Drucksensor laufen nur, solange ein Slot „Gelände“ trägt, der GPS-Schalter an ist und die Verbindung steht. Gang- und Tankanzeige sind unberührt (eigener Listener, `GpsSpeedSource` ist nicht umgebaut).
+- **Nicht aufgezeichnet:** die Werte erscheinen nicht in der Fahrt und nicht im CSV-Export; die Datenbank bleibt Version 5.
+
+### Meine Auslegung des Wunsches
+
+- „Höhe als Hauptwert, Steigung als Graph und Peilung als Windrose“, eine Kachel (Idee F7 aus der Liste der Funktionsideen).
+- **Von mir entschieden, nicht gefragt:** der Graph läuft über die Fahrstrecke (1000 m), nicht über die Zeit; die Rose steht mit Nord oben fest, die Nadel dreht sich; ein eigener Standort-Listener statt des Umbaus der Geschwindigkeitsquelle; das Band mit dem Graphen ist 44 statt 48 dp hoch (sonst schrumpfte der Peilungstext); der Rahmen der Kachel ist aus der Wert-Kachel herausgezogen und wird geteilt.
+
+### Grenzen
+
+- **Am Motorrad nicht geprüft, und ein echter GPS-Fix wurde nie erzeugt** (im Testraum gibt es keinen): Höhe, Steigung und Peilung sind nur gegen eingespielte Fixe getestet. Rauschen und Drift des Barometers am Motorrad, die GPS-Höhe unter Bäumen und in Tälern und die Ablesbarkeit während der Fahrt sind nicht gemessen.
+- Gemessen am Gerät: der Drucksensor (ICP20100) ist da und liefert einen plausiblen Druck; Layout in vier Kachelgrößen und bei Schriftskala 1,3, Nadelrichtung in vier Richtungen (als Bildpunkte gelesen), gerenderte Vorschau angesehen.
+- Höhe über dem Meeresniveau gibt es ab Android 14; davor wäre es die Höhe über dem Ellipsoid (mehrere Dutzend Meter daneben) — auf dem Testgerät nicht relevant, nicht geprüft.
+- Nur auf dem Pixel 8 Pro (Android 17) geprüft.
+
+### Tests
+
+- 1814 JVM-Tests (davon 65 Doku-Tests) und 443 Instrumentation-Tests, alle grün; 83 Vorschauen; Lint 0 Fehler, 1 bekannte Warnung. Netto 122 JVM- und 21 Geräte-Tests mehr (Messlogik, Sensor-Anbindung, ViewModel, Kachel-Logik; Kachel-Layout, Nadelrichtung, Slot im echten Dashboard, echter Drucksensor).
+- **Verfahren:** die Sensor-Anbindung schrieb ich versehentlich vor den Tests; statt Rot-zuerst gab es sechs Mutationsproben, alle rot. Ein Layout-Test ließ zuerst eine Mutation überleben (Rose 140 dp: ein zusammengedrückter Text hat ein leeres Rechteck, das nie „überlappt“) und wurde geschärft.
+
 ## Version 1.34.0 (versionCode 122)
 
 Alle Fahrten lassen sich in **einer** CSV-Datei exportieren — wahlweise über das Teilen-Menü oder direkt auf dem Gerät gespeichert.
