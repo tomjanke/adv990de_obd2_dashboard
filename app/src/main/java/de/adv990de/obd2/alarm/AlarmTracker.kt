@@ -23,7 +23,10 @@ class AlarmTracker {
 
     private val watcher = FaultCodeWatcher()
     private var faultAlarm: Alarm? = null
-    /** Quittierte Zahlen-Alarme samt dem Stand beim Quittieren; ein gleicher Alarm bleibt verborgen, ein anderer nicht. */
+    /**
+     * Quittierte Zahlen-Alarme je Art, auf der Stufe, auf der sie quittiert wurden. Sinkt der Alarm, sinkt die Stufe mit ([prune]): steigt er danach wieder, ist das eine
+     * Eskalation und zeigt sich.
+     */
     private val acknowledged = mutableMapOf<AlarmKind, Alarm>()
 
     fun updateSettings(new: AlarmSettings) {
@@ -88,6 +91,7 @@ class AlarmTracker {
         lastVoltageAtMs = null
         lastCoolantAtMs = null
         watcher.reset()
+        prune()
     }
 
     /** Ein Auslesen der Fehlercodes: beim Verbinden mit [isBaseline] = true, danach unterwegs. `null` = Auslesen gescheitert. */
@@ -103,7 +107,7 @@ class AlarmTracker {
 
     /**
      * Quittieren. Ein **Fehler-Alarm endet** damit (die Codes sind bekannt; weitere neue Codes beginnen einen frischen Alarm). Ein **Zahlen-Alarm** (Spannung, Kühlmittel) bleibt bestehen,
-     * wird aber nicht mehr angezeigt, solange derselbe Alarm besteht; eine höhere Stufe oder ein erloschener und wiederkehrender Alarm zeigen ihn wieder.
+     * wird aber nicht mehr angezeigt, solange er auf gleicher oder niedrigerer Stufe besteht; eine höhere Stufe, andere Codes oder ein erloschener und wiederkehrender Alarm zeigen ihn wieder.
      */
     fun acknowledge(kind: AlarmKind) {
         if (kind == AlarmKind.FAULT_CODE) {
@@ -113,17 +117,31 @@ class AlarmTracker {
         }
     }
 
-    /** Die anzuzeigenden Alarme: [active] ohne quittierte, Warnungen zuerst, dann nach Art. */
+    /**
+     * Die anzuzeigenden Alarme: [active] ohne quittierte, Warnungen zuerst, dann nach Art. Die Klasse ist nicht thread-sicher: diese Funktion verändert den Zustand über [prune]
+     * und muss im selben Thread bzw. in derselben Coroutine laufen wie [onCycle].
+     */
     fun visible(): List<Alarm> {
         prune()
-        return active().filter { acknowledged[it.kind]?.sameAlert(it) != true }
+        return active().filterNot { it.isSilencedBy(acknowledged[it.kind]) }
             .sortedWith(compareByDescending<Alarm> { it.severity }.thenBy { it.kind })
     }
 
-    /** Eine Quittierung gilt nur, solange ihr Alarm besteht: erlischt er, fällt sie weg, sonst zeigte ein wiederkehrender Alarm nie wieder etwas. */
+    /** Ein quittierter Alarm bleibt verborgen, solange es derselbe Alarm (Art, Codes) auf gleicher oder niedrigerer Stufe ist; eine höhere Stufe zeigt ihn wieder. */
+    private fun Alarm.isSilencedBy(ack: Alarm?): Boolean =
+        ack != null && kind == ack.kind && codes == ack.codes && severity <= ack.severity
+
+    /**
+     * Eine Quittierung gilt nur, solange ihr Alarm besteht: erlischt er, fällt sie weg, sonst zeigte ein wiederkehrender Alarm nie wieder etwas. Sinkt ein quittierter Alarm,
+     * wird die quittierte Stufe auf die gesunkene gesetzt — sonst gälte ein Rückkehr auf die alte Stufe als keine Eskalation.
+     */
     private fun prune() {
-        val kinds = active().map { it.kind }.toSet()
-        acknowledged.keys.retainAll(kinds)
+        val now = active()
+        acknowledged.keys.retainAll(now.map { it.kind }.toSet())
+        for (alarm in now) {
+            val ack = acknowledged[alarm.kind] ?: continue
+            if (alarm.codes == ack.codes && alarm.severity < ack.severity) acknowledged[alarm.kind] = alarm
+        }
     }
 
     /** Kein neuer Wert in diesem Zyklus: ist die letzte Probe länger als [SustainedRule.GAP_MS] her, gilt der Wert als verloren (`>`, exakt 30 s zählt noch als frisch). */

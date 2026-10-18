@@ -274,4 +274,71 @@ class AlarmTrackerTest {
             tracker.visible().map { it.kind },
         )
     }
+
+    @Test
+    fun `an acknowledged warning that drops to a notice stays hidden and an escalation shows it again`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..35L step 5) tracker.cycle(s, volt = 12.0f)            // warning at 25 s, notice at 35 s
+        assertEquals(AlarmSeverity.WARNING, tracker.visible().single().severity)
+        tracker.acknowledge(AlarmKind.VOLTAGE)
+        for (s in 40L..45L step 5) tracker.cycle(s, volt = 12.6f)           // 12.6 V: the warning clears after 5 s, the notice holds
+        assertEquals(listOf(AlarmKind.VOLTAGE to AlarmSeverity.NOTICE), tracker.kinds())
+        assertTrue(tracker.visible().isEmpty())                              // a lower level of the same alarm stays hidden
+        for (s in 50L..60L step 5) tracker.cycle(s, volt = 12.0f)           // below 12.2 V for 10 s: the warning is back
+        assertEquals(AlarmSeverity.WARNING, tracker.visible().single().severity)
+    }
+
+    @Test
+    fun `a session end leaves no acknowledgement behind for the next session`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f)
+        tracker.acknowledge(AlarmKind.VOLTAGE)
+        tracker.onSessionEnded()
+        assertTrue(tracker.visible().isEmpty())
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f)
+        assertEquals(listOf(AlarmKind.VOLTAGE to AlarmSeverity.WARNING), tracker.kinds())
+        assertEquals(1, tracker.visible().size)                              // the new alarm is not hidden by the old acknowledgement
+    }
+
+    @Test
+    fun `a failed fault read changes nothing at the tracker level`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")))
+        tracker.onFaultRead(null, isBaseline = false)
+        assertTrue(tracker.active().isEmpty())
+        tracker.faultReads(listOf(conf("P0301")))                            // the second consecutive success
+        assertEquals(listOf("P0301"), tracker.active().single().codes)
+    }
+
+    @Test
+    fun `the first fault read after switching the faults back on is a silent baseline`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))
+        tracker.updateSettings(AlarmSettings(faultsEnabled = false))
+        tracker.updateSettings(AlarmSettings(faultsEnabled = true))
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")), listOf(conf("P0301"), conf("P0420")))
+        assertTrue(tracker.active().isEmpty())                               // both reads are the baseline, nothing is new
+    }
+
+    @Test
+    fun `a pending code joining a warning fault alarm keeps it a warning`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))
+        tracker.faultReads(listOf(conf("P0301"), pend("P0171")), listOf(conf("P0301"), pend("P0171")))
+        val alarm = tracker.active().single()
+        assertEquals(AlarmSeverity.WARNING, alarm.severity)
+        assertEquals(listOf("P0301", "P0171"), alarm.codes)
+    }
+
+    @Test
+    fun `acknowledging a kind without an alarm changes nothing`() {
+        val tracker = AlarmTracker()
+        tracker.acknowledge(AlarmKind.COOLANT)
+        for (s in 0L..6L) tracker.cycle(s, coolant = 101f)
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        assertEquals(1, tracker.visible().size)                              // the later alarm is shown, not silenced
+    }
 }
