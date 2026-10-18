@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -133,6 +134,74 @@ fun LiveValueTile(
         primary = MaterialTheme.colorScheme.primary,
         surface = MaterialTheme.colorScheme.surface,
     )
+    TileFrame(
+        label = label,
+        accentColor = accentColor,
+        modifier = modifier,
+        onClick = onClick,
+        onLongPress = onLongPress,
+        onLongPressLabel = onLongPressLabel,
+    ) {
+        // Sparkline ueber dem Wert statt daneben oder dahinter: neben dem Wert blieben
+        // bei vierstelligen Zahlen nur wenige dp uebrig, dahinter lief die Linie durch
+        // die Ziffern. Als eigenes Band nutzt sie die volle Kachelbreite.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.End,
+        ) {
+            if (sparkline.isNotEmpty()) {
+                Sparkline(
+                    points = sparkline,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        // rechts Platz fuer den Punkt auf dem juengsten Wert
+                        .padding(bottom = 8.dp, end = 4.dp),
+                )
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                // weight(fill = false): Die Einheit wird zuerst gemessen und behaelt ihren Platz, der Wert bekommt den
+                // Rest und schrumpft (bis MIN_VALUE_FONT_SIZE), statt abgeschnitten zu werden (B27).
+                LiveValueText(
+                    value = value,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = ValueTileStyle,
+                    color = accentColor,
+                    minFontSize = MIN_VALUE_FONT_SIZE,
+                )
+                if (unit != null) {
+                    Text(
+                        text = " $unit",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Der Rahmen jeder Dashboard-Kachel: Flaeche ohne Rundung und Schatten, links die 4 dp breite Status-Leiste in [accentColor], innen 12 dp Rand und oben links das
+ * [label]. Was die Kachel zeigt, steht in [content] (ein `BoxScope` ueber die ganze Innenflaeche, die Beschriftung liegt darueber oben links). Tippen, Long-Press und
+ * der Ripple in der Akzentfarbe gehoeren zum Rahmen — [LiveValueTile] (ein Wert) und `TerrainTile` (drei Werte) teilen sie, statt sie zu kopieren.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun TileFrame(
+    label: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+    onLongPressLabel: String? = null,
+    content: @Composable BoxScope.() -> Unit,
+) {
     val interactive = onClick != null || onLongPress != null
     // Ripple in der Akzentfarbe der Kachel statt des M3-Default-Grau: ein generischer grauer
     // Ripple wirkt neben der sonst durchgehend themenfarbigen Cockpit-Optik fremd (s. CLAUDE.md,
@@ -178,47 +247,7 @@ fun LiveValueTile(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.align(Alignment.TopStart),
                 )
-                // Sparkline ueber dem Wert statt daneben oder dahinter: neben dem Wert blieben
-                // bei vierstelligen Zahlen nur wenige dp uebrig, dahinter lief die Linie durch
-                // die Ziffern. Als eigenes Band nutzt sie die volle Kachelbreite.
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    if (sparkline.isNotEmpty()) {
-                        Sparkline(
-                            points = sparkline,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                // rechts Platz fuer den Punkt auf dem juengsten Wert
-                                .padding(bottom = 8.dp, end = 4.dp),
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        // weight(fill = false): Die Einheit wird zuerst gemessen und behaelt ihren Platz, der Wert bekommt den
-                        // Rest und schrumpft (bis MIN_VALUE_FONT_SIZE), statt abgeschnitten zu werden (B27).
-                        LiveValueText(
-                            value = value,
-                            modifier = Modifier.weight(1f, fill = false),
-                            style = ValueTileStyle,
-                            color = accentColor,
-                            minFontSize = MIN_VALUE_FONT_SIZE,
-                        )
-                        if (unit != null) {
-                            Text(
-                                text = " $unit",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(bottom = 4.dp),
-                            )
-                        }
-                    }
-                }
+                content()
             }
         }
     }

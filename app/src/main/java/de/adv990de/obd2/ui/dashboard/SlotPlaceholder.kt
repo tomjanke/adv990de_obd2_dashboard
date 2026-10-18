@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.dashboard
 
 import androidx.annotation.StringRes
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 
 /**
@@ -30,6 +31,10 @@ fun slotPlaceholderRes(
     gpsPermissionMissing: Boolean = false,
 ): Int = when {
     pidId.isNullOrBlank() -> R.string.dashboard_slot_empty
+    // Die Gelaende-Kachel ist kein PID des Fahrzeugs: "nicht vom Fahrzeug" waere falsch, ihr fehlt nur GPS (Schalter, Berechtigung oder noch kein Fix).
+    pidId == DerivedPids.TERRAIN_ID && !gpsSpeedEnabled -> R.string.dashboard_slot_terrain_gps_off
+    pidId == DerivedPids.TERRAIN_ID && gpsPermissionMissing -> R.string.dashboard_slot_gps_permission
+    pidId == DerivedPids.TERRAIN_ID -> R.string.dashboard_slot_waiting_gps
     gpsSpeedEnabled && pidId == PidRegistry.SPEED.id && gpsPermissionMissing -> R.string.dashboard_slot_gps_permission
     gpsSpeedEnabled && pidId == PidRegistry.SPEED.id -> R.string.dashboard_slot_waiting_gps
     isConnected && supportedPidIds != null && pidId !in supportedPidIds ->

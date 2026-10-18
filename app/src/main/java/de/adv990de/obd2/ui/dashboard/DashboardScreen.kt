@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.components.FuelGaugeRow
@@ -271,9 +272,12 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(1.dp)
                     ) {
                         repeat(4) { i ->
-                            SensorCardSlot(
-                                slots[i], state.sparklines, useImperial,
-                                Modifier.weight(1f).fillMaxHeight(),
+                            DashboardSlot(
+                                slotPid = slotPids.getOrNull(i),
+                                reading = slots[i],
+                                state = state,
+                                useImperial = useImperial,
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
                                 placeholderRes = slotPlaceholderRes(
                                     slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
                                 ),
@@ -296,12 +300,15 @@ fun DashboardScreen(
                             ) {
                                 repeat(2) { col ->
                                     val i = row * 2 + col
-                                    SensorCardSlot(
-                                        slots[i], state.sparklines, useImperial,
-                                        Modifier.weight(1f).fillMaxHeight(),
+                                    DashboardSlot(
+                                        slotPid = slotPids.getOrNull(i),
+                                        reading = slots[i],
+                                        state = state,
+                                        useImperial = useImperial,
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
                                         placeholderRes = slotPlaceholderRes(
-                                    slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
-                                ),
+                                            slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
+                                        ),
                                         isLive = isLive,
                                         onLongPress = { pickerSlot = i }
                                     )
@@ -347,5 +354,39 @@ fun DashboardScreen(
                 onDismiss = { pickerSlot = null }
             )
         }
+    }
+}
+
+/**
+ * Eine Kachel des Rasters: die Gelaende-Kachel, wenn der Slot [DerivedPids.TERRAIN_ID] traegt (sie zeigt drei Werte des Telefons, `DashboardUiState.terrain`), sonst die
+ * Kachel eines Messwerts. Eine Stelle fuer beide Ausrichtungen, damit Hoch- und Querformat nie auseinanderlaufen.
+ */
+@Composable
+private fun DashboardSlot(
+    slotPid: String?,
+    reading: SensorValue?,
+    state: DashboardUiState,
+    useImperial: Boolean,
+    modifier: Modifier,
+    @androidx.annotation.StringRes placeholderRes: Int,
+    isLive: Boolean,
+    onLongPress: () -> Unit,
+) {
+    if (slotPid == DerivedPids.TERRAIN_ID) {
+        TerrainSlot(
+            terrain = state.terrain,
+            useImperial = useImperial,
+            isLive = isLive,
+            placeholderRes = placeholderRes,
+            modifier = modifier,
+            onLongPress = onLongPress,
+        )
+    } else {
+        SensorCardSlot(
+            reading, state.sparklines, useImperial, modifier,
+            placeholderRes = placeholderRes,
+            isLive = isLive,
+            onLongPress = onLongPress,
+        )
     }
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.convertUnit
 import de.adv990de.obd2.obd.formatSensorNumber
@@ -72,32 +73,44 @@ internal fun SensorCardSlot(
             isLive = isLive,
         )
     } else {
-        Surface(
-            modifier = modifier
-                .fillMaxSize()
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { onLongPress?.invoke() },
-                    onLongClickLabel = stringResource(R.string.dashboard_slot_change_action),
-                ),
-            shape = RectangleShape,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-            color = MaterialTheme.colorScheme.surface
+        EmptySlot(placeholderRes = placeholderRes, modifier = modifier, onLongPress = onLongPress)
+    }
+}
+
+/**
+ * Ein Slot ohne Wert: ein unbelegter Slot war bisher eine leere Flaeche und sah nach Renderfehler aus. Der Hinweis ([placeholderRes], s. [slotPlaceholderRes])
+ * nennt zugleich die einzige Geste, die ihn belegt — den Long-Press. Auch die Gelaende-Kachel zeigt sich so, solange sie noch keine Werte hat (GPS aus, kein Fix).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun EmptySlot(
+    @StringRes placeholderRes: Int,
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = { onLongPress?.invoke() },
+                onLongClickLabel = stringResource(R.string.dashboard_slot_change_action),
+            ),
+        shape = RectangleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Ein unbelegter Slot war bisher eine leere Flaeche und sah nach Renderfehler aus.
-            // Der Hinweis nennt zugleich die einzige Geste, die ihn belegt.
-            Box(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(placeholderRes),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
+            Text(
+                text = stringResource(placeholderRes),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -235,7 +248,10 @@ internal fun SlotPickerSheet(
             LazyColumn(Modifier.testTag(SLOT_PICKER_LIST_TEST_TAG)) {
                 items(ordered, key = { it.id }) { pid ->
                     val reading = readings.firstOrNull { it.pid.id == pid.id }
-                    val label = if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
+                    val label = if (pid.id == DerivedPids.TERRAIN_ID) {
+                        // Die Gelaende-Kachel zeigt drei Werte, keinen: in der Auswahl steht nur ihr Name.
+                        labels.getValue(pid.id)
+                    } else if (reading == null || reading.value.isNaN() || reading.value.isInfinite()) {
                         "${labels.getValue(pid.id)}: -- (${pid.unit})"
                     } else {
                         val (convertedValue, displayUnit) = convertUnit(reading.value, pid.unit, useImperial)
