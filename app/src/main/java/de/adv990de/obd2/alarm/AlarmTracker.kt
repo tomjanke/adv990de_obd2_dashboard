@@ -83,14 +83,20 @@ class AlarmTracker {
         prune()
     }
 
-    /** Ende der Sitzung (keine Werte mehr): Spannung und Kühlmittel erlöschen, der Fehler-Alarm bleibt (eine Meldung, die man nicht gesehen hat, soll nicht mit der Zündung verschwinden). */
+    /**
+     * Keine Werte mehr: Spannung und Kühlmittel erlöschen, der Fehler-Alarm bleibt (eine Meldung, die man nicht gesehen hat, soll nicht mit der Zündung verschwinden).
+     *
+     * **Auch die Basis und die Kandidaten des [FaultCodeWatcher] bleiben.** Das ViewModel ruft das nicht nur bei Idle, Verlust und Fehler, sondern auch bei „veraltet“ — und das beendet die
+     * Sitzung nicht: es folgt keine neue Basis (sie entsteht nur beim Verbinden). Mit einem Zurücksetzen würde das nächste Auslesen still zur Basis, und ein Code, den ein Absterben oder
+     * Neustart gesetzt hat (genau der Fall, für den es den Fehler-Alarm gibt), verschwände darin. Jede neue Sitzung beginnt mit einem Auslesen als Basis (`isBaseline`), das die alte ersetzt
+     * und die Kandidaten verwirft; scheitert es, setzt es zurück — das Zurücksetzen hier ist also nirgends nötig.
+     */
     fun onSessionEnded() {
         engine.reset()
         voltage.reset()
         coolant.reset()
         lastVoltageAtMs = null
         lastCoolantAtMs = null
-        watcher.reset()
         prune()
     }
 

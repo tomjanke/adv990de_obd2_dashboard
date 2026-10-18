@@ -248,6 +248,28 @@ class AlarmTrackerTest {
     }
 
     @Test
+    fun `the candidate memory of the fault watcher survives the end of the session`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(listOf(conf("P0301")), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")))         // P0420 is new: a candidate, not yet an alarm
+        assertTrue(tracker.active().isEmpty())
+        tracker.onSessionEnded()                                          // e.g. a stale phase: the session itself goes on
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")))         // the second consecutive read confirms it
+        assertEquals(listOf("P0420"), tracker.active().single().codes)
+    }
+
+    @Test
+    fun `a stale phase does not drop the baseline - the code that appears afterwards alarms`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(listOf(conf("P0301")), isBaseline = true)    // the read when connecting
+        tracker.onSessionEnded()                                          // Stale ends no session: no new baseline read follows
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")))         // a stall or restart set P0420
+        assertTrue(tracker.active().isEmpty())                            // not yet: two reads in a row are needed ...
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")))
+        assertEquals("... but it must not have been absorbed as the baseline", listOf("P0420"), tracker.active().single().codes)
+    }
+
+    @Test
     fun `a new session starts with a fresh baseline`() {
         val tracker = AlarmTracker()
         tracker.onFaultRead(listOf(conf("P0301")), isBaseline = true)

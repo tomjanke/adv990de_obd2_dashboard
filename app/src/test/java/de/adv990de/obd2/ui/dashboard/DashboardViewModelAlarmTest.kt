@@ -181,6 +181,33 @@ class DashboardViewModelAlarmTest {
         assertTrue(s.vm.alarms.value.isEmpty())
     }
 
+    @Test
+    fun `a stale phase keeps the fault baseline - a code that appears afterwards raises the fault alarm`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        s.events.emit(SessionEvent.FaultCodes(emptyList(), isBaseline = true))
+        s.events.emit(SessionEvent.Stale)                             // the session goes on, no new baseline read follows
+        s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))
+        s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))
+        advanceUntilIdle()
+
+        assertEquals(listOf(Alarm(AlarmKind.FAULT_CODE, AlarmSeverity.WARNING, codes = listOf("P0301"))), s.vm.alarms.value)
+    }
+
+    @Test
+    fun `the baseline of a new session replaces what the lost one knew`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        s.events.emit(SessionEvent.FaultCodes(emptyList(), isBaseline = true))
+        s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))    // a candidate of the first session
+        s.events.emit(SessionEvent.ConnectionLost)
+        s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = true))     // the code is part of the new session's baseline
+        s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))
+        advanceUntilIdle()
+
+        assertTrue("the baseline event, not the session end, is what resets the watcher", s.vm.alarms.value.isEmpty())
+    }
+
     // --- Ende der Sitzung ---
 
     /** Voltage and coolant alarms plus the fault alarm; then [end] ends the session: only the fault alarm remains. */
