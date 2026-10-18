@@ -2,6 +2,7 @@ package de.adv990de.obd2
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
+import de.adv990de.obd2.alarm.createAlarmNotificationChannel
 import de.adv990de.obd2.crash.CrashReportingController
 import de.adv990de.obd2.data.DataRetention
 import de.adv990de.obd2.di.ApplicationScope
@@ -23,6 +24,7 @@ class Obd2Application : Application() {
     override fun onCreate() {
         super.onCreate()
         createObdNotificationChannel(this)
+        createAlarmNotificationChannel(this)
 
         // Aufbewahrung (alte Fahrten/Log-Zeilen) einmal je Start, abseits des Main-Threads. Hilt hat die
         // Felder in super.onCreate() befuellt.

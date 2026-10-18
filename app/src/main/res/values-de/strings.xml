@@ -312,6 +312,17 @@
     <string name="notif_obd_text">Fahrzeugdaten werden aufgezeichnet</string>
     <string name="notif_obd_disconnect">Trennen</string>
 
+    <!-- Alarme unterwegs: Kanal der Systembenachrichtigung und die Texte von Band und Benachrichtigung -->
+    <string name="notif_alarm_channel_name">Alarme</string>
+    <string name="alarm_voltage_low">Spannung niedrig: %1$s V</string>
+    <string name="alarm_coolant_hot">Kühlmittel heiß: %1$s °C</string>
+    <plurals name="alarm_fault_new">
+        <item quantity="one">Neuer Fehlercode: %1$s</item>
+        <item quantity="other">Neue Fehlercodes: %1$s</item>
+    </plurals>
+    <string name="alarm_severity_notice">Hinweis</string>
+    <string name="alarm_severity_warning">Warnung</string>
+
     <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
     <string name="pid_rpm">Drehzahl</string>
     <string name="pid_speed">Geschwindigkeit</string>
