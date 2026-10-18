@@ -21,6 +21,7 @@ class FakeObdRepositoryTest {
         assertNull(repo.supportedPidIds.value)
         assertNull(repo.readVin())
         assertTrue(repo.readDtcs().isEmpty())
+        assertNull("das weiche Auslesen unterwegs hat keine Antwort — weder Entwarnung noch Fehler", repo.readDtcsOrSkip())
     }
 
     @Test

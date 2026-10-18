@@ -57,6 +57,9 @@ private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCH
  *  - **Fehlercodes** ([readDtcs]) und **Freeze-Frame** ([readFreezeFrame]): beim ersten Zeitlimit abbrechen, trennen, weiterreichen. Es sind
  *    Folgen mehrerer Befehle, jede verschobene Antwort verfaelschte das Ergebnis; getrennt wird, damit der Reconnect den Strom zuruecksetzt —
  *    aber nur, wenn der Lesevorgang noch auf der AKTUELLEN Verbindung lief ([disconnectIfCurrent], PRO-11); ein ersetzter Leser reisst keine neue ein.
+ *  - **Fehlercodes unterwegs** ([readDtcsOrSkip], die Fehlerwache der `ReadingsPipeline` jede Minute waehrend der Fahrt): ein Zeitlimit ueberspringt das
+ *    Auslesen (`null`) und trennt **nie** — dieselben Befehle wie [readDtcs], aber das Nachlesen ist nur eine Zusatzauskunft und darf die laufende
+ *    Fahrt nicht kosten; die verspaetete Antwort verwirft der naechste Befehl als Altbyte. Nur ein verlorener Link trennt wie ueberall.
  *  - **FIN** ([readVin]): das Zeitlimit wird gemeldet, die Verbindung bleibt. Die Pipeline fragt sie bei JEDEM Verbinden; ein Motorrad, das auf
  *    Modus 09 schweigt, geriete bei "trennen" in eine Schleife aus Verbinden, Zeitlimit, Trennen. Ein einzelner Befehl kann ausserdem keine Folge
  *    verschieben, und der naechste Befehl verwirft Altbytes ([de.adv990de.obd2.obd.ElmController]).
@@ -394,6 +397,9 @@ class ObdRepository @Inject constructor(
 
     // Die einmaligen Lesevorgaenge (Fehlercodes, Freeze-Frame, FIN) stehen in [DiagnosticReads]; ohne Verbindung liefern sie "nichts".
     suspend fun readDtcs(): List<DtcEntry> = elm?.let { diagnostics.readDtcs(it) } ?: emptyList()
+
+    /** Das weiche Auslesen der Fehlercodes unterwegs: ein Zeitlimit ergibt `null` und trennt nicht (s. Zeitlimit-Richtlinie). Ohne Verbindung ebenfalls `null`, nie eine leere Liste. */
+    suspend fun readDtcsOrSkip(): List<DtcEntry>? = elm?.let { diagnostics.readDtcsOrSkip(it) }
 
     suspend fun readFreezeFrame(): Map<String, String> = elm?.let { diagnostics.readFreezeFrame(it) } ?: emptyMap()
 

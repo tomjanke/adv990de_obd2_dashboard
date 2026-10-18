@@ -27,21 +27,7 @@ internal class DiagnosticReads(
 
     suspend fun readDtcs(controller: ElmController): List<DtcEntry> =
         try {
-            // Modus 03 (bestaetigt) ist die massgebliche Frage: bleibt sie ohne positive Antwort, wirft der Parser
-            // (NO DATA, Busfehler, Unverstaendliches — A9) und die Seite sagt es, statt "keine Fehlercodes" zu behaupten.
-            val confirmed = dtcParser.parse(controller.sendCommand("03"), isPending = false)
-            // Modus 07 (ausstehend) ist optional: Viele Steuergeraete schweigen darauf, wenn nichts ansteht. Diese Stille
-            // ist keine Aussage "nichts ausstehend", aber auch kein Grund, die bestaetigten Codes zu verwerfen. Ein
-            // Busfehler oder Muell im selben Zug bleibt ein Fehler.
-            val pending = try {
-                dtcParser.parse(controller.sendCommand("07"), isPending = true)
-            } catch (_: ObdException.NoData) {
-                emptyList()
-            }
-            // Ein Code kann in beiden Antworten stehen (bestaetigt UND noch ausstehend) oder von zwei
-            // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
-            // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
-            (confirmed + pending).distinctBy { it.code }
+            readBothModes(controller)
         } catch (e: ObdException.Timeout) {
             // A timeout leaves the serial stream in an unknown state: the stale response may
             // arrive during the next sendCommand and corrupt it. Disconnect now so the stream
@@ -54,6 +40,50 @@ internal class DiagnosticReads(
             withContext(NonCancellable) { onLinkBroken(controller) }
             throw e
         }
+
+    /**
+     * Dieselben Befehle wie [readDtcs], aber WEICH — fuer das Nachlesen mitten in der Fahrt (Fehlerwache der `ReadingsPipeline`): ein
+     * Zeitlimit ueberspringt das Auslesen (`null`) und **trennt nicht**. Das ist die vierte Form der Zeitlimit-Richtlinie an
+     * [ObdRepository]; [readDtcs] trennt bei jedem Zeitlimit, und das waere unterwegs ein zu hoher Preis fuer ein Nachlesen, das nur eine
+     * Zusatzauskunft ist. Dass der ELM327 keine Antwort-Kennung kennt, bleibt: die verspaetete Antwort wird vom naechsten Befehl als
+     * Altbyte verworfen (`ElmController.discardStaleInput`), und die Befehle sind durch den Mutex des Controllers einzeln serialisiert — ein
+     * Auslesen verschraenkt sich hoechstens zwischen zwei PID-Befehlen der Live-Abfrage.
+     *
+     * `null` heisst "keine Aussage", nie "keine Codes" (das waere eine leere Liste): Zeitlimit, NO DATA und Busfehler bei Modus 03,
+     * Unverstaendliches, jeder andere Fehler des Protokolls. Nur eine verlorene Verbindung ([ObdException.ConnectionLost]) trennt wie ueberall
+     * ([onLinkBroken]) und wird weitergereicht; die Abbruch-Ausnahme einer Coroutine auch (sie ist keine [ObdException]).
+     */
+    suspend fun readDtcsOrSkip(controller: ElmController): List<DtcEntry>? =
+        try {
+            readBothModes(controller)
+        } catch (e: ObdException.ConnectionLost) {
+            withContext(NonCancellable) { onLinkBroken(controller) }
+            throw e
+        } catch (_: ObdException) {
+            null
+        }
+
+    /**
+     * Der gemeinsame Kern von [readDtcs] und [readDtcsOrSkip]: Modus 03, dann Modus 07 mit der bekannten Toleranz fuer NO DATA, eine Zeile
+     * je Code. Wirft jede [ObdException] des Controllers und des Parsers; was daraus wird (trennen, ueberspringen), entscheidet der Aufrufer.
+     */
+    private suspend fun readBothModes(controller: ElmController): List<DtcEntry> {
+        // Modus 03 (bestaetigt) ist die massgebliche Frage: bleibt sie ohne positive Antwort, wirft der Parser
+        // (NO DATA, Busfehler, Unverstaendliches — A9) und die Seite sagt es, statt "keine Fehlercodes" zu behaupten.
+        val confirmed = dtcParser.parse(controller.sendCommand("03"), isPending = false)
+        // Modus 07 (ausstehend) ist optional: Viele Steuergeraete schweigen darauf, wenn nichts ansteht. Diese Stille
+        // ist keine Aussage "nichts ausstehend", aber auch kein Grund, die bestaetigten Codes zu verwerfen. Ein
+        // Busfehler oder Muell im selben Zug bleibt ein Fehler.
+        val pending = try {
+            dtcParser.parse(controller.sendCommand("07"), isPending = true)
+        } catch (_: ObdException.NoData) {
+            emptyList()
+        }
+        // Ein Code kann in beiden Antworten stehen (bestaetigt UND noch ausstehend) oder von zwei
+        // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
+        // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
+        return (confirmed + pending).distinctBy { it.code }
+    }
 
     /**
      * Reads freeze frame data (mode 02) for all known PIDs.

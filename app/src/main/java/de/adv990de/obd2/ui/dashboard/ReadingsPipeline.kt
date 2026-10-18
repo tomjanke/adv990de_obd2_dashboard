@@ -10,6 +10,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.location.GpsSpeedSource
 import de.adv990de.obd2.obd.ObdErrorMapper
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.SensorValue
 import kotlinx.coroutines.CancellationException
@@ -84,6 +85,14 @@ class ReadingsPipeline @Inject constructor(
 
     /** Hysterese-Zustand der Fahrterkennung ([isMoving]); zu Beginn jeder Sitzung "steht". */
     private var moving = false
+
+    /**
+     * Der Stand des letzten erfolgreichen Auslesens der Fehlercodes (Code, ob er nur aussteht) — die Basis fuer die Entscheidung der
+     * [faultWatch], ob nach 10 s statt nach 60 s nachgelesen wird. `null`, solange nichts erfolgreich gelesen wurde (neue Sitzung, Auslesen
+     * beim Verbinden ohne Antwort): dann gibt es nichts zu vergleichen. Geschrieben von [runSession] (Auslesen beim Verbinden) und [faultWatch].
+     */
+    @Volatile
+    private var lastFaultSet: Set<Pair<String, Boolean>>? = null
 
     /** Laeuft die Messwert-Quelle der Sitzung noch? Nur dann kann sie "schweigen": Eine beendete Quelle
      *  (Verbindungsverlust, Fehler) meldet das auf ihrem eigenen Weg, dort waere [SessionEvent.Stale]
@@ -188,6 +197,7 @@ class ReadingsPipeline @Inject constructor(
                         runSession(slotIds, gpsSpeed).onCompletion { sessionRunning = false },
                         gpsRefresh(gpsSpeed),
                         staleness(),
+                        faultWatch(),
                     )
                         .onStart { resetSession() }
                 }
@@ -212,6 +222,7 @@ class ReadingsPipeline @Inject constructor(
         obdCycles.value = 0
         obdStale.value = false
         moving = false
+        lastFaultSet = null
         sessionRunning = true
     }
 
@@ -302,11 +313,11 @@ class ReadingsPipeline @Inject constructor(
         // Lokale Fehlerhistorie: jede Fahrt fuellt sie passiv. Nur nach einem erfolgreichen Auslesen
         // (null = Lesefehler: nichts aufzeichnen). record() ist selbst "best effort" — die Absicherung
         // hier deckt das Unerwartete ab, denn eine Ausnahme an dieser Stelle wuerde die ganze Sitzung kosten.
-        if (dtcList != null) {
-            try { dtcHistoryRepository.record(dtcList) } catch (e: Exception) {
-                if (e is CancellationException) throw e
-            }
-        }
+        if (dtcList != null) recordFaultHistory(dtcList)
+        // Die Basis der Fehlerwache: dieser Stand gilt als bekannt, ein spaeter hinzukommender Code ist neu. Auch ein Auslesen ohne Antwort wird
+        // gemeldet (als null) — die Oberflaeche behauptet dann weder Entwarnung noch Fehler, und die Wache hat noch nichts zum Vergleichen.
+        lastFaultSet = dtcList?.toFaultSet()
+        emit(SessionEvent.FaultCodes(dtcList, isBaseline = true))
         val hasDtcForRecording: Boolean = dtcList?.isNotEmpty() ?: true
 
         // "Nur Fahrten mit DTCs": Die Entscheidung steht schon fest — keine Fahrt anlegen, statt sie
@@ -362,6 +373,71 @@ class ReadingsPipeline @Inject constructor(
     }
 
     /**
+     * Die Fehlerwache: liest die Fehlercodes waehrend der Sitzung nach und meldet jedes erfolgreiche Auslesen als [SessionEvent.FaultCodes]
+     * (`isBaseline = false`). Das erste Nachlesen kommt nach [FAULT_WATCH_INTERVAL_MS], danach im selben Abstand; **aendert sich der Stand
+     * gegenueber dem vorigen** (auch gegenueber der Basis vom Verbinden), folgt das naechste nach [FAULT_RECHECK_MS] — ein Code, der gerade
+     * auftaucht oder verschwindet, soll nicht eine volle Minute lang unbestaetigt stehen. Gelesen wird weich ([ObdRepository.readDtcsOrSkip]):
+     * ein Zeitlimit oder NO DATA ergibt `null`, das hier nichts meldet und nichts aendert — kein Auslesen ist keine Aussage.
+     *
+     * Der Schalter „Fehler unterwegs melden“ (`alarmSettings.faultsEnabled`) wird bei **jedem** Durchlauf gelesen, nicht einmal je Sitzung: ein
+     * Ein- oder Ausschalten wirkt beim naechsten Durchlauf. Der Fluss gehoert zur Sitzung: er endet mit ihr (Verbindungsverlust beendet das
+     * `merge` in [events]; eine Sitzung, deren Quelle zu ist, nicht mehr — dann [sessionRunning] falsch) und liest dann nichts mehr.
+     *
+     * Jedes erfolgreiche Auslesen geht, wie das beim Verbinden, in die Fehlerhistorie (best effort, [recordFaultHistory]). Jeder unerwartete
+     * Fehler des Nachlesens wird nur ins App-Log geschrieben: die Wache ist eine Zusatzauskunft und darf die Live-Anzeige nie beenden.
+     */
+    private fun faultWatch(): Flow<SessionEvent> = flow {
+        // Stand der Nutzer-Trennungen beim Start der Sitzung — wie in [runSession]: ein Lesen, das scheitert, WEIL der Nutzer trennte, ist kein
+        // Verbindungsverlust und loest keinen Reconnect aus.
+        val userDisconnectsAtStart = obdRepository.userDisconnectCount.value
+        var wait = FAULT_WATCH_INTERVAL_MS
+        while (true) {
+            delay(wait)
+            wait = FAULT_WATCH_INTERVAL_MS
+            if (!sessionRunning) return@flow
+            if (!appPreferences.alarmSettings.first().faultsEnabled) continue
+            val codes = try {
+                obdRepository.readDtcsOrSkip()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: ObdException.ConnectionLost) {
+                // Wie beim Auslesen beim Verbinden (s. [runSession]): readDtcsOrSkip() hat getrennt, isConnectedFlow ist schon false, und der
+                // Wechsel bricht diese Coroutine am naechsten Suspendierungspunkt ab — deshalb tryEmit() (nicht-suspendierend, s. Doku an
+                // [connectionLostSignal]) zuerst, das Log danach. Steht die Verbindung noch (ersetzt, ein anderer Leser trennte): nichts tun,
+                // die neue Verbindung startet ohnehin eine neue Sitzung.
+                if (!obdRepository.isConnectedFlow.value) {
+                    if (obdRepository.userDisconnectCount.value == userDisconnectsAtStart) {
+                        connectionLostSignal.tryEmit(Unit)
+                        logBestEffort(LogLevel.WARN, "Periodic fault-code read lost the adapter link, reconnecting")
+                    } else {
+                        logBestEffort(LogLevel.INFO, "Periodic fault-code read ended by the user's disconnect, not reconnecting")
+                    }
+                }
+                return@flow
+            } catch (e: Exception) {
+                logBestEffort(LogLevel.WARN, "Periodic fault-code read failed: ${e.javaClass.simpleName}: ${e.message}")
+                null
+            } ?: continue
+            recordFaultHistory(codes)
+            emit(SessionEvent.FaultCodes(codes, isBaseline = false))
+            val now = codes.toFaultSet()
+            val before = lastFaultSet
+            if (before != null && now != before) wait = FAULT_RECHECK_MS
+            lastFaultSet = now
+        }
+    }
+
+    /**
+     * Traegt ein erfolgreiches Auslesen in die lokale Fehlerhistorie ein. `record()` ist selbst „best effort“ — die Absicherung hier deckt das
+     * Unerwartete ab, denn eine Ausnahme an dieser Stelle wuerde die ganze Sitzung (beim Verbinden) bzw. die Wache kosten.
+     */
+    private suspend fun recordFaultHistory(codes: List<DtcEntry>) {
+        try { dtcHistoryRepository.record(codes) } catch (e: Exception) {
+            if (e is CancellationException) throw e
+        }
+    }
+
+    /**
      * Schreibt die abgeleiteten Werte eines OBD-Zyklus — den Gang, den die Gang-Box zeigt, und die Farbe des Oel-Balkens — in die laufende Fahrt
      * (Nutzerwuensche 2026-10-14). Beide entstehen im `DashboardViewModel` (`GearTracker`, `OilBarTracker`: Hysterese, Entprellen, Anzeige-Halten,
      * GPS-Gegenprobe), die Aufzeichnung gehoert hierher — eine zweite Berechnung an dieser Stelle wuerde von der Anzeige abweichen. Das ViewModel
@@ -400,4 +476,15 @@ class ReadingsPipeline @Inject constructor(
         moving = isMoving(speed?.value, moving)
         obdRepository.setMoving(moving)
     }
+
+    companion object {
+        /** Abstand der Fehlerwache: das erste Nachlesen kommt so lange nach dem Sitzungsbeginn, jedes weitere im selben Abstand (zwei Befehle, rund 0,3-0,5 s je Minute — geschaetzt). */
+        internal const val FAULT_WATCH_INTERVAL_MS = 60_000L
+
+        /** Nachpruefung nach einer Aenderung des Stands gegenueber dem vorigen Auslesen — anstelle des vollen Abstands. */
+        internal const val FAULT_RECHECK_MS = 10_000L
+    }
 }
+
+/** Der Stand eines Auslesens fuer den Vergleich: Code und ob er nur aussteht — ein Wechsel von ausstehend zu bestaetigt ist eine Aenderung. */
+private fun List<DtcEntry>.toFaultSet(): Set<Pair<String, Boolean>> = map { it.code to it.isPending }.toSet()

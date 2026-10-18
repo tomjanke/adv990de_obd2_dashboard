@@ -779,6 +779,53 @@ class ObdRepositoryTest {
         assertEquals(false, repo.isConnectedFlow.value)
     }
 
+    // ── Fehlercodes unterwegs: weich lesen, nie trennen (vierte Form der Zeitlimit-Richtlinie) ─────────
+
+    @Test
+    fun `readDtcsOrSkip is null without a connection - not an all-clear - and does not touch the factory`() = runTest {
+        val factory = mockk<ConnectionFactory>()
+        val repo = makeRepo(factory)
+
+        assertNull(repo.readDtcsOrSkip())
+        verify(exactly = 0) { factory.create(any()) }
+    }
+
+    @Test
+    fun `readDtcsOrSkip passes the soft read through when connected`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } returns "43 01 33"
+        coEvery { elmCtrl.sendCommand("07") } returns "47 01 34"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val result = repo.readDtcsOrSkip()
+
+        assertEquals(listOf("P0133" to false, "P0134" to true), result!!.map { it.code to it.isPending })
+    }
+
+    @Test
+    fun `readDtcsOrSkip skips a timeout and keeps the connection - unlike readDtcs`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } throws ObdException.Timeout("03")
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val result = repo.readDtcsOrSkip()
+
+        assertNull(result)
+        assertTrue("ein Zeitlimit unterwegs darf die Verbindung nicht kosten", repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `readDtcsOrSkip disconnects and rethrows when the link is lost`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand("03") } throws ObdException.ConnectionLost()
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val thrown = runCatching { repo.readDtcsOrSkip() }.exceptionOrNull()
+
+        assertTrue("ConnectionLost erwartet, war: $thrown", thrown is ObdException.ConnectionLost)
+        assertFalse("ein verlorener Link steht nie als verbunden da", repo.isConnectedFlow.value)
+    }
+
     // ── Freeze frame ─────────────────────────────────────────────────────────
 
     @Test

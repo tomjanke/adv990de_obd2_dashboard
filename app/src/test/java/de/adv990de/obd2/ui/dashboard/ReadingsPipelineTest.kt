@@ -24,12 +24,15 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -71,6 +74,8 @@ class ReadingsPipelineTest {
         every { setMoving(any()) } just Runs
         coEvery { readVin() } returns "VIN"
         coEvery { readDtcs() } returns emptyList()
+        // Die Fehlerwache liest erst nach 60 s; ein Test, dessen Sitzung so lange offen bleibt, braucht den Stub (die Attrappe ist streng).
+        coEvery { readDtcsOrSkip() } returns null
     }
 
     private fun makeSessionRepo(): SessionRepository = mockk {
@@ -94,11 +99,19 @@ class ReadingsPipelineTest {
         dtcHistory: DtcHistoryRepository = mockk(relaxed = true),
     ) = ReadingsPipeline(repo, sessionRepo, prefs, logRepo, crashReporter, gps, dtcHistory)
 
+    /**
+     * Die Sitzungsereignisse OHNE die Fehlercode-Meldungen ([SessionEvent.FaultCodes]): fast alle Tests fragen nach Werten und
+     * Lebenszyklus der Sitzung und zaehlen mit `take(n)` — die Basis-Meldung des Auslesens beim Verbinden kaeme sonst als erstes Ereignis
+     * dazwischen. Die Fehlerwache pruefen die Tests unten mit dem ungefilterten [ReadingsPipeline.events].
+     */
+    private fun ReadingsPipeline.sessionEvents(scope: CoroutineScope): Flow<SessionEvent> =
+        events(scope).filterNot { it is SessionEvent.FaultCodes }
+
     // --- Test 1 ---
 
     @Test
     fun `without a connection the pipeline idles`() = runTest {
-        val events = makePipeline(makeRepo(connected = false)).events(backgroundScope).take(1).toList()
+        val events = makePipeline(makeRepo(connected = false)).sessionEvents(backgroundScope).take(1).toList()
         assertEquals(listOf(SessionEvent.Idle), events)
     }
 
@@ -108,7 +121,7 @@ class ReadingsPipelineTest {
     fun `a connected session emits its readings and records them`() = runTest {
         val sessionRepo = makeSessionRepo()
         val events = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify { sessionRepo.startSession("VIN", emptyList()) }
@@ -123,7 +136,7 @@ class ReadingsPipelineTest {
             makeRepo(connected = true),
             prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
-        ).events(backgroundScope).take(1).toList()
+        ).sessionEvents(backgroundScope).take(1).toList()
 
         val values = (events.single() as SessionEvent.Values).values
         val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
@@ -142,7 +155,7 @@ class ReadingsPipelineTest {
             sessionRepo = sessionRepoGps,
             prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
-        ).events(backgroundScope).take(1).toList()
+        ).sessionEvents(backgroundScope).take(1).toList()
         val gpsSpeed = gpsFilled.captured.single { it.pid.id == PidRegistry.SPEED.id }
         assertEquals(ValueSource.GPS, gpsSpeed.source)
         assertEquals(ValueSource.ECU, gpsFilled.captured.single { it.pid.id == PidRegistry.RPM.id }.source)
@@ -156,7 +169,7 @@ class ReadingsPipelineTest {
             sessionRepo = sessionRepoEcu,
             prefs = fakeAppPreferences(useGpsSpeed = true),
             gps = makeGps(42f),
-        ).events(backgroundScope).take(1).toList()
+        ).sessionEvents(backgroundScope).take(1).toList()
         val ecuSpeed = ecuRecorded.captured.single { it.pid.id == PidRegistry.SPEED.id }
         assertEquals("der Fahrzeugwert hat Vorrang", 55f, ecuSpeed.value, 0.001f)
         assertEquals(ValueSource.ECU, ecuSpeed.source)
@@ -168,7 +181,7 @@ class ReadingsPipelineTest {
     fun `a moving vehicle is reported to the repository`() = runTest {
         val repo = makeRepo(connected = true)
         makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = makeGps(42f))
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         verify { repo.setMoving(true) }
     }
@@ -182,7 +195,7 @@ class ReadingsPipelineTest {
             throw ObdException.ConnectionLost()
         }
 
-        val events = makePipeline(repo).events(backgroundScope).take(1).toList()
+        val events = makePipeline(repo).sessionEvents(backgroundScope).take(1).toList()
         assertEquals(listOf(SessionEvent.ConnectionLost), events)
     }
 
@@ -197,7 +210,7 @@ class ReadingsPipelineTest {
         val sessionRepo = makeSessionRepo()
 
         val events = makePipeline(repo, sessionRepo = sessionRepo, crashReporter = crashReporter)
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         assertTrue("Erwartet wurde ein Fehlerereignis: $events", events.single() is SessionEvent.Failed)
         // Seit der Zusammenfuehrung per combine() (1.15.2) durchquert die Exception eine zusaetzliche
@@ -217,7 +230,7 @@ class ReadingsPipelineTest {
             makeRepo(connected = true),
             sessionRepo = sessionRepo,
             prefs = fakeAppPreferences(logOnlyDtcSessions = true),
-        ).events(backgroundScope).take(1).toList()
+        ).sessionEvents(backgroundScope).take(1).toList()
 
         // Die Entscheidung steht vor dem Start fest. Frueher wurde die Fahrt angelegt, aufgezeichnet und
         // am Ende verworfen: unnoetige Schreiblast, und ein Prozess-Kill dazwischen hinterliess eine
@@ -250,7 +263,7 @@ class ReadingsPipelineTest {
         val collected = mutableListOf<SessionEvent>()
         val job = launch {
             makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gps)
-                .events(backgroundScope)
+                .sessionEvents(backgroundScope)
                 .filterIsInstance<SessionEvent.Values>()
                 .toList(collected)
         }
@@ -281,7 +294,7 @@ class ReadingsPipelineTest {
         val collected = mutableListOf<SessionEvent.Values>()
         val job = launch {
             makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gps)
-                .events(backgroundScope)
+                .sessionEvents(backgroundScope)
                 .filterIsInstance<SessionEvent.Values>()
                 .toList(collected)
         }
@@ -299,7 +312,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
         val sessionRepo = makeSessionRepo()
         val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
-        val job = launch { pipeline.events(backgroundScope).collect { } }
+        val job = launch { pipeline.sessionEvents(backgroundScope).collect { } }
         advanceTimeBy(1)
         runCurrent()
 
@@ -316,7 +329,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
         val sessionRepo = makeSessionRepo()
         val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
-        val job = launch { pipeline.events(backgroundScope).collect { } }
+        val job = launch { pipeline.sessionEvents(backgroundScope).collect { } }
         advanceTimeBy(1)
         runCurrent()
 
@@ -344,7 +357,7 @@ class ReadingsPipelineTest {
     fun `no gear is written once the session has ended`() = runTest {
         val sessionRepo = makeSessionRepo()
         val pipeline = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo)
-        pipeline.events(backgroundScope).take(1).toList()   // the flow completes: the trip is closed
+        pipeline.sessionEvents(backgroundScope).take(1).toList()   // the flow completes: the trip is closed
 
         pipeline.recordDerived(listOf(gearSensorValue(GearReading(gear = 3, isNeutral = false), timestamp = 2000L)))
 
@@ -359,7 +372,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
         val sessionRepo = makeSessionRepo()
         val pipeline = makePipeline(repo, sessionRepo = sessionRepo)
-        val job = launch { pipeline.events(backgroundScope).collect { } }
+        val job = launch { pipeline.sessionEvents(backgroundScope).collect { } }
         advanceTimeBy(1)
         runCurrent()
 
@@ -385,7 +398,7 @@ class ReadingsPipelineTest {
             slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
         )
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         val selectedIds = pidsSlot.captured.map { it.id }
         assertEquals(
@@ -412,7 +425,7 @@ class ReadingsPipelineTest {
             slotPids = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id),
         )
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         val selectedIds = pidsSlot.captured.map { it.id }
         assertEquals(
@@ -436,7 +449,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
         val prefs = fakeAppPreferences(rpmDynamicThreshold = true, slotPids = AppPreferences.DEFAULT_SLOT_PIDS)
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         val selectedIds = pidsSlot.captured.map { it.id }
         assertEquals(1, selectedIds.count { it == PidRegistry.COOLANT_TEMP.id })
@@ -453,7 +466,7 @@ class ReadingsPipelineTest {
         val sessionRepo = makeSessionRepo()
 
         makePipeline(repo, sessionRepo = sessionRepo)
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         coVerify { sessionRepo.writeReadings(7L, readings) }
     }
@@ -470,7 +483,7 @@ class ReadingsPipelineTest {
         coEvery { sessionRepo.writeReadings(7L, capture(written)) } just Runs
 
         makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = makeGps(42f))
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         val speed = written.captured.single { it.pid.id == PidRegistry.SPEED.id }
         assertEquals(ValueSource.GPS, speed.source)
@@ -486,7 +499,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(capture(pidsSlot)) } returns flowOf(listOf(rpm))
         val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.ENGINE_LOAD.id, "", "", ""))
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         assertTrue(PidRegistry.SPEED.id in pidsSlot.captured.map { it.id })
     }
@@ -508,7 +521,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(any(), any(), any(), any(), capture(slowSlot), any()) } returns flowOf(listOf(rpm))
         val prefs = fakeAppPreferences(slotPids = slotPids, alarmSettings = alarms)
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         return slowSlot.captured
     }
@@ -549,7 +562,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(capture(pidsSlot), any(), any(), any(), capture(slowSlot), any()) } returns flowOf(listOf(rpm))
         val prefs = fakeAppPreferences(slotPids = listOf(PidRegistry.CONTROL_MODULE_VOLTAGE.id, "", "", ""))
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(1).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(1).toList()
 
         assertTrue(PidRegistry.CONTROL_MODULE_VOLTAGE.id in pidsSlot.captured.map { it.id })
         assertEquals(emptyList<PidDefinition>(), slowSlot.captured)
@@ -572,7 +585,7 @@ class ReadingsPipelineTest {
             emit(listOf(rpm))
         }
 
-        makePipeline(repo, prefs = prefs).events(backgroundScope).take(3).toList()
+        makePipeline(repo, prefs = prefs).sessionEvents(backgroundScope).take(3).toList()
 
         assertEquals(1, reads)
         assertEquals(listOf(PidRegistry.CONTROL_MODULE_VOLTAGE), slowSlot.captured)
@@ -591,7 +604,7 @@ class ReadingsPipelineTest {
             repo,
             sessionRepo = sessionRepo,
             prefs = fakeAppPreferences(logOnlyDtcSessions = true),
-        ).events(backgroundScope).take(1).toList()
+        ).sessionEvents(backgroundScope).take(1).toList()
 
         // readDtcs() throwing is caught inside runSession()'s own try/catch: the session still runs
         // and emits its readings normally, it does not surface as SessionEvent.Failed.
@@ -614,7 +627,7 @@ class ReadingsPipelineTest {
         every { repo.livePids(any(), any(), any(), any(), any(), any()) } returns flowOf(listOf(rpm))
 
         makePipeline(repo, prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = 45))
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         verify {
             repo.livePids(
@@ -660,7 +673,7 @@ class ReadingsPipelineTest {
                 coEvery { log(any(), any()) } coAnswers { delay(1) }
             }
 
-            val events = makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+            val events = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
 
             assertEquals(listOf(SessionEvent.ConnectionLost), events)
         }
@@ -684,7 +697,7 @@ class ReadingsPipelineTest {
                 throw ObdException.ConnectionLost()  // the interrupted read
             }
             val events = mutableListOf<SessionEvent>()
-            backgroundScope.launch { makePipeline(repo).events(this).toList(events) }
+            backgroundScope.launch { makePipeline(repo).sessionEvents(this).toList(events) }
 
             testScheduler.advanceUntilIdle()
 
@@ -706,7 +719,7 @@ class ReadingsPipelineTest {
                 throw ObdException.ConnectionLost()
             }
             val events = mutableListOf<SessionEvent>()
-            backgroundScope.launch { makePipeline(repo).events(this).toList(events) }
+            backgroundScope.launch { makePipeline(repo).sessionEvents(this).toList(events) }
 
             testScheduler.advanceUntilIdle()
 
@@ -724,7 +737,7 @@ class ReadingsPipelineTest {
                 throw ObdException.ConnectionLost()
             }
 
-            val event = makePipeline(repo).events(backgroundScope).first { it == SessionEvent.ConnectionLost }
+            val event = makePipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost }
 
             assertEquals(SessionEvent.ConnectionLost, event)
         }
@@ -741,7 +754,7 @@ class ReadingsPipelineTest {
         val calls = mutableListOf<Boolean>()
         every { repo.setMoving(any()) } answers { calls.add(firstArg()) }
 
-        makePipeline(repo).events(backgroundScope).take(speeds.size).toList()
+        makePipeline(repo).sessionEvents(backgroundScope).take(speeds.size).toList()
 
         assertEquals(listOf(false, false, true, true, false, false), calls)
     }
@@ -750,7 +763,7 @@ class ReadingsPipelineTest {
 
     private fun TestScope.collect(pipeline: ReadingsPipeline): MutableList<SessionEvent> {
         val events = mutableListOf<SessionEvent>()
-        backgroundScope.launch { pipeline.events(backgroundScope).toList(events) }
+        backgroundScope.launch { pipeline.sessionEvents(backgroundScope).toList(events) }
         return events
     }
 
@@ -904,7 +917,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } throws ObdException.UnknownResponse("WHAT IS THIS")
         val logRepo: AppLogRepository = mockk(relaxed = true)
 
-        makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+        makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify {
             logRepo.log(LogLevel.WARN, match { it.contains("Fault-code read failed") && it.contains("WHAT IS THIS") })
@@ -917,7 +930,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } throws ObdException.NoData("03")
         val dtcHistory: DtcHistoryRepository = mockk(relaxed = true)
 
-        val events = makePipeline(repo, dtcHistory = dtcHistory).events(backgroundScope).take(1).toList()
+        val events = makePipeline(repo, dtcHistory = dtcHistory).sessionEvents(backgroundScope).take(1).toList()
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify(exactly = 0) { dtcHistory.record(any(), any()) }
@@ -936,7 +949,7 @@ class ReadingsPipelineTest {
         val crashReporter: CrashReporter = mockk(relaxed = true)
 
         val events = makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo, crashReporter = crashReporter)
-            .events(backgroundScope).take(3).toList()
+            .sessionEvents(backgroundScope).take(3).toList()
 
         assertTrue("every cycle still reaches the display: $events", events.all { it is SessionEvent.Values })
         assertEquals(3, events.size)
@@ -953,7 +966,7 @@ class ReadingsPipelineTest {
         val logRepo: AppLogRepository = mockk(relaxed = true)
 
         val events = makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo, logRepo = logRepo)
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify(exactly = 0) { sessionRepo.writeReadings(any(), any()) }
@@ -982,7 +995,7 @@ class ReadingsPipelineTest {
                 coEvery { log(any(), any()) } coAnswers { delay(1) }
             }
 
-            val event = makePipeline(repo, logRepo = logRepo).events(backgroundScope)
+            val event = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope)
                 .first { it == SessionEvent.ConnectionLost }
 
             assertEquals(SessionEvent.ConnectionLost, event)
@@ -1000,7 +1013,7 @@ class ReadingsPipelineTest {
             }
             val sessionRepo = makeSessionRepo()
 
-            makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope)
+            makePipeline(repo, sessionRepo = sessionRepo).sessionEvents(backgroundScope)
                 .first { it == SessionEvent.ConnectionLost }
 
             coVerify(exactly = 0) { sessionRepo.startSession(any(), any()) }
@@ -1022,7 +1035,7 @@ class ReadingsPipelineTest {
                 coEvery { log(any(), any()) } coAnswers { delay(1); written = true }
             }
 
-            makePipeline(repo, logRepo = logRepo).events(backgroundScope)
+            makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope)
                 .first { it == SessionEvent.ConnectionLost }
             testScheduler.advanceUntilIdle()
 
@@ -1036,7 +1049,7 @@ class ReadingsPipelineTest {
         // die Sitzung zu beenden oder neu zu verbinden.
         coEvery { repo.readDtcs() } throws ObdException.Timeout("03")
 
-        val events = makePipeline(repo).events(backgroundScope).take(1).toList()
+        val events = makePipeline(repo).sessionEvents(backgroundScope).take(1).toList()
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
     }
@@ -1050,7 +1063,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } returns dtcs
         val history = mockk<DtcHistoryRepository>(relaxed = true)
 
-        makePipeline(repo, dtcHistory = history).events(backgroundScope).take(1).toList()
+        makePipeline(repo, dtcHistory = history).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { history.record(dtcs, any()) }
     }
@@ -1061,7 +1074,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", false), DtcEntry("P0420", true))
         val logRepo = mockk<AppLogRepository>(relaxed = true)
 
-        makePipeline(repo, logRepo = logRepo).events(backgroundScope).take(1).toList()
+        makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, "Active DTCs on connect: P0301, P0420 (pending)") }
     }
@@ -1070,7 +1083,7 @@ class ReadingsPipelineTest {
     fun `an empty reading is passed on too - the repository ignores it`() = runTest {
         val history = mockk<DtcHistoryRepository>(relaxed = true)
 
-        makePipeline(makeRepo(connected = true), dtcHistory = history).events(backgroundScope).take(1).toList()
+        makePipeline(makeRepo(connected = true), dtcHistory = history).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { history.record(emptyList(), any()) }
     }
@@ -1081,7 +1094,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } throws IllegalStateException("ELM327 timeout")
         val history = mockk<DtcHistoryRepository>(relaxed = true)
 
-        makePipeline(repo, dtcHistory = history).events(backgroundScope).take(1).toList()
+        makePipeline(repo, dtcHistory = history).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 0) { history.record(any(), any()) }
     }
@@ -1096,7 +1109,7 @@ class ReadingsPipelineTest {
         val sessionRepo = makeSessionRepo()
 
         val events = makePipeline(repo, sessionRepo = sessionRepo, dtcHistory = history)
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         // The history is a side record: whatever goes wrong there must not cost the user the live session.
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
@@ -1113,7 +1126,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } returns dtcs
         val sessionRepo = makeSessionRepo()
 
-        makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+        makePipeline(repo, sessionRepo = sessionRepo).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { sessionRepo.startSession("VIN", dtcs) }
     }
@@ -1122,7 +1135,7 @@ class ReadingsPipelineTest {
     fun `a read that found no codes goes to the trip as an empty list, not as not recorded`() = runTest {
         val sessionRepo = makeSessionRepo() // makeRepo: readDtcs() liefert emptyList()
 
-        makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+        makePipeline(makeRepo(connected = true), sessionRepo = sessionRepo).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { sessionRepo.startSession("VIN", emptyList()) }
         coVerify(exactly = 0) { sessionRepo.startSession(any(), null) }
@@ -1135,7 +1148,7 @@ class ReadingsPipelineTest {
         coEvery { repo.readDtcs() } throws ObdException.NoData("03")
         val sessionRepo = makeSessionRepo()
 
-        makePipeline(repo, sessionRepo = sessionRepo).events(backgroundScope).take(1).toList()
+        makePipeline(repo, sessionRepo = sessionRepo).sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { sessionRepo.startSession("VIN", null) }
     }
@@ -1148,8 +1161,328 @@ class ReadingsPipelineTest {
         val sessionRepo = makeSessionRepo()
 
         makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(logOnlyDtcSessions = true))
-            .events(backgroundScope).take(1).toList()
+            .sessionEvents(backgroundScope).take(1).toList()
 
         coVerify(exactly = 1) { sessionRepo.startSession("VIN", dtcs) }
     }
+
+    // --- Test 18: die Fehlerwache (Fehlercodes unterwegs) ---
+    // Das Auslesen beim Verbinden meldet die Basis (isBaseline = true, auch bei einem Fehlschlag als null); danach liest die Wache jede Minute
+    // weich nach (readDtcsOrSkip: ein Zeitlimit ueberspringt, trennt nie) und meldet jeden Erfolg. Eine Aenderung wird nach 10 s nachgeprueft.
+
+    private val watchMs = ReadingsPipeline.FAULT_WATCH_INTERVAL_MS
+    private val recheckMs = ReadingsPipeline.FAULT_RECHECK_MS
+    private val p0301 = DtcEntry("P0301", false)
+    private val p0420 = DtcEntry("P0420", false)
+
+    /** Eine Sitzung, die offen bleibt: nur dann lebt die Wache ueber die ersten 60 s hinaus (ein beendeter `livePids`-Fluss beendet die Sitzung). */
+    private fun openSessionRepo(): ObdRepository = makeRepo(connected = true).also { repo ->
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); awaitCancellation() }
+    }
+
+    /** Sammelt ALLE Ereignisse im Hintergrund, auch die Fehlercodes — [sessionEvents] filtert sie weg. */
+    private fun TestScope.collectAll(pipeline: ReadingsPipeline): MutableList<SessionEvent> {
+        val events = mutableListOf<SessionEvent>()
+        backgroundScope.launch { pipeline.events(backgroundScope).toList(events) }
+        return events
+    }
+
+    private fun List<SessionEvent>.faultCodes() = filterIsInstance<SessionEvent.FaultCodes>()
+
+    /** Rueckt die virtuelle Zeit auf [timeMs] seit dem Start und fuehrt alles aus, was genau dann ansteht. */
+    private fun TestScope.advanceTo(timeMs: Long) {
+        advanceTimeBy(timeMs - testScheduler.currentTime)
+        runCurrent()
+    }
+
+    @Test
+    fun `the cadence is one minute, and ten seconds after a change`() {
+        assertEquals(60_000L, ReadingsPipeline.FAULT_WATCH_INTERVAL_MS)
+        assertEquals(10_000L, ReadingsPipeline.FAULT_RECHECK_MS)
+    }
+
+    @Test
+    fun `the read at connect is reported once as the baseline`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns listOf(p0301)
+        val events = collectAll(makePipeline(repo))
+
+        advanceTo(1)
+        assertEquals(listOf(SessionEvent.FaultCodes(listOf(p0301), isBaseline = true)), events.faultCodes())
+
+        advanceTo(3 * watchMs)   // die Wache liest (null, nichts zu melden): die Basis kommt nicht noch einmal
+        assertEquals(1, events.faultCodes().size)
+    }
+
+    @Test
+    fun `a failed read at connect is reported as the baseline too - as null, never as an all-clear`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
+        val events = collectAll(makePipeline(repo))
+
+        advanceTo(1)
+
+        assertEquals(listOf(SessionEvent.FaultCodes(null, isBaseline = true)), events.faultCodes())
+    }
+
+    @Test
+    fun `the first periodic read comes after one minute, then every minute - each success is reported without the baseline flag`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns listOf(p0301)
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)   // wie die Basis: keine Aenderung, also jede volle Minute
+        val events = collectAll(makePipeline(repo))
+
+        advanceTo(watchMs - 1)
+        coVerify(exactly = 0) { repo.readDtcsOrSkip() }
+        advanceTo(watchMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs - 1)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs)
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+
+        assertEquals(listOf(true, false, false), events.faultCodes().map { it.isBaseline })
+        assertEquals(listOf(p0301), events.faultCodes().last().codes)
+    }
+
+    @Test
+    fun `a result that differs from the previous one is checked again after ten seconds, an unchanged one after a minute`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns emptyList()                                    // Basis: nichts
+        val both = listOf(p0301, p0420)
+        coEvery { repo.readDtcsOrSkip() } returnsMany listOf(listOf(p0301), listOf(p0301), both, both)
+        collectAll(makePipeline(repo))
+
+        advanceTo(watchMs)                       // 60 s: P0301 gegenueber der Basis neu -> in 10 s wieder
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(watchMs + recheckMs - 1)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(watchMs + recheckMs)           // 70 s: unveraendert -> in einer Minute
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs + recheckMs - 1)
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs + recheckMs)       // 130 s: P0420 kommt hinzu -> in 10 s wieder
+        coVerify(exactly = 3) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs + 2 * recheckMs - 1)
+        coVerify(exactly = 3) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs + 2 * recheckMs)   // 140 s: unveraendert -> in einer Minute
+        coVerify(exactly = 4) { repo.readDtcsOrSkip() }
+        advanceTo(3 * watchMs + 2 * recheckMs - 1)
+        coVerify(exactly = 4) { repo.readDtcsOrSkip() }
+        advanceTo(3 * watchMs + 2 * recheckMs)
+        coVerify(exactly = 5) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `a code that turns from pending to confirmed is a change too`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", isPending = true))
+        coEvery { repo.readDtcsOrSkip() } returns listOf(DtcEntry("P0301", isPending = false))
+        collectAll(makePipeline(repo))
+
+        advanceTo(watchMs)
+        advanceTo(watchMs + recheckMs)
+
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `without a baseline there is nothing to compare, so the first result is not re-checked early`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } throws ObdException.NoData("03")   // keine Basis
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)
+        collectAll(makePipeline(repo))
+
+        advanceTo(watchMs)
+        advanceTo(watchMs + recheckMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs)
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `a read without an answer reports nothing, waits a full minute and forgets nothing`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns emptyList()
+        val both = listOf(p0301, p0420)
+        // 60 s: P0301 (neu, Nachpruefung in 10 s) · 70 s: keine Antwort · 130 s: P0301 + P0420 — neu gegenueber P0301, NICHT gegenueber "nichts"
+        coEvery { repo.readDtcsOrSkip() } returnsMany listOf(listOf(p0301), null, both, both)
+        val events = collectAll(makePipeline(repo))
+
+        advanceTo(watchMs + recheckMs)
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+        assertEquals("null meldet nichts: Basis und P0301", 2, events.faultCodes().size)
+        advanceTo(watchMs + recheckMs + watchMs - 1)
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }                     // nach einer leeren Antwort eine volle Minute
+        advanceTo(2 * watchMs + recheckMs)
+        coVerify(exactly = 3) { repo.readDtcsOrSkip() }
+        assertEquals(both, events.faultCodes().last().codes)
+        advanceTo(2 * watchMs + 2 * recheckMs - 1)
+        coVerify(exactly = 3) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs + 2 * recheckMs)                              // die Aenderung wurde bemerkt: Nachpruefung nach 10 s
+        coVerify(exactly = 4) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `with the switch off nothing is read - the switch is looked at on every round`() = runTest {
+        val alarms = MutableStateFlow(AlarmSettings(faultsEnabled = false))
+        val prefs = fakeAppPreferences()
+        every { prefs.alarmSettings } returns alarms
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)
+        val events = collectAll(makePipeline(repo, prefs = prefs))
+
+        advanceTo(2 * watchMs)
+        coVerify(exactly = 0) { repo.readDtcsOrSkip() }
+
+        alarms.value = AlarmSettings(faultsEnabled = true)         // das Einschalten wirkt beim naechsten Durchlauf
+        advanceTo(3 * watchMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        assertEquals(listOf(true, false), events.faultCodes().map { it.isBaseline })
+
+        alarms.value = AlarmSettings(faultsEnabled = false)        // ... und das Ausschalten ebenso
+        advanceTo(5 * watchMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `every successful periodic read goes into the fault history, a read without an answer does not`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcs() } returns emptyList()
+        coEvery { repo.readDtcsOrSkip() } returnsMany listOf(listOf(p0301), null, listOf(p0301))
+        val history = mockk<DtcHistoryRepository>(relaxed = true)
+        collectAll(makePipeline(repo, dtcHistory = history))
+
+        advanceTo(watchMs)
+        coVerify(exactly = 1) { history.record(listOf(p0301), any()) }
+        advanceTo(watchMs + recheckMs)                              // keine Antwort
+        coVerify(exactly = 1) { history.record(listOf(p0301), any()) }
+        advanceTo(2 * watchMs + recheckMs)
+        coVerify(exactly = 2) { history.record(listOf(p0301), any()) }
+    }
+
+    @Test
+    fun `a throwing fault history does not stop the watch`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)
+        val history = mockk<DtcHistoryRepository> {
+            coEvery { record(any(), any()) } throws IllegalStateException("history exploded")
+        }
+        val events = collectAll(makePipeline(repo, dtcHistory = history))
+
+        advanceTo(2 * watchMs)
+
+        // Die Historie ist Beiwerk: die Meldung geht trotzdem hinaus, und die naechste Minute wird gelesen.
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+        assertEquals(listOf(true, false, false), events.faultCodes().map { it.isBaseline })
+        assertTrue("keine Fehlermeldung der Sitzung: $events", events.none { it is SessionEvent.Failed })
+    }
+
+    @Test
+    fun `an unexpected failure of a periodic read does not end the session or the watch, and is logged`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcsOrSkip() } throws IllegalStateException("parser exploded") andThen listOf(p0301)
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = collectAll(makePipeline(repo, logRepo = logRepo))
+
+        advanceTo(2 * watchMs)
+
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }
+        assertEquals(listOf(true, false), events.faultCodes().map { it.isBaseline })
+        assertTrue("die Sitzung lebt: $events", events.none { it is SessionEvent.Failed })
+        coVerify { logRepo.log(LogLevel.WARN, match { it.contains("Periodic fault-code read failed") && it.contains("parser exploded") }) }
+    }
+
+    @Test
+    fun `a lost link during a periodic read asks for a reconnect`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val repo = openSessionRepo()
+        every { repo.isConnectedFlow } returns isConnected
+        coEvery { repo.readDtcsOrSkip() } coAnswers {
+            isConnected.value = false           // genau das tut ObdRepository.readDtcsOrSkip() (onLinkBroken), bevor es weiterwirft
+            throw ObdException.ConnectionLost()
+        }
+        val logRepo: AppLogRepository = mockk(relaxed = true) {
+            // Ein echter Suspendierungspunkt wie beim Room-Insert des App-Logs (s. die Reentrancy-Tests oben): die Sitzung wird gerade abgebrochen.
+            coEvery { log(any(), any()) } coAnswers { delay(1) }
+        }
+        val events = collectAll(makePipeline(repo, logRepo = logRepo))
+
+        advanceTo(watchMs)
+
+        assertEquals("genau ein Reconnect-Ausloeser: $events", 1, events.count { it == SessionEvent.ConnectionLost })
+    }
+
+    @Test
+    fun `a periodic read that fails because the user disconnected does not ask for a reconnect`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val userDisconnects = MutableStateFlow(0)
+        val repo = openSessionRepo()
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.userDisconnectCount } returns userDisconnects
+        coEvery { repo.readDtcsOrSkip() } coAnswers {
+            userDisconnects.value += 1          // disconnectByUser(): erst der Zaehler ...
+            isConnected.value = false           // ... dann das Trennen
+            throw ObdException.ConnectionLost()
+        }
+        val events = collectAll(makePipeline(repo))
+
+        advanceTo(watchMs)
+
+        assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+        assertTrue("die Anzeige geht auf getrennt: $events", events.contains(SessionEvent.Idle))
+    }
+
+    @Test
+    fun `the watch ends with the connection - nothing is read after the session is gone`() = runTest {
+        val isConnected = MutableStateFlow(true)
+        val repo = openSessionRepo()
+        every { repo.isConnectedFlow } returns isConnected
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)
+        collectAll(makePipeline(repo))
+
+        advanceTo(watchMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+
+        isConnected.value = false
+        advanceTo(10 * watchMs)
+
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `the watch ends with the session even while the connection stays up`() = runTest {
+        // makeRepo: livePids liefert einen Zyklus und endet — die Quelle der Sitzung ist zu, die Verbindung steht weiter.
+        val repo = makeRepo(connected = true)
+        coEvery { repo.readDtcsOrSkip() } returns listOf(p0301)
+        collectAll(makePipeline(repo))
+
+        advanceTo(10 * watchMs)
+
+        coVerify(exactly = 0) { repo.readDtcsOrSkip() }
+    }
+
+    @Test
+    fun `a new session starts without the fault set of the old one - a late first read is not compared with it`() =
+        runTest {
+            val isConnected = MutableStateFlow(true)
+            val repo = openSessionRepo()
+            every { repo.isConnectedFlow } returns isConnected
+            // Sitzung 1: Basis P0301. Sitzung 2: das Auslesen beim Verbinden dauert laenger als die erste Minute der Wache.
+            var connects = 0
+            coEvery { repo.readDtcs() } coAnswers { if (connects++ == 0) listOf(p0301) else { delay(90_000); emptyList() } }
+            coEvery { repo.readDtcsOrSkip() } returns listOf(p0420)
+            collectAll(makePipeline(repo))
+            advanceTo(1)
+
+            isConnected.value = false
+            advanceTo(10_000)
+            isConnected.value = true
+            advanceTo(10_000 + watchMs)          // Sitzung 2, erste Lesung der Wache — die Basis steht noch aus
+            coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+            advanceTo(10_000 + watchMs + recheckMs)
+
+            // Gegen den Stand der alten Sitzung (P0301) waere P0420 "neu" und die Nachpruefung schon nach 10 s dran.
+            coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        }
 }

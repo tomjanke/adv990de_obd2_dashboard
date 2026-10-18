@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.dashboard
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import de.adv990de.obd2.R
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.crash.CrashReporter
@@ -32,6 +33,7 @@ import io.mockk.Runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1389,6 +1391,24 @@ class DashboardViewModelTest {
 
     // ── B29: values nobody refreshes are shown as stale, not as live ──────────
 
+    /** Die ViewModels, die [makeVmFrom] in diesem Test gebaut hat — [runVmTest] meldet sie am Ende ab. */
+    private val builtViewModels = mutableListOf<DashboardViewModel>()
+
+    /**
+     * `runTest` fuer einen Test, der mit stehender Verbindung und OFFENER Quelle endet. Die Fehlerwache der Pipeline liest in einer solchen
+     * Sitzung jede Minute nach und endet nur mit der Sitzung; der Abschluss von `runTest` laesst aber alles Anstehende in virtueller Zeit
+     * ablaufen (auch das `viewModelScope`) und liefe endlos weiter (OutOfMemoryError, am Ende des Laufs sichtbar). Deshalb wird das
+     * `viewModelScope` jedes mit [makeVmFrom] gebauten ViewModels am Ende beendet — auch wenn eine Pruefung fehlschlaegt.
+     */
+    private fun runVmTest(body: suspend TestScope.() -> Unit) = runTest {
+        try {
+            body()
+        } finally {
+            builtViewModels.forEach { it.viewModelScope.cancel() }
+            builtViewModels.clear()
+        }
+    }
+
     private fun staleRepo(isConnected: MutableStateFlow<Boolean>, session: kotlinx.coroutines.flow.Flow<List<SensorValue>>) =
         fakeObdRepository {
             every { this@fakeObdRepository.isConnectedFlow } returns isConnected
@@ -1401,7 +1421,7 @@ class DashboardViewModelTest {
     )
 
     @Test
-    fun `a silent ECU turns the display stale - no readings, no rpm, no speed, no gear - but the link stays connected`() = runTest {
+    fun `a silent ECU turns the display stale - no readings, no rpm, no speed, no gear - but the link stays connected`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() })
         val sessionRepo = mockk<SessionRepository>(relaxed = true) { coEvery { startSession(any(), any()) } returns 1L }
@@ -1424,7 +1444,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `fresh values after a stale phase clear the stale flag`() = runTest {
+    fun `fresh values after a stale phase clear the stale flag`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         val repo = staleRepo(
             isConnected,
@@ -1450,7 +1470,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `a link that is up shows connected at once and waits for the first readings`() = runTest {
+    fun `a link that is up shows connected at once and waits for the first readings`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { kotlinx.coroutines.awaitCancellation() }))
         assertFalse(vm.uiState.value.isConnected)
@@ -1467,7 +1487,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `the first readings end the waiting`() = runTest {
+    fun `the first readings end the waiting`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { emit(liveCycle); kotlinx.coroutines.awaitCancellation() }))
 
@@ -1480,7 +1500,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `a silent ECU from the start turns waiting into stale`() = runTest {
+    fun `a silent ECU from the start turns waiting into stale`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         val vm = makeStaleVm(staleRepo(isConnected, kotlinx.coroutines.flow.flow { kotlinx.coroutines.awaitCancellation() }))
         isConnected.value = true
@@ -1494,7 +1514,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `values for none of the slots keep the display live - connected, not waiting, not stale (B23)`() = runTest {
+    fun `values for none of the slots keep the display live - connected, not waiting, not stale (B23)`() = runVmTest {
         val isConnected = MutableStateFlow(false)
         // Alle vier Slots belegen PIDs, die das Steuergeraet nicht liefert; RPM und Kuehlmittel werden immer abgefragt.
         val slots = listOf(PidRegistry.THROTTLE.id, PidRegistry.ENGINE_LOAD.id, PidRegistry.INTAKE_AIR_TEMP.id, PidRegistry.MAF.id)
@@ -2661,7 +2681,9 @@ class DashboardViewModelTest {
             nowMillis = { testScheduler.currentTime },
             savedStateHandle = handle,
         )
-        advanceUntilIdle()
+        // Nicht advanceUntilIdle(): es wartet auf alles Anstehende, auch auf die Fehlerwache des ersten ViewModels (naechste Pruefung nach 60 s) — die
+        // "50 s Luecke" waere dann keine mehr, und das 60-s-Limit setzte den Timer zurueck.
+        advanceTimeBy(1_000L)
         assertEquals(OilBarColor.Yellow, vm1.uiState.value.oilBarColor)
 
         // "Neuerzeugung": 50s Luecke, dann ein zweites ViewModel mit DERSELBEN SavedStateHandle-
@@ -3050,5 +3072,5 @@ class DashboardViewModelTest {
         ),
         ReadingsPipeline(obdRepo, sessionRepo, prefs, logRepo, crashReporter, gpsSource, mockk(relaxed = true)),
         savedStateHandle,
-    ).also { it.nowMillis = nowMillis }
+    ).also { it.nowMillis = nowMillis; builtViewModels += it }
 }

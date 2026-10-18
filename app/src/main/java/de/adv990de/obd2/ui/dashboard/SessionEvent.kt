@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import de.adv990de.obd2.ui.UiText
 
@@ -38,6 +39,14 @@ sealed interface SessionEvent {
 
     /** Die Sitzung ist an einem anderen Fehler gescheitert. */
     data class Failed(val error: UiText) : SessionEvent
+
+    /**
+     * Ein Auslesen der Fehlercodes. [isBaseline] = das Auslesen beim Verbinden (einmal je Sitzung, **auch als `null`**, wenn es keine positive
+     * Antwort gab): der Stand, gegen den die Fehlerwache neue Codes erkennt, kein Anlass zum Alarm. Sonst ein Nachlesen der Wache unterwegs
+     * (`ReadingsPipeline.faultWatch`), und das ist immer ein Erfolg — ein Auslesen ohne Antwort meldet die Wache gar nicht.
+     * [codes] `null` heisst "keine Aussage", nie "keine Codes" (das waere eine leere Liste).
+     */
+    data class FaultCodes(val codes: List<DtcEntry>?, val isBaseline: Boolean) : SessionEvent
 }
 
 /**

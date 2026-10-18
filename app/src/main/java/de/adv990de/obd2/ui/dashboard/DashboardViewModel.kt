@@ -262,6 +262,8 @@ class DashboardViewModel @Inject constructor(
                 gearTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
             }
+            // Noch ohne Wirkung — der Fehler-Alarm haengt sich hier ein (Fehlerwache, Alarm-Konzept).
+            is SessionEvent.FaultCodes -> Unit
         }
     }
 
