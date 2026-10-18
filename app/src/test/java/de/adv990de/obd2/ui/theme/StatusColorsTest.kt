@@ -52,6 +52,36 @@ class StatusColorsTest {
         assertTrue(contrast(StatusColors.Warning, dark.surface) >= 4.5f)
     }
 
+    // ── criticalOn: das rote Warnsymbol des Alarmbands (2,49:1 im hellen Standard-Schema) ──
+
+    private val darkDefault = androidx.compose.material3.darkColorScheme()
+    private val allSchemes = mapOf("light" to lightScheme, "default dark" to darkDefault, "blue" to blueColorScheme, "amber" to amberColorScheme, "green" to greenColorScheme)
+
+    @Test
+    fun `the plain critical red is below 3 to 1 against its own pale container on the light default surface - why the token exists`() {
+        val container = StatusColors.container(StatusColors.Critical, lightScheme.surface)
+        assertTrue("${contrast(StatusColors.Critical, container)}", contrast(StatusColors.Critical, container) < 3f)
+    }
+
+    @Test
+    fun `on every surface the critical accent reaches 3 to 1 against the status container it sits on`() {
+        // Nicht-Text-Kontrast (WCAG 1.4.11): das Symbol sitzt auf der gedaempften Statusflaeche (`container`), nicht auf der Flaeche selbst.
+        for ((name, scheme) in allSchemes) {
+            val container = StatusColors.container(StatusColors.Critical, scheme.surface)
+            val ratio = contrast(StatusColors.criticalOn(scheme.surface), container)
+            assertTrue("$name: $ratio:1", ratio >= 3f)
+        }
+    }
+
+    @Test
+    fun `on dark surfaces the bold critical red stays as it is, on the light one it is darker`() {
+        for (name in listOf("default dark", "blue", "amber", "green")) {
+            assertEquals(name, StatusColors.Critical, StatusColors.criticalOn(allSchemes.getValue(name).surface))
+        }
+        assertEquals(StatusColors.CriticalOnLight, StatusColors.criticalOn(lightScheme.surface))
+        assertTrue(luminance(StatusColors.CriticalOnLight) < luminance(StatusColors.Critical))
+    }
+
     // ── container (QS C: WARN-Chip in den App-Logs) ───────────────────────
 
     @Test

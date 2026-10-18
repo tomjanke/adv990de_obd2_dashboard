@@ -36,6 +36,33 @@ class AlarmMessagesDeviceTest {
         }
     }
 
+    // --- Kurztext fuer den Screenreader (ohne die Live-Zahl) ---
+
+    @Test
+    fun theSummaryNamesTheKindWithoutTheNumber_inBothLanguages() {
+        val voltage = Alarm(AlarmKind.VOLTAGE, AlarmSeverity.WARNING, value = 12.1f)
+        val coolant = Alarm(AlarmKind.COOLANT, AlarmSeverity.NOTICE, value = 97.4f)
+
+        assertEquals("Spannung niedrig", inLocale(Locale.GERMANY) { alarmSummary(it, voltage) })
+        assertEquals("Kühlmittel heiß", inLocale(Locale.GERMANY) { alarmSummary(it, coolant) })
+        assertEquals("Low voltage", inLocale(Locale.US) { alarmSummary(it, voltage) })
+        assertEquals("Coolant hot", inLocale(Locale.US) { alarmSummary(it, coolant) })
+    }
+
+    @Test
+    fun theSummaryDoesNotChangeWhenOnlyTheNumberChanges() {
+        val a = inLocale(Locale.GERMANY) { alarmSummary(it, Alarm(AlarmKind.VOLTAGE, AlarmSeverity.WARNING, value = 12.1f)) }
+        val b = inLocale(Locale.GERMANY) { alarmSummary(it, Alarm(AlarmKind.VOLTAGE, AlarmSeverity.WARNING, value = 11.4f)) }
+
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun theSummaryOfAFaultAlarmNamesTheCodes() {
+        assertEquals("Neuer Fehlercode: P0301", inLocale(Locale.GERMANY) { alarmSummary(it, Alarm(AlarmKind.FAULT_CODE, AlarmSeverity.WARNING, codes = listOf("P0301"))) })
+        assertEquals("Neue Fehlercodes: P0301, P0420", inLocale(Locale.GERMANY) { alarmSummary(it, Alarm(AlarmKind.FAULT_CODE, AlarmSeverity.WARNING, codes = listOf("P0301", "P0420"))) })
+    }
+
     // --- Spannung ---
 
     @Test

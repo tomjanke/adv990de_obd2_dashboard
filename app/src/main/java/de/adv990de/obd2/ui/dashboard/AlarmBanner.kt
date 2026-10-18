@@ -36,6 +36,7 @@ import de.adv990de.obd2.alarm.Alarm
 import de.adv990de.obd2.alarm.AlarmKind
 import de.adv990de.obd2.alarm.AlarmSeverity
 import de.adv990de.obd2.alarm.alarmMessage
+import de.adv990de.obd2.alarm.alarmSummary
 import de.adv990de.obd2.alarm.alarmValueText
 import de.adv990de.obd2.ui.theme.MIN_TOUCH_TARGET
 import de.adv990de.obd2.ui.theme.PreviewTheme
@@ -68,8 +69,9 @@ private fun alarmStatusColor(severity: AlarmSeverity): Color =
  * oder vielen neuen Fehlercodes), danach folgt „…“ — das Band wächst nicht ohne Grenze und deckt nicht mehr Kachel ab als nötig, die Beschreibung für TalkBack nennt jeden Code. **Kein Blinken, keine Animation**
  * (Animationsdisziplin: Auffälligkeit durch Farbe, Größe und Platz); das Band hält keinen eigenen Zustand — kommt und geht mit dem Alarm.
  *
- * TalkBack: `liveRegion = Assertive` sagt einen neuen Alarm an, die Beschreibung nennt Stufe und Text und sagt, dass ein Tipp quittiert; „Alarm quittieren“ ist die Bezeichnung des Tipps. Der
- * Text ändert sich bei jedem neuen Messwert (die Zahl): die Ansage kommt dann erneut — das ist der Preis der Zahl im Text, bewusst nicht gedeckelt.
+ * TalkBack: `liveRegion = Assertive` sagt einen neuen Alarm an, die Beschreibung nennt Stufe und Art (ohne die Live-Zahl, [alarmSummary]) und sagt, dass ein Tipp quittiert; „Alarm quittieren“ ist die
+ * Bezeichnung des Tipps. Weil die Beschreibung die Zahl nicht trägt, wechselt sie nur mit einem anderen Alarm — die Ansage kommt nicht mit jedem Messwert neu (bis 1.36.0 tat sie das). Die Zahl
+ * steht sichtbar im Text des Bandes und in der Beschreibung der Kachel.
  */
 @Composable
 internal fun AlarmBanner(
@@ -82,11 +84,12 @@ internal fun AlarmBanner(
     val severityLabel = stringResource(
         if (alarm.severity == AlarmSeverity.WARNING) R.string.alarm_severity_warning else R.string.alarm_severity_notice,
     )
-    val description = stringResource(R.string.alarm_banner_desc, severityLabel, message)
+    // Ohne die Live-Zahl: die Beschreibung ist Teil einer Assertive-Live-Region und darf nicht mit jedem Zyklus wechseln (s. [alarmSummary]).
+    val description = stringResource(R.string.alarm_banner_desc, severityLabel, alarmSummary(LocalResources.current, alarm))
     val acknowledgeLabel = stringResource(R.string.alarm_acknowledge_action)
     val surface = MaterialTheme.colorScheme.surface
     val container = StatusColors.container(alarmStatusColor(alarm.severity), surface)
-    val accent = if (alarm.severity == AlarmSeverity.WARNING) StatusColors.Critical else StatusColors.warningOn(surface)
+    val accent = if (alarm.severity == AlarmSeverity.WARNING) StatusColors.criticalOn(surface) else StatusColors.warningOn(surface)
     val titleStyle = MaterialTheme.typography.titleLarge
     val styledMessage = emphasizeValue(message, alarmValueText(alarm), titleStyle.asLiveValue().toSpanStyle())
 

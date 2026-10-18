@@ -286,15 +286,26 @@ class AlarmBannerDeviceTest {
     }
 
     @Test
-    fun theDescriptionNamesTheSeverityAndTheTextAndSaysATapAcknowledges() {
+    fun theDescriptionNamesTheSeverityAndTheKindAndSaysATapAcknowledges_withoutTheLiveNumber() {
         show(coolant)
-        assertEquals("Warnung: Kühlmittel heiß: 97 °C. Zum Quittieren tippen.", description())
+        assertEquals("Warnung: Kühlmittel heiß. Zum Quittieren tippen.", description())
 
         update { alarm.value = voltage }
-        assertEquals("Hinweis: Spannung niedrig: 12,3 V. Zum Quittieren tippen.", description())
+        assertEquals("Hinweis: Spannung niedrig. Zum Quittieren tippen.", description())
 
         update { alarm.value = twoFaults }
         assertEquals("Hinweis: Neue Fehlercodes: P0301, P0420. Zum Quittieren tippen.", description())
+    }
+
+    @Test
+    fun theDescriptionStaysTheSameWhenOnlyTheNumberChanges_soTalkBackDoesNotAnnounceEveryCycle() {
+        show(Alarm(AlarmKind.COOLANT, AlarmSeverity.WARNING, value = 101f))
+        val before = description()
+
+        update { alarm.value = Alarm(AlarmKind.COOLANT, AlarmSeverity.WARNING, value = 104f) }
+
+        assertEquals("die Live-Region bliebe stumm", before, description())
+        composeRule.onNodeWithText("Kühlmittel heiß: 104 °C").assertIsDisplayed()   // die sichtbare Zahl folgt dem Wert trotzdem
     }
 
     private fun description(): String =
@@ -427,6 +438,41 @@ class AlarmBannerDeviceTest {
             assertTrue("$name: die Warnung ist rot getoent: $warning", warning.r > warning.g && warning.r > warning.b)
             assertTrue("$name: der Hinweis ist gelb getoent (Rot und Gruen ueber Blau): $notice", notice.r > notice.b && notice.g > notice.b)
         }
+    }
+
+    /** Die Zeichenfarbe des Warnsymbols: im Streifen links (16 dp Rand, 32 dp Symbol) der Punkt, dessen Leuchtdichte am weitesten vom Hintergrund liegt (ein vollstaendig gedeckter Punkt, nicht sein Saum). */
+    private fun iconInkOf(image: Bitmap, background: Rgb): Rgb {
+        val density = Density(composeRule.activity)
+        val left = with(density) { 16.dp.toPx() }.toInt().coerceIn(0, image.width - 1)
+        val right = with(density) { 48.dp.toPx() }.toInt().coerceIn(left + 1, image.width)
+        val backgroundLuminance = background.toColor().luminance()
+        var best = background
+        var bestDistance = -1f
+        for (y in 0 until image.height) for (x in left until right) {
+            val rgb = Rgb(image.getPixel(x, y))
+            val distance = abs(rgb.toColor().luminance() - backgroundLuminance)
+            if (distance > bestDistance) { bestDistance = distance; best = rgb }
+        }
+        return best
+    }
+
+    @Test
+    fun theWarningSymbolReaches3To1AgainstTheBand_inEveryScheme_forEverySeverity() {
+        show(coolant)
+
+        val measured = mutableListOf<String>()
+        for ((name, colors) in schemes) for (severity in AlarmSeverity.entries) {
+            update { scheme.value = colors; alarm.value = Alarm(AlarmKind.VOLTAGE, severity, value = 12.1f) }
+            val image = bannerImage()
+            val background = backgroundOf(image)
+            val ink = iconInkOf(image, background)
+            val ratio = contrast(ink.toColor(), background.toColor())
+            measured += "$name/$severity ${"%.2f".format(Locale.ROOT, ratio)}:1"
+            assertTrue("$name, $severity: Symbol $ink auf $background nur $ratio:1 (Nicht-Text braucht 3:1)", ratio >= 3f)
+            val expected = if (severity == AlarmSeverity.WARNING) StatusColors.criticalOn(colors.surface) else StatusColors.warningOn(colors.surface)
+            assertNear("$name, $severity: Symbolfarbe", expected, ink, tolerance = 6)
+        }
+        Log.i("AlarmBannerContrast", "Symbol: " + measured.joinToString("; "))
     }
 
     @Test

@@ -316,6 +316,8 @@
     <string name="notif_alarm_channel_name">Alarms</string>
     <string name="alarm_voltage_low">Low voltage: %1$s V</string>
     <string name="alarm_coolant_hot">Coolant hot: %1$s °C</string>
+    <string name="alarm_voltage_low_short">Low voltage</string>
+    <string name="alarm_coolant_hot_short">Coolant hot</string>
     <plurals name="alarm_fault_new">
         <item quantity="one">New fault code: %1$s</item>
         <item quantity="other">New fault codes: %1$s</item>

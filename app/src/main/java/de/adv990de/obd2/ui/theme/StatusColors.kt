@@ -64,6 +64,18 @@ object StatusColors {
     val Critical = Color(0xFFEF4444)
 
     /**
+     * Das dunklere Rot (Tailwind Red 700) fuer ein Symbol oder einen Akzent auf einer HELLEN Statusflaeche: [Critical] hat auf der blassroten Flaeche des Alarmbands im
+     * hellen Default-Schema nur 2,49:1 (unter den 3:1 fuer Nicht-Text). Nicht direkt verwenden, sondern ueber [criticalOn].
+     */
+    val CriticalOnLight = Color(0xFFB91C1C)
+
+    /**
+     * Das lesbare Rot fuer ein Symbol oder einen Akzent auf [surface] bzw. der gedaempften Statusflaeche darauf ([container]): das kraeftige [Critical] auf dunklen Flaechen (unveraendert),
+     * das dunklere [CriticalOnLight] auf hellen — dieselbe Regel wie bei [warningOn] (relative Leuchtdichte > 0,5).
+     */
+    fun criticalOn(surface: Color): Color = if (surface.luminance() > 0.5f) CriticalOnLight else Critical
+
+    /**
      * Fixed "green light" (Tailwind Green 500) for the displays documented as green exceptions in
      * CLAUDE.md — and only for those: the dashboard's Bluetooth connection dot ("connected",
      * `connectionDotColor()`), the simulated oil-temperature bar ("at operating temperature",

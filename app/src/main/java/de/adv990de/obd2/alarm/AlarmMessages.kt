@@ -23,6 +23,17 @@ fun alarmMessage(resources: Resources, alarm: Alarm): String {
 }
 
 /**
+ * Der Alarm **ohne die Live-Zahl** („Spannung niedrig“, „Kühlmittel heiß“, „Neuer Fehlercode: P0301“) — für die Beschreibung des Alarmbands. Das Band ist eine Assertive-Live-Region:
+ * ändert sich seine Beschreibung, sagt TalkBack sie neu an, und die Zahl wechselt mit jedem OBD-Zyklus. Art und Codes ändern sich nur, wenn der Alarm ein anderer ist; die Codes
+ * stehen mit drin (ihre Liste wächst nur mit einem neuen Fehler). Der Wert bleibt sichtbar im Text des Bandes und in der Beschreibung der Kachel.
+ */
+fun alarmSummary(resources: Resources, alarm: Alarm): String = when (alarm.kind) {
+    AlarmKind.VOLTAGE -> resources.getString(R.string.alarm_voltage_low_short)
+    AlarmKind.COOLANT -> resources.getString(R.string.alarm_coolant_hot_short)
+    AlarmKind.FAULT_CODE -> alarmMessage(resources, alarm)
+}
+
+/**
  * Die Zahl bzw. die Codes, die [alarmMessage] in den Platzhalter setzt („12,3“, „97“, „P0301, P0420“) — die eine Stelle für den Wortlaut und für das Alarmband, das diese Stelle im
  * fertigen Text findet und in der Zahlenschrift setzt (`emphasizeValue`): so formatiert nichts die Zahl ein zweites Mal.
  */

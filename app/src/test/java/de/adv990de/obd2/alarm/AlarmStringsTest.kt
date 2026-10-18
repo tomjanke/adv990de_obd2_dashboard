@@ -29,6 +29,8 @@ class AlarmStringsTest {
     private val alarmStrings = listOf(
         "alarm_voltage_low",
         "alarm_coolant_hot",
+        "alarm_voltage_low_short",
+        "alarm_coolant_hot_short",
         "alarm_severity_notice",
         "alarm_severity_warning",
         "notif_alarm_channel_name",
@@ -110,6 +112,17 @@ class AlarmStringsTest {
             assertTrue("alarm_banner_desc in $locale ohne %1\$s", description.contains("%1\$s"))
             assertTrue("alarm_banner_desc in $locale ohne %2\$s", description.contains("%2\$s"))
             assertTrue("alarm_more_count in $locale ohne %1\$d", strings.getValue("alarm_more_count").contains("%1\$d"))
+        }
+    }
+
+    @Test
+    fun `the short texts for the screen reader carry no placeholder - they must not change with the number`() {
+        // Das Band ist eine Assertive-Live-Region: aendert sich seine Beschreibung, sagt TalkBack sie neu an. Die Kurztexte tragen deshalb keinen Wert.
+        for (locale in listOf("values", "values-de")) {
+            val strings = strings(locale)
+            for (name in listOf("alarm_voltage_low_short", "alarm_coolant_hot_short")) {
+                assertTrue("$name in $locale hat einen Platzhalter", !strings.getValue(name).contains("%"))
+            }
         }
     }
 
