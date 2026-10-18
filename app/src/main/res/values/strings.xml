@@ -326,6 +326,27 @@
     <string name="alarm_more_count">+%1$d</string>
     <string name="alarm_banner_desc">%1$s: %2$s. Tap to acknowledge.</string>
 
+    <!-- Settings group "Alarms": switches, thresholds (segments), hint about blocked notifications -->
+    <string name="settings_alarms_section">Alarms</string>
+    <string name="settings_alarm_voltage_title">Voltage alarm</string>
+    <string name="settings_alarm_voltage_summary">Reports a voltage that is too low while the engine is running. The voltage is read from the next connection on.</string>
+    <string name="settings_alarm_coolant_title">Coolant alarm</string>
+    <string name="settings_alarm_coolant_summary">Reports coolant that is too hot while the engine is running.</string>
+    <string name="settings_alarm_faults_title">Report faults while riding</string>
+    <string name="settings_alarm_faults_summary">Reads the fault codes every 60 seconds and reports new ones.</string>
+    <string name="settings_alarm_voltage_notice">Voltage: notice below</string>
+    <string name="settings_alarm_voltage_notice_desc">Volts, yellow, after 20 seconds</string>
+    <string name="settings_alarm_voltage_warning">Voltage: warning below</string>
+    <string name="settings_alarm_voltage_warning_desc">Volts, red, after 10 seconds</string>
+    <string name="settings_alarm_coolant_notice">Coolant: notice from</string>
+    <string name="settings_alarm_coolant_notice_desc">°C, yellow, after 10 seconds</string>
+    <string name="settings_alarm_coolant_warning">Coolant: warning from</string>
+    <string name="settings_alarm_coolant_warning_desc">°C, red, after 5 seconds</string>
+    <string name="settings_alarm_notifications_hint">Without notifications, alarms only appear in the dashboard.</string>
+    <!-- Spoken text of a threshold segment (the segment itself shows only "12.5" or "95"); %1$s = the number: volts with one decimal, or whole °C -->
+    <string name="settings_alarm_volts_a11y">%1$s volts</string>
+    <string name="settings_alarm_celsius_a11y">%1$s degrees Celsius</string>
+
     <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
     <string name="pid_rpm">RPM</string>
     <string name="pid_speed">Speed</string>

@@ -34,6 +34,25 @@ class AlarmStringsTest {
         "notif_alarm_channel_name",
         "alarm_acknowledge_action",
         "alarm_banner_desc",
+        // Einstellungsgruppe "Alarme" (Aufgabe 9)
+        "settings_alarms_section",
+        "settings_alarm_voltage_title",
+        "settings_alarm_voltage_summary",
+        "settings_alarm_coolant_title",
+        "settings_alarm_coolant_summary",
+        "settings_alarm_faults_title",
+        "settings_alarm_faults_summary",
+        "settings_alarm_voltage_notice",
+        "settings_alarm_voltage_notice_desc",
+        "settings_alarm_voltage_warning",
+        "settings_alarm_voltage_warning_desc",
+        "settings_alarm_coolant_notice",
+        "settings_alarm_coolant_notice_desc",
+        "settings_alarm_coolant_warning",
+        "settings_alarm_coolant_warning_desc",
+        "settings_alarm_notifications_hint",
+        "settings_alarm_volts_a11y",
+        "settings_alarm_celsius_a11y",
     )
 
     /** Texte ohne Wörter („+1“): in beiden Sprachen derselbe, aber in beiden vorhanden und gefüllt. */
@@ -92,6 +111,59 @@ class AlarmStringsTest {
             assertTrue("alarm_banner_desc in $locale ohne %2\$s", description.contains("%2\$s"))
             assertTrue("alarm_more_count in $locale ohne %1\$d", strings.getValue("alarm_more_count").contains("%1\$d"))
         }
+    }
+
+    @Test
+    fun `the vocalised segment descriptions carry their value in both languages`() {
+        // Das Segment zeigt nur "12,5" bzw. "95"; die Vorlese-Beschreibung nennt die Einheit. Ohne Platzhalter ginge der Wert beim Vorlesen verloren.
+        for (locale in listOf("values", "values-de")) {
+            val strings = strings(locale)
+            assertTrue("settings_alarm_volts_a11y in $locale ohne %1\$s", strings.getValue("settings_alarm_volts_a11y").contains("%1\$s"))
+            assertTrue("settings_alarm_celsius_a11y in $locale ohne %1\$s", strings.getValue("settings_alarm_celsius_a11y").contains("%1\$s"))
+        }
+    }
+
+    @Test
+    fun `the wording of the alarm settings is the agreed one`() {
+        // Der Wortlaut der Einstellungsgruppe ist eine Produktentscheidung (Aufgabe 9); er steht hier fest, damit eine Umformulierung bewusst geschieht.
+        val de = strings("values-de")
+        assertEquals("Alarme", de.getValue("settings_alarms_section"))
+        assertEquals("Spannungsalarm", de.getValue("settings_alarm_voltage_title"))
+        assertEquals("Meldet eine zu niedrige Spannung bei laufendem Motor. Die Spannung wird ab der nächsten Verbindung mitgelesen.", de.getValue("settings_alarm_voltage_summary"))
+        assertEquals("Kühlmittelalarm", de.getValue("settings_alarm_coolant_title"))
+        assertEquals("Meldet ein zu heißes Kühlmittel bei laufendem Motor.", de.getValue("settings_alarm_coolant_summary"))
+        assertEquals("Fehler unterwegs melden", de.getValue("settings_alarm_faults_title"))
+        assertEquals("Liest die Fehlercodes alle 60 Sekunden und meldet neue.", de.getValue("settings_alarm_faults_summary"))
+        assertEquals("Spannung: Hinweis unter", de.getValue("settings_alarm_voltage_notice"))
+        assertEquals("Volt, gelb, nach 20 Sekunden", de.getValue("settings_alarm_voltage_notice_desc"))
+        assertEquals("Spannung: Warnung unter", de.getValue("settings_alarm_voltage_warning"))
+        assertEquals("Volt, rot, nach 10 Sekunden", de.getValue("settings_alarm_voltage_warning_desc"))
+        assertEquals("Kühlmittel: Hinweis ab", de.getValue("settings_alarm_coolant_notice"))
+        assertEquals("°C, gelb, nach 10 Sekunden", de.getValue("settings_alarm_coolant_notice_desc"))
+        assertEquals("Kühlmittel: Warnung ab", de.getValue("settings_alarm_coolant_warning"))
+        assertEquals("°C, rot, nach 5 Sekunden", de.getValue("settings_alarm_coolant_warning_desc"))
+        assertEquals("Ohne Benachrichtigungen erscheinen Alarme nur im Dashboard.", de.getValue("settings_alarm_notifications_hint"))
+        assertEquals("%1\$s Volt", de.getValue("settings_alarm_volts_a11y"))
+        assertEquals("%1\$s Grad Celsius", de.getValue("settings_alarm_celsius_a11y"))
+        val en = strings("values")
+        assertEquals("Alarms", en.getValue("settings_alarms_section"))
+        assertEquals("Voltage alarm", en.getValue("settings_alarm_voltage_title"))
+        assertEquals("Reports a voltage that is too low while the engine is running. The voltage is read from the next connection on.", en.getValue("settings_alarm_voltage_summary"))
+        assertEquals("Coolant alarm", en.getValue("settings_alarm_coolant_title"))
+        assertEquals("Reports coolant that is too hot while the engine is running.", en.getValue("settings_alarm_coolant_summary"))
+        assertEquals("Report faults while riding", en.getValue("settings_alarm_faults_title"))
+        assertEquals("Reads the fault codes every 60 seconds and reports new ones.", en.getValue("settings_alarm_faults_summary"))
+        assertEquals("Voltage: notice below", en.getValue("settings_alarm_voltage_notice"))
+        assertEquals("Volts, yellow, after 20 seconds", en.getValue("settings_alarm_voltage_notice_desc"))
+        assertEquals("Voltage: warning below", en.getValue("settings_alarm_voltage_warning"))
+        assertEquals("Volts, red, after 10 seconds", en.getValue("settings_alarm_voltage_warning_desc"))
+        assertEquals("Coolant: notice from", en.getValue("settings_alarm_coolant_notice"))
+        assertEquals("°C, yellow, after 10 seconds", en.getValue("settings_alarm_coolant_notice_desc"))
+        assertEquals("Coolant: warning from", en.getValue("settings_alarm_coolant_warning"))
+        assertEquals("°C, red, after 5 seconds", en.getValue("settings_alarm_coolant_warning_desc"))
+        assertEquals("Without notifications, alarms only appear in the dashboard.", en.getValue("settings_alarm_notifications_hint"))
+        assertEquals("%1\$s volts", en.getValue("settings_alarm_volts_a11y"))
+        assertEquals("%1\$s degrees Celsius", en.getValue("settings_alarm_celsius_a11y"))
     }
 
     @Test

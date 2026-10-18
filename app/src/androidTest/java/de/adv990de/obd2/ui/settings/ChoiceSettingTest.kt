@@ -39,6 +39,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.Locale
 
 /**
  * Compose UI tests for [ChoiceSetting] — the fixed-choice row that replaced the free-text number
@@ -166,10 +167,140 @@ class ChoiceSettingTest {
         composeRule.onNodeWithText("extra line").assertDoesNotExist()
     }
 
+    // ── optionLabel / optionDescription: segments that are not a whole number (the alarm thresholds: "12,5" volts) ──
+
+    private val voltOptions = listOf(123, 125, 128)
+
+    /** "12,3" · "12,5" · "12,8" — fixed to German so the expected texts do not depend on the device. */
+    private fun volt(option: Int) = formatVoltageOption(option, Locale.GERMANY)
+
+    private fun launchLabelled(
+        selected: Int = 125,
+        onSelect: (Int) -> Unit = {},
+        description: ((Int) -> String)? = { "${volt(it)} Volt" },
+        plural: Int? = null,
+        widthDp: Int? = null,
+    ) {
+        composeRule.setContent {
+            MaterialTheme(typography = AppTypography) {
+                val content: @Composable () -> Unit = {
+                    ChoiceSetting(
+                        headline = "Voltage",
+                        supportingText = "Volts",
+                        options = voltOptions,
+                        selected = selected,
+                        onSelect = onSelect,
+                        optionDescriptionPlural = plural,
+                        optionLabel = { volt(it) },
+                        optionDescription = description,
+                    )
+                }
+                if (widthDp != null) Box(Modifier.width(widthDp.dp)) { content() } else content()
+            }
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun withAnOptionLabel_everySegmentShowsTheFormattedText_notTheBareNumber() {
+        launchLabelled()
+        voltOptions.forEach { composeRule.onNodeWithText(volt(it)).assertIsDisplayed() }
+        voltOptions.forEach { composeRule.onNodeWithText(it.toString()).assertDoesNotExist() }
+    }
+
+    @Test
+    fun withAnOptionLabel_theSelectionIsMarkedOnTheChosenValue() {
+        launchLabelled(selected = 128)
+        composeRule.onNodeWithText(volt(128)).assertIsSelected()
+        composeRule.onNodeWithText(volt(125)).assertIsNotSelected()
+        composeRule.onNodeWithText(volt(123)).assertIsNotSelected()
+    }
+
+    @Test
+    fun withAnOptionLabel_tappingReportsTheOptionValue_notTheLabel() {
+        val reported = mutableListOf<Int>()
+        launchLabelled(onSelect = { reported += it })
+
+        composeRule.onNodeWithText(volt(128)).performClick()
+        composeRule.onNodeWithText(volt(123)).performClick()
+
+        assertEquals(listOf(128, 123), reported)
+    }
+
+    @Test
+    fun withAnOptionLabel_everySegmentIsStillAtLeast56dpHigh() {
+        launchLabelled()
+        voltOptions.forEach { composeRule.onNodeWithText(volt(it)).assertHeightIsAtLeast(56.dp) }
+    }
+
+    @Test
+    fun anOptionDescription_isTheSpokenTextOfEverySegment() {
+        launchLabelled()
+        voltOptions.forEach { composeRule.onNode(hasContentDescription("${volt(it)} Volt")).assertIsDisplayed() }
+    }
+
+    @Test
+    fun anOptionDescription_winsOverThePluralWhenBothAreGiven() {
+        launchLabelled(plural = R.plurals.settings_seconds_a11y)
+        voltOptions.forEach {
+            composeRule.onNode(hasContentDescription("${volt(it)} Volt")).assertIsDisplayed()
+            val fromPlural = composeRule.activity.resources.getQuantityString(R.plurals.settings_seconds_a11y, it, it)
+            composeRule.onNode(hasContentDescription(fromPlural)).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun withoutAnyDescription_theLabelItselfIsAllThatIsAnnounced() {
+        launchLabelled(description = null, plural = null)
+        voltOptions.forEach {
+            composeRule.onNodeWithText(volt(it)).assertIsDisplayed()
+            composeRule.onNode(hasContentDescription("${volt(it)} Volt")).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun threeLabelledSegmentsFitANarrow320dpPhone() {
+        launchLabelled(widthDp = 320)
+        voltOptions.forEach { composeRule.onNodeWithText(volt(it)).assertIsDisplayed().assertWidthIsAtLeast(48.dp) }
+    }
+
+    @Test
+    fun labelledSegmentsStayOnOneLineAtLargeFontScale() {
+        // Wie labelsStayOnOneLineAtLargeFontScale, aber mit Beschriftung: "12,5" ist länger als eine zweistellige Zahl.
+        var fontScale by mutableFloatStateOf(1f)
+        composeRule.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
+                MaterialTheme(typography = AppTypography) {
+                    Box(Modifier.width(320.dp)) {
+                        ChoiceSetting(
+                            headline = "Voltage",
+                            supportingText = "Volts",
+                            options = voltOptions,
+                            selected = 125,
+                            onSelect = {},
+                            optionLabel = { volt(it) },
+                        )
+                    }
+                }
+            }
+        }
+        for (scale in listOf(1.0f, 1.3f, 1.5f)) {
+            composeRule.runOnIdle { fontScale = scale }
+            composeRule.waitForIdle()
+            voltOptions.forEach { option ->
+                val layout = labelLayout(volt(option))
+                assertFalse("label ${volt(option)} overflows its segment at fontScale $scale: ${layout.describe()}", layout.overflows())
+            }
+        }
+    }
+
     /** The text layout of the label of [option]. Read from the unmerged tree: the merged button
      *  node carries no text layout. */
-    private fun labelLayout(option: Int): TextLayoutResult {
-        val node = composeRule.onNodeWithText(option.toString(), useUnmergedTree = true).fetchSemanticsNode()
+    private fun labelLayout(option: Int): TextLayoutResult = labelLayout(option.toString())
+
+    private fun labelLayout(text: String): TextLayoutResult {
+        val node = composeRule.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
         val results = mutableListOf<TextLayoutResult>()
         node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results)
         return results.single()

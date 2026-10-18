@@ -62,6 +62,15 @@ private val ChoiceSegmentContentPadding = PaddingValues(horizontal = 4.dp)
  * [optionDescriptionPlural] (a plurals resource taking the number twice, e.g.
  * `<item quantity="other">%1$d seconds</item>`).
  *
+ * For options that are not best shown as a whole number (the alarm thresholds: stored as tenths of
+ * a volt, shown as "12,5") two optional parameters take over, each a plain function of the option:
+ * [optionLabel] is the text of the segment (default: the number itself) and [optionDescription]
+ * the spoken text (it wins over [optionDescriptionPlural], which a decimal number cannot use).
+ * They are plain `(Int) -> String` because the caller formats with the device locale; a caller
+ * that needs `stringResource` resolves its strings BEFORE and closes over them. Without any
+ * description the label itself is what a screen reader says. The option value reported to
+ * [onSelect] and compared with [selected] is always the `Int` of [options], never the label.
+ *
  * Domain-agnostic like `LiveValueTile`: no preferences or ViewModel in here — the caller passes the
  * current [selected] value and handles [onSelect]. If [selected] is not in [options] (a stale
  * value) simply no segment is highlighted. [additionalSupportingText] is an optional extra line
@@ -77,9 +86,11 @@ internal fun ChoiceSetting(
     options: List<Int>,
     selected: Int,
     onSelect: (Int) -> Unit,
-    @PluralsRes optionDescriptionPlural: Int,
     modifier: Modifier = Modifier,
+    @PluralsRes optionDescriptionPlural: Int? = null,
     additionalSupportingText: String? = null,
+    optionLabel: ((Int) -> String)? = null,
+    optionDescription: ((Int) -> String)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         ListItem(
@@ -104,7 +115,12 @@ internal fun ChoiceSetting(
                 .padding(horizontal = 16.dp)
         ) {
             options.forEachIndexed { index, option ->
-                val description = pluralStringResource(optionDescriptionPlural, option, option)
+                val label = optionLabel?.invoke(option) ?: option.toString()
+                val description = when {
+                    optionDescription != null -> optionDescription(option)
+                    optionDescriptionPlural != null -> pluralStringResource(optionDescriptionPlural, option, option)
+                    else -> null
+                }
                 SegmentedButton(
                     selected = option == selected,
                     onClick = { onSelect(option) },
@@ -116,13 +132,13 @@ internal fun ChoiceSetting(
                     icon = {},
                     label = {
                         Text(
-                            option.toString(),
+                            label,
                             maxLines = 1,
                             softWrap = false,
                             // Spoken as "20 seconds" — the bare digits say nothing about the unit. On
                             // the label, not on the button: a description on the button showed up as
                             // a separate child node next to the digits in the accessibility tree.
-                            modifier = Modifier.semantics { contentDescription = description }
+                            modifier = if (description != null) Modifier.semantics { contentDescription = description } else Modifier
                         )
                     }
                 )

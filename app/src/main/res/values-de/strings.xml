@@ -326,6 +326,27 @@
     <string name="alarm_more_count">+%1$d</string>
     <string name="alarm_banner_desc">%1$s: %2$s. Zum Quittieren tippen.</string>
 
+    <!-- Einstellungsgruppe "Alarme": Schalter, Schwellen (Segmente), Hinweis auf gesperrte Benachrichtigungen -->
+    <string name="settings_alarms_section">Alarme</string>
+    <string name="settings_alarm_voltage_title">Spannungsalarm</string>
+    <string name="settings_alarm_voltage_summary">Meldet eine zu niedrige Spannung bei laufendem Motor. Die Spannung wird ab der nächsten Verbindung mitgelesen.</string>
+    <string name="settings_alarm_coolant_title">Kühlmittelalarm</string>
+    <string name="settings_alarm_coolant_summary">Meldet ein zu heißes Kühlmittel bei laufendem Motor.</string>
+    <string name="settings_alarm_faults_title">Fehler unterwegs melden</string>
+    <string name="settings_alarm_faults_summary">Liest die Fehlercodes alle 60 Sekunden und meldet neue.</string>
+    <string name="settings_alarm_voltage_notice">Spannung: Hinweis unter</string>
+    <string name="settings_alarm_voltage_notice_desc">Volt, gelb, nach 20 Sekunden</string>
+    <string name="settings_alarm_voltage_warning">Spannung: Warnung unter</string>
+    <string name="settings_alarm_voltage_warning_desc">Volt, rot, nach 10 Sekunden</string>
+    <string name="settings_alarm_coolant_notice">Kühlmittel: Hinweis ab</string>
+    <string name="settings_alarm_coolant_notice_desc">°C, gelb, nach 10 Sekunden</string>
+    <string name="settings_alarm_coolant_warning">Kühlmittel: Warnung ab</string>
+    <string name="settings_alarm_coolant_warning_desc">°C, rot, nach 5 Sekunden</string>
+    <string name="settings_alarm_notifications_hint">Ohne Benachrichtigungen erscheinen Alarme nur im Dashboard.</string>
+    <!-- Vorlesetext eines Schwellen-Segments (das Segment selbst zeigt nur "12,5" bzw. "95"); %1$s = die Zahl: Volt mit einer Nachkommastelle bzw. ganze °C -->
+    <string name="settings_alarm_volts_a11y">%1$s Volt</string>
+    <string name="settings_alarm_celsius_a11y">%1$s Grad Celsius</string>
+
     <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
     <string name="pid_rpm">Drehzahl</string>
     <string name="pid_speed">Geschwindigkeit</string>

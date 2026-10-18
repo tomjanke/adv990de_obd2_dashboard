@@ -41,6 +41,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
 import de.adv990de.obd2.ui.permission.appSettingsIntent
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
+import de.adv990de.obd2.ui.permission.rememberNotificationsEnabled
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 
@@ -54,10 +55,12 @@ fun SettingsScreen(
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
     fuelVm: FuelSettingsViewModel = hiltViewModel(),
+    alarmVm: AlarmSettingsViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
     val fuelRangeFullKm by fuelVm.rangeFullKm.collectAsStateWithLifecycle()
+    val alarmSettings by alarmVm.settings.collectAsStateWithLifecycle()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
     val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsStateWithLifecycle()
@@ -72,6 +75,8 @@ fun SettingsScreen(
     // Der Stand der Standortberechtigung (liest bei jedem ON_RESUME neu: sie kann in den Systemeinstellungen
     // geaendert werden) und die Antwort auf die letzte GPS-Anfrage — beides speist die Hinweiszeilen (B10, B21).
     val locationPermission = rememberLocationPermissionState()
+    // Benachrichtigungen koennen ebenso ausserhalb der App geaendert werden: auch dieser Stand wird bei jedem ON_RESUME neu gelesen (Hinweis der Gruppe "Alarme").
+    val notificationsEnabled = rememberNotificationsEnabled()
     var gpsRequestDenied by rememberSaveable { mutableStateOf(false) }
     val openAppSettings: () -> Unit = {
         try {
@@ -174,7 +179,7 @@ fun SettingsScreen(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
     ) { padding ->
         // One flat, grouped page (AOSP settings guideline: related settings clustered under a heading and
-        // hairlines): Verbindung · Dashboard & Anzeige · Aufzeichnung · Fahrzeug · Info & Wartung.
+        // hairlines): Verbindung · Dashboard & Anzeige · Alarme · Aufzeichnung · Fahrzeug · Info & Wartung.
         // Sub-pages are LINK rows with a summary and a chevron; every switch is a whole-row toggle.
         LazyColumn(
             modifier = Modifier.testTag(SETTINGS_LIST_TEST_TAG),
@@ -366,6 +371,18 @@ fun SettingsScreen(
                 HorizontalDivider()
             }
 
+            alarmSection(
+                settings = alarmSettings,
+                showNotificationHint = alarmNotificationHint(alarmSettings, notificationsEnabled),
+                onOpenAppSettings = openAppSettings,
+                onVoltageEnabledChange = alarmVm::setVoltageEnabled,
+                onCoolantEnabledChange = alarmVm::setCoolantEnabled,
+                onFaultsEnabledChange = alarmVm::setFaultsEnabled,
+                onVoltageNoticeChange = alarmVm::setVoltageNoticeDeciV,
+                onVoltageWarningChange = alarmVm::setVoltageWarningDeciV,
+                onCoolantNoticeChange = alarmVm::setCoolantNoticeC,
+                onCoolantWarningChange = alarmVm::setCoolantWarningC,
+            )
             recordingSection(logOnlyDtc, recordingVm)
             vehicleSection(navController, fuelRangeFullKm, fuelVm::setRangeFullKm)
             infoSection(navController, crashVm)

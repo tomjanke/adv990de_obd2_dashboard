@@ -35,6 +35,17 @@ internal const val SETTINGS_LIST_TEST_TAG = "settings_list"
 internal const val OBD_WATCHDOG_CHOICE_TEST_TAG = "settings_obd_watchdog_choice"
 internal const val RECONNECT_BASE_DELAY_CHOICE_TEST_TAG = "settings_reconnect_base_delay_choice"
 
+/** Test-only selectors of the group "Alarme": the three switches, the four threshold rows ([ChoiceSetting]) and the hint row about blocked notifications. A segment is
+ *  located by its text PLUS the tag of its row, like the segments of the two connection rows. */
+internal const val ALARM_VOLTAGE_SWITCH_TEST_TAG = "settings_alarm_voltage_switch"
+internal const val ALARM_COOLANT_SWITCH_TEST_TAG = "settings_alarm_coolant_switch"
+internal const val ALARM_FAULTS_SWITCH_TEST_TAG = "settings_alarm_faults_switch"
+internal const val ALARM_VOLTAGE_NOTICE_CHOICE_TEST_TAG = "settings_alarm_voltage_notice_choice"
+internal const val ALARM_VOLTAGE_WARNING_CHOICE_TEST_TAG = "settings_alarm_voltage_warning_choice"
+internal const val ALARM_COOLANT_NOTICE_CHOICE_TEST_TAG = "settings_alarm_coolant_notice_choice"
+internal const val ALARM_COOLANT_WARNING_CHOICE_TEST_TAG = "settings_alarm_coolant_warning_choice"
+internal const val ALARM_NOTIFICATION_HINT_TEST_TAG = "settings_alarm_notification_hint"
+
 /** The GPS-speed switch's three-way outcome once the user toggles it, decided purely from the
  *  requested state and the current fine-location grant — extracted so the branch is directly
  *  unit-testable without Compose/instrumentation (same convention as the internal decision

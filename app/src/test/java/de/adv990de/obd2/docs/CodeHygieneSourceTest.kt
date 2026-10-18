@@ -50,6 +50,7 @@ class CodeHygieneSourceTest {
         "ui/licenses/LicensesScreen.kt" to "liest die Lizenztexte aus den Assets der App, die eine Vorschau nicht kennt",
         "ui/navigation/AppNavHost.kt" to "der Navigationsgraph: jedes Ziel braucht hiltViewModel()",
         "ui/permission/LocationPermissionState.kt" to "kein sichtbares Composable: der Zustand der Standortberechtigung (remember)",
+        "ui/permission/NotificationsState.kt" to "kein sichtbares Composable: der Zustand der Benachrichtigungen (remember)",
         "ui/settings/SettingsScreen.kt" to "braucht hiltViewModel(); die Geraetezeile (DeviceRow.kt) und die Zeilen (SettingsComponents.kt) haben Vorschauen",
         "ui/theme/AppTheme.kt" to "der Rahmen um die App (Theme und Mindestgroesse der Touch-Ziele), nichts Eigenes zu zeigen",
         "ui/theme/PreviewSupport.kt" to "der Rahmen der Vorschauen selbst",
