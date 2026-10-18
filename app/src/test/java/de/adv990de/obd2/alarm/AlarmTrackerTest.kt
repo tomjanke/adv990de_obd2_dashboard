@@ -1,6 +1,7 @@
 package de.adv990de.obd2.alarm
 
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -158,5 +159,119 @@ class AlarmTrackerTest {
         assertEquals(setOf(AlarmKind.VOLTAGE, AlarmKind.COOLANT), tracker.active().map { it.kind }.toSet())
         for (s in 30L..55L step 5) tracker.cycle(s)                  // up to exactly 30 s without a value
         assertEquals(setOf(AlarmKind.VOLTAGE, AlarmKind.COOLANT), tracker.active().map { it.kind }.toSet())
+    }
+
+    private fun AlarmTracker.faultReads(vararg reads: List<DtcEntry>) = reads.forEach { onFaultRead(it, isBaseline = false) }
+    private fun conf(code: String) = DtcEntry(code, isPending = false)
+    private fun pend(code: String) = DtcEntry(code, isPending = true)
+
+    @Test
+    fun `a confirmed new code is a red fault alarm after two reads`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")))
+        assertTrue(tracker.active().isEmpty())
+        tracker.faultReads(listOf(conf("P0301")))
+        assertEquals(Alarm(AlarmKind.FAULT_CODE, AlarmSeverity.WARNING, codes = listOf("P0301")), tracker.active().single())
+    }
+
+    @Test
+    fun `only pending codes make a yellow notice`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(pend("P0171")), listOf(pend("P0171")))
+        assertEquals(AlarmSeverity.NOTICE, tracker.active().single().severity)
+    }
+
+    @Test
+    fun `more codes join the alarm and a confirmed code raises it to a warning`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(pend("P0171")), listOf(pend("P0171")))
+        tracker.faultReads(listOf(pend("P0171"), conf("P0301")), listOf(pend("P0171"), conf("P0301")))
+        val alarm = tracker.active().single()
+        assertEquals(AlarmSeverity.WARNING, alarm.severity)
+        assertEquals(listOf("P0171", "P0301"), alarm.codes)
+    }
+
+    @Test
+    fun `acknowledging a fault alarm ends it and the next code starts a fresh one`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))
+        tracker.acknowledge(AlarmKind.FAULT_CODE)
+        assertTrue(tracker.active().isEmpty())
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")), listOf(conf("P0301"), conf("P0420")))
+        assertEquals(listOf("P0420"), tracker.active().single().codes)
+    }
+
+    @Test
+    fun `the fault alarm survives the end of the session`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))
+        tracker.onSessionEnded()
+        assertEquals(1, tracker.active().size)
+    }
+
+    @Test
+    fun `a new session starts with a fresh baseline`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(listOf(conf("P0301")), isBaseline = true)
+        tracker.onSessionEnded()
+        tracker.onFaultRead(listOf(conf("P0301"), conf("P0420")), isBaseline = true)    // the code is part of the new baseline
+        tracker.faultReads(listOf(conf("P0301"), conf("P0420")), listOf(conf("P0301"), conf("P0420")))
+        assertTrue(tracker.active().isEmpty())
+    }
+
+    @Test
+    fun `switching the fault alarm off drops it and its baseline`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))
+        tracker.updateSettings(AlarmSettings(faultsEnabled = false))
+        assertTrue(tracker.active().isEmpty())
+        tracker.faultReads(listOf(conf("P0420")), listOf(conf("P0420")))                // ignored while off
+        assertTrue(tracker.active().isEmpty())
+    }
+
+    @Test
+    fun `acknowledging a numeric alarm hides it while the same alert lasts`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f)
+        assertEquals(1, tracker.visible().size)
+        tracker.acknowledge(AlarmKind.VOLTAGE)
+        assertTrue(tracker.visible().isEmpty())
+        assertEquals(1, tracker.active().size)                                           // still true, only not shown
+        tracker.cycle(30, volt = 11.9f)
+        assertTrue(tracker.visible().isEmpty())                                          // the value changes, the alert does not
+    }
+
+    @Test
+    fun `an escalation or a returning alarm is shown again after an acknowledgement`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..20L) tracker.cycle(s, coolant = 96f)                              // notice after 10 s
+        assertEquals(AlarmSeverity.NOTICE, tracker.visible().single().severity)
+        tracker.acknowledge(AlarmKind.COOLANT)
+        assertTrue(tracker.visible().isEmpty())
+        for (s in 21L..30L) tracker.cycle(s, coolant = 101f)                            // warning after 5 s above 100
+        assertEquals(AlarmSeverity.WARNING, tracker.visible().single().severity)
+        tracker.acknowledge(AlarmKind.COOLANT)
+        for (s in 31L..50L) tracker.cycle(s, coolant = 85f)                             // recovers, alarm ends
+        assertTrue(tracker.active().isEmpty())
+        for (s in 51L..60L) tracker.cycle(s, coolant = 101f)                            // returns
+        assertEquals(1, tracker.visible().size)
+    }
+
+    @Test
+    fun `visible alarms are sorted by severity and then by kind`() {
+        val tracker = AlarmTracker()
+        tracker.onFaultRead(emptyList(), isBaseline = true)
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f, coolant = 96f)         // voltage warning, coolant notice
+        tracker.faultReads(listOf(conf("P0301")), listOf(conf("P0301")))                // fault warning
+        assertEquals(
+            listOf(AlarmKind.VOLTAGE, AlarmKind.FAULT_CODE, AlarmKind.COOLANT),
+            tracker.visible().map { it.kind },
+        )
     }
 }
