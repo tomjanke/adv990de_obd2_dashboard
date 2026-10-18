@@ -255,8 +255,9 @@ fun DashboardScreen(
             }
 
             // ── Alarmband ─────────────────────────────────────────────
-            // Direkt unter dem Vorschau-Band, ueber den Kacheln: der wichtigste Alarm als volle Zeile (56 dp), "+N" fuer weitere, ein Tipp quittiert. Die Kachelreihe
-            // darunter ist weight(1f) und schrumpft um diese Zeile (im Querformat wie bei der Tankzeile: die 200 dp sind nur eine Obergrenze, eine Kachel bleibt sichtbar).
+            // Direkt unter dem Vorschau-Band, ueber den Kacheln: der wichtigste Alarm als volle Zeile (56 dp), "+N" fuer weitere, ein Tipp quittiert. Weight(1f) hat die
+            // Huelle (Column) um das Kachelraster, nicht die Kachelreihe: die Reihe hat eine feste height(tileHeight), die Compose auf die Hoehe klemmt, die die Huelle uebrig
+            // laesst — das Band nimmt also dem Raster Hoehe, und die Reihe schrumpft mit (im Querformat wie bei der Tankzeile: die 200 dp sind nur eine Obergrenze).
             alarms.firstOrNull()?.let { alarm ->
                 AlarmBanner(
                     alarm = alarm,
