@@ -1,7 +1,6 @@
 package de.adv990de.obd2.ui.dashboard
 
 import de.adv990de.obd2.obd.model.SensorValue
-import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.ui.UiText
 
 data class DashboardUiState(
@@ -39,12 +38,6 @@ data class DashboardUiState(
      * "verbunden" — das Dashboard zeigte 2-10 s lang "Vorschau · nicht verbunden" (B24).
      */
     val awaitingFirstValues: Boolean = false,
-    /**
-     * Was die Gelaende-Kachel zeigt (Hoehe, Steigung, Peilung, Verlauf der Steigung); `null`, solange keine Rechnung laeuft — kein Slot `TERRAIN`, GPS-Schalter aus
-     * oder keine Verbindung. Die Werte stammen vom Telefon, nicht vom Fahrzeug: sie laufen weiter, wenn das Steuergeraet schweigt ([isStale]); die Kachel selbst
-     * zeigt sie nur in der Phase "Live".
-     */
-    val terrain: TerrainDisplay? = null,
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)

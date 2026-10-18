@@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -38,9 +40,10 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Das ViewModel rechnet die Gelaende-Kachel nur, wenn sie jemand sieht: ein Slot `TERRAIN`, der GPS-Schalter an und eine stehende Verbindung. Sonst laufen weder
- * GPS noch Barometer. Die Rechnung selbst steht in `de.adv990de.obd2.terrain` (eigene Tests); hier geht es um Bedingung, Zuruecksetzen und darum, dass die Kachel
- * nichts anderes anruehrt (Abfrage, Aufzeichnung, Auswahl).
+ * Das ViewModel rechnet die Gelaende-Kachel nur, wenn sie jemand sieht: ein Slot `TERRAIN`, der GPS-Schalter an und ein Sammler der Oberflaeche (`vm.terrain`, ein
+ * `WhileSubscribed`-Fluss). **Die Verbindung zum Fahrzeug spielt keine Rolle** — die Werte kommen vom Telefon. Sonst laufen weder GPS noch Barometer. Die Rechnung selbst
+ * steht in `de.adv990de.obd2.terrain` (eigene Tests); hier geht es um Bedingung, Zuruecksetzen und darum, dass die Kachel nichts anderes anruehrt (Verbindungszustand,
+ * Abfrage, Aufzeichnung, Auswahl).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModelTerrainTest {
@@ -72,10 +75,13 @@ class DashboardViewModelTerrainTest {
         val clock: LongArray,
     )
 
+    private val withTerrain = listOf(DerivedPids.TERRAIN_ID, PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id)
+    private val withoutTerrain = listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id, PidRegistry.ENGINE_LOAD.id)
+
     private fun setUp(
-        slots: List<String> = listOf(DerivedPids.TERRAIN_ID, PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id),
+        slots: List<String> = withTerrain,
         gps: Boolean = true,
-        connected: Boolean = true,
+        connected: Boolean = false,
         supported: Set<String>? = null,
     ): Setup {
         val terrain = FakeTerrainInputs()
@@ -104,28 +110,38 @@ class DashboardViewModelTerrainTest {
         return Setup(vm, terrain, connectedFlow, gpsFlow, slotsFlow, events, recorded, clock)
     }
 
+    /**
+     * Die Oberflaeche sammelt `vm.terrain` (ein `WhileSubscribed`-Fluss laeuft nur mit Sammler); der Job laesst ein Test das Verlassen des Dashboards nachstellen.
+     * `runCurrent()`, nicht `advanceUntilIdle()`: Arbeit im `backgroundScope` laeuft damit — `advanceUntilIdle()` hoert auf, sobald nur noch Hintergrundaufgaben uebrig sind.
+     */
+    private fun TestScope.watchTerrain(s: Setup) = backgroundScope.launch { s.vm.terrain.collect { } }.also { runCurrent() }
+
     private fun fix(t: Long = 1_000, altitude: Float = 100f) =
         GpsFix(t, speedKmh = 50f, altitudeM = altitude, verticalAccuracyM = 5f, bearingDeg = 90f, bearingAccuracyDeg = 10f)
 
+    // --- wann gerechnet wird ---
+
     @Test
     fun `without a terrain slot nobody collects the inputs`() = runTest {
-        val s = setUp(slots = listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id, PidRegistry.ENGINE_LOAD.id))
+        val s = setUp(slots = withoutTerrain)
+        watchTerrain(s)
         advanceUntilIdle()
 
         assertEquals(0, s.terrain.started)
-        assertNull(s.vm.uiState.value.terrain)
+        assertNull(s.vm.terrain.value)
     }
 
     @Test
-    fun `with the slot, the GPS switch and a connection the inputs are collected and shown`() = runTest {
-        val s = setUp()
+    fun `with the slot and the GPS switch the inputs are collected and shown - without any connection`() = runTest {
+        val s = setUp(connected = false)
+        watchTerrain(s)
         advanceUntilIdle()
         assertEquals(1, s.terrain.collectors)
 
         s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
         advanceUntilIdle()
 
-        val terrain = s.vm.uiState.value.terrain!!
+        val terrain = s.vm.terrain.value!!
         assertEquals(100f, terrain.altitudeM!!, 0.01f)
         assertEquals(90f, terrain.headingDeg!!, 0.001f)
     }
@@ -133,71 +149,63 @@ class DashboardViewModelTerrainTest {
     @Test
     fun `without the GPS switch nothing is collected`() = runTest {
         val s = setUp(gps = false)
+        watchTerrain(s)
         advanceUntilIdle()
 
         assertEquals(0, s.terrain.started)
+        assertNull(s.vm.terrain.value)
     }
 
     @Test
-    fun `without a connection nothing is collected`() = runTest {
-        val s = setUp(connected = false)
+    fun `the tile shows nothing before the first input - the screen then names what is missing`() = runTest {
+        val s = setUp()
+        watchTerrain(s)
         advanceUntilIdle()
 
-        assertEquals(0, s.terrain.started)
+        assertNull(s.vm.terrain.value)
     }
 
     @Test
-    fun `losing the connection ends the collection and clears the tile state`() = runTest {
+    fun `switching GPS off ends the collection and clears the tile state`() = runTest {
         val s = setUp()
+        watchTerrain(s)
         advanceUntilIdle()
         s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
         advanceUntilIdle()
-        assertNotNull(s.vm.uiState.value.terrain)
-
-        s.connected.value = false
-        advanceUntilIdle()
-
-        assertEquals(0, s.terrain.collectors)
-        assertNull(s.vm.uiState.value.terrain)
-    }
-
-    @Test
-    fun `switching GPS off ends the collection too`() = runTest {
-        val s = setUp()
-        advanceUntilIdle()
-        s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
-        advanceUntilIdle()
+        assertNotNull(s.vm.terrain.value)
 
         s.gps.value = false
         advanceUntilIdle()
 
         assertEquals(0, s.terrain.collectors)
-        assertNull(s.vm.uiState.value.terrain)
+        assertNull(s.vm.terrain.value)
     }
 
     @Test
     fun `moving the slot away from the terrain tile ends the collection`() = runTest {
         val s = setUp()
+        watchTerrain(s)
         advanceUntilIdle()
         s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
         advanceUntilIdle()
 
-        s.slots.value = listOf(PidRegistry.RPM.id, PidRegistry.COOLANT_TEMP.id, PidRegistry.SPEED.id, PidRegistry.ENGINE_LOAD.id)
+        s.slots.value = withoutTerrain
         advanceUntilIdle()
 
         assertEquals(0, s.terrain.collectors)
-        assertNull(s.vm.uiState.value.terrain)
+        assertNull(s.vm.terrain.value)
     }
 
     @Test
     fun `a new activation starts from a fresh calibration`() = runTest {
         val s = setUp()
+        watchTerrain(s)
         advanceUntilIdle()
         s.terrain.source.emit(TerrainInput(fix(altitude = 100f), 1013.25f))
         advanceUntilIdle()
-        s.connected.value = false
+        s.gps.value = false
         advanceUntilIdle()
-        s.connected.value = true
+        s.gps.value = true
         advanceUntilIdle()
         assertEquals(2, s.terrain.started)
 
@@ -206,12 +214,52 @@ class DashboardViewModelTerrainTest {
         s.terrain.source.emit(TerrainInput(fix(t = 60_000, altitude = 500f), 1013.25f))
         advanceUntilIdle()
 
-        assertEquals(500f, s.vm.uiState.value.terrain!!.altitudeM!!, 0.01f)
+        assertEquals(500f, s.vm.terrain.value!!.altitudeM!!, 0.01f)
+    }
+
+    // --- Verbindung: egal ---
+
+    @Test
+    fun `connecting and losing the connection neither stop nor clear the tile`() = runTest {
+        val s = setUp(connected = false)
+        watchTerrain(s)
+        advanceUntilIdle()
+        s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
+        advanceUntilIdle()
+        assertNotNull(s.vm.terrain.value)
+
+        s.connected.value = true
+        advanceUntilIdle()
+        s.connected.value = false
+        advanceUntilIdle()
+
+        assertEquals("ein Sammler, nie neu gestartet", 1, s.terrain.started)
+        assertEquals(1, s.terrain.collectors)
+        assertNotNull(s.vm.terrain.value)
     }
 
     @Test
-    fun `the terrain state survives ordinary OBD cycles`() = runTest {
-        val s = setUp()
+    fun `the connection state machine does not wipe the tile - idle, lost connection and a stale vehicle leave it alone`() = runTest {
+        val s = setUp(connected = true)
+        watchTerrain(s)
+        advanceUntilIdle()
+        s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
+        advanceUntilIdle()
+        val before = s.vm.terrain.value
+        assertNotNull(before)
+
+        s.events.emit(SessionEvent.Idle); advanceUntilIdle()
+        assertEquals(before, s.vm.terrain.value)
+        s.events.emit(SessionEvent.ConnectionLost); advanceUntilIdle()
+        assertEquals(before, s.vm.terrain.value)
+        s.events.emit(SessionEvent.Stale); advanceUntilIdle()
+        assertEquals(before, s.vm.terrain.value)
+    }
+
+    @Test
+    fun `ordinary OBD cycles do not disturb the tile`() = runTest {
+        val s = setUp(connected = true)
+        watchTerrain(s)
         advanceUntilIdle()
         s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
         advanceUntilIdle()
@@ -219,8 +267,50 @@ class DashboardViewModelTerrainTest {
         s.events.emit(SessionEvent.Values(listOf(SensorValue(PidRegistry.RPM, 3000f)), gpsSpeedKmh = null))
         advanceUntilIdle()
 
-        assertNotNull(s.vm.uiState.value.terrain)
+        assertNotNull(s.vm.terrain.value)
     }
+
+    // --- nur, solange das Dashboard sichtbar ist ---
+
+    @Test
+    fun `when the dashboard is left the collection stops after five seconds`() = runTest {
+        val s = setUp()
+        val watching = watchTerrain(s)
+        advanceUntilIdle()
+        assertEquals(1, s.terrain.collectors)
+
+        watching.cancel()
+        advanceTimeBy(4_900)
+        assertEquals("noch nicht", 1, s.terrain.collectors)
+        advanceTimeBy(200)
+        advanceUntilIdle()
+
+        assertEquals(0, s.terrain.collectors)
+    }
+
+    @Test
+    fun `coming back to the dashboard starts from scratch`() = runTest {
+        val s = setUp()
+        val first = watchTerrain(s)
+        advanceUntilIdle()
+        s.terrain.source.emit(TerrainInput(fix(altitude = 100f), 1013.25f))
+        advanceUntilIdle()
+        assertNotNull(s.vm.terrain.value)
+        first.cancel()
+        advanceTimeBy(6_000); advanceUntilIdle()
+
+        watchTerrain(s)
+        advanceUntilIdle()
+
+        assertEquals(2, s.terrain.started)
+        assertNull("kein alter Stand beim Zurueckkommen", s.vm.terrain.value)
+        s.clock[0] = 20_000L
+        s.terrain.source.emit(TerrainInput(fix(t = 20_000, altitude = 700f), 1013.25f))
+        advanceUntilIdle()
+        assertEquals(700f, s.vm.terrain.value!!.altitudeM!!, 0.01f)
+    }
+
+    // --- die Kachel beruehrt nichts anderes ---
 
     @Test
     fun `the picker offers the terrain entry even when the vehicle lists its PIDs`() = runTest {
@@ -235,7 +325,8 @@ class DashboardViewModelTerrainTest {
 
     @Test
     fun `the recording never gets a terrain line`() = runTest {
-        val s = setUp()
+        val s = setUp(connected = true)
+        watchTerrain(s)
         advanceUntilIdle()
         s.terrain.source.emit(TerrainInput(fix(), 1013.25f))
         advanceUntilIdle()

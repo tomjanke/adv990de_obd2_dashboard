@@ -359,7 +359,7 @@
     <string name="terrain_desc_heading">Richtung %1$s, %2$s Grad</string>
     <string name="pid_oil_bar">Ölbalken</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
-    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
+    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Auch die Kachel „Gelände“ (Höhe, Steigung, Peilung) braucht diese Einstellung. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
     <string name="settings_gps_permission_missing">Standortberechtigung fehlt: Ohne den genauen Standort liefert das GPS keine Geschwindigkeit.</string>
 
     <!-- Tankanzeige (virtuell: zählt die GPS-Kilometer seit dem letzten Tanken) -->

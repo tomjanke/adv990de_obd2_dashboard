@@ -133,6 +133,32 @@ class DashboardTerrainSlotTest {
     }
 
     @Test
+    fun withoutAnyConnectionToTheVehicle_theTileStillShowsTheValues() {
+        // Die Werte kommen vom Telefon: kein Adapter, kein Steuergeraet — die Kachel zeigt sie trotzdem, sobald GPS Werte liefert.
+        runBlocking { appPreferences.setUseGpsSpeed(true) }
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(false)
+        launch()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { fake.started > 0 }
+        fake.source.tryEmit(TerrainInput(aFix(), 1013.25f))
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTagCount(TERRAIN_TILE_TEST_TAG) > 0 }
+        composeRule.onNodeWithTag(TERRAIN_ALTITUDE_TEST_TAG, useUnmergedTree = true).assertTextEquals(formatAltitude(1234f, false).first)
+        composeRule.onNodeWithTag(TERRAIN_TILE_TEST_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun withoutAnyConnectionAndWithoutTheGpsSwitch_theSlotStillSaysWhatIsMissing() {
+        runBlocking { appPreferences.setUseGpsSpeed(false) }
+        every { obdRepository.isConnectedFlow } returns MutableStateFlow(false)
+        launch()
+
+        val hint = composeRule.activity.getString(R.string.dashboard_slot_terrain_gps_off)
+        composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithText(hint).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, fake.started)
+    }
+
+    @Test
     fun withoutTheGpsSwitch_theSlotSaysWhatIsMissing_andNothingIsCollected() {
         runBlocking { appPreferences.setUseGpsSpeed(false) }
         connectWithLiveValues()

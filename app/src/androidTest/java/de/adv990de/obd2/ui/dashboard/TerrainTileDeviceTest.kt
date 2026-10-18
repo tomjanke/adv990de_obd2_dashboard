@@ -64,11 +64,10 @@ class TerrainTileDeviceTest {
     )
 
     private fun show(
-        terrain: TerrainDisplay?,
+        terrain: TerrainDisplay,
         widthDp: Int = 224,
         heightDp: Int = 170,
         fontScale: Float = 1f,
-        isLive: Boolean = true,
         imperial: Boolean = false,
         onLongPress: (() -> Unit)? = null,
     ) {
@@ -77,7 +76,7 @@ class TerrainTileDeviceTest {
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
                     Box(Modifier.size(widthDp.dp, heightDp.dp)) {
-                        TerrainTile(terrain = terrain, useImperial = imperial, isLive = isLive, modifier = Modifier.size(widthDp.dp, heightDp.dp), onLongPress = onLongPress)
+                        TerrainTile(terrain = terrain, useImperial = imperial, modifier = Modifier.size(widthDp.dp, heightDp.dp), onLongPress = onLongPress)
                     }
                 }
             }
@@ -153,15 +152,6 @@ class TerrainTileDeviceTest {
     @Test
     fun withoutValuesEveryFieldShowsDashes() {
         show(TerrainDisplay(null, null, null, emptyList()))
-
-        composeRule.onNodeWithTag(TERRAIN_ALTITUDE_TEST_TAG).assertTextEquals("--")
-        composeRule.onNodeWithTag(TERRAIN_GRADE_TEST_TAG).assertTextEquals("--")
-        composeRule.onNodeWithTag(TERRAIN_HEADING_TEST_TAG).assertTextEquals("--")
-    }
-
-    @Test
-    fun withoutAConnectionTheTileIsThePreview() {
-        show(full, isLive = false)
 
         composeRule.onNodeWithTag(TERRAIN_ALTITUDE_TEST_TAG).assertTextEquals("--")
         composeRule.onNodeWithTag(TERRAIN_GRADE_TEST_TAG).assertTextEquals("--")
@@ -260,7 +250,7 @@ class TerrainTileDeviceTest {
     fun withoutValuesTheSlotSaysWhatIsMissing() {
         composeRule.setContent {
             MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
-                TerrainSlot(terrain = null, useImperial = false, isLive = true, placeholderRes = R.string.dashboard_slot_terrain_gps_off, modifier = Modifier.size(224.dp, 170.dp))
+                TerrainSlot(terrain = null, useImperial = false, placeholderRes = R.string.dashboard_slot_terrain_gps_off, modifier = Modifier.size(224.dp, 170.dp))
             }
         }
 

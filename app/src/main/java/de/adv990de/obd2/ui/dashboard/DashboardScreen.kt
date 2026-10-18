@@ -45,6 +45,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.ui.components.FuelGaugeRow
 import de.adv990de.obd2.ui.components.FuelResetDialog
 import de.adv990de.obd2.ui.components.StatusDot
@@ -70,6 +71,8 @@ fun DashboardScreen(
     val rpmBlinkThreshold by vm.rpmBlinkThreshold.collectAsStateWithLifecycle()
     val rpmDynamicThreshold by vm.rpmDynamicThreshold.collectAsStateWithLifecycle()
     val slotPids by vm.slotPids.collectAsStateWithLifecycle()
+    // Die Gelaende-Kachel haengt nicht an der Verbindung zum Fahrzeug (ihre Werte kommen vom Telefon) und rechnet nur, solange dieser Sammler laeuft.
+    val terrain by vm.terrain.collectAsStateWithLifecycle()
     val availablePids by vm.availablePids.collectAsStateWithLifecycle()
     // rememberSaveable (UID-23): eine Drehung mit offener Auswahl schloss sie bisher.
     var pickerSlot: Int? by rememberSaveable { mutableStateOf(null) }
@@ -276,6 +279,7 @@ fun DashboardScreen(
                                 slotPid = slotPids.getOrNull(i),
                                 reading = slots[i],
                                 state = state,
+                                terrain = terrain,
                                 useImperial = useImperial,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 placeholderRes = slotPlaceholderRes(
@@ -304,6 +308,7 @@ fun DashboardScreen(
                                         slotPid = slotPids.getOrNull(i),
                                         reading = slots[i],
                                         state = state,
+                                        terrain = terrain,
                                         useImperial = useImperial,
                                         modifier = Modifier.weight(1f).fillMaxHeight(),
                                         placeholderRes = slotPlaceholderRes(
@@ -358,7 +363,7 @@ fun DashboardScreen(
 }
 
 /**
- * Eine Kachel des Rasters: die Gelaende-Kachel, wenn der Slot [DerivedPids.TERRAIN_ID] traegt (sie zeigt drei Werte des Telefons, `DashboardUiState.terrain`), sonst die
+ * Eine Kachel des Rasters: die Gelaende-Kachel, wenn der Slot [DerivedPids.TERRAIN_ID] traegt (sie zeigt drei Werte des Telefons, `DashboardViewModel.terrain`, unabhaengig von der Verbindung), sonst die
  * Kachel eines Messwerts. Eine Stelle fuer beide Ausrichtungen, damit Hoch- und Querformat nie auseinanderlaufen.
  */
 @Composable
@@ -366,6 +371,7 @@ private fun DashboardSlot(
     slotPid: String?,
     reading: SensorValue?,
     state: DashboardUiState,
+    terrain: TerrainDisplay?,
     useImperial: Boolean,
     modifier: Modifier,
     @androidx.annotation.StringRes placeholderRes: Int,
@@ -374,9 +380,8 @@ private fun DashboardSlot(
 ) {
     if (slotPid == DerivedPids.TERRAIN_ID) {
         TerrainSlot(
-            terrain = state.terrain,
+            terrain = terrain,
             useImperial = useImperial,
-            isLive = isLive,
             placeholderRes = placeholderRes,
             modifier = modifier,
             onLongPress = onLongPress,

@@ -77,28 +77,28 @@ internal const val TERRAIN_HEADING_TEST_TAG = "terrain_heading"
 
 /**
  * Ein Slot mit der Gelaende-Kachel: ohne Werte (GPS aus, Berechtigung fehlt, noch kein Fix) der Hinweis wie bei jedem leeren Slot ([slotPlaceholderRes]), sonst die Kachel.
- * Ohne Verbindung (`!isLive`) zeigt sie die Vorschau mit "--" — wie jede Kachel.
+ * **Unabhaengig von der Verbindung zum Fahrzeug:** die Werte kommen vom Telefon, die Kachel zeigt sie auch ohne Adapter (sie ist die einzige, die im Zustand
+ * "Vorschau · nicht verbunden" echte Werte hat).
  */
 @Composable
 internal fun TerrainSlot(
     terrain: TerrainDisplay?,
     useImperial: Boolean,
-    isLive: Boolean,
     @StringRes placeholderRes: Int,
     modifier: Modifier = Modifier,
     onLongPress: (() -> Unit)? = null,
 ) {
-    if (isLive && terrain == null) {
+    if (terrain == null) {
         EmptySlot(placeholderRes = placeholderRes, modifier = modifier, onLongPress = onLongPress)
     } else {
-        TerrainTile(terrain = terrain, useImperial = useImperial, isLive = isLive, modifier = modifier.fillMaxSize(), onLongPress = onLongPress)
+        TerrainTile(terrain = terrain, useImperial = useImperial, modifier = modifier.fillMaxSize(), onLongPress = onLongPress)
     }
 }
 
 /**
  * Die Gelaende-Kachel: **Hoehe** als grosse Zahl, **Steigung** als Verlauf der letzten 1000 m (Graph mit Nulllinie, daneben der aktuelle Wert) und **Peilung** als Windrose
  * (Nord oben fest, die Nadel zeigt die Fahrtrichtung, darunter Himmelsrichtung und Grad). Ein Rahmen wie jede Kachel ([TileFrame]); die Statusleiste ist immer die
- * Akzentfarbe (die Kachel kennt keinen Warnzustand). Jedes Feld zeigt "--", wenn es keinen Wert hat. [terrain] = null oder [isLive] = false ist die Vorschau.
+ * Akzentfarbe (die Kachel kennt keinen Warnzustand, und keine Vorschau-Dämpfung: ihre Werte sind immer die des Telefons). Jedes Feld zeigt "--", wenn es keinen Wert hat.
  *
  * ```
  * ┌─┬────────────────────────────┐
@@ -112,26 +112,24 @@ internal fun TerrainSlot(
  */
 @Composable
 internal fun TerrainTile(
-    terrain: TerrainDisplay?,
+    terrain: TerrainDisplay,
     useImperial: Boolean,
-    isLive: Boolean,
     modifier: Modifier = Modifier,
     onLongPress: (() -> Unit)? = null,
 ) {
-    val shown = if (isLive) terrain else null
     val accent = liveValueTileAccentColor(
         status = TileStatus.Ok,
-        isPreview = !isLive,
+        isPreview = false,
         onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant,
         primary = MaterialTheme.colorScheme.primary,
         surface = MaterialTheme.colorScheme.surface,
     )
-    val (altitudeText, altitudeUnit) = formatAltitude(shown?.altitudeM, useImperial)
-    val gradeText = formatGrade(shown?.gradePercent)
+    val (altitudeText, altitudeUnit) = formatAltitude(terrain.altitudeM, useImperial)
+    val gradeText = formatGrade(terrain.gradePercent)
     val labels = CompassPoint.entries.associateWith { stringResource(compassLabelRes(it)) }
-    val headingText = headingText(shown?.headingDeg) { labels.getValue(it) }
+    val headingText = headingText(terrain.headingDeg) { labels.getValue(it) }
     val title = stringResource(R.string.pid_terrain)
-    val description = terrainDescription(title, shown, useImperial)
+    val description = terrainDescription(title, terrain, useImperial)
 
     TileFrame(
         label = title,
@@ -167,8 +165,7 @@ internal fun TerrainTile(
                 // Rechts die Windrose mit der Peilung als Text darunter.
                 Column(Modifier.padding(start = 8.dp).width(ROSE_SIZE), horizontalAlignment = Alignment.CenterHorizontally) {
                     CompassRose(
-                        headingDeg = shown?.headingDeg,
-                        isPreview = !isLive,
+                        headingDeg = terrain.headingDeg,
                         modifier = Modifier.size(ROSE_SIZE).testTag(TERRAIN_ROSE_TEST_TAG),
                     )
                     LiveValueText(
@@ -183,7 +180,7 @@ internal fun TerrainTile(
             }
             Row(Modifier.fillMaxWidth().height(GRADE_BAND_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
                 GradeGraph(
-                    values = shown?.gradeHistory.orEmpty(),
+                    values = terrain.gradeHistory,
                     modifier = Modifier.weight(1f).fillMaxHeight().testTag(TERRAIN_GRAPH_TEST_TAG),
                 )
                 LiveValueText(
@@ -230,11 +227,11 @@ internal fun GradeGraph(values: List<Float>, modifier: Modifier = Modifier) {
  * Die Buchstaben haben eine feste Groesse in dp (nicht in sp): eine grosse Systemschrift soll sie nicht in die Nadel schieben.
  */
 @Composable
-internal fun CompassRose(headingDeg: Float?, isPreview: Boolean, modifier: Modifier = Modifier) {
+internal fun CompassRose(headingDeg: Float?, modifier: Modifier = Modifier) {
     val ring = MaterialTheme.colorScheme.outline
     val north = MaterialTheme.colorScheme.primary
     val others = MaterialTheme.colorScheme.onSurfaceVariant
-    val needle = if (isPreview) others.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary
+    val needle = MaterialTheme.colorScheme.primary
     val letters = listOf(
         stringResource(R.string.terrain_compass_n),
         stringResource(R.string.terrain_compass_e),
@@ -301,8 +298,7 @@ internal fun compassNameRes(point: CompassPoint): Int = when (point) {
 
 /** Die Beschreibung der ganzen Kachel fuer Screenreader; ein Feld ohne Wert entfaellt. */
 @Composable
-private fun terrainDescription(title: String, terrain: TerrainDisplay?, useImperial: Boolean): String {
-    if (terrain == null) return title
+private fun terrainDescription(title: String, terrain: TerrainDisplay, useImperial: Boolean): String {
     val parts = buildList {
         terrain.altitudeM?.takeIf { it.isFinite() }?.let { meters ->
             val (number, _) = formatAltitude(meters, useImperial)
@@ -342,10 +338,10 @@ private fun TerrainTilePreviewContent() {
                 altitudeM = 1234f, gradePercent = 4f, headingDeg = 45f,
                 gradeHistory = List(40) { i -> 4f * kotlin.math.sin(i / 6f) + 2f },
             ),
-            useImperial = false, isLive = true, modifier = tile,
+            useImperial = false, modifier = tile,
         )
-        // Ohne Verbindung: die Vorschau mit "--" (die Kachel ohne einzelne Werte steht im Geraete-Test; drei Kacheln passen nicht ins Vorschaufenster).
-        TerrainTile(terrain = null, useImperial = false, isLive = false, modifier = tile)
+        // Noch ohne Werte (z. B. Hoehe vor der ersten GPS-Probe): "--" in jedem Feld, Rose ohne Nadel (drei Kacheln passen nicht ins Vorschaufenster).
+        TerrainTile(terrain = TerrainDisplay(null, null, null, emptyList()), useImperial = false, modifier = tile)
     }
 }
 

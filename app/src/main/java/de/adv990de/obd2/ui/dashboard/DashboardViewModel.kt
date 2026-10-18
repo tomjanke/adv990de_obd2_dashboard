@@ -14,6 +14,7 @@ import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.terrain.TerrainInputs
 import de.adv990de.obd2.terrain.TerrainTracker
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,8 +24,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -195,38 +197,42 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             obdRepository.isConnectedFlow.collect { up -> if (up) onLinkUp() }
         }
-        viewModelScope.launch { collectTerrain() }
         connectionCoordinator.start(viewModelScope, ::onConnectionEvent)
     }
 
     // ── Gelaende-Kachel ──────────────────────────────────────────────────────
 
     /**
-     * Sammelt die Eingaben der Gelaende-Kachel **nur, solange sie jemand sieht**: ein Slot traegt [DerivedPids.TERRAIN_ID], der GPS-Schalter ist an (die Kachel nutzt
-     * dessen Berechtigung und Einstellung) und die Verbindung steht (ohne sie zeigt das Dashboard nur die Vorschau). Sonst laufen weder GPS noch Barometer.
-     * Das Zuruecksetzen steht **im** `flatMapLatest`-Zweig, nicht davor: dort ist der vorige Sammler schon abgebrochen, ein spaeter Wert kann den Zustand nicht
-     * mehr neu fuellen. Jede Aktivierung beginnt mit einem frischen [TerrainTracker], weil jede Deaktivierung ihn zuruecksetzt (Kalibrierung und Verlauf gelten
-     * nicht ueber eine Luecke hinweg).
-     * Die Werte kommen vom Telefon und laufen bei [SessionEvent.Stale] weiter; die Kachel zeigt sie nur in der Phase "Live".
+     * Was die Gelaende-Kachel zeigt (Hoehe, Steigung, Peilung, Verlauf der Steigung); `null`, solange keine Rechnung laeuft oder noch kein Wert da ist — dann sagt der
+     * Slot, was fehlt (`slotPlaceholderRes`).
+     *
+     * **Unabhaengig von der Verbindung zum Fahrzeug:** die Werte kommen vom Telefon (GPS und Drucksensor), nicht vom Steuergeraet; die Kachel zeigt sie sofort, auch wenn
+     * kein Adapter verbunden ist (Nutzerwunsch 2026-10-18; bis 1.35.0 hing sie an der Verbindung). Gerechnet wird, wenn ein Slot [DerivedPids.TERRAIN_ID] traegt und der
+     * GPS-Schalter an ist (die Kachel nutzt dessen Einstellung und Berechtigung) — **und nur, solange die Oberflaeche sammelt:** `WhileSubscribed` haelt GPS und Barometer
+     * an, sobald das Dashboard 5 s lang nicht zu sehen ist (anderer Reiter, App im Hintergrund). Das ist zulaessig, weil der Fluss nur die Anzeige speist (s. `README`/`CLAUDE.md`,
+     * „Zustand sammeln“) — nichts anderes haengt an ihm. Die Werte stehen bewusst **nicht** im [DashboardUiState]: dessen Zuruecksetzen bei jedem Verbindungsereignis
+     * (`disconnected()`) loeschte sie sonst jedes Mal, obwohl sie mit der Verbindung nichts zu tun haben.
+     *
+     * Jede Aktivierung beginnt mit einem frischen [TerrainTracker] (Kalibrierung und Verlauf gelten nicht ueber eine Luecke hinweg): `onStart` setzt ihn zurueck, ob der Fluss neu
+     * anlaeuft (Dashboard wieder sichtbar) oder die Bedingung wieder wahr wird (GPS-Schalter, Slot). Bei Abschalten der Bedingung ist der Stand sofort `null` — `flatMapLatest`
+     * hat den vorigen Sammler vorher abgebrochen, ein spaeter Wert kann ihn nicht neu fuellen. `replayExpirationMillis = 0` setzt den Stand nach dem Anhalten auf `null` zurueck:
+     * wer zum Dashboard zurueckkommt, sieht keinen alten Wert.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun collectTerrain() {
-        combine(slotPids, appPreferences.useGpsSpeed, obdRepository.isConnectedFlow) { slots, gps, connected ->
-            DerivedPids.TERRAIN_ID in slots && gps && connected
+    val terrain: StateFlow<TerrainDisplay?> = combine(slotPids, appPreferences.useGpsSpeed) { slots, gps ->
+        DerivedPids.TERRAIN_ID in slots && gps
+    }
+        .distinctUntilChanged()
+        .flatMapLatest<Boolean, TerrainDisplay?> { active ->
+            if (active) {
+                terrainInputs.inputs
+                    .onStart { terrainTracker.reset() }
+                    .map { input -> terrainTracker.update(nowMillis(), input) }
+            } else {
+                flowOf(null)
+            }
         }
-            .distinctUntilChanged()
-            .flatMapLatest { active ->
-                if (active) terrainInputs.inputs else flow { clearTerrain() }
-            }
-            .collect { input ->
-                _uiState.value = _uiState.value.copy(terrain = terrainTracker.update(nowMillis(), input))
-            }
-    }
-
-    private fun clearTerrain() {
-        terrainTracker.reset()
-        if (_uiState.value.terrain != null) _uiState.value = _uiState.value.copy(terrain = null)
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), null)
 
     // ── Messwert-Ereignisse ──────────────────────────────────────────────────
 
