@@ -8,12 +8,14 @@ import android.content.Context
 import android.service.notification.StatusBarNotification
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import androidx.test.rule.GrantPermissionRule
 import de.adv990de.obd2.ObdForegroundService
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.dtcDescriptionRes
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -225,6 +227,18 @@ class AndroidAlarmNotifierDeviceTest {
         @Suppress("DEPRECATION") // Notification.priority ist das, was setPriority() schreibt; der Kanal gilt erst ab API 26 allein
         assertEquals(Notification.PRIORITY_HIGH, posted.priority)
         assertTrue("setAutoCancel(true): ein Antippen räumt die Benachrichtigung ab", posted.flags and Notification.FLAG_AUTO_CANCEL != 0)
+    }
+
+    @Test
+    @SdkSuppress(minSdkVersion = 28) // Icon.getResId() gibt es erst ab API 28; die Bedingung steht an der Annotation (assumeTrue auf SDK_INT verbietet CodeHygieneSourceTest)
+    fun theSmallIconIsTheWarningTriangleAndNotTheOneOfTheForegroundService() {
+        notifier.show(Alarm(AlarmKind.VOLTAGE, AlarmSeverity.WARNING, value = 12.1f))
+
+        // Entscheidung des Nutzers (2026-10-18): ein Warndreieck. Das Bluetooth-Symbol gehoert dem Vordergrunddienst ("Fahrzeugdaten werden aufgezeichnet") —
+        // in der Statusleiste stuenden beide sonst nebeneinander und waeren nicht zu unterscheiden.
+        val icon = awaitActive(2001, "Spannungsalarm").smallIcon
+        assertEquals(R.drawable.ic_alarm_warning, icon.resId)
+        assertNotEquals(R.drawable.ic_bluetooth, icon.resId)
     }
 
     @Test

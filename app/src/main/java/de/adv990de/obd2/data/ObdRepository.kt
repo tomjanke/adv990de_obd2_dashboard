@@ -59,7 +59,9 @@ private const val DEFAULT_WATCHDOG_TIMEOUT_MS = AppPreferences.DEFAULT_OBD_WATCH
  *    aber nur, wenn der Lesevorgang noch auf der AKTUELLEN Verbindung lief ([disconnectIfCurrent], PRO-11); ein ersetzter Leser reisst keine neue ein.
  *  - **Fehlercodes unterwegs** ([readDtcsOrSkip], die Fehlerwache der `ReadingsPipeline` jede Minute waehrend der Fahrt): ein Zeitlimit ueberspringt das
  *    Auslesen (`null`) und trennt **nie** — dieselben Befehle wie [readDtcs], aber das Nachlesen ist nur eine Zusatzauskunft und darf die laufende
- *    Fahrt nicht kosten; die verspaetete Antwort verwirft der naechste Befehl als Altbyte. Nur ein verlorener Link trennt wie ueberall.
+ *    Fahrt nicht kosten; die verspaetete Antwort verwirft der naechste Befehl als Altbyte, sofern sie bis dahin eingetroffen ist — trifft sie erst
+ *    danach ein, kann die Antwort des naechsten PID verschoben sein (ein uebersprungener PID, den der Watchdog zaehlt). Nur ein verlorener Link
+ *    trennt wie ueberall.
  *  - **FIN** ([readVin]): das Zeitlimit wird gemeldet, die Verbindung bleibt. Die Pipeline fragt sie bei JEDEM Verbinden; ein Motorrad, das auf
  *    Modus 09 schweigt, geriete bei "trennen" in eine Schleife aus Verbinden, Zeitlimit, Trennen. Ein einzelner Befehl kann ausserdem keine Folge
  *    verschieben, und der naechste Befehl verwirft Altbytes ([de.adv990de.obd2.obd.ElmController]).

@@ -45,9 +45,10 @@ internal class DiagnosticReads(
      * Dieselben Befehle wie [readDtcs], aber WEICH — fuer das Nachlesen mitten in der Fahrt (Fehlerwache der `ReadingsPipeline`): ein
      * Zeitlimit ueberspringt das Auslesen (`null`) und **trennt nicht**. Das ist die vierte Form der Zeitlimit-Richtlinie an
      * [ObdRepository]; [readDtcs] trennt bei jedem Zeitlimit, und das waere unterwegs ein zu hoher Preis fuer ein Nachlesen, das nur eine
-     * Zusatzauskunft ist. Dass der ELM327 keine Antwort-Kennung kennt, bleibt: die verspaetete Antwort wird vom naechsten Befehl als
-     * Altbyte verworfen (`ElmController.discardStaleInput`), und die Befehle sind durch den Mutex des Controllers einzeln serialisiert — ein
-     * Auslesen verschraenkt sich hoechstens zwischen zwei PID-Befehlen der Live-Abfrage.
+     * Zusatzauskunft ist. Dass der ELM327 keine Antwort-Kennung kennt, bleibt: die verspaetete Antwort verwirft der naechste Befehl als
+     * Altbyte (`ElmController.discardStaleInput`), sofern sie bis dahin eingetroffen ist; trifft sie erst danach ein, kann die Antwort des naechsten
+     * PID verschoben sein (ein uebersprungener PID, den der Watchdog zaehlt). Die Befehle sind durch den Mutex des Controllers einzeln serialisiert —
+     * ein Auslesen verschraenkt sich hoechstens zwischen zwei PID-Befehlen der Live-Abfrage.
      *
      * `null` heisst "keine Aussage", nie "keine Codes" (das waere eine leere Liste): Zeitlimit, NO DATA und Busfehler bei Modus 03,
      * Unverstaendliches, jeder andere Fehler des Protokolls. Nur eine verlorene Verbindung ([ObdException.ConnectionLost]) trennt wie ueberall

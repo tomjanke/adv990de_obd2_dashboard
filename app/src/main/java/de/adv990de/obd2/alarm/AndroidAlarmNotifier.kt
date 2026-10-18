@@ -50,7 +50,8 @@ internal fun notificationId(kind: AlarmKind): Int = when (kind) {
 /**
  * Die Systembenachrichtigung eines Alarms. Der Text steht fest zum Zeitpunkt des Auslösens (kein Live-Wert — wer mehr sehen will, tippt und sieht das Band). Kategorie
  * `CATEGORY_STATUS`, **nicht** `CATEGORY_ALARM`: die dürfte Nicht stören umgehen, das entscheidet der Nutzer am Kanal. Antippen öffnet die App ([ObdForegroundService.openAppIntent]
- * bringt eine laufende Activity nach vorn), `setAutoCancel(true)` räumt sie dabei ab.
+ * bringt eine laufende Activity nach vorn), `setAutoCancel(true)` räumt sie dabei ab. Das kleine Symbol ist ein Warndreieck (Entscheidung des Nutzers); das Bluetooth-Symbol
+ * gehört dem Vordergrunddienst, beide stehen nebeneinander in der Statusleiste.
  */
 class AndroidAlarmNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -62,7 +63,7 @@ class AndroidAlarmNotifier @Inject constructor(
 
         val id = notificationId(alarm.kind)
         val notification = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_alarm_warning)
             .setContentTitle(alarmMessage(context.resources, alarm))
             .setContentText(alarmDetail(context.resources, alarm))
             .setCategory(NotificationCompat.CATEGORY_STATUS)

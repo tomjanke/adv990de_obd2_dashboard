@@ -1434,6 +1434,41 @@ class ReadingsPipelineTest {
     }
 
     @Test
+    fun `a lost link on a connection that stayed up ends the watch quietly - no reconnect, no log line`() = runTest {
+        // readDtcsOrSkip() scheitert mit ConnectionLost, doch isConnectedFlow bleibt true und der Zaehler der Nutzer-Trennungen steht:
+        // die Verbindung wurde ersetzt (ein anderer Leser trennte die alte), die neue startet ohnehin eine neue Sitzung.
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcsOrSkip() } throws ObdException.ConnectionLost()
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = collectAll(makePipeline(repo, logRepo = logRepo))
+
+        advanceTo(watchMs)
+        advanceTo(10 * watchMs)
+
+        assertTrue("kein Reconnect-Ausloeser fuer eine ersetzte Verbindung: $events", events.none { it == SessionEvent.ConnectionLost })
+        coVerify(exactly = 0) { logRepo.log(any(), match { it.contains("Periodic fault-code read") }) }
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }               // die Wache ist beendet, sie liest nicht weiter
+        assertTrue("die Sitzung lebt weiter: $events", events.none { it is SessionEvent.Failed || it == SessionEvent.Idle })
+    }
+
+    @Test
+    fun `cancelling the session during a periodic read is no failure and writes no log line`() = runTest {
+        val repo = openSessionRepo()
+        coEvery { repo.readDtcsOrSkip() } coAnswers { awaitCancellation() }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val pipeline = makePipeline(repo, logRepo = logRepo)
+        val job = backgroundScope.launch { pipeline.events(backgroundScope).toList(mutableListOf()) }
+
+        advanceTo(watchMs)                                             // das Nachlesen haengt
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        job.cancel()
+        runCurrent()
+
+        assertTrue(job.isCancelled)
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("Periodic fault-code read failed") }) }
+    }
+
+    @Test
     fun `the watch ends with the connection - nothing is read after the session is gone`() = runTest {
         val isConnected = MutableStateFlow(true)
         val repo = openSessionRepo()
