@@ -42,7 +42,7 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 **F6 — Trip-Computer, Betriebsstunden und Wartungserinnerungen** (klein). Trip A/B, Durchschnitt, Standzeit; Betriebsstunden (Enduros werden oft nach Stunden gewartet: Luftfilter, Öl); Kettenpflege nach Kilometern. Distanzintegrator und Fahrtdauer gibt es schon.
 
-**F7 — Höhe, Steigung und Peilung** (klein bis mittel). Aus Barometer und GPS des Pixel, offline.
+**F7 — Höhe, Steigung und Peilung** (mittel). Aus Barometer und GPS des Pixel, offline. **Beschlossen und im Repository umgesetzt (2026-10-18, Entscheidungsprotokoll Punkt 49):** eine Kachel „Gelände“ — Höhe groß, Steigung als Graph der letzten 1000 m, Peilung als Windrose; noch nicht veröffentlicht, am Motorrad nicht geprüft. Entwurf und Plan: `docs/superpowers/specs|plans/2026-10-18-terrain-tile*`.
 
 **F8 — Strecke aufzeichnen (GPX) und Position zu Fahrten und Fehlern** (mittel). Heute speichert die App keine Positionen, nur die Geschwindigkeit. Positionen sind sensible Daten (lokal halten, nie ins Repository). Navigation selbst ist kein Ziel.
 

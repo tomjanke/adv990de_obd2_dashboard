@@ -17,6 +17,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 - **Virtuelle Ganganzeige** — errechnet den eingelegten Gang aus Motordrehzahl und Geschwindigkeit (Hysterese gegen Flackern), konfigurierbar über einen eigenen Getriebe-Einstellungsbildschirm (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
 - **Simulierte Öltemperatur-Leiste** — Farbstreifen (16 dp hoch, mit einer Ölkanne davor) unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten über 80 °C, kurze Einbrüche unter 78 °C bis zu 2 Minuten werden toleriert); solange der 10-Minuten-Timer läuft, färbt sich der gelbe Streifen anteilig von links nach rechts grün (grüner Anteil = verstrichene Zeit); grau ohne Verbindung
 - **Virtuelle Tankanzeige** — ein Balken ganz unten im Dashboard (nur dort), direkt über dem Hauptmenü bzw. der Statuszeile (volle Breite, 40 dp hoch, links ein Tankstellen-Symbol), in **zehn Segmenten** (Lücke wie beim Drehzahlbalken; die Anzeige sinkt segmentweise, nicht stufenlos — ein Segment steht für ein Zehntel der Reichweite und geht erst aus, wenn dieses Zehntel verbraucht ist), der die seit dem letzten Tanken per GPS gefahrenen Kilometer gegen die hinterlegte **Reichweite bei vollem Tank** (Einstellungen → Fahrzeug, 50–1000 km) zählt: die Farbe hängt an der Zahl leuchtender Segmente: 5–10 Segmente grün, 3–4 gelb, 2 rot, das letzte Segment rot blinkend (also ab höchstens 10 % Rest); sie wechselt genau dann, wenn ein Segment erlischt. Ein langer Druck auf Symbol oder Balken setzt sie nach Rückfrage wieder auf „voll“ (nach dem Tanken). Es ist ein Streckenzähler, keine Kraftstoffmessung: kein Erkennen des Tankens, kein Verbrauch; gezählt wird nur bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“. Ohne hinterlegte Reichweite gibt es die Zeile nicht
+- **Gelände-Kachel** *(im Repository, noch nicht veröffentlicht — kommt mit der nächsten Version)* — ein wählbarer Eintrag der Slot-Auswahl („Gelände“), der drei Werte des **Telefons** zeigt (nicht des Fahrzeugs): die **Höhe** als große Zahl, die **Steigung** als Verlauf der letzten 1000 m (Graph mit Nulllinie, daneben der aktuelle Wert) und die **Peilung** als Windrose (Nord oben fest, die Nadel zeigt die Fahrtrichtung, darunter Himmelsrichtung und Grad). Die Höhe kommt aus dem Drucksensor, kalibriert gegen die GPS-Höhe (ohne Sensor: geglättete GPS-Höhe), die Steigung aus der Druckänderung über mindestens 100 m Fahrstrecke, die Peilung ist der GPS-Kurs über Grund (kein Kompass; im Stand wird die letzte Peilung 30 s gehalten). Sie läuft offline, braucht keine neue Berechtigung, nur den GPS-Schalter („Geschwindigkeit per GPS“), und rechnet nur, solange ein Slot sie trägt und die Verbindung steht. Es wird nichts aufgezeichnet. Ohne Werte nennt der Slot den Grund (GPS aus, Berechtigung fehlt, wartet auf Signal). Nicht am Motorrad geprüft
 - **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
 - **Ein Menüpunkt „Fahrten“** — Fahrtenverlauf und Fehlercodes teilen sich einen Punkt im Hauptmenü (Live, Fahrten, Einstellungen, Beenden) mit einem Umschalter „Fahrten | Aktuell | Historie“; „Aktuell“ und „Historie“ sind die beiden Ansichten der Fehlercode-Seite, der Freeze Frame bleibt ihre Unterseite
 - **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export (je Fahrt über das Teilen-Symbol der Zeile, oder **alle abgeschlossenen Fahrten in einer Datei** über das Export-Symbol der Kopfleiste: teilen oder mit dem Dateidialog des Systems **auf dem Gerät speichern**, z. B. in Downloads); einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug). **Fehlercodes je Fahrt:** jede neue Fahrt merkt sich die Codes, die das Fahrzeug bei ihrem Beginn meldete; die Zeile zeigt dann „N Fehler“ (rot, sobald ein bestätigter Code dabei ist, gelb bei nur ausstehenden), ein Tipp auf die Zeile öffnet die Details mit Ende, FIN und den Codes samt Beschreibung. Drei Zustände: Codes · „das Fahrzeug meldete keine“ · „nicht erfasst“ (Fahrten vor 1.33.0 und ein gescheitertes Auslesen — sie werden nicht nachträglich zugeordnet). Ein Code, der erst mitten in der Fahrt auftritt, wird nicht erfasst; „Nur Fahrten mit DTCs speichern“ ist unverändert
@@ -137,7 +138,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (1692 Tests, < 30 Sekunden)
+# JVM Unit Tests (1814 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -146,13 +147,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1692 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 422 (Dashboard, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 1814 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 443 (Dashboard, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 59 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4→5, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
-| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 76 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
+| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 83 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
 
 ---
@@ -192,12 +193,13 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── theme/                   # Material 3 Theme, Statusleisten-Symbole (SystemBars), System-Splash-Themes (SplashTheme)
 │   └── weather/                 # WeatherViewModel (Polling nur bei sichtbarer Zeile) +
 │                                # 30-Minuten-Halte-Logik (OutsideTemperatureHold)
+├── terrain/                     # Gelände-Kachel: Höhe, Steigung, Peilung (reine Schätzer, Drucksensor, Eingaben aus GPS-Fix + Druck)
 ├── location/                    # GpsSpeedSource (Geschwindigkeit aus dem GPS-Fix),
 │                                # CurrentLocationProvider (Standort fürs Wetter: jüngster Cache-Fix ≤ 10 min, sonst aktiver Fix)
 ├── weather/                     # WeatherApi/OpenMeteoApi (HTTP ohne Zusatz-Library),
 │                                # WeatherRepository
 ├── di/                          # Hilt-Module (AppModule, CrashReporterModule, LocationModule,
-│                                # WeatherModule)
+│                                # WeatherModule, FuelModule, TerrainModule)
 └── crash/                       # CrashReporter (Sentry-Wrapper), CrashReportingController (Schalter)
 ```
 
@@ -367,8 +369,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (1692) |
-| `app/src/androidTest/` | Instrumented Tests (422, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (1814) |
+| `app/src/androidTest/` | Instrumented Tests (443, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `docs/superpowers/archive/` | Pläne und Spezifikationen umgesetzter Funktionen (Dokumentation, nicht Build-Input) |
