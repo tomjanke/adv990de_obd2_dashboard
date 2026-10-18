@@ -50,7 +50,9 @@ class SustainedRuleTest {
         assertTrue(rule.isActive)
         rule.feed(25L to 12.6f, 30L to 12.6f, 35L to 12.6f)    // above 12.5 but below 12.5 + 0.2
         assertTrue(rule.isActive)
-        rule.feed(40L to 12.8f)                                 // beyond the margin, recovery long enough
+        rule.feed(40L to 12.8f)                                 // beyond the margin, but the recovery has only just started
+        assertTrue(rule.isActive)
+        rule.feed(45L to 12.8f)                                 // beyond the margin for five seconds
         assertFalse(rule.isActive)
     }
 
@@ -78,7 +80,9 @@ class SustainedRuleTest {
         assertTrue(rule.isActive)
         rule.feed(15L to 93f, 20L to 93f, 25L to 93f)           // below 95, not yet below 92
         assertTrue(rule.isActive)
-        rule.feed(30L to 91f)
+        rule.feed(30L to 91f)                                   // beyond the margin, the recovery starts
+        assertTrue(rule.isActive)
+        rule.feed(35L to 91f)                                   // beyond the margin for five seconds
         assertFalse(rule.isActive)
     }
 
@@ -91,5 +95,43 @@ class SustainedRuleTest {
         assertFalse(rule.isActive)
         rule.feed(21L to 12.0f)
         assertFalse(rule.isActive)
+    }
+
+    @Test
+    fun `a lone beyond-margin sample between in-band samples does not clear an active rule`() {
+        val rule = below()
+        rule.feed(0L to 12.0f, 5L to 12.0f, 10L to 12.0f, 15L to 12.0f, 20L to 12.0f)
+        assertTrue(rule.isActive)
+        rule.feed(25L to 12.6f, 30L to 12.6f, 35L to 13.0f, 40L to 12.0f)
+        assertTrue(rule.isActive)
+    }
+
+    @Test
+    fun `a sample inside the band restarts the clear count`() {
+        val rule = below()
+        rule.feed(0L to 12.0f, 5L to 12.0f, 10L to 12.0f, 15L to 12.0f, 20L to 12.0f)
+        assertTrue(rule.isActive)
+        rule.feed(25L to 12.8f)                                 // beyond the margin: the recovery starts at 25
+        rule.feed(28L to 12.6f)                                 // inside the band: the count starts over
+        rule.feed(30L to 12.8f, 34L to 12.8f)                   // the recovery restarts at 30, only 4 s so far
+        assertTrue(rule.isActive)
+        rule.feed(35L to 12.8f)                                 // 5 s beyond the margin
+        assertFalse(rule.isActive)
+    }
+
+    @Test
+    fun `a non-active run ends after five seconds of non-violating values even inside the band`() {
+        val rule = below()
+        rule.feed(0L to 12.0f, 5L to 12.6f, 10L to 12.6f, 15L to 12.0f, 30L to 12.0f)
+        assertFalse(rule.isActive)                              // the run ended at 10, the new one started at 15: 15 s
+        rule.feed(35L to 12.0f)
+        assertTrue(rule.isActive)                               // 20 s since 15
+    }
+
+    @Test
+    fun `a non-finite sample is ignored and does not end a run`() {
+        val rule = below()
+        rule.feed(0L to 12.0f, 5L to 12.0f, 10L to 12.0f, 15L to Float.NaN, 20L to Float.NaN, 25L to 12.0f)
+        assertTrue(rule.isActive)                               // NaN is no recovery; the run from 0 s reaches 20 s at 25
     }
 }

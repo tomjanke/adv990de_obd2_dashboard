@@ -105,8 +105,13 @@ class AlarmTrackerTest {
     fun `changing a threshold restarts the rule`() {
         val tracker = AlarmTracker()
         for (s in 0L..6L) tracker.cycle(s, coolant = 101f)
-        tracker.updateSettings(AlarmSettings(coolantWarningC = 105, coolantNoticeC = 98))
-        assertTrue(tracker.active().isEmpty())                       // restarted, and 101 < 105 anyway
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        tracker.updateSettings(AlarmSettings(coolantNoticeC = 92))  // the warning stays at 100 °C
+        assertTrue(tracker.active().isEmpty())                       // restarted: the old warning is gone
+        for (s in 7L..11L) tracker.cycle(s, coolant = 101f)
+        assertTrue(tracker.active().isEmpty())                       // 4 s since the restart: no warning yet
+        tracker.cycle(12, coolant = 101f)                            // 5 s since the restart
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
     }
 
     @Test
@@ -121,6 +126,37 @@ class AlarmTrackerTest {
     fun `voltage and coolant can alarm at the same time`() {
         val tracker = AlarmTracker()
         for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f, coolant = 101f)
+        assertEquals(setOf(AlarmKind.VOLTAGE, AlarmKind.COOLANT), tracker.active().map { it.kind }.toSet())
+    }
+
+    @Test
+    fun `a voltage alarm ends when its value stops arriving for more than thirty seconds`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f)
+        assertEquals(listOf(AlarmKind.VOLTAGE to AlarmSeverity.WARNING), tracker.kinds())
+        for (s in 30L..55L step 5) tracker.cycle(s)                  // rpm keeps arriving, the voltage does not
+        assertEquals(listOf(AlarmKind.VOLTAGE to AlarmSeverity.WARNING), tracker.kinds())   // exactly 30 s: still active
+        tracker.cycle(60)                                            // 35 s since the last voltage
+        assertTrue(tracker.active().isEmpty())
+    }
+
+    @Test
+    fun `a coolant alarm ends when its value stops arriving for more than thirty seconds`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..6L) tracker.cycle(s, coolant = 101f)           // warning at 5 s, last value at 6 s
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())
+        for (s in 7L..36L) tracker.cycle(s)                          // rpm keeps arriving, the coolant does not
+        assertEquals(listOf(AlarmKind.COOLANT to AlarmSeverity.WARNING), tracker.kinds())   // exactly 30 s: still active
+        tracker.cycle(37)                                            // 31 s since the last coolant value
+        assertTrue(tracker.active().isEmpty())
+    }
+
+    @Test
+    fun `a missing value for less than thirty seconds keeps an active alarm`() {
+        val tracker = AlarmTracker()
+        for (s in 0L..25L step 5) tracker.cycle(s, volt = 12.0f, coolant = 101f)
+        assertEquals(setOf(AlarmKind.VOLTAGE, AlarmKind.COOLANT), tracker.active().map { it.kind }.toSet())
+        for (s in 30L..55L step 5) tracker.cycle(s)                  // up to exactly 30 s without a value
         assertEquals(setOf(AlarmKind.VOLTAGE, AlarmKind.COOLANT), tracker.active().map { it.kind }.toSet())
     }
 }

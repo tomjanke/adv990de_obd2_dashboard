@@ -4,8 +4,9 @@ internal enum class Breach { BELOW, ABOVE }
 
 /**
  * Ein Dauerkriterium: eine Probenfolge `(nowMs, value)` löst erst aus, wenn die Schwelle [durationMs] lang ununterbrochen verletzt ist. Ein einzelner Ausreißer setzt den Lauf nicht
- * zurück — erst eine Erholung von [RECOVERY_MS] beendet ihn; ein aktiver Alarm erlischt zusätzlich nur, wenn der Wert um [clearMargin] jenseits der Schwelle liegt (Hysterese).
- * Mehr als [GAP_MS] zwischen zwei Proben setzt die Regel zurück (Kontinuität nicht belegt). Reine Logik, die Zeit kommt als Parameter.
+ * zurück — erst eine Erholung von [RECOVERY_MS] beendet ihn. Ein aktiver Alarm erlischt nur, wenn der Wert [RECOVERY_MS] lang um [clearMargin] jenseits der Schwelle liegt (Hysterese);
+ * ein Wert im Haltebereich dazwischen unterbricht diese Zählung. Mehr als [GAP_MS] zwischen zwei Proben setzt die Regel zurück (Kontinuität nicht belegt). Verletzt heißt bei
+ * [Breach.ABOVE] `>=` die Schwelle, bei [Breach.BELOW] `<`. Reine Logik, die Zeit kommt als Parameter.
  */
 internal class SustainedRule(
     private val breach: Breach,
@@ -21,6 +22,8 @@ internal class SustainedRule(
     private var lastSampleAt: Long? = null
 
     fun sample(nowMs: Long, value: Float) {
+        // NaN und Unendlich sind keine Probe: sie dürfen weder die Lücken-Zählung verschieben noch als Erholung zählen.
+        if (!value.isFinite()) return
         val last = lastSampleAt
         if (last != null && nowMs - last > GAP_MS) reset()
         lastSampleAt = nowMs
@@ -31,8 +34,14 @@ internal class SustainedRule(
             return
         }
         if (breachSince == null && !isActive) return
+        // Aktiver Alarm, Wert im Haltebereich (nicht verletzt, aber nicht jenseits der Marge): weder Erholung noch Verletzung.
+        // Ein einzelner Wert dort darf den Alarm nicht sofort auflösen, deshalb unterbricht er die Zählung.
+        if (isActive && !beyondMargin(value)) {
+            recoverySince = null
+            return
+        }
         val recovering = recoverySince ?: nowMs.also { recoverySince = it }
-        if (nowMs - recovering >= RECOVERY_MS && (!isActive || beyondMargin(value))) {
+        if (nowMs - recovering >= RECOVERY_MS) {
             breachSince = null
             recoverySince = null
             isActive = false
