@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -111,6 +112,7 @@ class AlarmBannerDeviceTest {
     private val widthDp = mutableFloatStateOf(0f) // 0 = die ganze Breite des Fensters
     private var acknowledged = 0
     private var locale: Locale = Locale.GERMANY
+    private var titleLargeSp = 0f
 
     private fun resourcesFor(locale: Locale): Resources {
         val base = composeRule.activity
@@ -127,6 +129,7 @@ class AlarmBannerDeviceTest {
                 LocalDensity provides Density(baseDensity.density, fontScale.floatValue),
             ) {
                 AppTheme(colorScheme = scheme.value) {
+                    titleLargeSp = MaterialTheme.typography.titleLarge.fontSize.value
                     val sized = if (widthDp.floatValue > 0f) Modifier.width(widthDp.floatValue.dp) else Modifier.fillMaxWidth()
                     Box(sized) {
                         AlarmBanner(alarm = alarm.value, moreCount = more.intValue, onAcknowledge = { acknowledged++ })
@@ -232,7 +235,7 @@ class AlarmBannerDeviceTest {
     }
 
     @Test
-    fun theBannerIsAtLeast56dpHigh_andTheTouchTargetToo_inEveryLayout() {
+    fun theBannerIsAtLeast72dpHigh_andTheTouchTargetToo_inEveryLayout() {
         show(coolant, moreCount = 1)
 
         for ((name, apply) in listOf<Pair<String, () -> Unit>>(
@@ -244,7 +247,8 @@ class AlarmBannerDeviceTest {
             update(apply)
             val node = banner().fetchSemanticsNode()
             val density = Density(composeRule.activity)
-            val min = MIN_TOUCH_TARGET.value - 0.5f // Rundung auf Pixel
+            val min = ALARM_BANNER_MIN_HEIGHT.value - 0.5f // Rundung auf Pixel
+            assertTrue("das Band ist hoeher als ein Touch-Ziel verlangt", ALARM_BANNER_MIN_HEIGHT >= MIN_TOUCH_TARGET)
             val heightDp = with(density) { node.boundsInRoot.height.toDp() }.value
             val touchHeightDp = with(density) { node.touchBoundsInRoot.height.toDp() }.value
             val touchWidthDp = with(density) { node.touchBoundsInRoot.width.toDp() }.value
@@ -296,10 +300,30 @@ class AlarmBannerDeviceTest {
     private fun description(): String =
         banner().fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString(" ")
 
-    // --- Text nicht abgeschnitten ---
+    // --- Groesse: das Band liegt ueber den Kacheln und muss auffallen ---
 
     @Test
-    fun theTextIsNeitherClippedNorHiddenInANarrowWindowAndAtFontScale13() {
+    fun theMessageIsSetInTheLargeTitleStyle_notTheMediumOne() {
+        show(coolant)
+
+        val textNode = composeRule.onNode(hasText(":", substring = true), useUnmergedTree = true).fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        textNode.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        val size = layouts.single().layoutInput.style.fontSize.value
+
+        assertTrue("Schrift $size sp ist nicht die Groesse von titleLarge ($titleLargeSp sp)", size == titleLargeSp)
+        assertTrue("titleLarge ($titleLargeSp sp) ist groesser als 24 sp", titleLargeSp > 24f)
+    }
+
+    // --- Text nicht abgeschnitten ---
+
+    /**
+     * Die Schrift ist `titleLarge` (26 sp, bei Schriftskala 1,3 rund 34 sp): in einem 360-dp-Fenster passen zwei neue Fehlercodes bei Schriftskala 1,3 nicht mehr in zwei Zeilen — dann folgt „…“ (die
+     * Beschreibung für TalkBack nennt jeden Code). Das ist die **einzige** Kombination, die kürzt; jede andere zeigt den ganzen Text. Zwei Zeilen sind die Grenze: das Band überlagert die Kacheln, mehr Höhe
+     * deckte mehr von ihnen ab.
+     */
+    @Test
+    fun theTextIsNotClippedInANarrowWindowAndAtFontScale13_exceptTwoFaultCodesAtScale13_whichShortenWithAnEllipsis() {
         show(twoFaults, moreCount = 1)
         widthDp.floatValue = 360f
 
@@ -309,6 +333,7 @@ class AlarmBannerDeviceTest {
             val textNode = composeRule.onNode(hasText(":", substring = true), useUnmergedTree = true).fetchSemanticsNode()
             val text = textNode.boundsInRoot
             val label = "Schriftskala $scale, ${expectedAlarm.kind}"
+            val mayEllipsize = scale == 1.3f && expectedAlarm === twoFaults
 
             assertTrue("$label: Textknoten ${text.width} x ${text.height} px", text.width > 0f && text.height > 0f)
             assertTrue("$label: der Text liegt im Band (Text $text, Band $bannerBounds)",
@@ -316,7 +341,7 @@ class AlarmBannerDeviceTest {
             val layouts = mutableListOf<TextLayoutResult>()
             textNode.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
             val layout = layouts.single()
-            assertTrue("$label: der Text ist abgeschnitten (${layout.lineCount} Zeilen, Ueberlauf ${layout.hasVisualOverflow})", !layout.hasVisualOverflow)
+            if (!mayEllipsize) assertTrue("$label: der Text ist abgeschnitten (${layout.lineCount} Zeilen, Ueberlauf ${layout.hasVisualOverflow})", !layout.hasVisualOverflow)
             assertTrue("$label: hoechstens zwei Zeilen, waren ${layout.lineCount}", layout.lineCount <= 2)
         }
     }

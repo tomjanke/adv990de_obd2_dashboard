@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.alarm.Alarm
@@ -45,19 +46,26 @@ import de.adv990de.obd2.ui.theme.asLiveValue
 internal const val ALARM_BANNER_TEST_TAG = "alarm_banner"
 internal const val ALARM_BANNER_MORE_TEST_TAG = "alarm_banner_more"
 
+/**
+ * Mindesthöhe des Bandes: 72 dp (Entscheidung des Nutzers 2026-10-18: „höher mit größerer Schrift“), über dem Touch-Ziel von [MIN_TOUCH_TARGET]. Das Band **überlagert** die Kacheln und schiebt nichts
+ * (s. [AlarmBanner]), die Höhe kostet also keinen Platz im Raster, sondern deckt die obere Kachelkante ab — das Wertefeld einer Kachel (unten) bleibt frei.
+ */
+internal val ALARM_BANNER_MIN_HEIGHT: Dp = 72.dp
+
 /** Die Statusfarbe der Stufe: Warnung rot, Hinweis gelb — dieselbe Bedeutung wie bei den Chips und Kacheln (cross-theme, `StatusColors`), nicht eine feste Farbe an dieser Stelle. */
 private fun alarmStatusColor(severity: AlarmSeverity): Color =
     if (severity == AlarmSeverity.WARNING) StatusColors.Critical else StatusColors.Warning
 
 /**
- * Das Alarmband (Spezifikation „Alarmband“): **eine** volle Zeile über den Kacheln, unter dem Vorschau-Band — der wichtigste Alarm, „+N“ rechts, wenn [moreCount] weitere warten (im
- * Querformat kostet jede Zeile Kachelhöhe, deshalb nie eine Zeile je Alarm). **Ein Tipp** auf irgendeine Stelle quittiert ([onAcknowledge]); das Band ist ein Touch-Ziel von mindestens
- * [MIN_TOUCH_TARGET] Höhe über die ganze Breite (Handschuhe auf dem Motorrad) und wächst bei großer Systemschrift mit dem Text.
+ * Das Alarmband (Spezifikation „Alarmband“): **eine** volle Zeile, die **das Kachelraster am oberen Rand überlagert** und nichts verschiebt (`DashboardScreen`: `Box` um das Raster, das Band zuletzt) —
+ * der wichtigste Alarm, „+N“ rechts, wenn [moreCount] weitere warten (nie eine Zeile je Alarm). **Ein Tipp** auf irgendeine Stelle quittiert ([onAcknowledge]); das Band ist ein Touch-Ziel von
+ * mindestens [ALARM_BANNER_MIN_HEIGHT] Höhe über die ganze Breite (Handschuhe auf dem Motorrad) und wächst bei großer Systemschrift mit dem Text. Die Schrift ist `titleLarge` (wie die Ambient-Statuszeile):
+ * das Band liegt über den Kacheln und muss beim Blick von 0,5 s auffallen.
  *
  * Die Stufe trägt die Farbe, nicht ein Wort: der Hintergrund ist die gedämpfte Statusfläche ([StatusColors.container] über `surface`, in jedem Farbschema — Warnung rot, Hinweis gelb), der Text
  * `onSurface` (Kontrast aus den Bildpunkten geprüft, `AlarmBannerDeviceTest`), das Symbol links in der vollen Statusfarbe (Gelb auf hellem Grund über [StatusColors.warningOn]).
  * Der Text ist der von `alarmMessage` (Benachrichtigung und Band sagen dasselbe), die Zahl darin in der Zahlenschrift ([emphasizeValue]); er nimmt höchstens zwei Zeilen (bei großer Systemschrift
- * oder vielen neuen Fehlercodes), danach folgt „…“ — das Band wächst nicht ohne Grenze auf Kosten der Kacheln, die Beschreibung für TalkBack nennt jeden Code. **Kein Blinken, keine Animation**
+ * oder vielen neuen Fehlercodes), danach folgt „…“ — das Band wächst nicht ohne Grenze und deckt nicht mehr Kachel ab als nötig, die Beschreibung für TalkBack nennt jeden Code. **Kein Blinken, keine Animation**
  * (Animationsdisziplin: Auffälligkeit durch Farbe, Größe und Platz); das Band hält keinen eigenen Zustand — kommt und geht mit dem Alarm.
  *
  * TalkBack: `liveRegion = Assertive` sagt einen neuen Alarm an, die Beschreibung nennt Stufe und Text und sagt, dass ein Tipp quittiert; „Alarm quittieren“ ist die Bezeichnung des Tipps. Der
@@ -79,7 +87,7 @@ internal fun AlarmBanner(
     val surface = MaterialTheme.colorScheme.surface
     val container = StatusColors.container(alarmStatusColor(alarm.severity), surface)
     val accent = if (alarm.severity == AlarmSeverity.WARNING) StatusColors.Critical else StatusColors.warningOn(surface)
-    val titleStyle = MaterialTheme.typography.titleMedium
+    val titleStyle = MaterialTheme.typography.titleLarge
     val styledMessage = emphasizeValue(message, alarmValueText(alarm), titleStyle.asLiveValue().toSpanStyle())
 
     // Die Reihenfolge ist Absicht und weicht von "padding vor background" ab: der Rand liegt INNEN, hinter dem clickable — Fläche und Trefferfläche sind das ganze Band,
@@ -87,7 +95,7 @@ internal fun AlarmBanner(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = MIN_TOUCH_TARGET)
+            .heightIn(min = ALARM_BANNER_MIN_HEIGHT)
             .background(container, RectangleShape)
             .clickable(onClickLabel = acknowledgeLabel, role = Role.Button, onClick = onAcknowledge)
             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -100,7 +108,7 @@ internal fun AlarmBanner(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Dekorativ: die Stufe und der Text stehen in der Beschreibung des Bandes.
-        Icon(Icons.Default.Warning, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+        Icon(Icons.Default.Warning, contentDescription = null, tint = accent, modifier = Modifier.size(32.dp))
         Text(
             text = styledMessage,
             style = titleStyle,

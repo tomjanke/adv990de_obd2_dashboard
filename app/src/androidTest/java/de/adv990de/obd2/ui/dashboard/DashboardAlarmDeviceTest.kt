@@ -79,8 +79,8 @@ import kotlin.math.pow
 
 /**
  * Das Alarmband im **echten** Dashboard (Hilt, echtes `DashboardViewModel` mit gespielten `livePids`): ein Alarm erscheint als Band, der Tipp quittiert, zwei Alarme zeigen den wichtigeren mit
- * „+1“, und die Kachelreihe schrumpft unter dem Band nicht unter die dokumentierte Mindesthoehe — im Quer- UND im Hochformat, auch gestapelt mit dem Vorschau-Band (ohne Verbindung) und mit der
- * Gelaende-Kachel. Der Alarm entsteht aus Messwerten (Kuehlmittel ab 100 °C ueber 5 s, Spannung unter 12,2 V ueber 10 s nach 15 s Einschwingzeit), nicht aus einem eingespielten `Alarm`: der ganze
+ * „+1“, und das Band **ueberlagert** die obere Kante des Kachelrasters, ohne irgendetwas zu verschieben: die Kachelreihe hat mit Band dieselbe Hoehe und Lage wie ohne — im Quer- UND im
+ * Hochformat, auch gestapelt mit dem Vorschau-Band (ohne Verbindung) und mit der Gelaende-Kachel; die Werte der Kacheln (unten) bleiben unter dem Band sichtbar. Der Alarm entsteht aus Messwerten (Kuehlmittel ab 100 °C ueber 5 s, Spannung unter 12,2 V ueber 10 s nach 15 s Einschwingzeit), nicht aus einem eingespielten `Alarm`: der ganze
  * Weg Pipeline → ViewModel → Controller → Band laeuft. Einzige Ausnahme sind die Faelle ohne Verbindung: ein Fehler-Alarm ueberlebt das Ende der Sitzung (Absicht, `AlarmTracker.onSessionEnded`),
  * und der Test erzeugt ihn ueber den oeffentlichen Weg des Controllers (`onFaultCodes`: Basis, dann zwei Auslesungen mit einem neuen Code — so wie die Pipeline es meldet).
  *
@@ -88,11 +88,6 @@ import kotlin.math.pow
  * Hand, statt Sekunden zu warten — und wartet, bis das ViewModel den Zyklus verarbeitet hat, bevor er die Uhr weiterstellt (sonst sähe dieser Zyklus schon die neue Zeit). Die Benachrichtigung ist eine
  * Attrappe (`@UninstallModules(AlarmModule)`, wie `DashboardTerrainSlotTest` fuer `TerrainModule`): sie zeichnet `show`/`clear` auf, damit der Test sieht, was das Quittieren an sie meldet. Der
  * `AlarmController` kommt als `@BindValue` aus dem Test (mit dieser Attrappe), damit der Test ihm vor dem Start des Dashboards einen Fehler-Alarm geben kann.
- *
- * **Bewusst nicht abgedeckt — gemessen am 2026-10-18 (Pixel 8 Pro, Querformat, Tankzeile 40 dp, Menue-Ersatz 65 dp), Entscheidung offen:** (1) Vorschau-Band MIT Grundzeile + Fehler-Alarm: die Kachel ist
- * 105,3 dp hoch (161,3 dp ohne Band), unter den 120 dp; (2) Gelaende-Kachel unter dem Band: die Kachel ist 156,0 dp hoch, aber das Peilungs-Feld nur 16,0 dp (24,0 dp ohne Band) fuer eine
- * 24 dp hohe Textzeile — das Textlayout meldet Ueberlauf, die Zeichen selbst sind vollstaendig (die unterste Tintenzeile liegt 3 Bildpunkte, rund 1 dp, ueber dem Feldrand, ohne Band dieselbe), bei
- * groesserer Systemschrift wuerde sie geschnitten. Im Hochformat halten beide Faelle (170 dp). Solange das offen ist, steht hier kein Test, der es als in Ordnung festschriebe.
  */
 @HiltAndroidTest
 @UninstallModules(AlarmModule::class, TerrainModule::class)
@@ -299,15 +294,21 @@ class DashboardAlarmDeviceTest {
         )
     }
 
-    // --- Platz: die Kachelreihe schrumpft, bleibt aber mindestens so hoch wie dokumentiert ---
+    // --- Platz: das Band ueberlagert die Kachelreihe, nichts verschiebt sich ---
 
-    private fun coolantTile() = composeRule.onNode(
-        hasContentDescription(composeRule.activity.getString(R.string.pid_coolant_temp) + ": ", substring = true),
+    /**
+     * Die Kachel in der **oberen** Reihe (Slot 0, Drehzahl): das Band liegt auf der oberen Kante des Rasters — im Querformat ist das die einzige Reihe, im Hochformat die erste von zwei. Die Kachel
+     * darunter (Hochformat, zweite Reihe) liegt ganz ausserhalb des Bandes.
+     */
+    private fun topTile() = composeRule.onNode(
+        hasContentDescription(composeRule.activity.getString(R.string.pid_rpm) + ": ", substring = true),
     )
 
-    private fun dp(px: Float) = with(Density(composeRule.activity)) { px.toDp() }.value
+    /** Der Wert der oberen Kachel (die Zahl "2500", nicht der Bandtext): er liegt unten in der Kachel. */
+    private fun topTileValueBounds(): Rect =
+        composeRule.onAllNodes(hasText("2500"), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInRoot
 
-    private fun heightDp(node: SemanticsNodeInteraction): Float = fetchBounds(node).let { dp(it.bottom - it.top) }
+    private fun dp(px: Float) = with(Density(composeRule.activity)) { px.toDp() }.value
 
     private fun fetchBounds(node: SemanticsNodeInteraction): Rect = node.fetchSemanticsNode().boundsInRoot
 
@@ -316,58 +317,71 @@ class DashboardAlarmDeviceTest {
         appPreferences.setFuelKmSinceFill(40f)
     }
 
-    private fun logHeights(label: String, withoutBanner: Float, withBanner: Float, banner: Float) =
-        Log.i("DashboardAlarmHeights", "$label: Kachel ohne Band %.1f dp, mit Band %.1f dp, Band %.1f dp".format(withoutBanner, withBanner, banner))
+    private fun logGeometry(label: String, tileWithout: Rect, tileWith: Rect, banner: Rect) =
+        Log.i(
+            "DashboardAlarmHeights",
+            "$label: Kachel ohne Band %.1f dp (oben %.1f), mit Band %.1f dp (oben %.1f), Band %.1f dp (oben %.1f, unten %.1f)"
+                .format(dp(tileWithout.height), dp(tileWithout.top), dp(tileWith.height), dp(tileWith.top), dp(banner.height), dp(banner.top), dp(banner.bottom)),
+        )
+
+    /** "Nichts verschiebt sich": Lage und Hoehe der Kachel mit Band sind die ohne Band (auf einen Bildpunkt genau), und die Kachel hat mindestens die dokumentierte Hoehe. */
+    private fun assertTileDidNotMove(label: String, without: Rect, with: Rect) {
+        assertEquals("$label: die Kachel steht mit Band an einer anderen Stelle (ohne $without, mit $with)", without.top, with.top, 1f)
+        assertEquals("$label: die Kachel hat mit Band eine andere Hoehe (ohne $without, mit $with)", without.height, with.height, 1f)
+        assertTrue("$label: die Kachel ist ${dp(with.height)} dp hoch, erwartet mindestens ${MIN_TILE_DP.toInt()}", dp(with.height) >= MIN_TILE_DP)
+    }
+
+    /** Das Band liegt auf der oberen Kante der Kachel (ueberlagert sie), ist mindestens [ALARM_BANNER_MIN_HEIGHT] hoch und laesst den unteren Teil der Kachel frei. */
+    private fun assertBannerSitsOnTheTopEdge(label: String, banner: Rect, tile: Rect) {
+        assertEquals("$label: das Band liegt nicht auf der oberen Kante der Kachel (Band $banner, Kachel $tile)", tile.top, banner.top, 1f)
+        assertTrue("$label: das Band ist ${dp(banner.height)} dp hoch, erwartet mindestens ${ALARM_BANNER_MIN_HEIGHT.value.toInt()}", dp(banner.height) >= ALARM_BANNER_MIN_HEIGHT.value - 0.5f)
+        assertTrue("$label: das Band ueberlagert die Kachel, es steht nicht daneben (Band $banner, Kachel $tile)", banner.bottom > tile.top + 1f && banner.bottom < tile.bottom)
+    }
 
     /**
-     * Misst die Kachelreihe ohne und mit Band (und mit Tankzeile): die Kachel muss mit dem Band mindestens [MIN_TILE_DP] hoch bleiben; Band, Kachel und Tankzeile stehen in dieser
-     * Reihenfolge uebereinander. Die gemessenen Hoehen gehen ins Log (Tag `DashboardAlarmHeights`) — sie stehen im Bericht, nicht nur in einer Schwelle.
+     * Misst die Kachelreihe ohne und mit Band (und mit Tankzeile): mit dem Band ist die Kachel genauso hoch und steht an derselben Stelle (das Band ueberlagert sie), das Band liegt auf ihrer oberen Kante,
+     * der **Wert** der Kachel liegt unter dem Band (er bleibt ablesbar), und Kachel und Tankzeile stehen in dieser Reihenfolge uebereinander. Die gemessenen Masse gehen ins Log (Tag
+     * `DashboardAlarmHeights`) — sie stehen im Bericht, nicht nur in einer Schwelle.
      */
-    private fun checkTilesStayVisibleUnderTheBanner(label: String) {
+    private fun checkBannerOverlaysTheTiles(label: String) {
         giveTheDashboardAFuelRow()
         launch()
         cycle(atMs = 1_000, coolantC = 105f)
-        coolantTile().assertIsDisplayed()
+        topTile().assertIsDisplayed()
         composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-        val heightBefore = heightDp(coolantTile())
+        val tileWithout = fetchBounds(topTile())
 
         cycle(atMs = 7_000, coolantC = 105f)
         waitForBanner()
 
-        assertTileUnderTheBanner(label, heightBefore)
-    }
-
-    /** Die gemeinsame Pruefung: Band, Kachel und Tankzeile in der Reihenfolge, das Band 56 dp, die Kachel mit dem Band mindestens [MIN_TILE_DP] und um hoechstens die Bandhoehe kleiner. */
-    private fun assertTileUnderTheBanner(label: String, heightWithoutBanner: Float) {
         val banner = fetchBounds(composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG))
-        val tile = fetchBounds(coolantTile())
+        val tileWith = fetchBounds(topTile())
         val fuel = fetchBounds(composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG))
-        val heightWith = dp(tile.bottom - tile.top)
-        val bannerDp = dp(banner.bottom - banner.top)
-        logHeights(label, heightWithoutBanner, heightWith, bannerDp)
+        val value = topTileValueBounds()
+        logGeometry(label, tileWithout, tileWith, banner)
+        Log.i("DashboardAlarmHeights", "$label: Wert der Kachel oben %.1f dp, Band unten %.1f dp".format(dp(value.top), dp(banner.bottom)))
 
-        coolantTile().assertIsDisplayed()
         composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG).assertIsDisplayed()
+        topTile().assertIsDisplayed()
         composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).assertIsDisplayed()
-        assertTrue("$label: Band ($banner) liegt ueber der Kachel ($tile)", banner.bottom <= tile.top + 1f)
-        assertTrue("$label: Kachel ($tile) liegt ueber der Tankzeile ($fuel)", tile.bottom <= fuel.top + 1f)
-        assertTrue("$label: das Band ist mindestens 56 dp hoch, war $bannerDp", bannerDp >= 55.5f)
-        assertTrue("$label: die Kachel bleibt mit dem Band mindestens ${MIN_TILE_DP.toInt()} dp hoch, war $heightWith (ohne Band $heightWithoutBanner)", heightWith >= MIN_TILE_DP)
-        assertTrue("$label: das Band nimmt der Kachel hoechstens seine eigene Hoehe: $heightWithoutBanner -> $heightWith", heightWithoutBanner - heightWith <= bannerDp + 1f)
+        assertTileDidNotMove(label, tileWithout, tileWith)
+        assertBannerSitsOnTheTopEdge(label, banner, tileWith)
+        assertTrue("$label: der Wert der Kachel ($value) liegt unter dem Band (unten ${banner.bottom})", value.top >= banner.bottom - 1f)
+        assertTrue("$label: Kachel ($tileWith) liegt ueber der Tankzeile ($fuel)", tileWith.bottom <= fuel.top + 1f)
     }
 
     @Test
-    fun inLandscape_theTilesStayVisibleUnderTheBanner() {
+    fun inLandscape_theBannerOverlaysTheTilesWithoutMovingThem() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 
-        checkTilesStayVisibleUnderTheBanner("Querformat")
+        checkBannerOverlaysTheTiles("Querformat")
     }
 
     @Test
-    fun inPortrait_theTilesStayVisibleUnderTheBanner() {
+    fun inPortrait_theBannerOverlaysTheTilesWithoutMovingThem() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
 
-        checkTilesStayVisibleUnderTheBanner("Hochformat")
+        checkBannerOverlaysTheTiles("Hochformat")
     }
 
     // --- Gestapelt: Vorschau-Band (ohne Verbindung) + ein Fehler-Alarm, der das Ende der Sitzung ueberlebt ---
@@ -397,8 +411,8 @@ class DashboardAlarmDeviceTest {
         every { obdRepository.livePids(any()) } returns flow { throw BluetoothException.ConnectionFailed("test") }
     }
 
-    /** Misst im Zustand "Fehler-Alarm ohne Sitzung" die Kachel mit Band und, nach dem Quittieren, ohne Band — im selben Zustand des Vorschau-Bandes. */
-    private fun checkTilesUnderTheBannerWithThePreviewBand(label: String, withReason: Boolean) {
+    /** Misst im Zustand "Fehler-Alarm ohne Sitzung" die Kachel mit Band und, nach dem Quittieren, ohne Band — im selben Zustand des Vorschau-Bandes: sie steht an derselben Stelle und ist gleich hoch. */
+    private fun checkBannerOverlaysTheTilesWithThePreviewBand(label: String, withReason: Boolean) {
         giveTheDashboardAFuelRow()
         givenAPersistingFaultAlarm()
         if (withReason) givenAFailedConnection() else givenOffline()
@@ -413,15 +427,16 @@ class DashboardAlarmDeviceTest {
         }
         composeRule.waitForIdle()
         val banner = fetchBounds(composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG))
-        val withBanner = heightDp(coolantTile())
+        val tileWith = fetchBounds(topTile())
 
         composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG).performClick()
         waitForNoBanner()
         composeRule.waitForIdle()
-        val withoutBanner = heightDp(coolantTile())
+        val tileWithout = fetchBounds(topTile())
 
-        logHeights(label, withoutBanner, withBanner, dp(banner.bottom - banner.top))
-        assertTrue("$label: die Kachel bleibt mit dem Band mindestens ${MIN_TILE_DP.toInt()} dp hoch, war $withBanner (ohne Band $withoutBanner)", withBanner >= MIN_TILE_DP)
+        logGeometry(label, tileWithout, tileWith, banner)
+        assertTileDidNotMove(label, tileWithout, tileWith)
+        assertBannerSitsOnTheTopEdge(label, banner, tileWith)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteractionCollection.assertCountAtLeastOne() {
@@ -429,24 +444,31 @@ class DashboardAlarmDeviceTest {
     }
 
     @Test
-    fun inLandscape_withThePreviewBandAndAPersistingFaultAlarm_theTilesStayVisible() {
+    fun inLandscape_withThePreviewBandAndAPersistingFaultAlarm_theBannerOverlaysWithoutMovingTheTiles() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 
-        checkTilesUnderTheBannerWithThePreviewBand("Querformat, Vorschau-Band + Fehler-Alarm", withReason = false)
+        checkBannerOverlaysTheTilesWithThePreviewBand("Querformat, Vorschau-Band + Fehler-Alarm", withReason = false)
     }
 
     @Test
-    fun inPortrait_withThePreviewBandAndAPersistingFaultAlarm_theTilesStayVisible() {
+    fun inPortrait_withThePreviewBandAndAPersistingFaultAlarm_theBannerOverlaysWithoutMovingTheTiles() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
 
-        checkTilesUnderTheBannerWithThePreviewBand("Hochformat, Vorschau-Band + Fehler-Alarm", withReason = false)
+        checkBannerOverlaysTheTilesWithThePreviewBand("Hochformat, Vorschau-Band + Fehler-Alarm", withReason = false)
     }
 
     @Test
-    fun inPortrait_withThePreviewBandItsReasonLineAndAPersistingFaultAlarm_theTilesStayVisible() {
+    fun inPortrait_withThePreviewBandItsReasonLineAndAPersistingFaultAlarm_theBannerOverlaysWithoutMovingTheTiles() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
 
-        checkTilesUnderTheBannerWithThePreviewBand("Hochformat, Vorschau-Band + Grund + Fehler-Alarm", withReason = true)
+        checkBannerOverlaysTheTilesWithThePreviewBand("Hochformat, Vorschau-Band + Grund + Fehler-Alarm", withReason = true)
+    }
+
+    @Test
+    fun inLandscape_withThePreviewBandItsReasonLineAndAPersistingFaultAlarm_theBannerOverlaysWithoutMovingTheTiles() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+
+        checkBannerOverlaysTheTilesWithThePreviewBand("Querformat, Vorschau-Band + Grund + Fehler-Alarm", withReason = true)
     }
 
     // --- Gelaende-Kachel unter dem Band ---
@@ -538,6 +560,7 @@ class DashboardAlarmDeviceTest {
         for ((name, rect) in fields) assertInside(rect, tile, name)
         val altitude = fields[0].second; val rose = fields[1].second; val headingBox = fields[2].second; val graph = fields[3].second; val grade = fields[4].second
         assertTrue("$label: Kachel mit Band ${tileWithBanner} dp, erwartet mindestens ${MIN_TILE_DP.toInt()}", tileWithBanner >= MIN_TILE_DP)
+        assertEquals("$label: die Gelaende-Kachel ist mit Band anders hoch als ohne", tileWithoutBanner, tileWithBanner, 0.5f)
         assertTrue("$label: Windrose ${rose.width} x ${rose.height} dp ist nicht quadratisch", abs(rose.width - rose.height) < 1f)
         assertTrue("$label: Windrose ${rose.width} dp ist zu klein oder zu gross", rose.width in 66f..78f)
         assertTrue("$label: Hoehe ist zusammengedrueckt: ${altitude.height} dp", altitude.height >= 20f)
@@ -562,6 +585,13 @@ class DashboardAlarmDeviceTest {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
 
         checkTerrainTileUnderTheBanner("Hochformat")
+    }
+
+    @Test
+    fun inLandscape_theTerrainTileKeepsEveryFieldUnderTheBanner() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+
+        checkTerrainTileUnderTheBanner("Querformat")
     }
 
     private companion object {

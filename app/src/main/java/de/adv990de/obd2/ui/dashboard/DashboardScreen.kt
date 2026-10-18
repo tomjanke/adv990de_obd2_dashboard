@@ -254,19 +254,6 @@ fun DashboardScreen(
                 DashboardPhase.Live -> Unit
             }
 
-            // ── Alarmband ─────────────────────────────────────────────
-            // Direkt unter dem Vorschau-Band, ueber den Kacheln: der wichtigste Alarm als volle Zeile (56 dp), "+N" fuer weitere, ein Tipp quittiert. Weight(1f) hat die
-            // Huelle (Column) um das Kachelraster, nicht die Kachelreihe: die Reihe hat eine feste height(tileHeight), die Compose auf die Hoehe klemmt, die die Huelle uebrig
-            // laesst — das Band nimmt also dem Raster Hoehe, und die Reihe schrumpft mit (im Querformat wie bei der Tankzeile: die 200 dp sind nur eine Obergrenze).
-            alarms.firstOrNull()?.let { alarm ->
-                AlarmBanner(
-                    alarm = alarm,
-                    moreCount = alarms.size - 1,
-                    onAcknowledge = { vm.acknowledgeAlarm(alarm.kind) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
             // ── Sensor grid ───────────────────────────────────────────
             // Feste Kachelhoehen statt weight(1f): zuvor dehnten sich die Kacheln ueber die
             // gesamte Resthoehe, wodurch Label (oben links) und Wert (unten rechts) mehrere
@@ -280,62 +267,74 @@ fun DashboardScreen(
             // Atemraum zwischen Label und Sparkline/Wert, nicht zusaetzlicher Inhalt — eine
             // zweite Kachel-Reihe waere der groessere Eingriff gewesen.
             val tileHeight = if (isLandscape) 200.dp else 170.dp
-            Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                if (isLandscape) {
-                    // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
-                    // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
-                    Row(
-                        modifier = Modifier.fillMaxWidth().height(tileHeight)
-                            .background(MaterialTheme.colorScheme.outlineVariant),
-                        horizontalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        repeat(4) { i ->
-                            DashboardSlot(
-                                slotPid = slotPids.getOrNull(i),
-                                reading = slots[i],
-                                state = state,
-                                terrain = terrain,
-                                useImperial = useImperial,
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
-                                placeholderRes = slotPlaceholderRes(
-                                    slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
-                                ),
-                                isLive = isLive,
-                                onLongPress = { pickerSlot = i }
-                            )
+            // Alarmband: ueberlagert die obere Kante des Rasters und verschiebt NICHTS (Entscheidung des Nutzers 2026-10-18; vorher eine eigene Zeile, die den Kacheln Hoehe nahm und im
+            // Querformat bis auf 105 dp druecken konnte). Das Band steht nach dem Raster in der Box und liegt damit darueber; das Wertefeld jeder Kachel liegt unterhalb (Test).
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (isLandscape) {
+                        // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
+                        // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(tileHeight)
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                            horizontalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            repeat(4) { i ->
+                                DashboardSlot(
+                                    slotPid = slotPids.getOrNull(i),
+                                    reading = slots[i],
+                                    state = state,
+                                    terrain = terrain,
+                                    useImperial = useImperial,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    placeholderRes = slotPlaceholderRes(
+                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
+                                    ),
+                                    isLive = isLive,
+                                    onLongPress = { pickerSlot = i }
+                                )
+                            }
                         }
-                    }
-                } else {
-                    // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.outlineVariant),
-                        verticalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        repeat(2) { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().height(tileHeight),
-                                horizontalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                repeat(2) { col ->
-                                    val i = row * 2 + col
-                                    DashboardSlot(
-                                        slotPid = slotPids.getOrNull(i),
-                                        reading = slots[i],
-                                        state = state,
-                                        terrain = terrain,
-                                        useImperial = useImperial,
-                                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                                        placeholderRes = slotPlaceholderRes(
-                                            slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
-                                        ),
-                                        isLive = isLive,
-                                        onLongPress = { pickerSlot = i }
-                                    )
+                    } else {
+                        // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            repeat(2) { row ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().height(tileHeight),
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
+                                    repeat(2) { col ->
+                                        val i = row * 2 + col
+                                        DashboardSlot(
+                                            slotPid = slotPids.getOrNull(i),
+                                            reading = slots[i],
+                                            state = state,
+                                            terrain = terrain,
+                                            useImperial = useImperial,
+                                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                                            placeholderRes = slotPlaceholderRes(
+                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
+                                            ),
+                                            isLive = isLive,
+                                            onLongPress = { pickerSlot = i }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+                }
+                alarms.firstOrNull()?.let { alarm ->
+                    AlarmBanner(
+                        alarm = alarm,
+                        moreCount = alarms.size - 1,
+                        onAcknowledge = { vm.acknowledgeAlarm(alarm.kind) },
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
                 }
             }
             // Ganz unten im Dashboard, direkt ueber dem Hauptmenue bzw. der Statuszeile (die Kachelreihe oben nimmt die Resthoehe,
