@@ -10,6 +10,8 @@ internal class ThresholdAlarm(
         private set
 
     fun sample(nowMs: Long, value: Float) {
+        // NaN und Unendlich sind keine Probe (wie in `SustainedRule`): sie ersetzen auch nicht die letzte Zahl der Anzeige.
+        if (!value.isFinite()) return
         lastValue = value
         warning.sample(nowMs, value)
         notices.forEach { it.sample(nowMs, value) }

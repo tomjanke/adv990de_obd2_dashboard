@@ -163,6 +163,17 @@ class FaultCodeWatcherTest {
     }
 
     @Test
+    fun `a new baseline discards the candidates of the earlier session`() {
+        val watcher = FaultCodeWatcher()
+        watcher.onRead(emptyList(), isBaseline = true)
+        assertTrue(watcher.onRead(listOf(c("P0301")), false).isEmpty())          // first sighting: a candidate
+        watcher.onRead(emptyList(), isBaseline = true)                            // a new session starts with a new baseline
+
+        assertTrue("the old candidate must not confirm in the new session", watcher.onRead(listOf(c("P0301")), false).isEmpty())
+        assertEquals(listOf(FaultFinding("P0301", false)), watcher.onRead(listOf(c("P0301")), false))
+    }
+
+    @Test
     fun `reset forgets the baseline`() {
         val watcher = FaultCodeWatcher()
         watcher.onRead(listOf(c("P0301")), isBaseline = true)

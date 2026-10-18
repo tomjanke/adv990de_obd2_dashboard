@@ -82,15 +82,6 @@ class AppPreferences @Inject constructor(
         )
         private val KEY_OBD_WATCHDOG_TIMEOUT_SECONDS = intPreferencesKey("obd_watchdog_timeout_seconds")
         private val KEY_RECONNECT_BASE_DELAY_SECONDS = intPreferencesKey("reconnect_base_delay_seconds")
-        // Alarme (s. de.adv990de.obd2.alarm): die Namen sind persistierter Zustand (DataStore) — nie umbenennen oder mit anderer Bedeutung
-        // wiederverwenden, sonst faellt die Einstellung bei jedem Nutzer still auf den Standard zurueck (AlarmPreferencesTest haelt sie fest).
-        private val KEY_ALARM_VOLTAGE_ENABLED = booleanPreferencesKey("alarm_voltage_enabled")
-        private val KEY_ALARM_COOLANT_ENABLED = booleanPreferencesKey("alarm_coolant_enabled")
-        private val KEY_ALARM_FAULTS_ENABLED = booleanPreferencesKey("alarm_faults_enabled")
-        private val KEY_ALARM_VOLTAGE_NOTICE_DV = intPreferencesKey("alarm_voltage_notice_dv")
-        private val KEY_ALARM_VOLTAGE_WARNING_DV = intPreferencesKey("alarm_voltage_warning_dv")
-        private val KEY_ALARM_COOLANT_NOTICE_C = intPreferencesKey("alarm_coolant_notice_c")
-        private val KEY_ALARM_COOLANT_WARNING_C = intPreferencesKey("alarm_coolant_warning_c")
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT  = "light"
@@ -389,73 +380,20 @@ class AppPreferences @Inject constructor(
     }
 
     // ── Alarme (Spannung, Kuehlmittel, Fehlercodes unterwegs — s. de.adv990de.obd2.alarm) ───
+    // Schluessel, Lesen und Schreiben stehen in [AlarmPreferences] (herausgeloest: diese Datei war auf 461 Zeilen gewachsen); hier nur der unveraenderte oeffentliche Weg.
 
-    /**
-     * Alle Alarm-Einstellungen als ein Wert: Der Alarm-Tracker braucht sie immer zusammen, und ein einziger Fluss stellt sicher, dass
-     * er nie einen halb geaenderten Satz sieht. Die vier Schwellen sind Werte aus den Auswahllisten von [AlarmSettings] — ein
-     * gespeicherter Wert ausserhalb (nur von Hand oder aus einer spaeteren Aenderung der Liste moeglich) wird beim LESEN auf die
-     * naechste Option gesetzt ([snapToOption], Gleichstand: die groessere), ohne Migration und ohne Zurueckschreiben, genau wie beim
-     * [obdWatchdogTimeoutSeconds]. Ohne gespeicherte Werte gilt `AlarmSettings()` (alle drei Alarme an).
-     *
-     * `distinctUntilChanged`: DataStore emittiert bei jedem Schreibvorgang, auch fuer fremde Schluessel (Theme, Einheiten); ohne das
-     * liefe der Tracker bei jedem davon mit unveraenderten Werten erneut an.
-     */
-    val alarmSettings: Flow<AlarmSettings> = data.map { prefs ->
-        AlarmSettings(
-            voltageEnabled = prefs[KEY_ALARM_VOLTAGE_ENABLED] ?: true,
-            coolantEnabled = prefs[KEY_ALARM_COOLANT_ENABLED] ?: true,
-            faultsEnabled = prefs[KEY_ALARM_FAULTS_ENABLED] ?: true,
-            voltageNoticeDeciV = snapToOption(
-                prefs[KEY_ALARM_VOLTAGE_NOTICE_DV] ?: AlarmSettings.DEFAULT_VOLTAGE_NOTICE_DV,
-                AlarmSettings.VOLTAGE_NOTICE_OPTIONS_DV,
-            ),
-            voltageWarningDeciV = snapToOption(
-                prefs[KEY_ALARM_VOLTAGE_WARNING_DV] ?: AlarmSettings.DEFAULT_VOLTAGE_WARNING_DV,
-                AlarmSettings.VOLTAGE_WARNING_OPTIONS_DV,
-            ),
-            coolantNoticeC = snapToOption(
-                prefs[KEY_ALARM_COOLANT_NOTICE_C] ?: AlarmSettings.DEFAULT_COOLANT_NOTICE_C,
-                AlarmSettings.COOLANT_NOTICE_OPTIONS_C,
-            ),
-            coolantWarningC = snapToOption(
-                prefs[KEY_ALARM_COOLANT_WARNING_C] ?: AlarmSettings.DEFAULT_COOLANT_WARNING_C,
-                AlarmSettings.COOLANT_WARNING_OPTIONS_C,
-            ),
-        )
-    }.distinctUntilChanged()
+    private val alarms = AlarmPreferences(dataStore, data)
 
-    suspend fun setAlarmVoltageEnabled(enabled: Boolean) {
-        dataStore.edit { it[KEY_ALARM_VOLTAGE_ENABLED] = enabled }
-    }
+    /** Alle Alarm-Einstellungen als ein Wert (s. [AlarmPreferences.settings]); ohne gespeicherte Werte gilt `AlarmSettings()` (alle drei Alarme an). */
+    val alarmSettings: Flow<AlarmSettings> = alarms.settings
 
-    suspend fun setAlarmCoolantEnabled(enabled: Boolean) {
-        dataStore.edit { it[KEY_ALARM_COOLANT_ENABLED] = enabled }
-    }
+    suspend fun setAlarmVoltageEnabled(enabled: Boolean) = alarms.setVoltageEnabled(enabled)
+    suspend fun setAlarmCoolantEnabled(enabled: Boolean) = alarms.setCoolantEnabled(enabled)
+    suspend fun setAlarmFaultsEnabled(enabled: Boolean) = alarms.setFaultsEnabled(enabled)
 
-    suspend fun setAlarmFaultsEnabled(enabled: Boolean) {
-        dataStore.edit { it[KEY_ALARM_FAULTS_ENABLED] = enabled }
-    }
-
-    // Die Schwellen werden unveraendert gespeichert: das Einstellungs-UI bietet nur Listenwerte an, ein anderer Wert wuerde ohnehin
-    // beim Lesen auf die naechste Option gesetzt (wie bei setObdWatchdogTimeoutSeconds).
-
-    /** Spannung in Zehntelvolt (125 = 12,5 V), unter der ein Hinweis (gelb) kommt. */
-    suspend fun setAlarmVoltageNoticeDeciV(value: Int) {
-        dataStore.edit { it[KEY_ALARM_VOLTAGE_NOTICE_DV] = value }
-    }
-
-    /** Spannung in Zehntelvolt, unter der eine Warnung (rot) kommt. */
-    suspend fun setAlarmVoltageWarningDeciV(value: Int) {
-        dataStore.edit { it[KEY_ALARM_VOLTAGE_WARNING_DV] = value }
-    }
-
-    /** Kuehlmitteltemperatur in °C, ab der ein Hinweis (gelb) kommt. */
-    suspend fun setAlarmCoolantNoticeC(value: Int) {
-        dataStore.edit { it[KEY_ALARM_COOLANT_NOTICE_C] = value }
-    }
-
-    /** Kuehlmitteltemperatur in °C, ab der eine Warnung (rot) kommt. */
-    suspend fun setAlarmCoolantWarningC(value: Int) {
-        dataStore.edit { it[KEY_ALARM_COOLANT_WARNING_C] = value }
-    }
+    // Schwellen: Spannung in Zehntelvolt (125 = 12,5 V), darunter kommt ein Hinweis (gelb) bzw. eine Warnung (rot); Kuehlmittel in °C, ab dem ein Hinweis bzw. eine Warnung kommt.
+    suspend fun setAlarmVoltageNoticeDeciV(value: Int) = alarms.setVoltageNoticeDeciV(value)
+    suspend fun setAlarmVoltageWarningDeciV(value: Int) = alarms.setVoltageWarningDeciV(value)
+    suspend fun setAlarmCoolantNoticeC(value: Int) = alarms.setCoolantNoticeC(value)
+    suspend fun setAlarmCoolantWarningC(value: Int) = alarms.setCoolantWarningC(value)
 }

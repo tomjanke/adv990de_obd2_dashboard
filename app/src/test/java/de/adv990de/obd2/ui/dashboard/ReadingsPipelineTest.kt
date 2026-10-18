@@ -1434,20 +1434,23 @@ class ReadingsPipelineTest {
     }
 
     @Test
-    fun `a lost link on a connection that stayed up ends the watch quietly - no reconnect, no log line`() = runTest {
+    fun `a lost link on a connection that stayed up does not end the watch - no reconnect, no log line, it reads again next minute`() = runTest {
         // readDtcsOrSkip() scheitert mit ConnectionLost, doch isConnectedFlow bleibt true und der Zaehler der Nutzer-Trennungen steht:
-        // die Verbindung wurde ersetzt (ein anderer Leser trennte die alte), die neue startet ohnehin eine neue Sitzung.
+        // die Verbindung wurde ersetzt (ein anderer Leser trennte die alte). Faellt die Sitzung dadurch nicht ohnehin zusammen (das
+        // Zwischen-"getrennt" eines StateFlow kann verschluckt werden), liest die Wache ueber die neue Verbindung weiter — ein Ende
+        // liesse den Rest der Sitzung ohne Fehlerwache.
         val repo = openSessionRepo()
         coEvery { repo.readDtcsOrSkip() } throws ObdException.ConnectionLost()
         val logRepo = mockk<AppLogRepository>(relaxed = true)
         val events = collectAll(makePipeline(repo, logRepo = logRepo))
 
         advanceTo(watchMs)
-        advanceTo(10 * watchMs)
+        coVerify(exactly = 1) { repo.readDtcsOrSkip() }
+        advanceTo(2 * watchMs)
 
         assertTrue("kein Reconnect-Ausloeser fuer eine ersetzte Verbindung: $events", events.none { it == SessionEvent.ConnectionLost })
         coVerify(exactly = 0) { logRepo.log(any(), match { it.contains("Periodic fault-code read") }) }
-        coVerify(exactly = 1) { repo.readDtcsOrSkip() }               // die Wache ist beendet, sie liest nicht weiter
+        coVerify(exactly = 2) { repo.readDtcsOrSkip() }               // die Wache lebt: sie liest in der naechsten Minute wieder
         assertTrue("die Sitzung lebt weiter: $events", events.none { it is SessionEvent.Failed || it == SessionEvent.Idle })
     }
 

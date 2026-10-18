@@ -5,7 +5,7 @@ package de.adv990de.obd2.alarm
  * [RUNNING_MIN_RPM] (wie die Ganganzeige); die letzte Drehzahl wird [RPM_HOLD_MS] gehalten, danach gilt er als aus (kein Wert = kein Beleg).
  *
  * Das Abstellen braucht diese Frist nicht eng: ein Absterben meldet 0 rpm (unter [RUNNING_MIN_RPM], das Tor schließt sofort), und eine ausgeschaltete Zündung liefert gar keine Zyklen mehr
- * (nach 10 s „veraltet“, dann endet die Sitzung).
+ * (nach 10 s „veraltet“; das setzt die Alarme zurück und schließt das Tor über `AlarmTracker.onSessionEnded` — die Sitzung selbst endet damit nicht).
  */
 internal class EngineGate {
     private var lastRpm: Float? = null

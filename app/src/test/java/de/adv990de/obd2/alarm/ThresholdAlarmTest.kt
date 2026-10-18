@@ -70,6 +70,19 @@ class ThresholdAlarmTest {
         assertNull(alarm.lastValue)
     }
 
+    @Test
+    fun `a sample that is not a finite number leaves the last value and the rules untouched`() {
+        val alarm = voltageAlarm(AlarmSettings())
+        alarm.sample(0L, Float.NaN)
+        assertNull("a first NaN is no value", alarm.lastValue)
+
+        alarm.feed(1L to 12.1f)
+        alarm.sample(5_000L, Float.NaN)
+        alarm.sample(6_000L, Float.POSITIVE_INFINITY)
+
+        assertEquals(12.1f, alarm.lastValue)
+    }
+
     // ── Kuehlmittel ───────────────────────────────────────────────────────────
 
     @Test
