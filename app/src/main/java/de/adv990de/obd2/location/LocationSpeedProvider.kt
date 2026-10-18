@@ -1,5 +1,7 @@
 package de.adv990de.obd2.location
 
+import de.adv990de.obd2.terrain.GpsFix
+
 /**
  * Die Naht zwischen der Geschwindigkeits-Logik und dem Ortungs-Framework des Geraets.
  *
@@ -24,4 +26,13 @@ interface LocationSpeedProvider {
      *   Ortungsdienst erreichbar, Berechtigung zwischen Pruefung und Registrierung entzogen).
      */
     fun startUpdates(onSpeed: (Float?) -> Unit): (() -> Unit)?
+
+    /**
+     * Meldet jeden Fix mit allem, was die Gelaende-Kachel braucht (Hoehe, Genauigkeiten, Kurs, Geschwindigkeit), im Abstand von mindestens [minIntervalMs] —
+     * `null`, wenn der Anbieter abgeschaltet wurde. Ein **eigener** Listener neben [startUpdates]: die Geschwindigkeitsquelle von Gang- und Tankanzeige bleibt
+     * unberuehrt. Standardmaessig nicht unterstuetzt (`null`), damit Attrappen, die nur Geschwindigkeiten liefern, unveraendert weiterlaufen.
+     *
+     * @return eine Funktion zum Abmelden, oder null wenn die Registrierung scheiterte oder nicht unterstuetzt wird.
+     */
+    fun startFixUpdates(minIntervalMs: Long, onFix: (GpsFix?) -> Unit): (() -> Unit)? = null
 }
