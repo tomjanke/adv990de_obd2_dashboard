@@ -322,6 +322,9 @@
     </plurals>
     <string name="alarm_severity_notice">Notice</string>
     <string name="alarm_severity_warning">Warning</string>
+    <string name="alarm_acknowledge_action">Acknowledge alarm</string>
+    <string name="alarm_more_count">+%1$d</string>
+    <string name="alarm_banner_desc">%1$s: %2$s. Tap to acknowledge.</string>
 
     <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
     <string name="pid_rpm">RPM</string>

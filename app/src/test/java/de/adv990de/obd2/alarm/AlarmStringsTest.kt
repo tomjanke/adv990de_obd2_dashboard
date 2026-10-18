@@ -32,13 +32,18 @@ class AlarmStringsTest {
         "alarm_severity_notice",
         "alarm_severity_warning",
         "notif_alarm_channel_name",
+        "alarm_acknowledge_action",
+        "alarm_banner_desc",
     )
+
+    /** Texte ohne Wörter („+1“): in beiden Sprachen derselbe, aber in beiden vorhanden und gefüllt. */
+    private val languageNeutralStrings = listOf("alarm_more_count")
 
     @Test
     fun `every alarm string exists in both languages`() {
         val de = strings("values-de")
         val en = strings("values")
-        for (name in alarmStrings) {
+        for (name in alarmStrings + languageNeutralStrings) {
             assertTrue("$name fehlt in values-de", name in de)
             assertTrue("$name fehlt in values", name in en)
         }
@@ -51,6 +56,10 @@ class AlarmStringsTest {
         for (name in alarmStrings) {
             assertTrue("$name ist deutsch leer", de.getValue(name).isNotBlank())
             assertNotEquals("$name ist nicht übersetzt", en.getValue(name), de.getValue(name))
+        }
+        for (name in languageNeutralStrings) {
+            assertTrue("$name ist deutsch leer", de.getValue(name).isNotBlank())
+            assertTrue("$name ist englisch leer", en.getValue(name).isNotBlank())
         }
     }
 
@@ -77,6 +86,11 @@ class AlarmStringsTest {
             for ((quantity, text) in plurals(locale).getValue("alarm_fault_new")) {
                 assertTrue("alarm_fault_new/$quantity in $locale ohne %1\$s", text.contains("%1\$s"))
             }
+            // Das Band nennt Stufe (%1$s) und Text (%2$s) und der Mehr-Zähler die Zahl (%1$d): fehlt ein Platzhalter, ginge die Angabe still verloren.
+            val description = strings.getValue("alarm_banner_desc")
+            assertTrue("alarm_banner_desc in $locale ohne %1\$s", description.contains("%1\$s"))
+            assertTrue("alarm_banner_desc in $locale ohne %2\$s", description.contains("%2\$s"))
+            assertTrue("alarm_more_count in $locale ohne %1\$d", strings.getValue("alarm_more_count").contains("%1\$d"))
         }
     }
 
@@ -89,11 +103,17 @@ class AlarmStringsTest {
         assertEquals("Neuer Fehlercode: %1\$s", plurals("values-de").getValue("alarm_fault_new").getValue("one"))
         assertEquals("Neue Fehlercodes: %1\$s", plurals("values-de").getValue("alarm_fault_new").getValue("other"))
         assertEquals("Alarme", de.getValue("notif_alarm_channel_name"))
+        assertEquals("Alarm quittieren", de.getValue("alarm_acknowledge_action"))
+        assertEquals("+%1\$d", de.getValue("alarm_more_count"))
+        assertEquals("%1\$s: %2\$s. Zum Quittieren tippen.", de.getValue("alarm_banner_desc"))
         val en = strings("values")
         assertEquals("Low voltage: %1\$s V", en.getValue("alarm_voltage_low"))
         assertEquals("Coolant hot: %1\$s °C", en.getValue("alarm_coolant_hot"))
         assertEquals("New fault code: %1\$s", plurals("values").getValue("alarm_fault_new").getValue("one"))
         assertEquals("New fault codes: %1\$s", plurals("values").getValue("alarm_fault_new").getValue("other"))
         assertEquals("Alarms", en.getValue("notif_alarm_channel_name"))
+        assertEquals("Acknowledge alarm", en.getValue("alarm_acknowledge_action"))
+        assertEquals("+%1\$d", en.getValue("alarm_more_count"))
+        assertEquals("%1\$s: %2\$s. Tap to acknowledge.", en.getValue("alarm_banner_desc"))
     }
 }

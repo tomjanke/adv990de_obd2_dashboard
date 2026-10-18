@@ -322,6 +322,9 @@
     </plurals>
     <string name="alarm_severity_notice">Hinweis</string>
     <string name="alarm_severity_warning">Warnung</string>
+    <string name="alarm_acknowledge_action">Alarm quittieren</string>
+    <string name="alarm_more_count">+%1$d</string>
+    <string name="alarm_banner_desc">%1$s: %2$s. Zum Quittieren tippen.</string>
 
     <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
     <string name="pid_rpm">Drehzahl</string>

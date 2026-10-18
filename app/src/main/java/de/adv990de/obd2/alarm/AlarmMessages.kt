@@ -13,10 +13,23 @@ private const val NO_VALUE = "--"
  * `formatSensorNumber` (Volt mit einer Nachkommastelle, sonst ganze Zahl, Locale des Geräts), nicht durch ein eigenes `format`. Ohne Wert oder mit einem nicht endlichen
  * (kein Alarm der Regeln liefert das) stehen Striche. Der Plural des Fehler-Alarms richtet sich nach der Zahl der Codes.
  */
-fun alarmMessage(resources: Resources, alarm: Alarm): String = when (alarm.kind) {
-    AlarmKind.VOLTAGE -> resources.getString(R.string.alarm_voltage_low, formatAlarmValue(alarm.value, "V"))
-    AlarmKind.COOLANT -> resources.getString(R.string.alarm_coolant_hot, formatAlarmValue(alarm.value, "°C"))
-    AlarmKind.FAULT_CODE -> resources.getQuantityString(R.plurals.alarm_fault_new, alarm.codes.size, alarm.codes.joinToString(", "))
+fun alarmMessage(resources: Resources, alarm: Alarm): String {
+    val value = alarmValueText(alarm)
+    return when (alarm.kind) {
+        AlarmKind.VOLTAGE -> resources.getString(R.string.alarm_voltage_low, value)
+        AlarmKind.COOLANT -> resources.getString(R.string.alarm_coolant_hot, value)
+        AlarmKind.FAULT_CODE -> resources.getQuantityString(R.plurals.alarm_fault_new, alarm.codes.size, value)
+    }
+}
+
+/**
+ * Die Zahl bzw. die Codes, die [alarmMessage] in den Platzhalter setzt („12,3“, „97“, „P0301, P0420“) — die eine Stelle für den Wortlaut und für das Alarmband, das diese Stelle im
+ * fertigen Text findet und in der Zahlenschrift setzt (`emphasizeValue`): so formatiert nichts die Zahl ein zweites Mal.
+ */
+internal fun alarmValueText(alarm: Alarm): String = when (alarm.kind) {
+    AlarmKind.VOLTAGE -> formatAlarmValue(alarm.value, "V")
+    AlarmKind.COOLANT -> formatAlarmValue(alarm.value, "°C")
+    AlarmKind.FAULT_CODE -> alarm.codes.joinToString(", ")
 }
 
 /**

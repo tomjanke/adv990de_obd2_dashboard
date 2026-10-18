@@ -74,6 +74,8 @@ fun DashboardScreen(
     // Die Gelaende-Kachel haengt nicht an der Verbindung zum Fahrzeug (ihre Werte kommen vom Telefon) und rechnet nur, solange dieser Sammler laeuft.
     val terrain by vm.terrain.collectAsStateWithLifecycle()
     val availablePids by vm.availablePids.collectAsStateWithLifecycle()
+    // Die Alarme (Spannung, Kuehlmittel, neue Fehlercodes) leben so lange wie die Sitzung, nicht wie dieses Bild; das Band zeigt den wichtigsten, "+N" die weiteren.
+    val alarms by vm.alarms.collectAsStateWithLifecycle()
     // rememberSaveable (UID-23): eine Drehung mit offener Auswahl schloss sie bisher.
     var pickerSlot: Int? by rememberSaveable { mutableStateOf(null) }
     // Die virtuelle Tankanzeige (null = keine Reichweite hinterlegt, dann gibt es die Zeile nicht) steht NUR hier, nicht in der app-weiten Navigation.
@@ -250,6 +252,18 @@ fun DashboardScreen(
                     labelRes = R.string.dashboard_stale_banner,
                 )
                 DashboardPhase.Live -> Unit
+            }
+
+            // ── Alarmband ─────────────────────────────────────────────
+            // Direkt unter dem Vorschau-Band, ueber den Kacheln: der wichtigste Alarm als volle Zeile (56 dp), "+N" fuer weitere, ein Tipp quittiert. Die Kachelreihe
+            // darunter ist weight(1f) und schrumpft um diese Zeile (im Querformat wie bei der Tankzeile: die 200 dp sind nur eine Obergrenze, eine Kachel bleibt sichtbar).
+            alarms.firstOrNull()?.let { alarm ->
+                AlarmBanner(
+                    alarm = alarm,
+                    moreCount = alarms.size - 1,
+                    onAcknowledge = { vm.acknowledgeAlarm(alarm.kind) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             // ── Sensor grid ───────────────────────────────────────────
