@@ -300,6 +300,8 @@ class DashboardViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        // Ohne Sitzung gibt es keinen Spannungs- und Kuehlmittelalarm mehr: ihre Benachrichtigungen bleiben nicht im Schatten stehen (der Fehler-Alarm schon, bis zum Quittieren).
+        alarmController.release()
         // Das ViewModel endet mit der Activity: der Zaehler soll nicht nur im Speicher stehen.
         fuelDistanceSink.flush()
     }

@@ -59,7 +59,10 @@ class DashboardViewModelAlarmTest {
         val scheduler: TestCoroutineScheduler,
     )
 
-    private fun setUp(scheduler: TestCoroutineScheduler): Setup {
+    private fun setUp(
+        scheduler: TestCoroutineScheduler,
+        alarmController: AlarmController = AlarmController(AlarmNotifier.None, AlarmLog.None),
+    ): Setup {
         val events = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 64)
         val settings = MutableStateFlow(AlarmSettings())
         val pipeline = mockk<ReadingsPipeline> {
@@ -74,7 +77,7 @@ class DashboardViewModelAlarmTest {
         val clock = longArrayOf(0L)
         val vm = DashboardViewModel(
             obdRepo, prefs, mockk(relaxed = true), pipeline, SavedStateHandle(),
-            alarmController = AlarmController(AlarmNotifier.None, AlarmLog.None),
+            alarmController = alarmController,
         ).also { it.nowMillis = { clock[0] } }
         return Setup(vm, events, settings, clock, scheduler)
     }
@@ -96,6 +99,14 @@ class DashboardViewModelAlarmTest {
     }
 
     private fun conf(code: String) = DtcEntry(code, isPending = false)
+
+    /** Merkt sich, was an den Notifier ging; [failing] laesst jeden Aufruf nach dem Aufzeichnen werfen. */
+    private class RecordingNotifier(private val failing: Boolean = false) : AlarmNotifier {
+        val shown = mutableListOf<AlarmKind>()
+        val cleared = mutableListOf<AlarmKind>()
+        override fun show(alarm: Alarm) { shown += alarm.kind; if (failing) throw IllegalStateException("notifier down") }
+        override fun clear(kind: AlarmKind) { cleared += kind; if (failing) throw IllegalStateException("notifier down") }
+    }
 
     private suspend fun Setup.faultAlarm() {
         events.emit(SessionEvent.FaultCodes(emptyList(), isBaseline = true))
@@ -261,5 +272,48 @@ class DashboardViewModelAlarmTest {
         advanceUntilIdle()
 
         assertTrue(s.vm.alarms.value.isEmpty())
+    }
+
+    // --- Beiwerk darf die Live-Anzeige nie beenden ---
+
+    @Test
+    fun `a notifier that throws does not stop the session event collector`() = runTest {
+        val notifier = RecordingNotifier(failing = true)
+        val s = setUp(testScheduler, AlarmController(notifier, AlarmLog.None))
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)                                    // the alarm is raised, show throws
+        assertEquals(listOf(AlarmKind.COOLANT), notifier.shown)
+        assertEquals(1, s.vm.alarms.value.size)
+
+        s.cycle(7, rpm = 3_000f, coolant = 101f)                      // the collector is alive: the next event still updates the state
+        advanceUntilIdle()
+
+        assertEquals(3_000f, s.vm.uiState.value.rpmValue, 0.01f)
+    }
+
+    // --- Das ViewModel endet ---
+
+    private fun clearViewModel(vm: DashboardViewModel) {
+        val onCleared = DashboardViewModel::class.java.getDeclaredMethod("onCleared")
+        onCleared.isAccessible = true
+        onCleared.invoke(vm)
+    }
+
+    @Test
+    fun `clearing the view model takes the numeric notifications back - the fault notification stays`() = runTest {
+        val notifier = RecordingNotifier()
+        val s = setUp(testScheduler, AlarmController(notifier, AlarmLog.None))
+        advanceUntilIdle()
+        s.cycle(0, coolant = 101f)
+        s.cycle(6, coolant = 101f)
+        s.faultAlarm()
+        advanceUntilIdle()
+        assertEquals(setOf(AlarmKind.COOLANT, AlarmKind.FAULT_CODE), notifier.shown.toSet())
+        assertTrue(notifier.cleared.isEmpty())
+
+        clearViewModel(s.vm)
+
+        assertEquals(listOf(AlarmKind.COOLANT), notifier.cleared)
     }
 }
