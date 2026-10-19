@@ -38,6 +38,11 @@ data class DashboardUiState(
      * "verbunden" — das Dashboard zeigte 2-10 s lang "Vorschau · nicht verbunden" (B24).
      */
     val awaitingFirstValues: Boolean = false,
+    /**
+     * Die ueber 10 s geglaettete Spannung und ihr Zustand ("laedt", "laedt kaum", "entlaedt") fuer den Balken der Spannungs-Kachel ([VoltageTrendTracker]); null ohne laufenden
+     * Motor, in den ersten 15 s danach, bei zu wenigen Proben und ohne Verbindung. Wie Gang und Sparklines gehoert er zu EINER Verbindung.
+     */
+    val voltageTrend: VoltageTrend? = null,
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)

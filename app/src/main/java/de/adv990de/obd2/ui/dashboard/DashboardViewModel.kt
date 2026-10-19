@@ -171,6 +171,9 @@ class DashboardViewModel @Inject constructor(
     /** Farbe des Oel-Balkens samt Timer-Zustand im [SavedStateHandle] — s. [OilBarTracker]. */
     private val oilBarTracker = OilBarTracker(savedStateHandle, now = { nowMillis() })
 
+    /** Geglaettete Spannung und Lade-/Entlade-Zustand fuer den Balken der Spannungs-Kachel — s. [VoltageTrendTracker]. */
+    private val voltageTracker = VoltageTrendTracker(now = { nowMillis() })
+
     /** Hoehe, Steigung und Peilung der Gelaende-Kachel ueber die Zeit einer Verbindung — s. [TerrainTracker]. */
     private val terrainTracker = TerrainTracker()
 
@@ -237,7 +240,7 @@ class DashboardViewModel @Inject constructor(
     private suspend fun onSessionEvent(event: SessionEvent) {
         when (event) {
             is SessionEvent.Values -> {
-                val shown = applyReadings(event.values, event.gpsSpeedKmh)
+                val shown = applyReadings(event.values, event.gpsSpeedKmh, event.isObdCycle)
                 // Auch ein GPS-Zwischenupdate zaehlt: die Strecke haengt an der Zeit und der GPS-Geschwindigkeit, nicht an den OBD-Zyklen.
                 val km = fuelIntegrator.sample(event.gpsSpeedKmh, nowMillis())
                 if (km > 0f) fuelDistanceSink.addDistance(km)
@@ -265,6 +268,7 @@ class DashboardViewModel @Inject constructor(
                 endFuelInterval()
                 sparklines.clear()
                 gearTracker.reset()
+                voltageTracker.reset()
                 _uiState.value = DashboardUiState.disconnected(event.error)
                 alarmStaleGrace.cancel()
                 alarmController.onSessionEnded()
@@ -310,7 +314,7 @@ class DashboardViewModel @Inject constructor(
     private class ShownDerived(val gear: GearReading, val oilBarColor: OilBarColor?)
 
     /** Rechnet die Anzeige fuer einen Zyklus neu und liefert, was die Gang-Box und der Oel-Balken jetzt zeigen (der Aufrufer zeichnet es auf). */
-    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?): ShownDerived {
+    private fun applyReadings(values: List<SensorValue>, gpsSpeedKmh: Float?, isObdCycle: Boolean): ShownDerived {
         sparklines.append(values)
         val displayIds = slotPids.value.toSet()
         val engineTempC = if (rpmDynamicThreshold.value) {
@@ -340,6 +344,8 @@ class DashboardViewModel @Inject constructor(
             ratios = gearRatios.value,
         )
         val newOilBarColor = oilBarTracker.update(values, previous = _uiState.value.oilBarColor)
+        // Nur ein echter OBD-Zyklus bewegt den Spannungs-Trend: ein GPS-Zwischenupdate wiederholt die alten Werte (s. VoltageTrendTracker).
+        val newVoltageTrend = voltageTracker.update(values, isObdCycle)
         _uiState.value = _uiState.value.copy(
             readings = values.filter { sv -> sv.pid.id in displayIds },
             rpmValue = newRpmValue,
@@ -350,6 +356,7 @@ class DashboardViewModel @Inject constructor(
             oilBarColor = newOilBarColor,
             // Die Restzeit laeuft mit der Uhr, nicht nur mit neuen Messwerten: auch ein GPS-Zwischenupdate rechnet sie neu.
             oilBarGreenInMillis = oilBarTracker.greenInMillis(),
+            voltageTrend = newVoltageTrend,
             isConnected = true,
             isReconnecting = false,
             isStale = false,
@@ -368,7 +375,9 @@ class DashboardViewModel @Inject constructor(
      */
     private fun applyStale() {
         gearTracker.reset()
+        voltageTracker.reset()
         _uiState.value = _uiState.value.copy(
+            voltageTrend = null,
             isStale = true,
             awaitingFirstValues = false,
             readings = emptyList(),
@@ -388,6 +397,7 @@ class DashboardViewModel @Inject constructor(
     private fun applyIdle() {
         sparklines.clear()
         gearTracker.reset()
+        voltageTracker.reset()
         _uiState.value = if (_uiState.value.error != null || _uiState.value.isReconnecting) {
             // speedKmh/gear werden hier explizit mit zurueckgesetzt (anders als rpmValue/
             // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
@@ -403,6 +413,7 @@ class DashboardViewModel @Inject constructor(
                 isNeutral = false,
                 oilBarColor = null,
                 oilBarGreenInMillis = OIL_BAR_GREEN_HOLD_MS,
+                voltageTrend = null,
                 sparklines = emptyMap(),
             )
         } else {
@@ -449,8 +460,10 @@ class DashboardViewModel @Inject constructor(
     private fun startReconnecting() {
         sparklines.clear()
         gearTracker.reset()
+        voltageTracker.reset()
         _uiState.value = _uiState.value.copy(
             sparklines = emptyMap(),
+            voltageTrend = null,
             // Ein gemeldeter Verbindungsverlust heisst per Definition "nicht mehr verbunden" — unabhaengig davon,
             // ob das Idle-Ereignis des Messwert-Stroms schon da ist. Seit onLinkUp() den Link vor dem ersten Wert
             // als verbunden fuehrt, bliebe isConnected sonst wahr, solange isConnectedFlow nicht gekippt ist

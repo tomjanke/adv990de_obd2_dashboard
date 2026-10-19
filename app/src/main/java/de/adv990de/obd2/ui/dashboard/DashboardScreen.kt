@@ -407,6 +407,7 @@ private fun DashboardSlot(
             placeholderRes = placeholderRes,
             isLive = isLive,
             onLongPress = onLongPress,
+            voltageTrend = state.voltageTrend,
         )
     }
 }

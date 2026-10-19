@@ -412,4 +412,9 @@
     <string name="settings_fuel_range_help">50 to 1000 km. Empty hides the fuel gauge. The distance is counted from the GPS speed (setting “Speed from GPS”) while the app is connected.</string>
     <string name="settings_fuel_range_error">Enter a whole number from 50 to 1000.</string>
     <string name="settings_fuel_range_save">Save</string>
+
+    <!-- Voltage tile: charge state next to the value (read out by screen readers; the bar itself has no text) -->
+    <string name="voltage_state_charging">charging</string>
+    <string name="voltage_state_marginal">barely charging</string>
+    <string name="voltage_state_discharging">discharging</string>
 </resources>

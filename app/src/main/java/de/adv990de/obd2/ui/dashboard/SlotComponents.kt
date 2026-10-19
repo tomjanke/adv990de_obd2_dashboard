@@ -61,7 +61,9 @@ internal fun SensorCardSlot(
     @StringRes placeholderRes: Int = R.string.dashboard_slot_empty,
     /** false zeichnet die Kachel als Vorschau: "--" statt einer Zahl, keine Statusfarbe. */
     isLive: Boolean = true,
-    onLongPress: (() -> Unit)? = null
+    onLongPress: (() -> Unit)? = null,
+    /** Die geglaettete Spannung samt Zustand fuer den Balken der Spannungs-Kachel ([DashboardUiState.voltageTrend]); andere Kacheln lesen es nicht. */
+    voltageTrend: VoltageTrend? = null,
 ) {
     if (reading != null) {
         SensorCard(
@@ -71,6 +73,7 @@ internal fun SensorCardSlot(
             useImperial = useImperial,
             onLongPress = onLongPress,
             isLive = isLive,
+            voltageTrend = voltageTrend,
         )
     } else {
         EmptySlot(placeholderRes = placeholderRes, modifier = modifier, onLongPress = onLongPress)
@@ -190,6 +193,11 @@ internal fun SensorCard(
      * ausgeloest.
      */
     isLive: Boolean = true,
+    /**
+     * Nur fuer die Spannungs-Kachel ([PidRegistry.CONTROL_MODULE_VOLTAGE]): die geglaettete Spannung samt Lade-/Entlade-Zustand. Mit ihr bekommt die Kachel den senkrechten
+     * Balken links ([VoltageGauge]) und das Zustandswort in der Beschreibung fuer Screenreader; null (kein Motor, Einschwingzeit) zeigt nur Spur und Nulllinie.
+     */
+    voltageTrend: VoltageTrend? = null,
 ) {
     val (convertedValue, displayUnit) = if (value.value.isNaN() || value.value.isInfinite()) {
         value.value to value.pid.unit
@@ -202,6 +210,10 @@ internal fun SensorCard(
         else -> formatSensorNumber(convertedValue, value.pid.unit)
     }
     val pidLabel = stringResource(value.pid.labelRes)
+    val isVoltage = value.pid.id == PidRegistry.CONTROL_MODULE_VOLTAGE.id
+    // Ohne Verbindung gibt es keinen Zustand: der Balken zeigt dann nur Spur und Nulllinie, die Beschreibung kein Wort.
+    val shownTrend = if (isVoltage && isLive) voltageTrend else null
+    val stateWord = shownTrend?.let { stringResource(voltageStateRes(it.state)) }
     LiveValueTile(
         label = pidLabel,
         value = displayValue,
@@ -213,9 +225,15 @@ internal fun SensorCard(
         onLongPress = onLongPress,
         // Das Neubelegen per Long-Press ist die einzige Geste dafuer — TalkBack soll sie beim Namen nennen (UID-13).
         onLongPressLabel = stringResource(R.string.dashboard_slot_change_action),
-        modifier = modifier.semantics { contentDescription = "$pidLabel: $displayValue $displayUnit" },
+        modifier = modifier.semantics { contentDescription = sensorCardDescription(pidLabel, displayValue, displayUnit, stateWord) },
+        // Der Balken gehoert zur Spannung, nicht zu jeder Kachel.
+        gauge = if (isVoltage) ({ VoltageGauge(trend = shownTrend, isLive = isLive) }) else null,
     )
 }
+
+/** Die Beschreibung der Kachel fuer Screenreader: "Name: Wert Einheit", mit Zustand dahinter ("…, laedt"), wenn die Kachel einen hat. */
+internal fun sensorCardDescription(label: String, value: String, unit: String, stateWord: String?): String =
+    if (stateWord == null) "$label: $value $unit" else "$label: $value $unit, $stateWord"
 
 /** Test-only selector for [SlotPickerSheet]'s [LazyColumn], so instrumentation tests can
  *  `performScrollToNode` to PID rows below the initially-composed viewport (confirmed empirically

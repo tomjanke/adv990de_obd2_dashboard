@@ -412,4 +412,9 @@
     <string name="settings_fuel_range_help">50 bis 1000 km. Leer blendet die Tankanzeige aus. Die Strecke zählt aus der GPS-Geschwindigkeit (Einstellung „Geschwindigkeit per GPS“), solange die App verbunden ist.</string>
     <string name="settings_fuel_range_error">Bitte eine ganze Zahl von 50 bis 1000 eingeben.</string>
     <string name="settings_fuel_range_save">Speichern</string>
+
+    <!-- Spannungs-Kachel: Ladezustand neben dem Wert (Vorlesetext; der Balken selbst hat keinen Text) -->
+    <string name="voltage_state_charging">lädt</string>
+    <string name="voltage_state_marginal">lädt kaum</string>
+    <string name="voltage_state_discharging">entlädt</string>
 </resources>

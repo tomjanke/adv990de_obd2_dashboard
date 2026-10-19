@@ -44,6 +44,15 @@ import de.adv990de.obd2.ui.theme.blueColorScheme
  */
 internal val MIN_VALUE_FONT_SIZE = 20.sp
 
+/** Innenrand jeder Kachel (rundum, bei [TileFrame] auch oben und unten neben einem [TileFrame] `gauge`). */
+internal val TILE_INNER_PADDING = 12.dp
+
+/** Breite des senkrechten Anzeigebalkens links in der Kachel — wie der Tankbalken (16 dp). */
+internal val TILE_GAUGE_WIDTH = 16.dp
+
+/** Abstand zwischen der 4-dp-Statusleiste und dem Anzeigebalken. */
+internal val TILE_GAUGE_START_GAP = 8.dp
+
 /**
  * Semantic state of a live tile. Drives the accent color used for the left side
  * bar and the value text. Sparkline color is always the theme primary (trend
@@ -124,6 +133,8 @@ fun LiveValueTile(
     /** Was der Long-Press tut, fuer Screenreader ("Messwert aendern") — ohne sie sagt TalkBack nur "Doppeltippen und
      *  halten". Gehoert zu [onLongPress]; die Kachel selbst kennt die Domaene nicht. */
     onLongPressLabel: String? = null,
+    /** Optionaler senkrechter Anzeigebalken links vom Inhalt (Spannungs-Kachel, s. [TileFrame]); ohne ihn ist die Kachel unveraendert. */
+    gauge: (@Composable () -> Unit)? = null,
 ) {
     // Im Vorschau-Zustand traegt die Kachel keine Statusfarbe: Eine gruene oder rote Akzentleiste
     // ueber einem Wert, den kein Fahrzeug geliefert hat, waere eine Aussage ohne Grundlage.
@@ -141,6 +152,7 @@ fun LiveValueTile(
         onClick = onClick,
         onLongPress = onLongPress,
         onLongPressLabel = onLongPressLabel,
+        gauge = gauge,
     ) {
         // Sparkline ueber dem Wert statt daneben oder dahinter: neben dem Wert blieben
         // bei vierstelligen Zahlen nur wenige dp uebrig, dahinter lief die Linie durch
@@ -190,6 +202,9 @@ fun LiveValueTile(
  * Der Rahmen jeder Dashboard-Kachel: Flaeche ohne Rundung und Schatten, links die 4 dp breite Status-Leiste in [accentColor], innen 12 dp Rand und oben links das
  * [label]. Was die Kachel zeigt, steht in [content] (ein `BoxScope` ueber die ganze Innenflaeche, die Beschriftung liegt darueber oben links). Tippen, Long-Press und
  * der Ripple in der Akzentfarbe gehoeren zum Rahmen — [LiveValueTile] (ein Wert) und `TerrainTile` (drei Werte) teilen sie, statt sie zu kopieren.
+ *
+ * Mit [gauge] steht zwischen der Statusleiste und dem Inhalt ein senkrechter Balken ([TILE_GAUGE_WIDTH] breit, [TILE_GAUGE_START_GAP] Abstand zur Statusleiste, oben und unten die 12 dp Innenrand
+ * der Kachel); Beschriftung und Inhalt ruecken um Breite plus Abstand nach rechts. Die Statusleiste bleibt, wie sie ist (sie traegt den Kachelstatus). Ohne [gauge] ist der Rahmen unveraendert.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -200,6 +215,7 @@ internal fun TileFrame(
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
     onLongPressLabel: String? = null,
+    gauge: (@Composable () -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val interactive = onClick != null || onLongPress != null
@@ -230,11 +246,19 @@ internal fun TileFrame(
                     .fillMaxHeight()
                     .background(accentColor)
             )
+            if (gauge != null) {
+                Box(
+                    Modifier
+                        .padding(start = TILE_GAUGE_START_GAP, top = TILE_INNER_PADDING, bottom = TILE_INNER_PADDING)
+                        .width(TILE_GAUGE_WIDTH)
+                        .fillMaxHeight()
+                ) { gauge() }
+            }
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(12.dp)
+                    .padding(TILE_INNER_PADDING)
             ) {
                 Text(
                     // ALL-CAPS mit Letterspacing gemaess Design-Profil; die Grossschreibung
