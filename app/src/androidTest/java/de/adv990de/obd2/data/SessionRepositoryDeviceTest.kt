@@ -161,6 +161,60 @@ class SessionRepositoryDeviceTest {
         assertEquals("nutzt den Index auf sessionId: $text", true, text.contains("index_sensor_readings_sessionId"))
     }
 
+    // ── Min/Max je Fahrt (F11) ────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun statsQuery_needsNoSortStep_andUsesTheSessionIndex() {
+        // Wie die Export-Abfrage: ORDER BY id wird vom Index auf sessionId erfuellt (er traegt die rowid) — kein Sortierlauf, auch bei langen Fahrten.
+        val plan = db.openHelper.readableDatabase
+            .query("EXPLAIN QUERY PLAN $SESSION_STATS_QUERY_SQL", arrayOf<Any>(1L))
+            .use { c ->
+                val detail = c.getColumnIndexOrThrow("detail")
+                generateSequence { if (c.moveToNext()) c.getString(detail) else null }.toList()
+            }
+        val text = plan.joinToString(" | ")
+
+        assertEquals("kein Sortierlauf: $text", false, text.contains("TEMP B-TREE", ignoreCase = true))
+        assertEquals("nutzt den Index auf sessionId: $text", true, text.contains("index_sensor_readings_sessionId"))
+    }
+
+    @Test
+    fun sessionStats_foldsTheRealRowsOfOneTrip_andNothingOfOtherTripsOrOtherValues() = runBlocking {
+        val trip = db.sessionDao().insert(SessionEntity(startTime = 1_000L))
+        val other = db.sessionDao().insert(SessionEntity(startTime = 2_000L))
+        fun row(session: Long, seconds: Int, pid: String, value: Float, source: String? = "ECU") =
+            SensorReadingEntity(sessionId = session, timestamp = seconds * 1_000L, pidId = pid, value = value, source = source)
+        db.sensorReadingDao().insertAll(
+            buildList {
+                for (s in 0..40) {
+                    add(row(trip, s, "010C", 1_200f))
+                    add(row(trip, s, "0105", 20f + s))
+                    add(row(trip, s, "010D", 250f)) // die Geschwindigkeit gehoert nicht dazu
+                    add(row(trip, s, "GEAR", 6f, source = "DERIVED"))
+                }
+                add(row(trip, 3, "0142", 7.8f)) // Anlasser: zaehlt nicht
+                add(row(trip, 20, "0142", 12.3f))
+                add(row(trip, 40, "0142", 14.1f))
+                // Eine andere Fahrt mit anderen Werten darf nicht einfliessen.
+                for (s in 0..40) { add(row(other, s, "010C", 1_200f)); add(row(other, s, "0105", 200f)) }
+                add(row(other, 30, "0142", 5.0f))
+            }.sortedBy { it.timestamp }, // in der Reihenfolge der Zeit, wie der Recorder schreibt
+        )
+
+        val stats = repo.sessionStats(trip)
+
+        assertEquals(MinMax(20f, 60f), stats.coolant)
+        assertEquals(MinMax(12.3f, 14.1f), stats.voltage)
+        assertEquals(SessionStats(MinMax(200f, 200f), MinMax(5.0f, 5.0f)), repo.sessionStats(other))
+    }
+
+    @Test
+    fun sessionStats_ofATripWithoutReadings_hasNoValues() = runBlocking {
+        val trip = db.sessionDao().insert(SessionEntity(startTime = 1_000L))
+
+        assertEquals(SessionStats(coolant = null, voltage = null), repo.sessionStats(trip))
+    }
+
     @Test
     fun exportToCsv_writesTheTripsRowsInRecordingOrder_andNothingOfOtherTrips() = runBlocking {
         val ctx = ApplicationProvider.getApplicationContext<Context>()

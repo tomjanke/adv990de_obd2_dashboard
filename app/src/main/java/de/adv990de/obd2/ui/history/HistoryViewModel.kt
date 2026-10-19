@@ -142,6 +142,19 @@ class HistoryViewModel @Inject constructor(
 
     fun undoDelete() = deletion.undo()
 
+    /**
+     * Min und Max von Kuehlmittel und Spannung einer Fahrt fuer den Detail-Dialog (F11). Ein suspendierender Aufruf des Dialogs ([produceState]), kein Zustand im ViewModel: er gehoert zum
+     * geoeffneten Dialog und endet mit ihm. Ein Lesefehler ist [SessionStatsState.Failed], nie ein leeres Ergebnis; eine Abbruch-Ausnahme geht durch.
+     */
+    suspend fun loadStats(sessionId: Long): SessionStatsState =
+        try {
+            SessionStatsState.Ready(sessionRepository.sessionStats(sessionId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SessionStatsState.Failed
+        }
+
     fun export(sessionId: Long) {
         viewModelScope.launch {
             _exportError.value = null

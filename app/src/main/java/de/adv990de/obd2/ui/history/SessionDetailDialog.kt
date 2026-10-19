@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.data.MinMax
+import de.adv990de.obd2.data.SessionStats
 import de.adv990de.obd2.data.decodeSessionDtcs
 import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.ui.components.SectionLabel
@@ -54,7 +56,8 @@ internal const val SESSION_DETAIL_TEST_TAG = "session_detail"
 /**
  * Die Details einer Fahrt: der Beginn als Titel, die Fehlercodes, die das Fahrzeug bei Fahrtbeginn meldete — jeder mit Beschreibung
  * (dieselbe Zeile wie auf der DTC-Seite, [DtcRow]) —, davor in einer gedaempften Zeile Ende und FIN. Drei Zustaende der Codes: eine Liste · "gelesen, keine gefunden" · "nicht erfasst"
- * (Fahrt vor 1.33.0, oder das Auslesen scheiterte) — ein "keine Fehler" darf nie fuer ein "nicht erfasst" stehen.
+ * (Fahrt vor 1.33.0, oder das Auslesen scheiterte) — ein "keine Fehler" darf nie fuer ein "nicht erfasst" stehen. Darunter die Messwerte der Fahrt ([SessionStatsSection], F11):
+ * kleinster und groesster Wert von Kuehlmittel und Spannung, aus den aufgezeichneten Werten gerechnet; [stats] liefert der Aufrufer (der Dialog liest nichts selbst).
  *
  * Ein einfacher [AlertDialog], bewusst keine eigene Seite und kein Bottom Sheet (CLAUDE.md "Verbotene Patterns"): ohne Diagramme waechst
  * die Ansicht nicht, und es braucht keine Routen-Argumente. Der Dialog ist ein eigenes Fenster, die 56-dp-Regel aus `AppTheme` gilt dort
@@ -64,6 +67,8 @@ internal const val SESSION_DETAIL_TEST_TAG = "session_detail"
 internal fun SessionDetailDialog(
     session: SessionEntity,
     isRecording: Boolean,
+    stats: SessionStatsState,
+    useImperial: Boolean,
     onDismiss: () -> Unit,
 ) {
     val dtcs = remember(session.dtcCodes) { decodeSessionDtcs(session.dtcCodes) }
@@ -105,6 +110,9 @@ internal fun SessionDetailDialog(
                     dtcs.isEmpty() -> Text(stringResource(R.string.history_detail_dtcs_none), style = MaterialTheme.typography.bodyMedium)
                     else -> dtcs.forEach { DtcRow(it, containerColor = Color.Transparent) }
                 }
+                // Messwerte (F11) hinter den Codes: im Querformat ist die Hoehe knapp, die Codes sind der Grund fuer den Dialog; der Block ist erreichbar, weil der Inhalt scrollt.
+                Spacer(Modifier.height(12.dp))
+                SessionStatsSection(stats, useImperial)
             }
         },
         confirmButton = {
@@ -129,16 +137,18 @@ private val PREVIEW_TRIP = SessionEntity(
     dtcCodes = "P0301,P0420?",
 )
 
+private val PREVIEW_TRIP_STATS = SessionStatsState.Ready(SessionStats(coolant = MinMax(14f, 93f), voltage = MinMax(12.1f, 14.3f)))
+
 @Preview(name = "SessionDetailDialog · light", showBackground = true)
 @Composable
 private fun PreviewSessionDetailDialogLight() {
-    PreviewTheme(dark = false) { SessionDetailDialog(PREVIEW_TRIP, isRecording = false, onDismiss = {}) }
+    PreviewTheme(dark = false) { SessionDetailDialog(PREVIEW_TRIP, isRecording = false, stats = PREVIEW_TRIP_STATS, useImperial = false, onDismiss = {}) }
 }
 
 @Preview(name = "SessionDetailDialog · dark", showBackground = true)
 @Composable
 private fun PreviewSessionDetailDialogDark() {
-    PreviewTheme(dark = true) { SessionDetailDialog(PREVIEW_TRIP, isRecording = false, onDismiss = {}) }
+    PreviewTheme(dark = true) { SessionDetailDialog(PREVIEW_TRIP, isRecording = false, stats = PREVIEW_TRIP_STATS, useImperial = false, onDismiss = {}) }
 }
 
 // endregion

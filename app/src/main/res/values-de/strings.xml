@@ -234,6 +234,15 @@
     <string name="history_detail_dtcs_heading">Fehlercodes bei Fahrtbeginn</string>
     <string name="history_detail_dtcs_none">Das Fahrzeug meldete keine Fehlercodes.</string>
     <string name="history_detail_dtcs_unknown">Für diese Fahrt nicht erfasst.</string>
+    <string name="history_detail_stats_heading">Messwerte der Fahrt</string>
+    <string name="history_detail_stats_min">Min</string>
+    <string name="history_detail_stats_max">Max</string>
+    <string name="history_detail_stats_missing">–</string>
+    <string name="history_detail_stats_loading">Werte werden gelesen …</string>
+    <string name="history_detail_stats_failed">Die Messwerte konnten nicht gelesen werden.</string>
+    <string name="history_detail_stats_row_desc">%1$s: kleinster Wert %2$s, größter Wert %3$s</string>
+    <string name="history_detail_stats_row_none_desc">%1$s: nicht erfasst</string>
+    <string name="history_detail_stats_voltage_note">Spannung nur bei laufendem Motor, ab 15 s nach dem Start.</string>
     <string name="close">Schließen</string>
     <string name="cancel">Abbrechen</string>
     <string name="delete">Löschen</string>

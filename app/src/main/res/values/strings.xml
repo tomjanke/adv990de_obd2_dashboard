@@ -234,6 +234,15 @@
     <string name="history_detail_dtcs_heading">Fault codes at the start of the drive</string>
     <string name="history_detail_dtcs_none">The vehicle reported no fault codes.</string>
     <string name="history_detail_dtcs_unknown">Not recorded for this drive.</string>
+    <string name="history_detail_stats_heading">Readings of the drive</string>
+    <string name="history_detail_stats_min">Min</string>
+    <string name="history_detail_stats_max">Max</string>
+    <string name="history_detail_stats_missing">–</string>
+    <string name="history_detail_stats_loading">Reading the values …</string>
+    <string name="history_detail_stats_failed">The readings could not be read.</string>
+    <string name="history_detail_stats_row_desc">%1$s: lowest %2$s, highest %3$s</string>
+    <string name="history_detail_stats_row_none_desc">%1$s: not recorded</string>
+    <string name="history_detail_stats_voltage_note">Voltage only while the engine is running, from 15 s after the start.</string>
     <string name="close">Close</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>

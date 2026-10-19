@@ -206,6 +206,29 @@ class SessionRepository @Inject constructor(
         }
     }
 
+    /**
+     * Kleinster und groesster Wert von Kuehlmittel und Spannung einer Fahrt (F11, Detail-Dialog) — aus den aufgezeichneten Messwerten, also auch fuer aeltere Fahrten, soweit sie beides aufzeichneten.
+     * Die Rechnung steht in [SessionStatsAccumulator] (Spannung nur bei laufendem Motor); hier wird nur gelesen: Zeile fuer Zeile per Cursor ([SESSION_STATS_QUERY_SQL], ohne Sortierlauf), mit
+     * konstantem Speicher. Eine abgebrochene Anfrage hoert nach hoechstens [CANCELLATION_CHECK_ROWS] Zeilen auf; ein Lesefehler geht an den Aufrufer (kein „keine Werte“).
+     * Eine laufende Aufzeichnung liefert den Stand zum Zeitpunkt der Anfrage.
+     */
+    suspend fun sessionStats(sessionId: Long): SessionStats = withContext(Dispatchers.IO) {
+        currentCoroutineContext().ensureActive()
+        val accumulator = SessionStatsAccumulator()
+        val query = SimpleSQLiteQuery(SESSION_STATS_QUERY_SQL, arrayOf(sessionId))
+        db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
+            val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
+            val colPid       = cursor.getColumnIndexOrThrow("pidId")
+            val colValue     = cursor.getColumnIndexOrThrow("value")
+            var read = 0
+            while (cursor.moveToNext()) {
+                accumulator.add(cursor.getLong(colTimestamp), cursor.getString(colPid).orEmpty(), cursor.getFloat(colValue))
+                if (++read % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
+            }
+        }
+        accumulator.result()
+    }
+
     /** The one place that writes the export: the trips into a new file in the cache directory. */
     private suspend fun writeExportFile(sessionIds: List<Long>): File {
         require(sessionIds.isNotEmpty()) { "There is no trip to export" }

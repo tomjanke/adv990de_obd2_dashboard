@@ -36,6 +36,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -66,12 +67,18 @@ import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTime
+import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(navController: NavController, header: @Composable () -> Unit = {}, vm: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(
+    navController: NavController,
+    header: @Composable () -> Unit = {},
+    vm: HistoryViewModel = hiltViewModel(),
+    displayVm: DisplaySettingsViewModel = hiltViewModel(),
+) {
     val sessions = vm.sessions.collectAsLazyPagingItems()
     val shareUri by vm.shareUri.collectAsStateWithLifecycle()
     val exportError by vm.exportError.collectAsStateWithLifecycle()
@@ -83,6 +90,7 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
     val canExportAll by vm.canExportAll.collectAsStateWithLifecycle()
     val exportAllDialogVisible by vm.exportAllDialogVisible.collectAsStateWithLifecycle()
     val finishedTripCount by vm.finishedTripCount.collectAsStateWithLifecycle()
+    val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val savedCount by vm.savedCount.collectAsStateWithLifecycle()
     val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -182,7 +190,9 @@ fun HistoryScreen(navController: NavController, header: @Composable () -> Unit =
     // Die Fahrt wird aus den geladenen Zeilen gesucht: ist sie (noch) nicht geladen, bleibt der Dialog zu und die Id erhalten.
     detailSessionId?.let { id ->
         sessions.itemSnapshotList.items.firstOrNull { it.id == id }?.let { session ->
-            SessionDetailDialog(session, isRecording = session.id == activeSessionId, onDismiss = { detailSessionId = null })
+            // Die Messwerte (F11) werden beim Oeffnen gelesen und bleiben, solange derselbe Dialog offen ist; eine Drehung liest sie neu (wenige Millisekunden).
+            val stats by produceState<SessionStatsState>(SessionStatsState.Loading, id) { value = vm.loadStats(id) }
+            SessionDetailDialog(session, isRecording = session.id == activeSessionId, stats = stats, useImperial = useImperial, onDismiss = { detailSessionId = null })
         }
     }
 

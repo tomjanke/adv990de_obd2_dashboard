@@ -31,10 +31,12 @@ import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -775,5 +777,78 @@ class SessionRepositoryTest {
         try { repo.saveSessionsCsv(listOf(3L), target) } catch (_: IllegalStateException) { }
 
         verify(exactly = 0) { resolver.openOutputStream(any<Uri>(), any<String>()) }
+    }
+
+    // ── sessionStats (F11: Min/Max je Fahrt) ──────────────────────────────────
+
+    @Test
+    fun `sessionStats reads the three values of the trip with the shared query and folds them`() = runTest {
+        val queryCaptor = slot<SupportSQLiteQuery>()
+        val cursor = makeCursor(
+            listOf(
+                Triple(0L, "010C", 1_200f), Triple(0L, "0105", 18f),
+                Triple(1_000L, "010C", 1_300f), Triple(1_000L, "0105", 20f),
+            ) + (2..20).flatMap { s ->
+                listOf(Triple(s * 1_000L, "010C", 1_300f), Triple(s * 1_000L, "0105", 20f + s)) +
+                    if (s == 20) listOf(Triple(s * 1_000L, "0142", 13.9f)) else emptyList()
+            }
+        )
+        every { sensorReadingDao.getBySessionCursor(capture(queryCaptor)) } returns cursor
+
+        val stats = repo.sessionStats(sessionId = 7L)
+
+        assertEquals("the shared constant, not a second copy", SESSION_STATS_QUERY_SQL, queryCaptor.captured.sql)
+        assertEquals("one bound value: the trip id", 1, queryCaptor.captured.argCount)
+        assertEquals(MinMax(18f, 40f), stats.coolant)
+        assertEquals(MinMax(13.9f, 13.9f), stats.voltage)
+        verify(exactly = 1) { cursor.close() }
+    }
+
+    @Test
+    fun `sessionStats of a trip without readings has no values`() = runTest {
+        every { sensorReadingDao.getBySessionCursor(any()) } returns makeCursor(emptyList())
+
+        assertEquals(SessionStats(coolant = null, voltage = null), repo.sessionStats(sessionId = 3L))
+    }
+
+    @Test
+    fun `sessionStats closes the cursor when reading fails and passes the failure on`() = runTest {
+        val cursor = mockk<Cursor> {
+            every { getColumnIndexOrThrow(any()) } returns 0
+            every { moveToNext() } throws IOException("disk gone")
+            every { close() } just Runs
+        }
+        every { sensorReadingDao.getBySessionCursor(any()) } returns cursor
+
+        assertThrows(IOException::class.java) { runBlocking { repo.sessionStats(sessionId = 1L) } }
+
+        verify(exactly = 1) { cursor.close() }
+    }
+
+    @Test
+    fun `sessionStats stops reading when the caller is cancelled - it does not run through a long trip`() = runTest {
+        val rows = (0 until 20_000).map { Row(it * 1_000L, "0105", 80f, source = null) }
+        var index = -1
+        lateinit var job: Job
+        val cursor = mockk<Cursor> {
+            every { getColumnIndexOrThrow(any()) } returns 0
+            every { moveToNext() } answers {
+                index++
+                if (index == 10) job.cancel()
+                index < rows.size
+            }
+            every { getLong(any()) } answers { rows[index].timestamp }
+            every { getString(any()) } answers { rows[index].pidId }
+            every { getFloat(any()) } answers { rows[index].value }
+            every { close() } just Runs
+        }
+        every { sensorReadingDao.getBySessionCursor(any()) } returns cursor
+
+        job = launch { repo.sessionStats(sessionId = 1L) }
+        job.join()
+
+        assertTrue("cancelled", job.isCancelled)
+        assertTrue("stopped long before the end, read $index of ${rows.size}", index < 5_000)
+        verify(exactly = 1) { cursor.close() }
     }
 }

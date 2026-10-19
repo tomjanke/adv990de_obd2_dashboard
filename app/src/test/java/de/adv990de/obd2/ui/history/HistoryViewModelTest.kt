@@ -2,19 +2,23 @@ package de.adv990de.obd2.ui.history
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
+import de.adv990de.obd2.data.MinMax
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.data.SessionStats
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.ui.components.UNDO_WINDOW_MS
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -28,9 +32,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModelTest {
@@ -519,5 +525,32 @@ class HistoryViewModelTest {
 
         coVerify(exactly = 1) { f.repo.deleteSessions(setOf(2L)) }
         job.cancel()
+    }
+
+    // ── the readings of a trip (F11) ──────────────────────────────────────────
+
+    @Test
+    fun `loadStats hands over what the repository found`() = runTest {
+        val f = fixture()
+        val stats = SessionStats(coolant = MinMax(18f, 92f), voltage = MinMax(12.1f, 14.2f))
+        coEvery { f.repo.sessionStats(5L) } returns stats
+
+        assertEquals(SessionStatsState.Ready(stats), f.vm.loadStats(5L))
+    }
+
+    @Test
+    fun `loadStats says Failed when the database cannot be read - never an empty result`() = runTest {
+        val f = fixture()
+        coEvery { f.repo.sessionStats(any()) } throws IOException("disk gone")
+
+        assertEquals(SessionStatsState.Failed, f.vm.loadStats(5L))
+    }
+
+    @Test
+    fun `loadStats passes a cancellation on instead of calling it a failure`() = runTest {
+        val f = fixture()
+        coEvery { f.repo.sessionStats(any()) } throws CancellationException("gone")
+
+        assertThrows(CancellationException::class.java) { runBlocking { f.vm.loadStats(5L) } }
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
@@ -29,9 +30,11 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.db.AppDatabase
+import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.dtcDescriptionRes
@@ -47,6 +50,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
+import javax.inject.Inject
 
 /**
  * Compose UI tests for [HistoryScreen].
@@ -111,6 +116,10 @@ class HistoryScreenTest {
     @BindValue
     @JvmField
     val obdRepository: ObdRepository = idleObdRepository()
+
+    /** Echtes AppPreferences (Hilt, eigener DataStore je Test) — gebraucht fuer die Einheiten im Block „Messwerte“. */
+    @Inject
+    lateinit var appPreferences: AppPreferences
 
     /** Set by [setup] — the seeded row's generated id/startTime, reused by several tests below. */
     private var insertedSessionId: Long = 0
@@ -629,5 +638,147 @@ class HistoryScreenTest {
         waitForTextToDisappear(exportAllMessage(2))
         // Beide Fahrten in einem Aufruf, die aeltere zuerst (die der Test selbst angelegt hat, ist die juengere).
         coVerify(exactly = 1) { sessionRepository.exportSessionsToCsv(match { it.size == 2 && it == it.sorted() }) }
+    }
+
+    // ── Min/Max je Fahrt im Detail-Dialog (F11) ───────────────────────────────
+
+    private val nbsp = "\u00A0"
+
+    /** Die Zeilen einer Fahrt: (Sekunde nach dem Beginn, PID, Wert), in der Reihenfolge der Zeit (bei gleicher Zeit wie angegeben) in die Datenbank geschrieben. */
+    private fun insertReadings(minutesAgo: Long, rows: List<Triple<Int, String, Float>>, sessionId: Long) = runBlocking {
+        val start = insertedStartTime - minutesAgo * 60_000L
+        testDb.sensorReadingDao().insertAll(
+            rows.sortedBy { it.first }.map { (s, pid, v) -> SensorReadingEntity(sessionId = sessionId, timestamp = start + s * 1_000L, pidId = pid, value = v) },
+        )
+    }
+
+    /** Die Zeilen einer Fahrt von 40 s mit laufendem Motor: Kuehlmittel 18 bis 58 °C; Spannung 7,8 V beim Anlassen (3 s), danach 12,4 V (20 s) und 14,2 V (40 s) — nur die zwei letzten zaehlen. */
+    private fun driveRows(withVoltage: Boolean = true): List<Triple<Int, String, Float>> = buildList {
+        for (s in 0..40) { add(Triple(s, "010C", 1_200f)); add(Triple(s, "0105", 18f + s)) }
+        if (withVoltage) { add(Triple(3, "0142", 7.8f)); add(Triple(20, "0142", 12.4f)); add(Triple(40, "0142", 14.2f)) }
+    }
+
+    private fun insertDrive(vin: String): Long {
+        val id = insertTrip(5, vin, dtcCodes = "")
+        insertReadings(5, driveRows(), id)
+        return id
+    }
+
+    private fun oneDecimal(value: Float) = "%.1f".format(value)
+
+    private fun rangeDescription(labelRes: Int, min: String, max: String) =
+        composeRule.activity.getString(R.string.history_detail_stats_row_desc, string(labelRes), min, max)
+
+    private fun notRecordedDescription(labelRes: Int) = composeRule.activity.getString(R.string.history_detail_stats_row_none_desc, string(labelRes))
+
+    private fun openDetailsOf(vin: String) {
+        launchHistoryScreen()
+        waitForText(vin)
+        composeRule.onNodeWithText(vin).performClick()
+        waitForDetails()
+    }
+
+    private fun waitForStatsLoaded() = composeRule.waitUntil(timeoutMillis = 5_000) {
+        composeRule.onAllNodesWithText(string(R.string.history_detail_stats_loading)).fetchSemanticsNodes().isEmpty()
+    }
+
+    @Test
+    fun theDetails_showTheLowestAndHighestCoolantAndVoltage_withoutTheStarterDip() {
+        val id = insertDrive("1HGBH41JXMN109186")
+        openDetailsOf("1HGBH41JXMN109186")
+        waitForStatsLoaded()
+
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_heading).uppercase()).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(rangeDescription(R.string.pid_coolant_temp, "18${nbsp}°C", "58${nbsp}°C")).performScrollTo().assertIsDisplayed()
+        // Die 7,8 V des Anlassers und die Zuendung-an-Phase zaehlen nicht: kleinster Wert ist 12,4 V.
+        composeRule.onNodeWithContentDescription(
+            rangeDescription(R.string.pid_control_module_voltage, "${oneDecimal(12.4f)}${nbsp}V", "${oneDecimal(14.2f)}${nbsp}V"),
+        ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_voltage_note)).performScrollTo().assertIsDisplayed()
+        // Gelesen wird die Fahrt, deren Details offen sind — einmal.
+        coVerify(exactly = 1) { sessionRepository.sessionStats(id) }
+
+        closeDetails()
+    }
+
+    @Test
+    fun theDetails_showEveryValueOfTheTwoRowsInItsOwnCell() {
+        insertDrive("1HGBH41JXMN109186")
+        openDetailsOf("1HGBH41JXMN109186")
+        waitForStatsLoaded()
+        composeRule.onNodeWithTag(SESSION_STATS_TEST_TAG).performScrollTo()
+
+        // Vier Zahlen, vier Zellen: Min und Max je Zeile, ungemergt (die Zeile fasst sie fuer TalkBack zu einem Satz zusammen).
+        for (text in listOf("18${nbsp}°C", "58${nbsp}°C", "${oneDecimal(12.4f)}${nbsp}V", "${oneDecimal(14.2f)}${nbsp}V")) {
+            composeRule.onNodeWithText(text, useUnmergedTree = true).assertIsDisplayed()
+        }
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_min).uppercase(), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_max).uppercase(), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aTripWithoutReadings_showsDashesAndSaysNotRecorded_neverZero() {
+        // Die Fahrt aus setup() hat keine Messwerte (so sehen Fahrten aus, die nichts davon aufzeichneten).
+        openDetailsOf("WP0ZZZ99ZTS392124")
+        waitForStatsLoaded()
+        composeRule.onNodeWithTag(SESSION_STATS_TEST_TAG).performScrollTo()
+
+        composeRule.onNodeWithContentDescription(notRecordedDescription(R.string.pid_coolant_temp)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(notRecordedDescription(R.string.pid_control_module_voltage)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.history_detail_stats_missing), useUnmergedTree = true).assertCountEquals(4)
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_voltage_note)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theVoltageNeedsARunningEngine_theCoolantDoesNot() {
+        val id = insertTrip(5, "1HGBH41JXMN109186", dtcCodes = "")
+        // Keine einzige Drehzahlzeile: die Spannung ist ohne Beleg fuer einen laufenden Motor kein Wert, das Kuehlmittel schon.
+        insertReadings(5, listOf(Triple(0, "0105", 20f), Triple(30, "0105", 31f), Triple(30, "0142", 12.0f)), id)
+        openDetailsOf("1HGBH41JXMN109186")
+        waitForStatsLoaded()
+        composeRule.onNodeWithTag(SESSION_STATS_TEST_TAG).performScrollTo()
+
+        composeRule.onNodeWithContentDescription(rangeDescription(R.string.pid_coolant_temp, "20${nbsp}°C", "31${nbsp}°C")).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(notRecordedDescription(R.string.pid_control_module_voltage)).assertIsDisplayed()
+    }
+
+    @Test
+    fun withImperialUnits_theCoolantIsShownInFahrenheit_andTheVoltageStaysVolts() {
+        runBlocking { appPreferences.setUseImperial(true) }
+        insertDrive("1HGBH41JXMN109186")
+        openDetailsOf("1HGBH41JXMN109186")
+        waitForStatsLoaded()
+
+        // 18 °C = 64,4 °F, 58 °C = 136,4 °F.
+        composeRule.onNodeWithContentDescription(rangeDescription(R.string.pid_coolant_temp, "64${nbsp}°F", "136${nbsp}°F")).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            rangeDescription(R.string.pid_control_module_voltage, "${oneDecimal(12.4f)}${nbsp}V", "${oneDecimal(14.2f)}${nbsp}V"),
+        ).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun aFailedRead_saysSo_insteadOfShowingDashesThatLookLikeEmptyReadings() {
+        coEvery { sessionRepository.sessionStats(any()) } throws IOException("disk gone")
+        insertDrive("1HGBH41JXMN109186")
+        openDetailsOf("1HGBH41JXMN109186")
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(string(R.string.history_detail_stats_failed)).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(string(R.string.history_detail_stats_failed)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.history_detail_stats_missing), useUnmergedTree = true).assertCountEquals(0)
+        composeRule.onAllNodesWithText(string(R.string.history_detail_stats_voltage_note)).assertCountEquals(0)
+        // Die Codes darueber sind davon unberuehrt.
+        composeRule.onNodeWithText(string(R.string.history_detail_dtcs_none)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theStatsOfTheTripThatIsBeingRecorded_areReadToo() {
+        val id = runBlocking { sessionRepository.startSession("5YJSA1E26HF000337") } // die laufende Aufzeichnung
+        insertReadings(5, driveRows(), id)
+        openDetailsOf("5YJSA1E26HF000337")
+        waitForStatsLoaded()
+
+        composeRule.onNodeWithContentDescription(rangeDescription(R.string.pid_coolant_temp, "18${nbsp}°C", "58${nbsp}°C")).performScrollTo().assertIsDisplayed()
     }
 }
