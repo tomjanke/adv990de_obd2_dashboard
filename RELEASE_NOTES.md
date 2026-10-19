@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.37.0 (versionCode 127)
+
+Die Spannungs-Kachel zeigt jetzt links einen Lade-/Entlade-Balken: man sieht im Stand mit Lüfter und Heizgriffen, wohin die Batterie läuft (Idee F3).
+
+### Was sich ändert
+
+- **Neuer Balken in der Spannungs-Kachel** (jede Kachel mit der Steuergerätespannung): senkrecht, 16 dp breit wie der Tankbalken, links neben dem Inhalt, Skala 11–15 V mit einer Nulllinie bei 12,7 V. Er füllt von der Nulllinie bis zur über 10 s geglätteten Spannung: nach oben **grün** ab 13,3 V („lädt“), **gelb** von 12,7 bis unter 13,3 V („lädt kaum“), nach unten **rot** unter 12,7 V („entlädt“). Die Zahl in der Kachel bleibt der aktuelle Messwert.
+- **Nur bei laufendem Motor:** „lädt“ und „entlädt“ sind Aussagen über die Lichtmaschine. Ohne laufenden Motor und in den ersten 15 s nach dem Start (Anlasser-Einbruch) zeigt der Balken nur Spur und Nulllinie; ohne Verbindung ist die Linie gedämpft. Eine Hysterese von 0,1 V verhindert, dass die Farbe an einer Grenze flackert.
+- **TalkBack** liest das Zustandswort hinter dem Wert („Steuergerätespannung: 13,6 V, lädt“), ohne Zustand wie bisher.
+- **Die Kachel rückt um 24 dp:** Beschriftung, Sparkline und Wert beginnen weiter rechts (der Wert schrumpft bei Bedarf wie bisher). Die 4-dp-Statusleiste links bleibt, wie sie war.
+- Keine neue Abfrage, keine neue Berechtigung, keine Datenbankänderung; die Spannungs-Alarme bleiben unverändert und unabhängig vom Balken.
+
+### Meine Auslegung des Wunsches
+
+- Du hast Balken, Skala, Nulllage und Farbgrenzen vorgegeben. Ich habe angekündigt und umgesetzt: Füllung von der Nulllinie (nicht von unten), die ganze Füllung in der Zustandsfarbe (wie die Tankanzeige), stufenlos, Glättung 10 s, nur bei laufendem Motor, Balken innerhalb der 12 dp Innenrand und 8 dp hinter der Statusleiste. Die „Lüfter läuft“-Anzeige ist nicht gebaut.
+- **Rot im Normalbetrieb:** im Stand mit Lüfter (Median 12,3 V bei 90 °C) ist der Balken rot, obwohl alles normal ist. Rot heißt hier „Batterie wird entladen“, nicht „Gefahr“. Das ist eine dritte dokumentierte Farb-Ausnahme (wie Tankanzeige und Ölbalken).
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Die Grenzen 13,3 V und 12,7 V stammen aus neun kühlen Fahrten und der Faustregel für die Ruhespannung einer vollen 12-V-Batterie (12,6–12,8 V, für dieses Motorrad nicht gemessen); die Spannung ist die des Steuergeräts, nicht der Klemme. Die Grenze „lädt kaum“/„entlädt“ ist die am wenigsten abgesicherte (Gegenprobe: ein Multimeter an der Batterie). Sommer, Gelände und Stau fehlen in den Daten.
+- Die Ablesbarkeit am Motorrad (Breite, Farbe in Sonne) prüfst du auf der Fahrt. Der Zustand wird nicht aufgezeichnet.
+- Ohne Spannungs-Kachel gibt es keinen Balken.
+
 ## Version 1.36.1 (versionCode 126)
 
 Aufräum-Runde nach dem Alarm-Release: ein Alarm überlebt eine kurze „veraltet“-Phase, die Fehlerwache gibt nicht mehr auf, das Alarmband ist für Screenreader ruhiger und das rote Warnsymbol auf hellen Flächen besser zu sehen.
