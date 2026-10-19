@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.39.1 (versionCode 130)
+
+Der Lade-/Entlade-Balken hat beim Start und beim Abstellen keine Lücke mehr.
+
+### Was sich ändert
+
+- **Kein leerer Balken mehr beim Wechsel Motor an/aus.** Bisher war der Balken nach dem Start rund 18 s leer (15 s Einschwingzeit, dann drei Proben) und nach dem Abstellen mit Zündung an, bis drei neue Proben da waren. Jetzt zeigt er ab der **ersten** Probe des neuen Zustands etwas; bis drei Proben da sind, ist der Wert das Mittel seit dem Wechsel, danach gilt wieder das 10-s-Fenster.
+- **Das Fenster beginnt bei jedem Wechsel weiterhin neu:** die Zündung-an-Werte (rund 12 V) gelangen nicht in den laufenden Balken, die 13,6 V des laufenden Motors nicht in den Stand nach dem Abstellen.
+- **Die Einschwingzeit von 15 s entfällt für die Anzeige.** Für Alarme und Min/Max je Fahrt gilt sie unverändert.
+- **Nach dem ersten Verbinden mit stehendem Motor** braucht der Balken wie bisher drei Proben; ein Verbinden bei laufendem Motor zählt als Wechsel, der Balken steht dort ab der ersten Probe.
+- **Unverändert:** die Alarme, Min/Max je Fahrt, die Aufzeichnung der Fahrt und TalkBack. Keine neue Abfrage, keine neue Berechtigung, keine Datenbankänderung.
+
+### Meine Auslegung des Wunsches
+
+- Du hast gefragt, ob sich die Lücke beheben lässt, **nur für die Anzeige**. Ich habe den letzten Wert zu halten verworfen (nach dem Start stünde rot bei laufendem Motor, nach dem Abstellen grün bei Stillstand — falsch) und zeige stattdessen die erste echte Probe sofort.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Nach dem Start steht zuerst der echte, noch niedrige Wert (die Lichtmaschine läuft hoch, ein Rest des Anlasser-Einbruchs kann kurz sichtbar sein), und die ersten Werte bleiben bis zu 10 s im Mittel: der Balken klettert über einige Sekunden nach Grün. Wie schnell das am Motorrad geht, ist nicht gemessen; der Simulator hält die Spannung konstant bei 14,2 V und kann weder Start noch Stopp nachspielen.
+- **Beim Abstellen** erklärt meine Rechnung nur 3 bis 5 s Lücke, nicht die gemeldeten 18 s. Vermutung ohne Messung: das Steuergerät antwortet bei „Zündung an“ ohne Motor nicht auf die Drehzahl, das Motor-Tor hält sie 12 s, die Zyklen laufen langsam. Die Änderung beseitigt die Lücke in beiden Fällen. **Nicht geändert** ist, wann „Motor aus“ erkannt wird (es dient auch den Alarmen): fehlt die Drehzahl, zeigt der Balken bis zu 12 s weiter den Lauf-Stand.
+
 ## Version 1.39.0 (versionCode 129)
 
 Der Lade-/Entlade-Balken zeigt die Spannung jetzt schon vor dem Start des Motors.
