@@ -31,7 +31,7 @@ import de.adv990de.obd2.ui.theme.StatusColors
  *
  * - **Spur:** `surfaceVariant`, wie die unbeleuchteten Segmente der übrigen Anzeigen (Drehzahl, Tank): die Skala bleibt lesbar, auch wenn nichts gefüllt ist.
  * - **Füllung:** **ein** deckendes Rechteck, scharfe Kanten, stufenlos (die Nulllage muss genau stehen). Sie sieht bei laufendem Motor und **vor dem Start** (verbunden, Motor aus; [VoltageTrend.engineRunning]
- *   = false, Nutzerwunsch 2026-10-19) gleich aus: dieselbe Lage, dieselben Farben. Ohne Zustand ([trend] = null: Einschwingzeit nach dem Start, zu wenige Proben) oder ohne
+ *   = false, Nutzerwunsch 2026-10-19) gleich aus: dieselbe Lage, dieselben Farben. Ohne Zustand ([trend] = null: noch keine Probe seit dem Wechsel Motor an/aus, nach dem ersten Verbinden zu wenige Proben) oder ohne
  *   Verbindung ([isLive] = false) gibt es keine Füllung — nur Spur und Nulllinie; eine Farbe über einem Wert, den niemand gemessen hat, wäre eine Aussage ohne Grundlage.
  * - **Nulllinie:** 2 dp in `onSurface` über die Balkenbreite, über der Füllung (gedämpft ohne Verbindung).
  * - **Keine eigene Beschreibung:** der Balken ist reine Zeichnung; sein Zustand steht als Wort in der Beschreibung der Kachel ([sensorCardDescription]).

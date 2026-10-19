@@ -195,7 +195,7 @@ internal fun SensorCard(
     isLive: Boolean = true,
     /**
      * Nur fuer die Spannungs-Kachel ([PidRegistry.CONTROL_MODULE_VOLTAGE]): die geglaettete Spannung samt Lade-/Entlade-Zustand. Mit ihr bekommt die Kachel den senkrechten
-     * Balken links ([VoltageGauge]) und, bei laufendem Motor, das Zustandswort in der Beschreibung fuer Screenreader; null (Einschwingzeit nach dem Start, zu wenige Proben) zeigt nur Spur und Nulllinie.
+     * Balken links ([VoltageGauge]) und, bei laufendem Motor, das Zustandswort in der Beschreibung fuer Screenreader; null (noch keine Probe seit dem Wechsel Motor an/aus, nach dem ersten Verbinden zu wenige Proben) zeigt nur Spur und Nulllinie.
      */
     voltageTrend: VoltageTrend? = null,
 ) {

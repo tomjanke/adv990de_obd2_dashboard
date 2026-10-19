@@ -32,7 +32,8 @@ import org.junit.Test
 
 /**
  * Der Lade-/Entlade-Balken im Zustand des Dashboards: der Trend (Regeln: `VoltageTrendTest`, `VoltageTrendTrackerTest`) steht im `DashboardUiState`, solange Werte fliessen (vor dem Start
- * mit Motor aus, danach bei laufendem Motor), und verschwindet mit jedem Verbindungsereignis — wie Gang und Sparklines. Ein GPS-Zwischenupdate bewegt ihn nicht.
+ * mit Motor aus, danach bei laufendem Motor), und verschwindet mit jedem Verbindungsereignis — wie Gang und Sparklines. Ein GPS-Zwischenupdate bewegt ihn nicht. Beim Wechsel Motor an/aus bleibt
+ * keine Luecke: der Trend steht ab dem ersten Zyklus des neuen Zustands.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModelVoltageTest {
@@ -97,12 +98,12 @@ class DashboardViewModelVoltageTest {
     }
 
     @Test
-    fun `with a running engine the trend stands in the state after the settle time and three samples`() = runTest {
+    fun `with a running engine the trend stands in the state from the first cycle on`() = runTest {
         val s = setUp(testScheduler)
         advanceUntilIdle()
 
-        // Zyklus k liegt bei Sekunde k - 1: Einschwingzeit vorbei bei Sekunde 15, die dritte Probe bei Sekunde 17.
-        assertEquals(17L, s.firstTrendAt(from = 0))
+        // Ein Verbinden bei laufendem Motor zaehlt als Wechsel: keine Einschwingzeit fuer die Anzeige, schon der erste Zyklus zeigt den Balken.
+        assertEquals(0L, s.firstTrendAt(from = 0))
         assertEquals(13.6f, s.trend()!!.volts, 1e-4f)
         assertEquals(ChargeState.Charging, s.trend()!!.state)
     }
@@ -124,16 +125,30 @@ class DashboardViewModelVoltageTest {
     }
 
     @Test
-    fun `starting the engine empties the trend and the running trend follows after the settle time`() = runTest {
+    fun `starting the engine leaves no gap - the running trend stands at the first cycle and no pre-start value mixes in`() = runTest {
         val s = setUp(testScheduler)
         advanceUntilIdle()
         repeat(6) { s.cycle(it.toLong(), rpm = 0f, volt = 11.9f) }
         assertNotNull("vor dem Start steht ein Stand", s.trend())
 
-        // Der Motor laeuft ab Sekunde 6: Einschwingzeit bis Sekunde 21, die dritte Probe bei Sekunde 23 (Zyklus k liegt bei Sekunde 5 + k).
-        assertEquals(23L, s.firstTrendAt(from = 6))
+        // Der Motor laeuft ab Sekunde 6: der Balken zeigt sofort die Probe dieses Zyklus, nichts von den 11,9 V.
+        s.cycle(6, rpm = 2_000f, volt = 13.6f)
+
         assertEquals(13.6f, s.trend()!!.volts, 1e-4f)
         assertEquals(true, s.trend()!!.engineRunning)
+    }
+
+    @Test
+    fun `stopping the engine leaves no gap - the pre-start trend stands at the first cycle and no running value mixes in`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        repeat(20) { s.cycle(it.toLong(), rpm = 2_000f, volt = 13.6f) }
+        assertEquals(true, s.trend()!!.engineRunning)
+
+        s.cycle(20, rpm = 0f, volt = 12.0f)
+
+        assertEquals(12.0f, s.trend()!!.volts, 1e-4f)
+        assertEquals(false, s.trend()!!.engineRunning)
     }
 
     @Test
@@ -162,16 +177,17 @@ class DashboardViewModelVoltageTest {
             val s = setUp(testScheduler)
             advanceUntilIdle()
             val firstAt = s.firstTrendAt(from = 0)!!
+            repeat(5) { s.cycle(firstAt + 1 + it, volt = 13.6f) }
             assertNotNull("$event: vorher steht ein Trend", s.trend())
 
             s.events.emit(event)
             s.scheduler.runCurrent()
 
             assertNull("$event: der Trend ist weg", s.trend())
-            // Die neue Sitzung folgt SOFORT (der Motor-Tor haelt die letzte Drehzahl 12 s): bliebe der Tracker unzurueckgesetzt, stuende der Trend schon im ersten Zyklus wieder da.
-            // Zurueckgesetzt braucht sie wieder 15 s Einschwingzeit und drei Proben (17 s nach dem ersten Zyklus).
-            val next = firstAt + 1
-            assertEquals("$event: neue Sitzung beginnt von vorn", next + 17, s.firstTrendAt(from = next))
+            // Die neue Sitzung folgt SOFORT (der Motor-Tor haelt die letzte Drehzahl 12 s). Bliebe der Tracker unzurueckgesetzt, laege im Fenster noch das 13,6-V-Mittel der alten Sitzung und der erste neue
+            // Wert (12,0 V) ergaebe ein Mittel dazwischen; zurueckgesetzt beginnt das Fenster leer und der Balken zeigt genau diesen Wert.
+            s.cycle(firstAt + 7, volt = 12.0f)
+            assertEquals("$event: neue Sitzung beginnt von vorn", 12.0f, s.trend()!!.volts, 1e-4f)
         }
     }
 

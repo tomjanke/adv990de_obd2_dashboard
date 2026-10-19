@@ -10,7 +10,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Die Glättung der Spannung über die Zyklen: Mittel der letzten 10 s, ab drei Proben. Bei laufendem Motor erst nach der Einschwingzeit, vor dem Start (Motor aus) sofort — dann mit `engineRunning = false`.
+ * Die Glättung der Spannung über die Zyklen: Mittel der letzten 10 s, ab drei Proben — nur nach dem ersten Verbinden. Nach jedem Wechsel des Motorzustands (Start, Abstellen) beginnt das Fenster neu und zeigt
+ * die erste Probe sofort (Nutzerwunsch 2026-10-19: keine Lücke von rund 18 s); vor dem Start (Motor aus) mit `engineRunning = false`.
  * Der Takt der Tests ist 1 s je Zyklus (echt 1,1–1,6 s), damit die Fenstergrenzen glatte Zahlen sind.
  */
 class VoltageTrendTrackerTest {
@@ -29,7 +30,7 @@ class VoltageTrendTrackerTest {
         return tracker.update(values, isObdCycle = true)
     }
 
-    /** 40 Zyklen mit laufendem Motor: die Einschwingzeit (15 s) ist vorbei und das Fenster (11 Proben bei 1 s Takt) voll. */
+    /** 40 Zyklen mit laufendem Motor: das Fenster (11 Proben bei 1 s Takt) ist voll und hat die drei Proben längst überschritten. */
     private fun settledEngine(volts: Float = 13.6f): VoltageTrend? {
         var last: VoltageTrend? = null
         repeat(40) { last = cycle(volts = volts) }
@@ -83,30 +84,83 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `starting the engine empties the bar at once - the starter dip and the pre-start values never show`() {
+    fun `starting the engine restarts the window and shows the first running sample at once - no pre-start value mixes in`() {
         repeat(5) { cycle(rpm = 0f, volts = 11.9f) }
         assertNotNull("vor dem Start steht ein Stand", cycle(rpm = 0f, volts = 11.9f))
 
-        // Der Motor laeuft ab k = 1: 15 s Einschwingzeit (Anlasser-Einbruch 9,0 V zaehlt nicht), dann drei Proben. Kein Rest der 11,9 V darf in der Zwischenzeit stehen.
-        for (k in 1..17) assertNull("Zyklus $k nach dem Start", cycle(rpm = 1500f, volts = if (k <= 15) 9.0f else 13.8f))
-        val running = cycle(rpm = 1500f, volts = 13.8f)!!
+        // Der Motor läuft ab diesem Zyklus: der Balken zeigt sofort dessen Probe, ohne Lücke und ohne Rest der 11,9 V.
+        val first = cycle(rpm = 1500f, volts = 13.8f)!!
 
-        assertEquals("nur laufende Proben im Mittel", 13.8f, running.volts, 1e-4f)
-        assertTrue(running.engineRunning)
-        assertEquals(ChargeState.Charging, running.state)
+        assertEquals("nur die Probe seit dem Start", 13.8f, first.volts, 1e-4f)
+        assertTrue(first.engineRunning)
+        assertEquals(ChargeState.Charging, first.state)
     }
 
     @Test
-    fun `stopping the engine drops the running values at once and the bar waits for three fresh samples`() {
+    fun `after the start the mean grows from the samples since the start and the pre-start values stay out`() {
+        repeat(6) { cycle(rpm = 0f, volts = 11.9f) }
+
+        assertEquals(13.0f, cycle(rpm = 1500f, volts = 13.0f)!!.volts, 1e-4f)
+        assertEquals("Mittel aus zwei Proben", 13.5f, cycle(rpm = 1500f, volts = 14.0f)!!.volts, 1e-4f)
+        assertEquals("Mittel aus drei Proben", 13.5f, cycle(rpm = 1500f, volts = 13.5f)!!.volts, 1e-4f)
+    }
+
+    @Test
+    fun `stopping the engine restarts the window and shows the first sample at once - no running value mixes in`() {
         assertNotNull(settledEngine(13.6f))
 
-        assertNull(cycle(rpm = 0f, volts = 12.0f))
-        assertNull(cycle(rpm = 0f, volts = 12.0f))
         val off = cycle(rpm = 0f, volts = 12.0f)!!
 
         assertEquals("kein Rest der 13,6 V", 12.0f, off.volts, 1e-4f)
         assertFalse(off.engineRunning)
         assertEquals(ChargeState.Discharging, off.state)
+    }
+
+    @Test
+    fun `after stopping the mean grows from the samples since the stop`() {
+        settledEngine(13.6f)
+
+        assertEquals(12.4f, cycle(rpm = 0f, volts = 12.4f)!!.volts, 1e-4f)
+        assertEquals("Mittel aus zwei Proben", 12.3f, cycle(rpm = 0f, volts = 12.2f)!!.volts, 1e-4f)
+    }
+
+    @Test
+    fun `start and stop leave no gap - every cycle with a voltage shows the bar from the switch on`() {
+        repeat(4) { cycle(rpm = 0f, volts = 11.9f) }
+        assertNotNull("vor dem Start (nach drei Proben)", cycle(rpm = 0f, volts = 11.9f))
+
+        // Start, ein langer Lauf, Abstellen, wieder an: kein einziger Zyklus ohne Balken.
+        repeat(30) { assertNotNull("laufend, Zyklus ${it + 1}", cycle(rpm = 1500f, volts = 13.6f)) }
+        repeat(30) { assertNotNull("nach dem Abstellen, Zyklus ${it + 1}", cycle(rpm = 0f, volts = 12.0f)) }
+        repeat(30) { assertNotNull("zweiter Lauf, Zyklus ${it + 1}", cycle(rpm = 1500f, volts = 13.6f)) }
+    }
+
+    @Test
+    fun `a switch cycle without a voltage shows nothing until the next voltage arrives`() {
+        settledEngine()
+
+        assertNull("Abstellen ohne Spannung im Zyklus: nichts zu zeigen", cycle(rpm = 0f, volts = null))
+        val next = cycle(rpm = 0f, volts = 12.1f)!!
+        assertEquals(12.1f, next.volts, 1e-4f)
+        assertFalse(next.engineRunning)
+    }
+
+    @Test
+    fun `a connection that starts while the engine is already running shows the first sample at once`() {
+        // Verbinden unterwegs: der Motor läuft schon, der Balken wartet nicht auf eine Einschwingzeit.
+        val first = cycle(rpm = 2500f, volts = 13.7f)!!
+
+        assertEquals(13.7f, first.volts, 1e-4f)
+        assertTrue(first.engineRunning)
+    }
+
+    @Test
+    fun `a window that has been established needs three samples again after it has drained`() {
+        // Nach einem Wechsel zeigt schon die erste Probe; sind drei erreicht, gilt wieder die Regel „ab drei Proben“ — ein Rest von ein oder zwei Proben im Fenster zeigt nichts.
+        repeat(3) { assertNotNull(cycle(rpm = 1500f, volts = 13.6f)) }
+        repeat(8) { assertNotNull("ohne Spannung, Zyklus ${it + 1}", cycle(volts = null)) }
+        assertNull("nur noch zwei Proben", cycle(volts = null))
+        assertNull("nur noch eine Probe", cycle(volts = null))
     }
 
     @Test
@@ -158,10 +212,11 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `the first 15 seconds after the start show nothing and then three samples are needed`() {
-        // Zyklus k liegt bei k s; der Motor läuft ab k = 1, die Einschwingzeit (15 s) ist bei k = 16 vorbei, die Proben 16, 17, 18 ergeben das erste Ergebnis.
-        for (k in 1..17) assertNull("Zyklus $k", cycle())
-        assertNotNull("Zyklus 18", cycle())
+    fun `there is no settle time for the display - the very first cycle of a running engine shows its sample`() {
+        val first = cycle()
+
+        assertNotNull(first)
+        assertEquals(13.6f, first!!.volts, 1e-4f)
     }
 
     @Test
@@ -212,12 +267,13 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `an engine that stops clears the window at once and the next start waits for the settle time again`() {
-        assertNotNull(settledEngine())
+    fun `an engine that stops and starts again restarts the window each time and shows the first sample at once`() {
+        assertNotNull(settledEngine(13.6f))
 
-        assertNull("0 rpm: der Motor ist aus", cycle(rpm = 0f))
-        for (k in 1..17) assertNull("nach dem Wiederanlauf, Zyklus $k", cycle())
-        assertNotNull(cycle())
+        assertEquals("0 rpm: der Motor ist aus", 12.0f, cycle(rpm = 0f, volts = 12.0f)!!.volts, 1e-4f)
+        val again = cycle(rpm = 1500f, volts = 13.9f)!!
+        assertEquals("Wiederanlauf: nur die neue Probe", 13.9f, again.volts, 1e-4f)
+        assertTrue(again.engineRunning)
     }
 
     @Test
@@ -225,8 +281,15 @@ class VoltageTrendTrackerTest {
         settledEngine()
 
         // Die letzte Drehzahl gilt 12 s (EngineGate.RPM_HOLD_MS): ein Zyklus, in dem die Drehzahl ins Zeitlimit lief, setzt nichts zurück.
-        repeat(12) { assertNotNull("ohne Drehzahl, Zyklus ${it + 1}", cycle(rpm = null)) }
-        assertNull("nach 13 s ohne Drehzahl gilt der Motor als aus", cycle(rpm = null))
+        repeat(12) {
+            val shown = cycle(rpm = null)
+            assertNotNull("ohne Drehzahl, Zyklus ${it + 1}", shown)
+            assertTrue("der Motor gilt weiter als laufend", shown!!.engineRunning)
+        }
+        // Nach 13 s ohne Drehzahl gilt der Motor als aus: das Fenster beginnt neu, der Balken zeigt die Probe dieses Zyklus.
+        val off = cycle(rpm = null, volts = 12.0f)!!
+        assertFalse(off.engineRunning)
+        assertEquals(12.0f, off.volts, 1e-4f)
     }
 
     @Test
@@ -252,15 +315,18 @@ class VoltageTrendTrackerTest {
 
     @Test
     fun `a repeated sample counts once`() {
-        // Motor einschwingen lassen, ohne dass eine Spannung zählt, dann denselben Wert (derselbe Zeitstempel) mehrmals zustellen.
+        // Motor laufen lassen, ohne dass eine Spannung zählt, dann denselben Wert (derselbe Zeitstempel) mehrmals zustellen.
         repeat(20) { cycle(volts = null) }
         val repeated = SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, 13.6f, timestamp = 999_999L)
 
         repeat(5) {
             clock += 1000
             val shown = tracker.update(listOf(SensorValue(PidRegistry.RPM, 1500f, timestamp = stamp++), repeated), isObdCycle = true)
-            assertNull("eine Probe, auch fünfmal zugestellt, sind keine drei", shown)
+            assertEquals("die erste Zustellung zeigt, die weiteren ändern nichts", 13.6f, shown!!.volts, 1e-4f)
         }
+
+        // Zählte die Wiederholung mit, läge das Mittel bei (5 × 13,6 + 11,0) / 6; so ist es der Mittelwert zweier Proben.
+        assertEquals(12.3f, cycle(volts = 11.0f)!!.volts, 1e-4f)
     }
 
     @Test
@@ -271,10 +337,8 @@ class VoltageTrendTrackerTest {
         repeat(10) { assertNull(cycle(volts = Float.NaN)) }
         repeat(10) { assertNull(cycle(volts = Float.POSITIVE_INFINITY)) }
 
-        // Danach zählen echte Werte ganz normal.
-        assertNull(cycle())
-        assertNull(cycle())
-        assertNotNull(cycle())
+        // Danach zählen echte Werte ganz normal: die erste zeigt sofort, ohne ein Mittel mit den ungültigen.
+        assertEquals(12.9f, cycle(volts = 12.9f)!!.volts, 1e-4f)
     }
 
     @Test
@@ -288,12 +352,28 @@ class VoltageTrendTrackerTest {
 
     @Test
     fun `reset forgets everything, the engine gate included`() {
-        assertNotNull(settledEngine())
+        assertNotNull(settledEngine(13.6f))
 
         tracker.reset()
 
-        for (k in 1..17) assertNull("nach reset, Zyklus $k", cycle())
-        assertNotNull(cycle())
+        // Ohne Drehzahl gilt der Motor nach dem Zurücksetzen als aus (das Tor hat die 1500 rpm vergessen): wie beim ersten Verbinden braucht der Balken drei Proben, und keine 13,6 V sind übrig.
+        assertNull(cycle(rpm = null, volts = 12.2f))
+        assertNull(cycle(rpm = null, volts = 12.2f))
+        val trend = cycle(rpm = null, volts = 12.2f)!!
+        assertEquals(12.2f, trend.volts, 1e-4f)
+        assertFalse(trend.engineRunning)
+    }
+
+    @Test
+    fun `a reset right after a switch does not carry the one-sample rule into the next connection`() {
+        // Der Motor startet, die erste Probe zeigt schon (Wechsel: ab einer Probe) — dann reißt die Verbindung ab.
+        assertNotNull(cycle(rpm = 1500f, volts = 13.6f))
+        tracker.reset()
+
+        // Die neue Verbindung beginnt mit stehendem Motor wie ein erstes Verbinden: drei Proben, nicht eine.
+        assertNull(cycle(rpm = 0f, volts = 12.2f))
+        assertNull(cycle(rpm = 0f, volts = 12.2f))
+        assertNotNull(cycle(rpm = 0f, volts = 12.2f))
     }
 
     @Test
