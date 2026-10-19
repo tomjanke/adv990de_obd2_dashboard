@@ -31,8 +31,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Der Lade-/Entlade-Balken im Zustand des Dashboards: der Trend (Regeln: `VoltageTrendTest`, `VoltageTrendTrackerTest`) steht im `DashboardUiState`, solange Werte fliessen und
- * der Motor laeuft, und verschwindet mit jedem Verbindungsereignis — wie Gang und Sparklines. Ein GPS-Zwischenupdate bewegt ihn nicht.
+ * Der Lade-/Entlade-Balken im Zustand des Dashboards: der Trend (Regeln: `VoltageTrendTest`, `VoltageTrendTrackerTest`) steht im `DashboardUiState`, solange Werte fliessen (vor dem Start
+ * mit Motor aus, danach bei laufendem Motor), und verschwindet mit jedem Verbindungsereignis — wie Gang und Sparklines. Ein GPS-Zwischenupdate bewegt ihn nicht.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModelVoltageTest {
@@ -108,13 +108,32 @@ class DashboardViewModelVoltageTest {
     }
 
     @Test
-    fun `without a running engine there is no trend`() = runTest {
+    fun `with the engine off the trend shows after three samples and says the engine is off`() = runTest {
         val s = setUp(testScheduler)
         advanceUntilIdle()
 
-        repeat(40) { s.cycle(it.toLong(), rpm = 0f) }
+        s.cycle(0, rpm = 0f, volt = 11.9f)
+        s.cycle(1, rpm = 0f, volt = 11.9f)
+        assertNull("zwei Proben sind noch zu wenig", s.trend())
+        s.cycle(2, rpm = 0f, volt = 11.9f)
 
-        assertNull(s.trend())
+        val trend = s.trend()!!
+        assertEquals(11.9f, trend.volts, 1e-4f)
+        assertEquals(ChargeState.Discharging, trend.state)
+        assertEquals("Motor aus", false, trend.engineRunning)
+    }
+
+    @Test
+    fun `starting the engine empties the trend and the running trend follows after the settle time`() = runTest {
+        val s = setUp(testScheduler)
+        advanceUntilIdle()
+        repeat(6) { s.cycle(it.toLong(), rpm = 0f, volt = 11.9f) }
+        assertNotNull("vor dem Start steht ein Stand", s.trend())
+
+        // Der Motor laeuft ab Sekunde 6: Einschwingzeit bis Sekunde 21, die dritte Probe bei Sekunde 23 (Zyklus k liegt bei Sekunde 5 + k).
+        assertEquals(23L, s.firstTrendAt(from = 6))
+        assertEquals(13.6f, s.trend()!!.volts, 1e-4f)
+        assertEquals(true, s.trend()!!.engineRunning)
     }
 
     @Test

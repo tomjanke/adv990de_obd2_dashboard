@@ -8,8 +8,12 @@ package de.adv990de.obd2.ui.dashboard
 /** Wohin die Batterie läuft — eine Aussage über die Lichtmaschine, nicht über die Gesundheit der Batterie. */
 enum class ChargeState { Charging, Marginal, Discharging }
 
-/** Die geglättete Spannung und der Zustand, den die Kachel zeigt. */
-data class VoltageTrend(val volts: Float, val state: ChargeState)
+/**
+ * Die geglättete Spannung und der Zustand, den die Kachel zeigt. [engineRunning] sagt, ob der Motor lief, als sie gemittelt wurde: bei laufendem Motor beschreibt der Zustand die Lichtmaschine
+ * („lädt“, „lädt kaum“, „entlädt“); **vor dem Start** (verbunden, Motor aus, Nutzerwunsch 2026-10-19) zeigt der Balken nur die Spannung, und die Wörter wären falsch — „lädt kaum“ bei 12,9 V
+ * und stehendem Motor lädt gar nichts. Der Balken malt beides gleich, nur die Beschreibung für Screenreader lässt das Wort dann weg.
+ */
+data class VoltageTrend(val volts: Float, val state: ChargeState, val engineRunning: Boolean = true)
 
 // Skala des Balkens: 11 bis 15 V; die Nulllage liegt bei der Ruhespannung einer vollen 12-V-Batterie (Faustregel 12,6–12,8 V, für dieses Motorrad nicht gemessen).
 internal const val VOLTAGE_BAR_MIN_V = 11f

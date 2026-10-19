@@ -2,7 +2,9 @@ package de.adv990de.obd2.ui.dashboard
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,7 +30,8 @@ import de.adv990de.obd2.ui.theme.StatusColors
  * Die Füllung geht von der Nulllinie bis zur geglätteten Spannung — darüber nach oben, darunter nach unten — in der Farbe des Zustands.
  *
  * - **Spur:** `surfaceVariant`, wie die unbeleuchteten Segmente der übrigen Anzeigen (Drehzahl, Tank): die Skala bleibt lesbar, auch wenn nichts gefüllt ist.
- * - **Füllung:** **ein** deckendes Rechteck, scharfe Kanten, stufenlos (die Nulllage muss genau stehen). Ohne Zustand ([trend] = null: kein Motor, Einschwingzeit, zu wenige Proben) oder ohne
+ * - **Füllung:** **ein** deckendes Rechteck, scharfe Kanten, stufenlos (die Nulllage muss genau stehen). Sie sieht bei laufendem Motor und **vor dem Start** (verbunden, Motor aus; [VoltageTrend.engineRunning]
+ *   = false, Nutzerwunsch 2026-10-19) gleich aus: dieselbe Lage, dieselben Farben. Ohne Zustand ([trend] = null: Einschwingzeit nach dem Start, zu wenige Proben) oder ohne
  *   Verbindung ([isLive] = false) gibt es keine Füllung — nur Spur und Nulllinie; eine Farbe über einem Wert, den niemand gemessen hat, wäre eine Aussage ohne Grundlage.
  * - **Nulllinie:** 2 dp in `onSurface` über die Balkenbreite, über der Füllung (gedämpft ohne Verbindung).
  * - **Keine eigene Beschreibung:** der Balken ist reine Zeichnung; sein Zustand steht als Wort in der Beschreibung der Kachel ([sensorCardDescription]).
@@ -83,23 +86,31 @@ internal fun voltageStateRes(state: ChargeState): Int = when (state) {
 @Composable
 private fun VoltageGaugePreviewContent() {
     val voltage = PidRegistry.CONTROL_MODULE_VOLTAGE
-    Row(Modifier.fillMaxWidth().padding(4.dp)) {
-        // Eine Kachel nimmt, was man ihr gibt (im Dashboard gibt die Reihe die Hoehe vor): ohne feste Hoehe fuellte sie das ganze Vorschau-Fenster.
-        val tile = Modifier.weight(1f).height(160.dp)
-        Box(tile) { SensorCard(SensorValue(voltage, 13.6f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(13.6f, ChargeState.Charging)) }
-        Box(tile) { SensorCard(SensorValue(voltage, 13.0f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(13.0f, ChargeState.Marginal)) }
-        Box(tile) { SensorCard(SensorValue(voltage, 12.3f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(12.3f, ChargeState.Discharging)) }
-        Box(tile) { SensorCard(SensorValue(voltage, 0f), modifier = Modifier.fillMaxSize(), isLive = false) }
+    // Eine Kachel nimmt, was man ihr gibt (im Dashboard gibt die Reihe die Hoehe vor): ohne feste Hoehe fuellte sie das ganze Vorschau-Fenster. Zwei Reihen, weil das Vorschau-Fenster
+    // schmal ist (Geraetebreite): fuenf Kacheln nebeneinander schnitten die Werte ab.
+    val tile = Modifier.height(160.dp)
+    Column(Modifier.fillMaxWidth().padding(4.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Box(tile.weight(1f)) { SensorCard(SensorValue(voltage, 13.6f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(13.6f, ChargeState.Charging)) }
+            Box(tile.weight(1f)) { SensorCard(SensorValue(voltage, 13.0f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(13.0f, ChargeState.Marginal)) }
+            Box(tile.weight(1f)) { SensorCard(SensorValue(voltage, 12.3f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(12.3f, ChargeState.Discharging)) }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            // Vor dem Start (verbunden, Motor aus): derselbe Balken, nur ohne Zustandswort in der Beschreibung.
+            Box(tile.weight(1f)) { SensorCard(SensorValue(voltage, 11.9f), modifier = Modifier.fillMaxSize(), voltageTrend = VoltageTrend(11.9f, ChargeState.Discharging, engineRunning = false)) }
+            Box(tile.weight(1f)) { SensorCard(SensorValue(voltage, 0f), modifier = Modifier.fillMaxSize(), isLive = false) }
+            Spacer(Modifier.weight(1f))
+        }
     }
 }
 
-@Preview(name = "VoltageGauge (light)", showBackground = true, widthDp = 720)
+@Preview(name = "VoltageGauge (light)", showBackground = true, widthDp = 480)
 @Composable
 private fun PreviewVoltageGaugeLight() {
     PreviewTheme(dark = false) { VoltageGaugePreviewContent() }
 }
 
-@Preview(name = "VoltageGauge (dark)", showBackground = true, widthDp = 720)
+@Preview(name = "VoltageGauge (dark)", showBackground = true, widthDp = 480)
 @Composable
 private fun PreviewVoltageGaugeDark() {
     PreviewTheme(dark = true) { VoltageGaugePreviewContent() }

@@ -195,7 +195,7 @@ internal fun SensorCard(
     isLive: Boolean = true,
     /**
      * Nur fuer die Spannungs-Kachel ([PidRegistry.CONTROL_MODULE_VOLTAGE]): die geglaettete Spannung samt Lade-/Entlade-Zustand. Mit ihr bekommt die Kachel den senkrechten
-     * Balken links ([VoltageGauge]) und das Zustandswort in der Beschreibung fuer Screenreader; null (kein Motor, Einschwingzeit) zeigt nur Spur und Nulllinie.
+     * Balken links ([VoltageGauge]) und, bei laufendem Motor, das Zustandswort in der Beschreibung fuer Screenreader; null (Einschwingzeit nach dem Start, zu wenige Proben) zeigt nur Spur und Nulllinie.
      */
     voltageTrend: VoltageTrend? = null,
 ) {
@@ -211,9 +211,10 @@ internal fun SensorCard(
     }
     val pidLabel = stringResource(value.pid.labelRes)
     val isVoltage = value.pid.id == PidRegistry.CONTROL_MODULE_VOLTAGE.id
-    // Ohne Verbindung gibt es keinen Zustand: der Balken zeigt dann nur Spur und Nulllinie, die Beschreibung kein Wort.
+    // Ohne Verbindung gibt es keinen Zustand: der Balken zeigt dann nur Spur und Nulllinie, die Beschreibung kein Wort. Vor dem Start (Motor aus) zeigt der Balken die Spannung, aber die
+    // Beschreibung nennt kein Wort: "laedt" und "laedt kaum" waeren bei stehendem Motor falsch.
     val shownTrend = if (isVoltage && isLive) voltageTrend else null
-    val stateWord = shownTrend?.let { stringResource(voltageStateRes(it.state)) }
+    val stateWord = shownTrend?.takeIf { it.engineRunning }?.let { stringResource(voltageStateRes(it.state)) }
     LiveValueTile(
         label = pidLabel,
         value = displayValue,

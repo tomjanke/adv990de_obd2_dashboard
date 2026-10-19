@@ -146,8 +146,8 @@ class VoltageGaugeDeviceTest {
 
     private val lineHeightPx get() = with(composeRule.density) { 2.dp.toPx() }
 
-    private fun checkFill(volts: Float, state: ChargeState, expected: Color) {
-        show(reading = volts(volts), trend = VoltageTrend(volts, state))
+    private fun checkFill(volts: Float, state: ChargeState, expected: Color, engineRunning: Boolean = true) {
+        show(reading = volts(volts), trend = VoltageTrend(volts, state, engineRunning))
         val h = gaugeHeightPx()
         val span = voltageBarFill(volts)!!
         val extent = extentOf(expected)
@@ -170,6 +170,11 @@ class VoltageGaugeDeviceTest {
     @Test fun barelyCharging_fillsUpwardsInYellow() = checkFill(13.0f, ChargeState.Marginal, StatusColors.Warning)
 
     @Test fun discharging_fillsDownwardsFromTheZeroLineInRed() = checkFill(12.3f, ChargeState.Discharging, StatusColors.Critical)
+
+    // Vor dem Start (Motor aus, verbunden) zeigt der Balken die Spannung ebenso: gleiche Lage, gleiche Farben (Nutzerwunsch 2026-10-19).
+    @Test fun beforeTheStart_aLowVoltageFillsDownwardsInRed() = checkFill(11.9f, ChargeState.Discharging, StatusColors.Critical, engineRunning = false)
+
+    @Test fun beforeTheStart_aRestedBatteryFillsUpwardsInYellow() = checkFill(12.9f, ChargeState.Marginal, StatusColors.Warning, engineRunning = false)
 
     @Test
     fun theFillIsCutOffAtTheTopOfTheScale() {
@@ -246,6 +251,19 @@ class VoltageGaugeDeviceTest {
     @Test fun theDescriptionNamesBarelyCharging() = checkDescription(ChargeState.Marginal, R.string.voltage_state_marginal)
 
     @Test fun theDescriptionNamesDischarging() = checkDescription(ChargeState.Discharging, R.string.voltage_state_discharging)
+
+    // Vor dem Start sagt die Beschreibung kein Zustandswort: "laedt" und "laedt kaum" waeren bei stehendem Motor falsch, die Zahl steht dort. (Ein Test je Zustand: setContent laeuft je Test nur einmal.)
+    private fun checkNoWordBeforeTheStart(state: ChargeState) {
+        show(reading = volts(13.0f), trend = VoltageTrend(13.0f, state, engineRunning = false))
+        val label = composeRule.activity.getString(R.string.pid_control_module_voltage)
+        assertEquals("$label: ${formatSensorNumber(13.0f, "V")} V", descriptionOfTile())
+    }
+
+    @Test fun beforeTheStartTheDescriptionNamesNoWord_charging() = checkNoWordBeforeTheStart(ChargeState.Charging)
+
+    @Test fun beforeTheStartTheDescriptionNamesNoWord_barelyCharging() = checkNoWordBeforeTheStart(ChargeState.Marginal)
+
+    @Test fun beforeTheStartTheDescriptionNamesNoWord_discharging() = checkNoWordBeforeTheStart(ChargeState.Discharging)
 
     @Test
     fun withoutAStateTheDescriptionIsTheOldOne() {
