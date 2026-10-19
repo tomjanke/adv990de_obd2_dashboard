@@ -30,7 +30,7 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 **F1 — Alarme für Spannung und Kühlmittel** (mittel). Sichtbares Signal (Rand oder Vollbild blinkt) plus Ton am Gerät; Schwellen einstellbar, **mit Dauerkriterium statt Einzelwert**. Der Lüfter im Stand (12,1–12,8 V bis 47 s) ist Normalverhalten und darf nicht alarmieren. Kandidaten aus den Daten (Tabelle im Auswertungs-Dokument; **mit Heizgriffen ist „unter 12,5 V für ≥ 10 s“ Alltag und zu empfindlich**): Spannung Hinweis unter 12,5 V ≥ 20 s (1 Auslösung in 9 Fahrten), Warnung unter 12,2 V ≥ 10 s (0), „Entladung über Minuten“ unter 13,0 V ≥ 3 min (0); Kühlmittel Hinweis ≥ 95 °C und Warnung ≥ 100 °C bei laufendem Motor (0; nur Abstand zum Regelpunkt 90 °C, ohne Sommerdaten nicht abgesichert). Voraussetzung: die Spannung wird heute nur abgefragt, wenn sie als Kachel belegt ist (in den ausgewerteten Fahrten war sie es); ein Alarm müsste sie immer abfragen (Zykluszeit, jeder PID etwa 0,15–0,28 s, Protokoll Punkt 25). **Status (2026-10-18): umgesetzt, released als 1.36.0** — auf Auftrag des Nutzers („Bitte F1 und F4 konzeptionieren, planen und umsetzen“, Protokoll Punkt 51): Alarmband plus Systembenachrichtigung statt Blinken und Ton am Gerät allein, Schwellen wählbar, Spannung alle 4 Zyklen abgefragt, standardmäßig an; die Schwellen sind die der Kandidaten oben. F2 und F3 bleiben Ideen. Am Fahrzeug nichts geprüft.
 
-**F2 — Lüfter-Ausfall erkennen** (klein, Teil von F1). Das Kühlmittel steigt bei laufendem Motor über den Regelpunkt (hier 90 °C) und die Spannungs-Signatur des Lüfters fehlt: ein ausgefallener oder hängender Lüfter (Sicherung, Relais, Stecker) ist unterwegs sonst erst bei Überhitzung zu bemerken. Folgerung aus den Daten, am Fahrzeug nicht erprobt.
+**F2 — Lüfter-Ausfall erkennen** — **gestrichen (Nutzer, 2026-10-19: „zu speziell“, Protokoll Punkt 59).** Ursprüngliche Beschreibung (klein, Teil von F1): Das Kühlmittel steigt bei laufendem Motor über den Regelpunkt (hier 90 °C) und die Spannungs-Signatur des Lüfters fehlt: ein ausgefallener oder hängender Lüfter (Sicherung, Relais, Stecker) ist unterwegs sonst erst bei Überhitzung zu bemerken. Folgerung aus den Daten, am Fahrzeug nicht erprobt.
 
 **F3 — Lade-/Entlade-Anzeige** (klein bis mittel). Geglättete Spannung (zum Beispiel über 10 s) mit Zustand „lädt“ (≥ 13,3 V), „lädt kaum“ und „entlädt“, damit man im Stand mit Lüfter und Heizgriffen sieht, wohin es geht. Optional eine **abgeleitete „Lüfter läuft“-Anzeige** aus Kühlmittel und Spannungseinbruch — das ist ein Schluss, kein gemessener Zustand, und müsste so gekennzeichnet sein. **Status (2026-10-19): umgesetzt ohne die „Lüfter läuft“-Anzeige, released als 1.37.0** — auf Auftrag des Nutzers (Protokoll Punkt 53): kein Wort-Zustand, sondern ein senkrechter Balken links in der Spannungs-Kachel (Skala 11–15 V, Nulllinie 12,7 V, grün ab 13,3 V, gelb bis 12,7 V, rot darunter, 10 s geglättet, nur bei laufendem Motor); „Lüfter läuft“ nicht gebaut. Am Fahrzeug nichts geprüft.
 
@@ -62,13 +62,14 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 - **Overlay über der Navigations-App:** entfällt (Navigation läuft getrennt).
 - Nicht empfohlen: Schaltempfehlung (im Gelände unzuverlässig), Cloud-Funktionen.
+- **F2 (Lüfter-Ausfall erkennen):** gestrichen am 2026-10-19 (Nutzer: zu speziell). Der Kühlmittel-Alarm aus F1 deckt die Folge eines ausgefallenen Lüfters ab (Überhitzung).
 
 ## Antworten des Nutzers auf die offenen Fragen (2026-10-17)
 
 1. **Heizgriffe je Fahrt:** „kann ich nicht genau sagen“ — der Zusammenhang mit den Morgenfahrten bleibt wahrscheinlich, nicht belegt.
 2. **Sommer- oder Geländefahrten mit Aufzeichnung:** keine. Die Kühlmittel-Schwellen und die Entladung über Minuten sind damit vorerst nicht absicherbar.
 3. **F1 (Alarme) als Start:** **erstmal nein.** F1 bis F3 ruhen.
-4. **Geändert am 2026-10-18:** der Nutzer beauftragte F1 und F4 („Bitte F1 und F4 konzeptionieren, planen und umsetzen“); sie sind released (1.36.0, s. Status bei F1 und F4). F2 und F3 ruhen weiter.
+4. **Geändert am 2026-10-18:** der Nutzer beauftragte F1 und F4 („Bitte F1 und F4 konzeptionieren, planen und umsetzen“); sie sind released (1.36.0, s. Status bei F1 und F4). F2 und F3 ruhen weiter. (Später: F3 am 2026-10-19 umgesetzt, F2 am 2026-10-19 gestrichen.)
 
 ## Vorrang des Nutzers: Export der Fahrten einfacher machen — umgesetzt
 
