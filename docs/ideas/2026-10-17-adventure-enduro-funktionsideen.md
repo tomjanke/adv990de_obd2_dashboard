@@ -50,7 +50,7 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 **F10 — Profile Straße und Gelände** (mittel). Andere Kachelbelegung und Schwellen per Knopf, ohne Wischgeste.
 
-**F11 — Min/Max je Fahrt** (klein; **nur mit ausdrücklichem Ja**). Kühlmittel max und Spannung min im Detail-Dialog einer Fahrt: zwei Zahlen, kein Diagramm. Zeigt, ob der Lüfter reicht und die Heizgriffe die Spannung drücken; rechenbar aus vorhandenen Messwerten, auch für ältere Fahrten, die beides aufgezeichnet haben. Messwert-Diagramme je Fahrt hat der Nutzer abgelehnt (Protokoll Punkt 46).
+**F11 — Min/Max je Fahrt** (klein; war „nur mit ausdrücklichem Ja“). **Status (2026-10-19): umgesetzt, released als 1.38.0** — der Nutzer sagte Ja und wünschte Kühlmittel **und** Spannung jeweils Min **und** Max (Entscheidungsprotokoll Punkt 54); die Spannung zählt nur bei laufendem Motor (meine Auslegung), s. CLAUDE.md „Min/Max je Fahrt im Detail-Dialog“. Ursprüngliche Beschreibung: Kühlmittel max und Spannung min im Detail-Dialog einer Fahrt: zwei Zahlen, kein Diagramm. Zeigt, ob der Lüfter reicht und die Heizgriffe die Spannung drücken; rechenbar aus vorhandenen Messwerten, auch für ältere Fahrten, die beides aufgezeichnet haben. Messwert-Diagramme je Fahrt hat der Nutzer abgelehnt (Protokoll Punkt 46).
 
 **F12 — Batterie-Trend** (klein; neu aus der Auswertung). Spannung bei Zündung an und Einbruch beim Start je Fahrt festhalten, um eine alternde Batterie am Verlauf zu erkennen. Grenzen: Abstand der Zyklen 1,1–1,6 s (Anlasser-Spitzen nur zufällig getroffen; bessere Werte bräuchten kurzes schnelles Abfragen beim Start); die Steuergerätespannung ist nicht die Klemmenspannung; die ausgewerteten Fahrten erlauben **keine** Aussage zur Batteriegesundheit (Gegenprobe: Multimeter).
 

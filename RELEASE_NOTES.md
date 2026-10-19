@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.38.0 (versionCode 128)
+
+Der Detail-Dialog einer Fahrt zeigt jetzt den kleinsten und größten Wert von Kühlmittel und Spannung (Idee F11).
+
+### Was sich ändert
+
+- **Neuer Block „Messwerte der Fahrt“** im Detail-Dialog (Tipp auf eine Fahrt unter „Fahrten“), hinter den Fehlercodes: zwei Zeilen, **Kühlmittel** und **Bordspannung**, unter den Spalten **Min** und **Max**. Eine Zahl je Feld, kein Diagramm. Fehlt ein Wert, steht „–“, nie 0.
+- **Aus den vorhandenen Messwerten gerechnet:** keine neue Aufzeichnung, keine Datenbankänderung, keine Berechtigung. Es gilt auch für ältere Fahrten, soweit sie den Wert aufgezeichnet haben.
+- **Einheiten wie in den Kacheln:** Volt mit einer Nachkommastelle, das Kühlmittel in ganzen Grad, bei imperialen Einheiten in °F.
+- **Ein Lesefehler wird als solcher gemeldet** („Die Messwerte konnten nicht gelesen werden.“), er sieht nie wie „nichts aufgezeichnet“ aus.
+- **TalkBack** liest jede Zeile als einen Satz („Kühlmittel: kleinster Wert 20 °C, größter Wert 79 °C“, bzw. „… nicht erfasst“).
+
+### Meine Auslegung des Wunsches
+
+- Du hast „Kühlmittel min und max und Spannung min und max“ bestellt. **Die Spannung zählt nur bei laufendem Motor, ab 15 s nach dem Start** (dieselbe Regel wie bei den Alarmen und dem Lade-/Entlade-Balken). Über alle Zeilen wäre das Minimum fast immer der Anlasser-Einbruch (bis 7,8 V gesehen) oder die Spannung bei „Zündung an“ (Median 11,9 V), und die Wirkung von Heizgriffen und Lüfter (11,6 bis 12,8 V) läge nie vorn. Ein Hinweis unter der Tabelle nennt die Regel. Das Kühlmittel zählt ungefiltert, sein Minimum ist die Starttemperatur.
+- Der Block steht **hinter** den Fehlercodes (die Codes stehen oben, im Querformat ist die Höhe knapp); bei einer Fahrt mit Codes liegt er unter dem Rand und ist durch Scrollen erreichbar.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Am Gerät im Querformat mit einer Fahrt vom ECU-Simulator gesehen (der hält die Spannung konstant: ein Unterschied zwischen Min und Max der Spannung ist damit nicht belegt, ebenso wenig Lüfter- oder Heizgriff-Einbrüche). Nicht gesehen: der Dialog im Hochformat und mit Fehlercodes.
+- Die Spannung steht erst seit 1.36.0 auch ohne Spannungs-Kachel in der Fahrt (Alarm an: jeder 4. Zyklus); ältere Fahrten zeigen bei der Spannung oft „–“. Die Spannung ist die des Steuergeräts, nicht der Klemme.
+- Eine laufende Aufzeichnung zeigt den Stand beim Öffnen des Dialogs, ohne Live-Update.
+
 ## Version 1.37.0 (versionCode 127)
 
 Die Spannungs-Kachel zeigt jetzt links einen Lade-/Entlade-Balken: man sieht im Stand mit Lüfter und Heizgriffen, wohin die Batterie läuft (Idee F3).
