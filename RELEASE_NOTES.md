@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.39.0 (versionCode 129)
+
+Der Lade-/Entlade-Balken zeigt die Spannung jetzt schon vor dem Start des Motors.
+
+### Was sich ändert
+
+- **Vor dem Start (App verbunden, Motor noch aus)** zeigt der Balken in der Spannungs-Kachel schon die Spannung: dieselbe Lage, dieselben Grenzen, Farben, Glättung und Hysterese wie bei laufendem Motor. Typisch ist „Zündung an“ mit rund 11,9 V, also rot unter der Nulllinie. Der Balken erscheint rund 3 bis 5 s nach dem ersten Wert, ohne die 15 s Wartezeit.
+- **Bei laufendem Motor bleibt alles wie vorher.** Beim Start (und beim Abstellen) wird die Glättung geleert, damit die Werte des einen Zustands nicht in den Balken des anderen gelangen. Nach dem Start ist der Balken deshalb leer, bis die Einschwingzeit vorbei ist und drei Proben da sind (rund 18 s) — das war schon so, fällt jetzt nur auf, weil er davor etwas zeigt.
+- **TalkBack:** vor dem Start liest es nur die Zahl, ohne „lädt“, „lädt kaum“ oder „entlädt“; bei laufendem Motor wie bisher mit dem Zustandswort.
+- **Unverändert:** die Alarme, Min/Max je Fahrt und die Aufzeichnung der Fahrt (sie schreibt die Spannung wie bisher ab dem Verbinden; der Zustand des Balkens wird nie aufgezeichnet). Keine neue Abfrage, keine neue Berechtigung, keine Datenbankänderung.
+
+### Meine Auslegung des Wunsches
+
+- Du hast gewünscht, **nur** im Balken schon vor dem Start die Spannung zu sehen, ohne Protokollierung. Ich habe „Protokollierung“ so gelesen: Alarme, Min/Max je Fahrt und Aufzeichnung bleiben, wie sie sind.
+- Das Zustandswort für TalkBack entfällt vor dem Start: „lädt kaum“ bei 12,9 V und stehendem Motor wäre falsch, es lädt nichts.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Dass das Steuergerät bei „Zündung an“ 0 rpm meldet (der Balken gilt dann als „Motor aus“), ist angenommen. Wie sich der Balken beim Anlassen verhält, zeigt erst eine Fahrt: beim Orgeln unter 500 rpm zählt der Motor noch als aus, der Anlasser-Einbruch kann das 10-s-Mittel kurz nach unten ziehen.
+- Rot vor dem Start ist normal (die Batterie versorgt bei „Zündung an“ die Verbraucher; in den Fahrten 11,5 bis 12,3 V).
+
 ## Version 1.38.0 (versionCode 128)
 
 Der Detail-Dialog einer Fahrt zeigt jetzt den kleinsten und größten Wert von Kühlmittel und Spannung (Idee F11).
