@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.40.0 (versionCode 131)
+
+Die App erkennt jetzt, wenn das Fahrzeug weiter antwortet, aber nichts mehr ändert.
+
+### Was sich ändert
+
+- **Eingefrorene Werte werden erkannt.** Auf zwei Fahrten (16.10. und 20.10.) standen Drehzahl, Kühlmittel und Spannung 8 bzw. 15 Minuten auf demselben Wert, während die GPS-Geschwindigkeit weiterlief. Es gab kein Band, der Verbindungspunkt blieb grün. Jetzt gilt der Strom als eingefroren, wenn bei laufendem Motor (ab 500 rpm) **jeder** abgefragte Wert seit mindestens 20 Zyklen **und** seit der Zeit der Einstellung „Reconnect bei eingefrorenen Werten“ (Standard 20 s) unverändert ist. In deinen 15 aufgezeichneten Fahrten standen die Werte höchstens 5 Zyklen (rund 6 s) am Stück gleich.
+- **Einmal neu verbinden, dann zurückhalten.** Die App verbindet bei einem eingefrorenen Strom einmal neu. Ist es danach wieder dasselbe, bleibt die Verbindung stehen und die App zeigt „Keine aktuellen Werte“, statt Zahlen, die niemand mehr misst; bewegt sich ein Wert, kommen die Zahlen zurück. Eine Schleife aus Neuverbinden und Warten gibt es nicht (sie legte jedes Mal eine neue Fahrt an).
+- **Diagnose im App-Log.** Beim Neuverbinden steht der Grund im Log („values frozen: unchanged for 20 cycles / 28 s“) samt den rohen Antworten des letzten Zyklus und `ATRV`, der Spannung, die der **Adapter** selbst misst. So lässt sich Adapter von Steuergerät unterscheiden. `ATRV` ist ein Befehl an den Adapter, an das Fahrzeug geht nichts.
+- **Die Beschreibung der Watchdog-Einstellung** nennt jetzt auch „unveränderte Werte“ (Deutsch und Englisch).
+- **Unverändert:** Anzeige, Aufzeichnung, Alarme, Datenbank (bleibt v5), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft; die Ursache des Einfrierens ist unbekannt** (Adapter, Steuergerät oder Bluetooth). Ob ein Neuverbinden es heilt, ist offen. Liegt es am Steuergerät, endet die App nach dem Neuverbinden bei „Keine aktuellen Werte“.
+- **Verzögerung:** erkannt wird nach rund 30 s (20 Zyklen bei 1,5 s Takt). Bis dahin und nach dem Neuverbinden noch einmal so lange laufen die eingefrorenen Werte weiter durch.
+- **Falsch-positiv-Risiko:** ein Fahrzeug, dessen Werte bei laufendem Motor wirklich 20 Zyklen und die eingestellte Zeit identisch sind, würde einmal neu verbunden und dann als „Keine aktuellen Werte“ gezeigt, bis sich ein Wert bewegt. Bei deinem Motorrad kam das in 15 Fahrten nie vor.
+- Jedes Neuverbinden legt eine neue Fahrt an (wie beim Watchdog).
+- **Aus dem App-Log der Fahrt vom 20.10.:** die Fahrt begann nach zwei fehlgeschlagenen Verbindungsversuchen und einem unlesbaren Auslesen der Fehlercodes; zum Einfrieren steht keine Zeile im Log. Ob der holprige Start mit dem Einfrieren zusammenhängt, ist offen.
+- **Dein Versuch bei der nächsten Fahrt:** friert es wieder ein, im Stand „Trennen“ und „Verbinden“ drücken und notieren, ob die Werte zurückkommen; danach den Log-Eintrag lesen.
+
 ## Version 1.39.1 (versionCode 130)
 
 Der Lade-/Entlade-Balken hat beim Start und beim Abstellen keine Lücke mehr.
