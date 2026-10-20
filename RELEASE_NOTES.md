@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.41.0 (versionCode 132)
+
+Der App-Log lässt sich jetzt exportieren, so wie alle Fahrten.
+
+### Was sich ändert
+
+- **Logs exportieren.** In den App-Logs steht links vom Papierkorb ein Download-Symbol. Es öffnet einen Dialog mit **Speichern** (Dateidialog des Systems, z. B. Downloads), **Teilen** (Teilen-Menü) und Abbrechen. Das Ergebnis ist **eine CSV-Datei** `applog_<Zeit>.csv` mit den Spalten `timestamp,level,message` (Zeit in Millisekunden UTC wie bei den Fahrten, älteste Zeile zuerst). Das Symbol ist ausgegraut, solange keine Zeile sichtbar ist.
+- **Exportiert wird, was du siehst.** Hast du „Alle löschen“ gedrückt und das Rückgängig-Fenster ist noch offen, bleiben die ausgeblendeten Zeilen aus der Datei; Zeilen, die danach entstanden sind, sind dabei.
+- **Der Dialog warnt:** die Datei enthält den Namen deines Adapters und Fehlermeldungen (seit 1.40.0 bei eingefrorenen Werten auch die rohen Antworten des Steuergeräts). Sie verlässt das Gerät nur, wenn du sie teilst.
+- **Unverändert:** das Löschen mit Rückfrage und Rückgängig, die Aufbewahrung (30 Tage, höchstens 1000 Zeilen, einmal je App-Start), die Datenbank (bleibt v5), die Berechtigungen. Das Fahrzeug bleibt rein lesend.
+- **Aufgeräumt:** der Dialog „Alle Fahrten exportieren“, das Teilen-Menü und das Kopieren in die gewählte Datei sind jetzt gemeinsame Bausteine für Fahrten und Log; das Aufräumen alter Exporte (älter als ein Tag) trifft beide Dateiarten.
+
+### Meine Auslegung des Wunsches
+
+- Du hast „analog zu den Fahrten“ gesagt. Spalten, Dateiname und der Hinweis im Dialog sind meine Wahl; eine lesbare Zeitspalte gibt es nicht (die Zeit ist in Millisekunden wie in der Fahrten-CSV).
+
+### Grenzen
+
+- **Der Dateidialog und das Teilen-Menü des Systems lassen sich im Test nicht bedienen.** Belegt ist das Schreiben in eine Datei und was der Bildschirm vom Export verlangt, nicht der echte Weg durch die Systemdialoge.
+- Die Aufbewahrung bleibt: wer ein auffälliges Log braucht, exportiert es **vor** dem Löschen und vor dem Ablauf der 30 Tage. In einer sehr langen Sitzung kann die Datei mehr Zeilen enthalten, als der Dialog nennt (er nennt die sichtbaren, höchstens 1000).
+
 ## Version 1.40.0 (versionCode 131)
 
 Die App erkennt jetzt, wenn das Fahrzeug weiter antwortet, aber nichts mehr ändert.
