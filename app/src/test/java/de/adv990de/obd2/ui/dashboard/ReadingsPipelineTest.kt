@@ -46,6 +46,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TestTimeSource
 
 /**
  * Tests fuer den herausgeloesten Messwert-Pfad.
@@ -741,6 +743,186 @@ class ReadingsPipelineTest {
 
             assertEquals(SessionEvent.ConnectionLost, event)
         }
+
+    // --- Eingefrorene Werte (Fahrten 52 und 60 des Nutzers, 2026-10-20): das Steuergeraet antwortet weiter, aber mit demselben Wert ---
+
+    private val frozenClock = TestTimeSource()
+
+    private fun frozenCycle(rpmValue: Float = 1612f) = listOf(
+        SensorValue(PidRegistry.RPM, rpmValue, 1000L),
+        SensorValue(PidRegistry.COOLANT_TEMP, 79f, 1000L),
+        SensorValue(PidRegistry.CONTROL_MODULE_VOLTAGE, 13.7f, 1000L),
+    )
+
+    /** [n] Zyklen im Abstand von 1,5 s der [frozenClock] (der Takt der Fahrten), danach Stille. */
+    private fun frozenStream(n: Int, rpmOf: (Int) -> Float = { 1612f }) = flow {
+        repeat(n) { i -> frozenClock += 1_500.milliseconds; emit(frozenCycle(rpmOf(i))) }
+        awaitCancellation()
+    }
+
+    private fun frozenPipeline(
+        repo: ObdRepository,
+        logRepo: AppLogRepository = mockk(relaxed = true),
+        watchdogSeconds: Int = 20,
+    ) = makePipeline(repo, prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = watchdogSeconds), logRepo = logRepo)
+        .also { it.frozenTimeSource = frozenClock }
+
+    private fun frozenRepo(connected: MutableStateFlow<Boolean>? = null): ObdRepository = makeRepo(connected = true).also { repo ->
+        if (connected != null) every { repo.isConnectedFlow } returns connected
+        coEvery { repo.dropFrozenLink() } answers { connected?.value = false; "raw: 010C=41 0C 19 31; ATRV 13.8V" }
+    }
+
+    @Test
+    fun `values that stay frozen make the pipeline reconnect and write why into the log`() = runTest {
+        val repo = frozenRepo()
+        every { repo.livePids(any()) } returns frozenStream(25)
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        val events = collect(frozenPipeline(repo, logRepo))
+        runCurrent()
+
+        assertEquals("Zyklus 1 bis 19 laufen durch, der 20. ist der eingefrorene", 19, events.count { it is SessionEvent.Values })
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+        coVerify(exactly = 1) { repo.dropFrozenLink() }
+        coVerify {
+            logRepo.log(LogLevel.WARN, match { it.contains("values frozen") && it.contains("20 cycles") && it.contains("28 s") && it.contains("ATRV 13.8V") })
+        }
+    }
+
+    @Test
+    fun `frozen again after the reconnect, the values are held back and nothing reconnects in a loop`() = runTest {
+        val connected = MutableStateFlow(true)
+        val repo = frozenRepo(connected)
+        every { repo.livePids(any()) } returnsMany listOf(frozenStream(25), frozenStream(40))
+
+        val events = collect(frozenPipeline(repo))
+        runCurrent()
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+
+        connected.value = true                          // das Neuverbinden gelingt, es ist dasselbe: wieder eingefroren
+        runCurrent()
+
+        coVerify(exactly = 1) { repo.dropFrozenLink() }
+        assertEquals("19 + 19: die gehaltenen Zyklen erreichen die Oberflaeche nicht", 38, events.count { it is SessionEvent.Values })
+        // ohne Zyklen zeigt die Oberflaeche nach der Frist "Keine aktuellen Werte"
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        assertTrue("$events", events.contains(SessionEvent.Stale))
+    }
+
+    @Test
+    fun `held values come back as soon as the vehicle moves again`() = runTest {
+        val connected = MutableStateFlow(true)
+        val repo = frozenRepo(connected)
+        val second = flow {
+            repeat(25) { frozenClock += 1_500.milliseconds; emit(frozenCycle()) }        // wieder eingefroren: gehalten
+            frozenClock += 1_500.milliseconds; emit(frozenCycle(rpmValue = 2400f))       // das Steuergeraet lebt wieder
+            awaitCancellation()
+        }
+        every { repo.livePids(any()) } returnsMany listOf(frozenStream(25), second)
+
+        val events = collect(frozenPipeline(repo))
+        runCurrent()
+        connected.value = true
+        runCurrent()
+
+        val values = events.filterIsInstance<SessionEvent.Values>()
+        assertEquals("19 + 19 + der lebendige Zyklus", 39, values.size)
+        assertEquals(2400f, values.last().values.first { it.pid.id == PidRegistry.RPM.id }.value)
+    }
+
+    @Test
+    fun `values that keep changing never reconnect`() = runTest {
+        val repo = frozenRepo()
+        every { repo.livePids(any()) } returns frozenStream(100) { 1500f + it }
+
+        val events = collect(frozenPipeline(repo))
+        runCurrent()
+
+        assertEquals(100, events.count { it is SessionEvent.Values })
+        assertTrue(events.none { it == SessionEvent.ConnectionLost })
+        coVerify(exactly = 0) { repo.dropFrozenLink() }
+    }
+
+    @Test
+    fun `a stopped engine repeats its values as long as it likes without a reconnect`() = runTest {
+        val repo = frozenRepo()
+        every { repo.livePids(any()) } returns frozenStream(60) { 0f }
+
+        val events = collect(frozenPipeline(repo))
+        runCurrent()
+
+        assertEquals(60, events.count { it is SessionEvent.Values })
+        coVerify(exactly = 0) { repo.dropFrozenLink() }
+    }
+
+    @Test
+    fun `the watchdog setting is the time limit - 60 seconds need 60 seconds of frozen values`() = runTest {
+        val repo = frozenRepo()
+        // alle Parameter offen: mit der nicht voreingestellten Watchdog-Zeit passt `livePids(any())` nicht (s. der Test der Watchdog-Zeit oben)
+        every { repo.livePids(any(), any(), any(), any(), any(), any()) } returns frozenStream(40)   // 40 Zyklen = 58,5 s zwischen erstem und letztem
+        val events = collect(frozenPipeline(repo, watchdogSeconds = 60))
+        runCurrent()
+        assertEquals("alle 40 Zyklen laufen durch", 40, events.count { it is SessionEvent.Values })
+        coVerify(exactly = 0) { repo.dropFrozenLink() }
+    }
+
+    @Test
+    fun `the 60 second limit is reached with the 41st cycle`() = runTest {
+        val repo = frozenRepo()
+        every { repo.livePids(any(), any(), any(), any(), any(), any()) } returns frozenStream(41)
+        val events = collect(frozenPipeline(repo, watchdogSeconds = 60))
+        runCurrent()
+        assertEquals("40 Zyklen laufen durch, der 41. bei genau 60 s ist der eingefrorene", 40, events.count { it is SessionEvent.Values })
+        coVerify(exactly = 1) { repo.dropFrozenLink() }
+    }
+
+    @Test
+    fun `a frozen link is still reported when isConnectedFlow flips synchronously (reentrancy race)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val connected = MutableStateFlow(true)
+            val repo = frozenRepo(connected)
+            every { repo.livePids(any()) } returns frozenStream(25)
+
+            val event = frozenPipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost }
+
+            assertEquals(SessionEvent.ConnectionLost, event)
+        }
+
+    @Test
+    fun `a link that dies while the frozen link is being dropped still asks for the reconnect`() = runTest {
+        // dropFrozenLink() fragt den Adapter (ATRV) und braucht Zeit; stirbt die Verbindung dabei, bricht flatMapLatest die Sitzung ab —
+        // das Neuverbinden darf daran nicht scheitern (NonCancellable, wie beim Watchdog des Repositories)
+        val connected = MutableStateFlow(true)
+        val repo = frozenRepo(connected)
+        coEvery { repo.dropFrozenLink() } coAnswers { delay(200); connected.value = false; "details" }
+        every { repo.livePids(any()) } returns frozenStream(25)
+
+        val events = collect(frozenPipeline(repo))
+        runCurrent()                                     // der 20. Zyklus beginnt das Trennen (200 ms)
+        connected.value = false                          // die Verbindung stirbt waehrenddessen
+        advanceTimeBy(300); runCurrent()
+
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+    }
+
+    @Test
+    fun `a frozen link the user disconnected on purpose is not reconnected`() = runTest {
+        val repo = frozenRepo()
+        val userDisconnects = MutableStateFlow(0)
+        every { repo.userDisconnectCount } returns userDisconnects
+        every { repo.livePids(any()) } returns flow {
+            userDisconnects.value = 1                   // der Nutzer trennt waehrend der Sitzung
+            repeat(25) { frozenClock += 1_500.milliseconds; emit(frozenCycle()) }
+            awaitCancellation()
+        }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        val events = collect(frozenPipeline(repo, logRepo))
+        runCurrent()
+
+        assertTrue("$events", events.none { it == SessionEvent.ConnectionLost })
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("reconnecting") }) }
+    }
 
     // --- B11: Fahrterkennung mit Hysterese ---
 

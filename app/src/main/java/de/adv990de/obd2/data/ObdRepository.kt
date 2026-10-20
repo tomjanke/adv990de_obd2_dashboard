@@ -8,6 +8,7 @@ import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.obd.WHITESPACE
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -78,6 +79,9 @@ class ObdRepository @Inject constructor(
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
+
+    /** Die rohen Antworten des letzten Abfragezyklus je Befehl ("010C" -> "41 0C 19 31") — nur fuer die Diagnose in [dropFrozenLink]. */
+    @Volatile private var lastCycleRaw: Map<String, String> = emptyMap()
     private val connectMutex = Mutex()
 
     /**
@@ -153,6 +157,31 @@ class ObdRepository @Inject constructor(
     suspend fun disconnect() = connectMutex.withLock { resetLocked() }
 
     /**
+     * Beendet die Verbindung, weil die Werte EINGEFROREN sind (das Fahrzeug antwortet, aber immer mit demselben Wert; Fahrten 52 und 60, `FrozenValuesGuard`),
+     * und liefert vorher die Diagnose fuers App-Log: die rohen Antworten des letzten Zyklus und die Spannung, die der ADAPTER an seinem Anschluss misst (`ATRV`).
+     * Sie trennt Adapter von Steuergeraet: zeigt `ATRV` eine lebendige Spannung, waehrend die Fahrzeugspannung (`0142`) feststeht, haengt das Steuergeraet oder
+     * der Adapter wiederholt dessen letzte Antwort; ein Adapter ohne Antwort auf `ATRV` hing selbst. **`ATRV` ist ein Befehl an den Adapter, nichts geht ans Fahrzeug.**
+     *
+     * Wie die anderen Lesepfade trennt sie nur die Verbindung, auf der gelesen wurde ([disconnectIfCurrent]), und zaehlt NICHT als Trennen des Nutzers
+     * ([disconnectByUser]): die Wiederverbindung soll von selbst kommen. Ohne Verbindung gibt es nichts zu trennen.
+     */
+    suspend fun dropFrozenLink(): String {
+        val controller = elm ?: return "no adapter"
+        val raw = lastCycleRaw.entries.joinToString("; ") { (command, answer) -> "$command=${answer.compactForLog()}" }
+        // Ein Zeitlimit oder ein Verlust hier aendert nichts am Trennen; eine echte Abbruch-Ausnahme (keine ObdException) geht durch.
+        val adapterVolts = try {
+            controller.sendCommand("ATRV").compactForLog()
+        } catch (e: ObdException) {
+            "n/a (${e::class.simpleName})"
+        }
+        disconnectIfCurrent(controller)
+        return "raw: $raw; ATRV $adapterVolts"
+    }
+
+    /** Eine Adapterantwort fuer eine Log-Zeile: Zeilenumbrueche und Mehrfach-Leerzeichen werden eins, hoechstens 40 Zeichen. */
+    private fun String.compactForLog(): String = trim().replace(WHITESPACE, " ").take(40)
+
+    /**
      * Trennt nur, wenn [controller] noch die aktuelle Verbindung ist (PRO-11) — fuer die LESEPFADE, deren Fehler die Verbindung
      * beendet (Link-Verlust, Watchdog, ein Zeitlimit, das den Datenstrom in unbekanntem Zustand laesst). Ein Leser, der auf einer
      * inzwischen ERSETZTEN Verbindung scheitert — typisch: "Verbinden" zu einem anderen Adapter schliesst die alte, das blockierte
@@ -174,6 +203,7 @@ class ObdRepository @Inject constructor(
         connection?.close()
         connection = null
         elm = null
+        lastCycleRaw = emptyMap()
         // _lastConnectedDevice is intentionally NOT cleared: the reconnect path in
         // DashboardViewModel calls reconnect() after a connection drop and relies on this
         // value being retained. Clearing it here would silently break warm-launch auto-reconnect.
@@ -330,12 +360,14 @@ class ObdRepository @Inject constructor(
             // a concurrent disconnect() nulls elm after the null check.
             val controller = elm ?: break
             val values = mutableListOf<SensorValue>()
+            val rawByCommand = LinkedHashMap<String, String>()
             var busInitOccurred = false
             var timeoutOrUnknownOccurred = false
             val cyclePids = if (slowPids.isNotEmpty() && cycle % slowEveryCycles == 0L) pids + slowPids else pids
             for (pid in cyclePids) {
                 try {
                     val raw = controller.sendCommand(pid.id)
+                    rawByCommand[pid.id] = raw
                     values.add(pidParser.parse(pid, raw))
                 } catch (_: ObdException.NoData) {
                     // Benign: the ECU explicitly has nothing to report for this PID, so the link
@@ -359,6 +391,7 @@ class ObdRepository @Inject constructor(
                     throw e  // fatal — propagate to ViewModel
                 }
             }
+            lastCycleRaw = rawByCommand
             if (busInitOccurred) {
                 consecutiveBusInitErrors++
                 // After 5 consecutive BusInit errors the bus is stuck — escalate to ConnectionLost

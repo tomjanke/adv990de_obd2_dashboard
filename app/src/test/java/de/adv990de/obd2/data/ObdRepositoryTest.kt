@@ -1077,6 +1077,73 @@ class ObdRepositoryTest {
         assertEquals(false, repo.isConnectedFlow.value)
     }
 
+    // ── Eingefrorene Werte: Diagnose und Trennen (dropFrozenLink, s. FrozenValuesGuard) ─────
+
+    private fun answeringElm(atrv: () -> String = { "13.8V" }): ElmController {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } answers {
+            when (firstArg<String>()) {
+                "010C" -> "41 0C 19 31"
+                "0105" -> "41 05 77"
+                "ATRV" -> atrv()
+                else -> throw ObdException.NoData(firstArg())
+            }
+        }
+        return elmCtrl
+    }
+
+    @Test
+    fun `dropFrozenLink names the last raw answers and the adapter voltage and drops the link`() = runTest {
+        val repo = makeConnectedRepo(answeringElm(), PidParser())
+        repo.livePids(listOf(PidRegistry.RPM, PidRegistry.COOLANT_TEMP), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(details, details.contains("010C=41 0C 19 31"))
+        assertTrue(details, details.contains("0105=41 05 77"))
+        assertTrue(details, details.contains("ATRV 13.8V"))
+        assertEquals("die Verbindung ist getrennt", false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `dropFrozenLink still drops the link when the adapter does not answer the voltage`() = runTest {
+        val repo = makeConnectedRepo(answeringElm { throw ObdException.Timeout("ATRV") }, PidParser())
+        repo.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(details, details.contains("ATRV n/a (Timeout)"))
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `dropFrozenLink keeps the details short and on one line`() = runTest {
+        val repo = makeConnectedRepo(answeringElm { "13.8V\r\n\r\n" + "x".repeat(200) }, PidParser())
+        repo.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+
+        val details = repo.dropFrozenLink()
+
+        assertFalse(details, details.contains('\n') || details.contains('\r'))
+        assertTrue("jede Antwort ist begrenzt: ${details.length}", details.length < 200)
+    }
+
+    @Test
+    fun `dropFrozenLink without a link has nothing to drop`() = runTest {
+        val repo = makeRepo()
+        assertEquals("no adapter", repo.dropFrozenLink())
+    }
+
+    @Test
+    fun `dropFrozenLink does not count as a disconnect by the user`() = runTest {
+        val repo = makeConnectedRepo(answeringElm(), PidParser())
+        repo.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+        val before = repo.userDisconnectCount.value
+
+        repo.dropFrozenLink()
+
+        assertEquals("sonst kaeme die Verbindung nicht von selbst zurueck", before, repo.userDisconnectCount.value)
+    }
+
     // ── OBD-Watchdog (Timeout ohne Eskalation, s. obd-watchdog-bugfix-2026-09-26) ─────
     //
     // All watchdog tests pass runTest's virtual clock (`testTimeSource`) explicitly: livePids()

@@ -36,9 +36,12 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * Der Messwert-Pfad: Auswahl der abzufragenden PIDs, Aufzeichnung der Sitzung, Zusammenfuehrung
@@ -61,6 +64,15 @@ class ReadingsPipeline @Inject constructor(
     /** Die Aufzeichnung der laufenden Sitzung (`null` ausserhalb einer Sitzung) — das Ziel von [recordDerived]. */
     @Volatile
     private var activeRecorder: SessionRecorder? = null
+
+    /**
+     * Die Entscheidung bei eingefrorenen Werten (das Fahrzeug antwortet weiter, aber immer mit demselben Wert; s. [FrozenValuesGuard]). Haelt ueber Sitzungen,
+     * ob fuer den laufenden Fall schon neu verbunden wurde — ein zweites Einfrieren nach dem Neuverbinden haelt die Werte zurueck, statt in einer Schleife zu verbinden.
+     */
+    private val frozenGuard = FrozenValuesGuard()
+
+    /** Die Uhr der Erkennung eingefrorener Werte; nur die Tests setzen sie (Hilt kennt keine Kotlin-Defaultwerte im Konstruktor). */
+    internal var frozenTimeSource: TimeSource = TimeSource.Monotonic
 
     /**
      * Die zuletzt vom Fahrzeug gelesenen, noch NICHT mit GPS zusammengefuehrten Werte eines
@@ -302,8 +314,27 @@ class ReadingsPipeline @Inject constructor(
             // Dieselbe Antwort, die oben die Historie fuellt und "Nur Fahrten mit DTCs" entschieden hat, geht an die Fahrt:
             // null (Lesefehler) = nicht erfasst, leer = keine Codes, sonst die Liste.
             if (recordThisTrip) recorder.start(vin, dtcList)
+            // Die Zeitgrenze der eingefrorenen Werte ist die Einstellung des Watchdogs ("Reconnect bei eingefrorenen Werten"), mindestens aber [FROZEN_MIN_CYCLES] Zyklen.
+            frozenGuard.beginSession(frozenTimeSource, watchdogTimeoutMs.milliseconds)
             emitAll(
                 obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs, slowPids = slowPids)
+                    // Eingefrorene Werte erkennen, BEVOR irgendetwas sie fuer lebendig haelt: kein Zaehler, keine Anzeige, keine Aufzeichnung. Neu verbinden
+                    // laeuft wie der Watchdog des Repositories ueber ConnectionLost (s. unten); gehaltene Zyklen erreichen nichts nachgelagertes, ohne sie
+                    // zeigt die Oberflaeche nach [OBD_STALE_AFTER_MS] "Keine aktuellen Werte" (obdCycles steigt nicht).
+                    .transform { readings ->
+                        when (val action = frozenGuard.onCycle(readings)) {
+                            FrozenAction.Pass -> emit(readings)
+                            FrozenAction.Hold -> Unit
+                            is FrozenAction.Reconnect -> {
+                                // NonCancellable wie beim Watchdog: dropFrozenLink() setzt isConnectedFlow auf false, und genau das bricht diese Sitzung ab
+                                // (flatMapLatest) — das Signal und das Log darunter muessen trotzdem ankommen.
+                                val details = withContext(NonCancellable) { obdRepository.dropFrozenLink() }
+                                throw ObdException.ConnectionLost(
+                                    reason = "values frozen: unchanged for ${action.cycles} cycles / ${action.unchangedFor.inWholeSeconds} s; $details",
+                                )
+                            }
+                        }
+                    }
                     // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
                     .onEach { readings ->
                         lastObdReadings.value = readings
@@ -329,7 +360,10 @@ class ReadingsPipeline @Inject constructor(
             // Abbruchpunkt), der Reconnect-Ausloeser darf davon nicht abhaengen.
             if (lostLinkWantsReconnect()) {
                 connectionLostSignal.tryEmit(Unit)
-                appLogRepository.log(LogLevel.WARN, "OBD connection lost, reconnecting (readings stopped or bus stuck)")
+                // Hat die App selbst abgebrochen, steht der Grund dabei (eingefrorene Werte samt Diagnose); sonst hat der Link versagt.
+                val message = e.reason?.let { "OBD connection dropped, reconnecting ($it)" }
+                    ?: "OBD connection lost, reconnecting (readings stopped or bus stuck)"
+                appLogRepository.log(LogLevel.WARN, message)
             } else {
                 appLogRepository.log(LogLevel.INFO, "OBD readings ended by the user's disconnect, not reconnecting")
             }

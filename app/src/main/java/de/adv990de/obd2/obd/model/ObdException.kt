@@ -8,5 +8,9 @@ sealed class ObdException(message: String) : Exception(message) {
     class BusInit(detail: String? = null) :
         ObdException("BUS INIT error – vehicle bus not reachable" + (detail?.let { " ($it)" } ?: ""))
     class Timeout(command: String) : ObdException("Read timeout for command $command")
-    class ConnectionLost : ObdException("Connection to adapter lost")
+    /**
+     * Die Verbindung ist weg oder wird abgebrochen. [reason] nennt, WARUM die App sie beendet, wenn sie selbst es war (heute: eingefrorene Werte,
+     * `FrozenValuesGuard`) — der Text steht im App-Log; fehlt er, hat der Link versagt (Lesefehler, Watchdog, Busfehler).
+     */
+    class ConnectionLost(val reason: String? = null) : ObdException("Connection to adapter lost")
 }

@@ -261,7 +261,7 @@
     <!-- Verbindungs-Einstellungen (OBD-Watchdog) -->
     <string name="settings_connection_section">Verbindung</string>
     <string name="settings_obd_watchdog_timeout">Reconnect bei eingefrorenen Werten</string>
-    <string name="settings_obd_watchdog_timeout_desc">Sekunden ohne Sensor-Update, bevor ein Reconnect erzwungen wird</string>
+    <string name="settings_obd_watchdog_timeout_desc">Sekunden ohne Sensor-Update oder mit unveränderten Werten, bevor ein Reconnect erzwungen wird</string>
     <string name="settings_reconnect_base_delay">Reconnect-Basisverzögerung</string>
     <string name="settings_reconnect_base_delay_desc">Sekunden bis zum ersten Reconnect-Versuch; jeder weitere Versuch verdoppelt die Wartezeit</string>
 

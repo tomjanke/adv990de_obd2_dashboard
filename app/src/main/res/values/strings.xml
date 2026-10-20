@@ -261,7 +261,7 @@
     <!-- Connection settings section (OBD watchdog) -->
     <string name="settings_connection_section">Connection</string>
     <string name="settings_obd_watchdog_timeout">Reconnect after frozen readings</string>
-    <string name="settings_obd_watchdog_timeout_desc">Seconds without any sensor update before forcing a reconnect</string>
+    <string name="settings_obd_watchdog_timeout_desc">Seconds without any sensor update, or with every value unchanged, before forcing a reconnect</string>
     <string name="settings_reconnect_base_delay">Reconnect base delay</string>
     <string name="settings_reconnect_base_delay_desc">Seconds before the first reconnect attempt; each further attempt doubles it</string>
 
