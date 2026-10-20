@@ -15,6 +15,12 @@ import java.time.format.DateTimeFormatter
 /** Exportierte Dateien, die aelter sind, werden aufgeraeumt. Der Empfaenger kopiert die Datei beim Teilen. */
 internal const val EXPORT_MAX_AGE_MS: Long = 24L * 60 * 60 * 1000
 
+/** Der Unterordner des Caches, in dem alle Exporte (Fahrten und App-Log) liegen; `res/xml/file_paths.xml` gibt genau ihn fuer das Teilen frei. */
+internal const val EXPORT_CACHE_DIR = "exports"
+
+/** Ein Export prueft nach so vielen Zeilen, ob der Aufrufer abgebrochen hat. */
+internal const val CANCELLATION_CHECK_ROWS = 2_000
+
 /**
  * Die Abfrage des Exports. `ORDER BY id` statt `ORDER BY timestamp`: Der Index auf `sessionId` liefert die Zeilen
  * eines Laufs schon in Einfuegereihenfolge (SQLite haengt die rowid an jeden Indexeintrag an), also ohne Sortierlauf —
@@ -88,7 +94,7 @@ internal fun createExportFile(dir: File, name: String): File {
     }
 }
 
-private val EXPORT_FILE = Regex("""session_.*\.csv""")
+private val EXPORT_FILE = Regex("""(?:session|applog)_.*\.csv""")
 
 /**
  * Loescht Exportdateien in [dir], die aelter als [maxAgeMs] sind (DAT-07: sie wurden nie geloescht). Angefasst

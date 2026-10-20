@@ -28,9 +28,6 @@ import javax.inject.Singleton
 
 private const val DELETE_CHUNK_SIZE = 50
 
-/** An export checks for cancellation after this many rows. */
-private const val CANCELLATION_CHECK_ROWS = 2_000
-
 @Singleton
 class SessionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -160,7 +157,7 @@ class SessionRepository @Inject constructor(
      * start from [DataRetention]; an export also cleans up before it writes. Returns how many files were deleted.
      */
     suspend fun purgeStaleExports(): Int = withContext(Dispatchers.IO) {
-        deleteStaleExports(File(context.cacheDir, "exports"), System.currentTimeMillis())
+        deleteStaleExports(File(context.cacheDir, EXPORT_CACHE_DIR), System.currentTimeMillis())
     }
 
     /**
@@ -198,9 +195,7 @@ class SessionRepository @Inject constructor(
     suspend fun saveSessionsCsv(sessionIds: List<Long>, target: Uri) = withContext(Dispatchers.IO) {
         val file = writeExportFile(sessionIds)
         try {
-            val out = context.contentResolver.openOutputStream(target, "w")
-                ?: throw IOException("The chosen file could not be opened for writing")
-            out.use { stream -> file.inputStream().use { it.copyTo(stream) } }
+            copyToTarget(context.contentResolver, file, target)
         } finally {
             file.delete()
         }
@@ -232,7 +227,7 @@ class SessionRepository @Inject constructor(
     /** The one place that writes the export: the trips into a new file in the cache directory. */
     private suspend fun writeExportFile(sessionIds: List<Long>): File {
         require(sessionIds.isNotEmpty()) { "There is no trip to export" }
-        val exportDir = File(context.cacheDir, "exports")
+        val exportDir = File(context.cacheDir, EXPORT_CACHE_DIR)
         val now = System.currentTimeMillis()
         deleteStaleExports(exportDir, now)
         val file = createExportFile(exportDir, exportFileNameFor(sessionIds, now))

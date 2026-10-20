@@ -305,6 +305,15 @@
     <string name="app_logs_clear_title">Alle Logs löschen?</string>
     <string name="app_logs_clear_message">Alle Log-Einträge werden gelöscht. Du kannst das gleich noch rückgängig machen.</string>
     <string name="app_logs_deleted">Logs gelöscht</string>
+    <string name="app_logs_export">Logs exportieren</string>
+    <string name="app_logs_export_title">Logs exportieren</string>
+    <plurals name="app_logs_export_message">
+        <item quantity="one">%1$d Log-Eintrag als eine CSV-Datei. Sie enthält den Namen deines Adapters und Fehlermeldungen — vor dem Teilen prüfen.</item>
+        <item quantity="other">%1$d Log-Einträge als eine CSV-Datei. Sie enthält den Namen deines Adapters und Fehlermeldungen — vor dem Teilen prüfen.</item>
+    </plurals>
+    <string name="app_logs_export_saved">Logs gespeichert</string>
+    <string name="app_logs_export_none">Keine Log-Einträge zum Exportieren.</string>
+    <string name="app_logs_share_chooser">Logs exportieren</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Farbschema</string>
     <string name="settings_brightness">Helligkeit</string>

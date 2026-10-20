@@ -305,6 +305,15 @@
     <string name="app_logs_clear_title">Delete all logs?</string>
     <string name="app_logs_clear_message">All log entries will be deleted. You can undo this right afterwards.</string>
     <string name="app_logs_deleted">Logs deleted</string>
+    <string name="app_logs_export">Export logs</string>
+    <string name="app_logs_export_title">Export logs</string>
+    <plurals name="app_logs_export_message">
+        <item quantity="one">%1$d log entry as one CSV file. It contains the name of your adapter and error messages — check it before sharing.</item>
+        <item quantity="other">%1$d log entries as one CSV file. It contains the name of your adapter and error messages — check it before sharing.</item>
+    </plurals>
+    <string name="app_logs_export_saved">Logs saved</string>
+    <string name="app_logs_export_none">No log entries to export.</string>
+    <string name="app_logs_share_chooser">Export logs</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Color scheme</string>
     <string name="settings_brightness">Brightness</string>

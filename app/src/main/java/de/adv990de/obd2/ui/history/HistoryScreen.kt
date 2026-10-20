@@ -1,7 +1,6 @@
 package de.adv990de.obd2.ui.history
 
 import android.content.ActivityNotFoundException
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -66,6 +65,7 @@ import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
+import de.adv990de.obd2.ui.components.shareCsv
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import androidx.compose.ui.tooling.preview.Preview
@@ -115,16 +115,7 @@ fun HistoryScreen(
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            try {
-                context.startActivity(Intent.createChooser(intent, shareChooserTitle))
-            } catch (_: android.content.ActivityNotFoundException) {
-                snackbarHostState.showSnackbar(shareNoAppMessage)
-            }
+            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
             vm.consumeShareUri()
         }
     }
