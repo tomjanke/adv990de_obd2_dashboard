@@ -131,4 +131,66 @@ class FrozenValuesGuardTest {
         clock += 1_500.milliseconds
         assertTrue(g.onCycle(cycle()) is FrozenAction.Reconnect)   // 41. Zyklus bei 60,0 s
     }
+
+    // --- Sperre ("holding"): die Pipeline fragt, ob ein durchgelassener Zyklus das Ende der Sperre ist ---
+
+    private fun cycleWithoutRpm() = listOf(SensorValue(PidRegistry.COOLANT_TEMP, 79f, timestamp = 1_000L))
+
+    @Test
+    fun `the guard says it is holding from the first held cycle until a value moves`() {
+        val g = newGuard()
+        assertEquals(false, g.holding)
+        feed(g, 20)                                   // Reconnect: noch keine Sperre
+        assertEquals(false, g.holding)
+        g.beginSession(clock, min)
+        feed(g, 19)
+        assertEquals(false, g.holding)
+        clock += 1_500.milliseconds
+        assertEquals(FrozenAction.Hold, g.onCycle(cycle()))
+        assertEquals(true, g.holding)
+
+        clock += 1_500.milliseconds
+        assertEquals(FrozenAction.Pass, g.onCycle(cycle(rpm = 2200f)))
+        assertEquals("ein bewegter Wert beendet die Sperre", false, g.holding)
+    }
+
+    @Test
+    fun `stopping the engine ends the hold too`() {
+        val g = newGuard()
+        feed(g, 20); g.beginSession(clock, min); feed(g, 20)
+        assertEquals(true, g.holding)
+
+        clock += 1_500.milliseconds
+        assertEquals(FrozenAction.Pass, g.onCycle(cycle(rpm = 0f)))
+        assertEquals(false, g.holding)
+    }
+
+    @Test
+    fun `a cycle without a rpm value cannot prove the stream is alive - while holding it is held back`() {
+        val g = newGuard()
+        feed(g, 20); g.beginSession(clock, min); feed(g, 20)
+        assertEquals(true, g.holding)
+
+        assertEquals(FrozenAction.Hold, g.onCycle(cycleWithoutRpm()))
+        assertEquals("die Sperre bleibt", true, g.holding)
+    }
+
+    @Test
+    fun `outside a hold a cycle without a rpm value passes as before`() {
+        val g = newGuard()
+        assertEquals(FrozenAction.Pass, g.onCycle(cycleWithoutRpm()))
+        assertEquals(false, g.holding)
+    }
+
+    @Test
+    fun `a new session never starts holding - its first cycles pass again`() {
+        val g = newGuard()
+        feed(g, 20); g.beginSession(clock, min); feed(g, 20)
+        assertEquals(true, g.holding)
+
+        g.beginSession(clock, min)
+
+        assertEquals(false, g.holding)
+        assertEquals(FrozenAction.Pass, g.onCycle(cycleWithoutRpm()))
+    }
 }

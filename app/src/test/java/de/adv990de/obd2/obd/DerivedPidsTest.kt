@@ -38,8 +38,16 @@ class DerivedPidsTest {
     }
 
     @Test
-    fun `the derived values are exactly the gear and the oil bar, with different ids`() {
-        assertEquals(setOf("GEAR", "OIL_BAR"), DerivedPids.all.keys)
+    fun `the derived values are exactly the gear, the oil bar and the values state, with different ids`() {
+        assertEquals(setOf("GEAR", "OIL_BAR", "VALUES_STATE"), DerivedPids.all.keys)
+    }
+
+    @Test
+    fun `the values state has the stable id and name that the database and the CSV carry`() {
+        assertEquals("VALUES_STATE", DerivedPids.VALUES_STATE.id)
+        assertEquals("Values state", DerivedPids.VALUES_STATE.name)
+        assertEquals("VALUES_STATE", DerivedPids.VALUES_STATE_ID)
+        assertSame(DerivedPids.VALUES_STATE, DerivedPids.all[DerivedPids.VALUES_STATE_ID])
     }
 
     @Test

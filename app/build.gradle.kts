@@ -37,6 +37,8 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
         testInstrumentationRunner = "de.adv990de.obd2.HiltTestRunner"
+        // Testhilfe des ECU-Simulators (s. SimulatorFreeze): 0 = aus. Nur der Debug-Build liest -PsimFreezeAfterSeconds=N; ein Release-Build hat immer 0 (und ohnehin keinen Simulator).
+        buildConfigField("int", "SIM_FREEZE_AFTER_SECONDS", "0")
     }
 
     buildTypes {
@@ -46,6 +48,8 @@ android {
             // in der Geraeteliste (siehe BluetoothDeviceScanner.bondedDevices).
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // Der Simulator friert N Sekunden nach der ersten Simulator-Verbindung des Prozesses ein (scripts/freeze_check.py); ohne die Property bleibt es 0 = aus.
+            buildConfigField("int", "SIM_FREEZE_AFTER_SECONDS", (prop("simFreezeAfterSeconds")?.toIntOrNull()?.coerceAtLeast(0) ?: 0).toString())
             manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
             manifestPlaceholders["buildEnvironment"] = "debug"
         }

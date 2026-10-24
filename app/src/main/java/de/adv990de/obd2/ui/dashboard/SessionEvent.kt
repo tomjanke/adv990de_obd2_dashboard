@@ -34,8 +34,20 @@ sealed interface SessionEvent {
      */
     data object Stale : SessionEvent
 
-    /** Die Verbindung ist waehrend der Fahrt abgerissen; der Koordinator soll uebernehmen. */
-    data object ConnectionLost : SessionEvent
+    /**
+     * Die Werte sind eingefroren und werden jetzt zurueckgehalten ([FrozenAction.Hold], zum ersten Mal in einem Fall): einmal je Sperre, nicht je Zyklus. Die Oberflaeche zeigt "veraltet"
+     * mit der Ursache "eingefroren" **sofort**, nicht erst nach [OBD_STALE_AFTER_MS]; das [Stale] danach aendert daran nichts. Der naechste [Values] hebt es auf.
+     */
+    data object Frozen : SessionEvent
+
+    /**
+     * Die GPS-Geschwindigkeit hat sich geaendert, **waehrend die Fahrzeugwerte fehlen** ([Stale] oder [Frozen]): sie haengt nicht am Adapter und wird weiter angezeigt (nur in diesem Zustand)
+     * und fuer die Tankanzeige gezaehlt. [kmh] ist `null` ohne Fix oder mit abgeschaltetem GPS. Anders als [Values] bringt das nie alte Fahrzeugwerte zurueck.
+     */
+    data class GpsSpeed(val kmh: Float?) : SessionEvent
+
+    /** Die Verbindung ist waehrend der Fahrt abgerissen; der Koordinator soll uebernehmen. [cause] sagt, ob der Link versagt hat oder die App wegen eingefrorener Werte selbst getrennt hat. */
+    data class ConnectionLost(val cause: ConnectionLostCause = ConnectionLostCause.LINK) : SessionEvent
 
     /** Die Sitzung ist an einem anderen Fehler gescheitert. */
     data class Failed(val error: UiText) : SessionEvent

@@ -180,6 +180,12 @@ class DashboardViewModel @Inject constructor(
     /** Die GPS-Kilometer fuer die Tankanzeige (Strecke = Integral der GPS-Geschwindigkeit) — s. [DistanceIntegrator] und `FuelRepository`. */
     private val fuelIntegrator = DistanceIntegrator()
 
+    /**
+     * Die zuletzt gemeldete rohe GPS-Geschwindigkeit dieser Sitzung (aus [SessionEvent.Values] und [SessionEvent.GpsSpeed]). Beginnt "veraltet", steht sie sofort in der Anzeige,
+     * ohne auf die naechste Aenderung des GPS zu warten — ein gleichbleibender Wert meldet das GPS nicht erneut.
+     */
+    private var lastGpsSpeedKmh: Float? = null
+
     // Testbarer Uhr-Seam (Projekt-Konvention: Zeit als Parameter statt System-Uhr-Zugriff im
     // Funktionskoerper, vgl. GpsSpeedSource/isReadingsStale). Bewusst KEIN Konstruktor-Parameter:
     // Dagger/Hilt ignoriert Kotlin-Defaultwerte bei @Inject-Konstruktoren und scheitert ohne ein
@@ -240,6 +246,7 @@ class DashboardViewModel @Inject constructor(
     private suspend fun onSessionEvent(event: SessionEvent) {
         when (event) {
             is SessionEvent.Values -> {
+                lastGpsSpeedKmh = event.gpsSpeedKmh
                 val shown = applyReadings(event.values, event.gpsSpeedKmh, event.isObdCycle)
                 // Auch ein GPS-Zwischenupdate zaehlt: die Strecke haengt an der Zeit und der GPS-Geschwindigkeit, nicht an den OBD-Zyklen.
                 val km = fuelIntegrator.sample(event.gpsSpeedKmh, nowMillis())
@@ -261,9 +268,13 @@ class DashboardViewModel @Inject constructor(
             // Ohne Werte erloeschen Spannungs- und Kuehlmittelalarm; der Fehler-Alarm bleibt (AlarmTracker.onSessionEnded). Nach dem Zustand der Anzeige, damit
             // dessen Zuruecksetzen nicht auf das App-Log wartet.
             SessionEvent.Idle -> { endFuelInterval(); applyIdle(); alarmStaleGrace.cancel(); alarmController.onSessionEnded() }
-            // "Veraltet" ist keine beendete Sitzung: die Zahlen-Alarme bekommen eine Schonfrist (s. [AlarmStaleGrace]).
-            SessionEvent.Stale -> { endFuelInterval(); applyStale(); alarmStaleGrace.start() }
-            SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting(); alarmStaleGrace.cancel(); alarmController.onSessionEnded() }
+            // "Veraltet" und "eingefroren" sind keine beendete Sitzung: die Zahlen-Alarme bekommen eine Schonfrist (s. [AlarmStaleGrace]) und die Tankanzeige zaehlt die GPS-Strecke weiter —
+            // die Verbindung steht, das GPS haengt nicht am Adapter (Entscheidung D4, 2026-10-24). Ein zweites Ereignis (Stale nach Frozen) laesst die erste Frist stehen.
+            SessionEvent.Stale -> { applyStale(ValuesLostCause.SILENT); alarmStaleGrace.start() }
+            SessionEvent.Frozen -> { applyStale(ValuesLostCause.FROZEN); alarmStaleGrace.start() }
+            // Nur in diesem Zustand gemeldet: keine Fahrzeugwerte, aber das GPS lebt — es geht an die Anzeige der Geschwindigkeit und an den Tankzaehler.
+            is SessionEvent.GpsSpeed -> onGpsSpeed(event.kmh)
+            is SessionEvent.ConnectionLost -> { endFuelInterval(); startReconnecting(event.cause); alarmStaleGrace.cancel(); alarmController.onSessionEnded() }
             is SessionEvent.Failed -> {
                 endFuelInterval()
                 sparklines.clear()
@@ -277,10 +288,22 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /** Ohne Werte gibt es keine Strecke: das Intervall endet (kein Raten ueber die Luecke) und der Zaehler wird gespeichert. */
+    /** Ohne Verbindung gibt es keine Strecke: das Intervall endet (kein Raten ueber die Luecke) und der Zaehler wird gespeichert. */
     private fun endFuelInterval() {
         fuelIntegrator.reset()
         fuelDistanceSink.flush()
+        lastGpsSpeedKmh = null
+    }
+
+    /**
+     * Die GPS-Geschwindigkeit hat sich geaendert, waehrend die Fahrzeugwerte fehlen (Spezifikation 2026-10-24): sie steht in [DashboardUiState.gpsSpeedKmh] (nur in "veraltet", ein spaetes
+     * Ereignis nach frischen Werten aendert die Anzeige nicht) und zaehlt fuer die Tankanzeige — die Strecke haengt an der Zeit und dem GPS, nicht am Adapter.
+     */
+    private fun onGpsSpeed(kmh: Float?) {
+        lastGpsSpeedKmh = kmh
+        if (_uiState.value.isStale) _uiState.value = _uiState.value.copy(gpsSpeedKmh = kmh)
+        val km = fuelIntegrator.sample(kmh, nowMillis())
+        if (km > 0f) fuelDistanceSink.addDistance(km)
     }
 
     override fun onCleared() {
@@ -304,8 +327,11 @@ class DashboardViewModel @Inject constructor(
             isConnected = true,
             isReconnecting = false,
             reconnectAttempt = 0,
+            reconnectCause = null,
             error = null,
             isStale = false,
+            valuesLost = null,
+            gpsSpeedKmh = null,
             awaitingFirstValues = true,
         )
     }
@@ -359,7 +385,10 @@ class DashboardViewModel @Inject constructor(
             voltageTrend = newVoltageTrend,
             isConnected = true,
             isReconnecting = false,
+            reconnectCause = null,
             isStale = false,
+            valuesLost = null,
+            gpsSpeedKmh = null,
             awaitingFirstValues = false,
             error = null,
             sparklines = sparklines.snapshot()
@@ -368,17 +397,23 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Das Steuergeraet schweigt bei stehender Verbindung (B29): Die Werte sind veraltet und werden
+     * Das Steuergeraet schweigt bei stehender Verbindung (B29) oder die Werte sind eingefroren und werden zurueckgehalten: Die Werte sind veraltet und werden
      * nicht weiter als live gezeigt — Kacheln "--", Drehzahlbalken leer, Gang "–". Verbindungsstatus
      * und Verbindungs-Punkt bleiben (der Adapter ist ja da). Die Oel-Balken-Farbe bleibt gehalten (sie
      * hat ihr eigenes 60-s-Luecken-Limit); sie wird ohne "live" ohnehin grau gezeichnet.
+     *
+     * [cause] ist die Ursache; **"eingefroren" bleibt, wenn es schon galt** (das [SessionEvent.Stale] zehn Sekunden nach dem Beginn der Sperre aendert den Grund nicht).
+     * Die GPS-Geschwindigkeit steht ab jetzt in der Anzeige ([DashboardUiState.gpsSpeedKmh]), der Wert des letzten Zyklus, bis das GPS einen neuen meldet.
      */
-    private fun applyStale() {
+    private fun applyStale(cause: ValuesLostCause) {
         gearTracker.reset()
         voltageTracker.reset()
+        val shownCause = if (_uiState.value.valuesLost == ValuesLostCause.FROZEN) ValuesLostCause.FROZEN else cause
         _uiState.value = _uiState.value.copy(
             voltageTrend = null,
             isStale = true,
+            valuesLost = shownCause,
+            gpsSpeedKmh = lastGpsSpeedKmh,
             awaitingFirstValues = false,
             readings = emptyList(),
             rpmValue = 0f,
@@ -409,6 +444,8 @@ class DashboardViewModel @Inject constructor(
                 awaitingFirstValues = false,
                 readings = emptyList(),
                 speedKmh = null,
+                gpsSpeedKmh = null,
+                valuesLost = null,
                 gear = null,
                 isNeutral = false,
                 oilBarColor = null,
@@ -434,12 +471,14 @@ class DashboardViewModel @Inject constructor(
                         isReconnecting = true,
                         reconnectAttempt = event.attempt,
                         reconnectTotal = event.total,
+                        // Der Grund des Neuverbindens gilt ueber alle Versuche; der Versuch ersetzt den Zustand, nicht den Grund.
+                        reconnectCause = _uiState.value.reconnectCause,
                     )
                 }
             }
             // Der Spinner haelt nicht bis zum ersten Messwert an — die Verbindung steht.
             ConnectionEvent.Connected ->
-                _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0)
+                _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0, reconnectCause = null)
             is ConnectionEvent.Failed ->
                 _uiState.value = DashboardUiState.disconnected(event.error)
             // Der Nutzer hat getrennt, waehrend wiederverbunden wurde: sauber getrennt, ohne Spinner und
@@ -457,7 +496,7 @@ class DashboardViewModel @Inject constructor(
      * setzt [applyIdle] den Zustand auf sauber getrennt zurueck und die Wiederverbindung wird
      * unsichtbar.
      */
-    private fun startReconnecting() {
+    private fun startReconnecting(cause: ConnectionLostCause) {
         sparklines.clear()
         gearTracker.reset()
         voltageTracker.reset()
@@ -470,10 +509,13 @@ class DashboardViewModel @Inject constructor(
             // (die Reihenfolge der beiden Wege ist nicht garantiert). readings/Gang/... raeumt applyIdle() ab.
             isConnected = false,
             isStale = false,
+            valuesLost = null,
+            gpsSpeedKmh = null,
             awaitingFirstValues = false,
             isReconnecting = true,
             reconnectAttempt = 0,
-            reconnectTotal = RECONNECT_ATTEMPT_COUNT
+            reconnectTotal = RECONNECT_ATTEMPT_COUNT,
+            reconnectCause = cause,
         )
         connectionCoordinator.requestReconnect()
     }

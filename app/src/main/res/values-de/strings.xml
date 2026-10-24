@@ -12,7 +12,11 @@
     <string name="dashboard_preview_banner">Vorschau · nicht verbunden</string>
     <string name="dashboard_preview_banner_attempt">Vorschau · Verbindungsversuch %1$d/%2$d</string>
     <string name="dashboard_preview_banner_connecting">Vorschau · verbinde …</string>
-    <string name="dashboard_stale_banner">Keine aktuellen Werte</string>
+    <string name="values_lost_frozen_title">Werte eingefroren</string>
+    <string name="values_lost_frozen_detail">Fahrzeugwerte werden nicht angezeigt und nicht aufgezeichnet</string>
+    <string name="values_lost_silent_title">Keine aktuellen Werte</string>
+    <string name="values_lost_frozen_reconnecting">Werte eingefroren · verbinde neu %1$d/%2$d</string>
+    <string name="values_lost_frozen_reconnecting_start">Werte eingefroren · verbinde neu …</string>
     <string name="dashboard_waiting_banner">Verbunden · warte auf Werte</string>
 
     <!-- Dashboard screen — error / status messages -->
@@ -413,6 +417,7 @@
     <string name="terrain_desc_grade_flat">Steigung 0 Prozent</string>
     <string name="terrain_desc_heading">Richtung %1$s, %2$s Grad</string>
     <string name="pid_oil_bar">Ölbalken</string>
+    <string name="pid_values_state">Werte-Zustand</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
     <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Auch die Kachel „Gelände“ (Höhe, Steigung, Peilung) braucht diese Einstellung. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
     <string name="settings_gps_permission_missing">Standortberechtigung fehlt: Ohne den genauen Standort liefert das GPS keine Geschwindigkeit.</string>

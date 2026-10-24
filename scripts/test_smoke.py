@@ -48,7 +48,8 @@ class DataFlowsTest(unittest.TestCase):
 
     def test_every_band_means_no_data_yet(self):
         for band in ("Vorschau · nicht verbunden", "Vorschau · Verbindungsversuch 2/5", "Vorschau · verbinde …",
-                     "Verbunden · warte auf Werte", "Keine aktuellen Werte"):
+                     "Verbunden · warte auf Werte", "Keine aktuellen Werte", "Werte eingefroren",
+                     "Werte eingefroren · verbinde neu 1/5"):
             self.assertFalse(smoke.data_flows(LIVE + [band]), band)
 
     def test_the_bands_are_drawn_in_capitals(self):
@@ -68,6 +69,8 @@ class ReconnectingTest(unittest.TestCase):
     def test_sees_an_attempt_or_a_connecting_band_as_drawn(self):
         self.assertTrue(smoke.reconnecting(["VORSCHAU · VERBINDUNGSVERSUCH 2/5"]))
         self.assertTrue(smoke.reconnecting(["VORSCHAU · VERBINDE …"]))
+        self.assertTrue(smoke.reconnecting(["Werte eingefroren · verbinde neu 2/5"]))
+        self.assertFalse(smoke.reconnecting(["Werte eingefroren"]))
 
     def test_a_clean_disconnect_is_not_reconnecting(self):
         self.assertFalse(smoke.reconnecting(["VORSCHAU · NICHT VERBUNDEN", "Bluetooth getrennt"]))

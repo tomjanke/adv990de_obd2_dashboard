@@ -7,14 +7,15 @@ import de.adv990de.obd2.obd.model.PidDefinition
  * Werte, die die App selbst berechnet — es gibt keinen OBD-Befehl dazu. Sie stehen bewusst NICHT in der [PidRegistry]: Was dort steht,
  * fragt die App beim Steuergeraet ab, bietet die Kachelauswahl an und gleicht die PID-Erkennung (Discovery) ab.
  *
- * Heute der Gang (die Gang-Box des Dashboards) und die Farbe des Oel-Balkens, beide mit `ValueSource.DERIVED`: sie stehen als Zeile in der
- * Aufzeichnung. **Ids und Namen stehen als Text in Datenbank und CSV — nie umbenennen.** Die Zahlen der Werte beschreiben `gearRecordValue`
- * und `oilBarRecordValue` (ui/dashboard).
+ * Heute der Gang (die Gang-Box des Dashboards), die Farbe des Oel-Balkens und der Zustand der Fahrzeugwerte (da, eingefroren, keine aktuellen), alle mit
+ * `ValueSource.DERIVED`: sie stehen als Zeile in der Aufzeichnung. **Ids und Namen stehen als Text in Datenbank und CSV — nie umbenennen.** Die Zahlen der
+ * Werte beschreiben `gearRecordValue`, `oilBarRecordValue` und `valuesStateRecordValue` (ui/dashboard).
  */
 object DerivedPids {
 
     const val GEAR_ID = "GEAR"
     const val OIL_BAR_ID = "OIL_BAR"
+    const val VALUES_STATE_ID = "VALUES_STATE"
 
     /** Die Slot-ID der Gelaende-Kachel (Hoehe, Steigung, Peilung). **Persistierter Zustand (`slot_pids`) — nie umbenennen.** */
     const val TERRAIN_ID = "TERRAIN"
@@ -43,6 +44,20 @@ object DerivedPids {
     )
 
     /**
+     * Der Zustand der Fahrzeugwerte: 0 = Werte da, 1 = eingefroren und zurueckgehalten, 2 = keine aktuellen Werte (der Adapter schweigt). Eine Zeile je **Wechsel**,
+     * nicht je Zyklus: so erklaert die Fahrt die Luecke, die die zurueckgehaltenen Werte in der Aufzeichnung lassen (s. `ValuesState`). Wie beim Gang liest die Formel
+     * nie Bytes (`NaN`).
+     */
+    val VALUES_STATE = PidDefinition(
+        id = VALUES_STATE_ID,
+        name = "Values state", labelRes = R.string.pid_values_state,
+        unit = "",
+        minValue = 0f,
+        maxValue = 2f,
+        formula = { Float.NaN },
+    )
+
+    /**
      * Die Gelaende-Kachel als **Eintrag der Slot-Auswahl**: kein Messwert, sondern eine Kachel, die drei Werte des Telefons (Hoehe, Steigung, Peilung) zeigt
      * (`DashboardUiState.terrain`, Rechnung in `de.adv990de.obd2.terrain`). Steht bewusst **nicht** in [all] (wird nie aufgezeichnet — der CSV-Export benennt
      * damit Zeilen) und nicht in der [PidRegistry] (wird nie abgefragt). Die Formel liest nie Bytes (`NaN`).
@@ -57,5 +72,5 @@ object DerivedPids {
     )
 
     /** Alle abgeleiteten, aufgezeichneten Werte nach Id — der CSV-Export nennt damit auch sie beim Namen. */
-    val all: Map<String, PidDefinition> = listOf(GEAR, OIL_BAR).associateBy { it.id }
+    val all: Map<String, PidDefinition> = listOf(GEAR, OIL_BAR, VALUES_STATE).associateBy { it.id }
 }

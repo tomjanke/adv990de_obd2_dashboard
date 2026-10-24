@@ -100,12 +100,12 @@ class PreviewBannerTest {
     }
 
     @Test
-    fun withAnotherLabel_theStaleBannerReplacesThePreviewLabel() {
+    fun withAnotherLabel_theWaitingBannerReplacesThePreviewLabel() {
         composeRule.setContent {
-            MaterialTheme { PreviewBanner(labelRes = R.string.dashboard_stale_banner) }
+            MaterialTheme { PreviewBanner(labelRes = R.string.dashboard_waiting_banner) }
         }
 
-        composeRule.onNodeWithText(string(R.string.dashboard_stale_banner).uppercase()).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.dashboard_waiting_banner).uppercase()).assertIsDisplayed()
         composeRule
             .onAllNodesWithText(string(R.string.dashboard_preview_banner).uppercase())
             .assertCountEquals(0)

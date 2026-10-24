@@ -10,6 +10,7 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.location.GpsSpeedSource
+import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
@@ -198,7 +199,7 @@ class ReadingsPipelineTest {
         }
 
         val events = makePipeline(repo).sessionEvents(backgroundScope).take(1).toList()
-        assertEquals(listOf(SessionEvent.ConnectionLost), events)
+        assertEquals(listOf(SessionEvent.ConnectionLost()), events)
     }
 
     // --- Test 6 ---
@@ -677,7 +678,7 @@ class ReadingsPipelineTest {
 
             val events = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
 
-            assertEquals(listOf(SessionEvent.ConnectionLost), events)
+            assertEquals(listOf(SessionEvent.ConnectionLost()), events)
         }
 
     // --- Test 15-user: the user's own disconnect is not a lost link (B3) ---
@@ -703,7 +704,7 @@ class ReadingsPipelineTest {
 
             testScheduler.advanceUntilIdle()
 
-            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost() })
             assertTrue("die Anzeige geht auf getrennt: $events", events.contains(SessionEvent.Idle))
         }
 
@@ -725,7 +726,7 @@ class ReadingsPipelineTest {
 
             testScheduler.advanceUntilIdle()
 
-            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+            assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost() })
         }
 
     @Test
@@ -739,9 +740,9 @@ class ReadingsPipelineTest {
                 throw ObdException.ConnectionLost()
             }
 
-            val event = makePipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost }
+            val event = makePipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost() }
 
-            assertEquals(SessionEvent.ConnectionLost, event)
+            assertEquals(SessionEvent.ConnectionLost(), event)
         }
 
     // --- Eingefrorene Werte (Fahrten 52 und 60 des Nutzers, 2026-10-20): das Steuergeraet antwortet weiter, aber mit demselben Wert ---
@@ -764,8 +765,16 @@ class ReadingsPipelineTest {
         repo: ObdRepository,
         logRepo: AppLogRepository = mockk(relaxed = true),
         watchdogSeconds: Int = 20,
-    ) = makePipeline(repo, prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = watchdogSeconds), logRepo = logRepo)
-        .also { it.frozenTimeSource = frozenClock }
+        sessionRepo: SessionRepository = makeSessionRepo(),
+        gps: GpsSpeedSource = makeGps(),
+        useGpsSpeed: Boolean = false,
+    ) = makePipeline(
+        repo,
+        sessionRepo = sessionRepo,
+        prefs = fakeAppPreferences(obdWatchdogTimeoutSeconds = watchdogSeconds, useGpsSpeed = useGpsSpeed),
+        gps = gps,
+        logRepo = logRepo,
+    ).also { it.frozenTimeSource = frozenClock }
 
     private fun frozenRepo(connected: MutableStateFlow<Boolean>? = null): ObdRepository = makeRepo(connected = true).also { repo ->
         if (connected != null) every { repo.isConnectedFlow } returns connected
@@ -782,7 +791,7 @@ class ReadingsPipelineTest {
         runCurrent()
 
         assertEquals("Zyklus 1 bis 19 laufen durch, der 20. ist der eingefrorene", 19, events.count { it is SessionEvent.Values })
-        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost(ConnectionLostCause.FROZEN_VALUES)))
         coVerify(exactly = 1) { repo.dropFrozenLink() }
         coVerify {
             logRepo.log(LogLevel.WARN, match { it.contains("values frozen") && it.contains("20 cycles") && it.contains("28 s") && it.contains("ATRV 13.8V") })
@@ -797,7 +806,7 @@ class ReadingsPipelineTest {
 
         val events = collect(frozenPipeline(repo))
         runCurrent()
-        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost(ConnectionLostCause.FROZEN_VALUES)))
 
         connected.value = true                          // das Neuverbinden gelingt, es ist dasselbe: wieder eingefroren
         runCurrent()
@@ -839,7 +848,7 @@ class ReadingsPipelineTest {
         runCurrent()
 
         assertEquals(100, events.count { it is SessionEvent.Values })
-        assertTrue(events.none { it == SessionEvent.ConnectionLost })
+        assertTrue(events.none { it is SessionEvent.ConnectionLost })
         coVerify(exactly = 0) { repo.dropFrozenLink() }
     }
 
@@ -883,9 +892,9 @@ class ReadingsPipelineTest {
             val repo = frozenRepo(connected)
             every { repo.livePids(any()) } returns frozenStream(25)
 
-            val event = frozenPipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost }
+            val event = frozenPipeline(repo).sessionEvents(backgroundScope).first { it is SessionEvent.ConnectionLost }
 
-            assertEquals(SessionEvent.ConnectionLost, event)
+            assertEquals(SessionEvent.ConnectionLost(ConnectionLostCause.FROZEN_VALUES), event)
         }
 
     @Test
@@ -902,7 +911,7 @@ class ReadingsPipelineTest {
         connected.value = false                          // die Verbindung stirbt waehrenddessen
         advanceTimeBy(300); runCurrent()
 
-        assertTrue("$events", events.contains(SessionEvent.ConnectionLost))
+        assertTrue("$events", events.contains(SessionEvent.ConnectionLost(ConnectionLostCause.FROZEN_VALUES)))
     }
 
     @Test
@@ -920,8 +929,285 @@ class ReadingsPipelineTest {
         val events = collect(frozenPipeline(repo, logRepo))
         runCurrent()
 
-        assertTrue("$events", events.none { it == SessionEvent.ConnectionLost })
+        assertTrue("$events", events.none { it is SessionEvent.ConnectionLost })
         coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("reconnecting") }) }
+    }
+
+    // --- Sperre bei eingefrorenen Werten: Ereignis, Log, Marker in der Fahrt, GPS-Geschwindigkeit (Spezifikation 2026-10-24) ---
+
+    private class HoldRun(
+        val events: MutableList<SessionEvent>,
+        val logRepo: AppLogRepository,
+        val rows: MutableList<List<SensorValue>>,
+        val gps: MutableStateFlow<Float?>,
+        val connected: MutableStateFlow<Boolean>,
+        val moving: MutableList<Boolean>,
+    )
+
+    /** Zwei Sitzungen: die erste friert ein und wird neu verbunden, die zweite ([secondStream]) ist wieder eingefroren — die Sperre. */
+    private fun TestScope.holdRun(secondStream: Flow<List<SensorValue>> = frozenStream(40), gpsKmh: Float? = 42f): HoldRun {
+        val connected = MutableStateFlow(true)
+        val repo = frozenRepo(connected)
+        every { repo.livePids(any()) } returnsMany listOf(frozenStream(25), secondStream)
+        val moving = mutableListOf<Boolean>()
+        every { repo.setMoving(any()) } answers { moving.add(firstArg()) }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val gps = MutableStateFlow(gpsKmh)
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(frozenPipeline(repo, logRepo, sessionRepo = sessionRepo, gps = gpsSource, useGpsSpeed = true))
+        runCurrent()
+        connected.value = true
+        runCurrent()
+        return HoldRun(events, logRepo, rows, gps, connected, moving)
+    }
+
+    private fun List<List<SensorValue>>.stateRows() = flatten().filter { it.pid.id == DerivedPids.VALUES_STATE_ID }
+
+    private fun List<List<SensorValue>>.gpsOnlyRows() =
+        filter { it.size == 1 && it[0].source == ValueSource.GPS && it[0].pid.id == PidRegistry.SPEED.id }
+
+    @Test
+    fun `the start of a hold is reported once, right when the first values are held back - not after the stale limit`() = runTest {
+        val run = holdRun()
+
+        assertEquals("ein Ereignis je Sperre, nicht je gehaltenem Zyklus", 1, run.events.count { it == SessionEvent.Frozen })
+        assertEquals("zuletzt gemeldet, direkt hinter dem letzten durchgelassenen Zyklus", SessionEvent.Frozen, run.events.last())
+        assertEquals(38, run.events.count { it is SessionEvent.Values })
+        assertTrue("die Anzeige muss keine 10 s warten: $run", run.events.none { it == SessionEvent.Stale })
+    }
+
+    private fun AppLogRepository.messages(): List<String> {
+        val messages = mutableListOf<String>()
+        coVerify(atLeast = 0) { log(any(), capture(messages)) }
+        return messages
+    }
+
+    @Test
+    fun `the stale limit during a hold changes nothing - no second event, no log line, no marker`() = runTest {
+        val run = holdRun()
+        val markedBefore = run.rows.stateRows().size
+        val loggedBefore = run.logRepo.messages()
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+
+        assertTrue("Stale kommt wie bisher", run.events.contains(SessionEvent.Stale))
+        assertEquals(1, run.events.count { it == SessionEvent.Frozen })
+        assertEquals("kein weiterer Marker", markedBefore, run.rows.stateRows().size)
+        assertEquals("keine weitere Log-Zeile", loggedBefore, run.logRepo.messages())
+    }
+
+    @Test
+    fun `a hold writes one log line with the held cycle, never one per cycle`() = runTest {
+        val run = holdRun()
+
+        coVerify(exactly = 1) {
+            run.logRepo.log(
+                LogLevel.WARN,
+                match { it.contains("holding them back") && it.contains("010C=1612") && it.contains("0105=79") && it.contains("0142=13.7") },
+            )
+        }
+    }
+
+    @Test
+    fun `a hold writes exactly one marker row into the trip - the state frozen with the time of the held cycle`() = runTest {
+        val run = holdRun()
+
+        val markers = run.rows.stateRows()
+        assertEquals(1, markers.size)
+        assertEquals(1f, markers.single().value, 0f)
+        assertEquals(ValueSource.DERIVED, markers.single().source)
+        assertEquals("die Zeit des Zyklus, der die Sperre ausloeste", 1000L, markers.single().timestamp)
+    }
+
+    @Test
+    fun `while holding every held cycle records the GPS speed - and only that`() = runTest {
+        val run = holdRun()
+
+        val gpsRows = run.rows.gpsOnlyRows()
+        assertEquals("Zyklus 20 bis 40 der zweiten Sitzung sind gehalten", 21, gpsRows.size)
+        assertTrue(gpsRows.all { it.single().value == 42f })
+        assertTrue("kein Fahrzeugwert aus einem gehaltenen Zyklus: ${run.rows.flatten().filter { it.pid.id == PidRegistry.RPM.id }.size} Drehzahlzeilen", run.rows.flatten().count { it.pid.id == PidRegistry.RPM.id } == 19 + 19)
+    }
+
+    @Test
+    fun `without a GPS fix a hold records no speed row`() = runTest {
+        val run = holdRun(gpsKmh = null)
+
+        assertEquals(0, run.rows.gpsOnlyRows().size)
+        assertEquals("der Marker steht trotzdem", 1, run.rows.stateRows().size)
+    }
+
+    @Test
+    fun `from the hold start on, a GPS update reaches the display as the speed alone`() = runTest {
+        val run = holdRun()
+        val values = run.events.count { it is SessionEvent.Values }
+
+        run.gps.value = 60f; runCurrent()
+
+        assertEquals(SessionEvent.GpsSpeed(60f), run.events.last())
+        assertEquals("die eingefrorenen Werte erscheinen nicht neu als live", values, run.events.count { it is SessionEvent.Values })
+    }
+
+    @Test
+    fun `a hold counts as standing for the drive detection, like stale`() = runTest {
+        val run = holdRun()
+
+        assertEquals("die Zyklen mit 42 km/h meldeten 'faehrt', die Sperre 'steht'", false, run.moving.last())
+        assertTrue(run.moving.contains(true))
+    }
+
+    @Test
+    fun `when the vehicle moves again the display and the recording resume, with one log line and one marker`() = runTest {
+        val second = flow {
+            repeat(25) { frozenClock += 1_500.milliseconds; emit(frozenCycle()) }        // wieder eingefroren: Sperre ab dem 20.
+            frozenClock += 1_500.milliseconds; emit(frozenCycle(rpmValue = 2400f))       // das Steuergeraet lebt wieder
+            awaitCancellation()
+        }
+        val run = holdRun(secondStream = second)
+
+        assertEquals(2400f, (run.events.last() as SessionEvent.Values).values.first { it.pid.id == PidRegistry.RPM.id }.value)
+        assertEquals(listOf(1f, 0f), run.rows.stateRows().map { it.value })
+        coVerify(exactly = 1) { run.logRepo.log(LogLevel.INFO, match { it.contains("moving again") && it.contains("showing and recording resume") }) }
+
+        run.gps.value = 61f; runCurrent()
+        assertTrue("danach wieder wie live: ${run.events.last()}", (run.events.last() as SessionEvent.Values).let { !it.isObdCycle })
+    }
+
+    @Test
+    fun `a session that ends during a hold says so in the log`() = runTest {
+        val run = holdRun()
+
+        run.connected.value = false; runCurrent()
+
+        coVerify(exactly = 1) { run.logRepo.log(LogLevel.INFO, match { it.contains("Session ended while values were frozen") }) }
+        assertEquals("kein Marker fuer das Sitzungsende: die Fahrt endet", 1, run.rows.stateRows().size)
+    }
+
+    @Test
+    fun `an adapter that falls silent is a stale state of its own - logged and marked once, ended by the next cycle`() = runTest {
+        val repo = makeRepo(connected = true)
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm)); delay(15_000); emit(listOf(rpm.copy(timestamp = 2000L))); awaitCancellation()
+        }
+        val events = collect(makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        assertTrue("$events", events.contains(SessionEvent.Stale))
+        assertTrue("ohne Sperre gibt es kein Frozen: $events", events.none { it == SessionEvent.Frozen })
+        assertEquals(listOf(2f), rows.stateRows().map { it.value })
+        coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, match { it.contains("No fresh values for 10 s") }) }
+
+        advanceTimeBy(5_000); runCurrent()                  // t = 15 s: der naechste Zyklus
+        assertEquals(listOf(2f, 0f), rows.stateRows().map { it.value })
+        coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, match { it.contains("Fresh values again") }) }
+    }
+
+    // --- "Keine aktuellen Werte" ohne Sperre: die GPS-Geschwindigkeit geht weiter in die Fahrt (Auftrag 2026-10-25, Punkt 3 der Spezifikation) ---
+
+    private class SilentRun(
+        val events: MutableList<SessionEvent>,
+        val rows: MutableList<List<SensorValue>>,
+        val gps: MutableStateFlow<Float?>,
+    )
+
+    /** Eine Sitzung, deren Adapter nach dem ersten Zyklus schweigt (ein zweiter Zyklus erst nach [resumeAfterMs], falls gesetzt), mit GPS und aufgezeichneter Fahrt. */
+    private fun TestScope.silentRun(gpsKmh: Float? = null, resumeAfterMs: Long? = null): SilentRun {
+        val repo = makeRepo(connected = true)
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm))
+            if (resumeAfterMs != null) { delay(resumeAfterMs); emit(listOf(rpm.copy(timestamp = 2000L))) }
+            awaitCancellation()
+        }
+        val gps = MutableStateFlow(gpsKmh)
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(makePipeline(repo, sessionRepo = sessionRepo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gpsSource))
+        runCurrent()
+        return SilentRun(events, rows, gps)
+    }
+
+    @Test
+    fun `while no fresh values come every GPS change is recorded as a speed row - and only that`() = runTest {
+        val run = silentRun()
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        val before = run.rows.size
+
+        run.gps.value = 12f; runCurrent()
+        run.gps.value = 18.5f; runCurrent()
+
+        val written = run.rows.drop(before)
+        assertEquals("je Aenderung eine Zeile: $written", 2, written.size)
+        assertEquals(listOf(12f, 18.5f), written.map { it.single().value })
+        assertTrue("Quelle GPS, Geschwindigkeits-PID, kein Fahrzeugwert", written.all { it.single().source == ValueSource.GPS && it.single().pid.id == PidRegistry.SPEED.id })
+        assertEquals("die Anzeige bekommt dieselben Werte weiter", listOf<SessionEvent>(SessionEvent.GpsSpeed(12f), SessionEvent.GpsSpeed(18.5f)), run.events.takeLast(2))
+    }
+
+    @Test
+    fun `before the stale limit a GPS change between two cycles is not recorded - the recording stays at one row per cycle`() = runTest {
+        val run = silentRun()
+        val before = run.rows.size
+
+        run.gps.value = 12f; runCurrent()
+
+        assertEquals("noch ist es ein normaler Zwischenwert der Anzeige: ${run.rows.drop(before)}", before, run.rows.size)
+    }
+
+    @Test
+    fun `without a usable GPS value a silent adapter records no speed row`() = runTest {
+        val run = silentRun()
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        val before = run.rows.size
+
+        run.gps.value = Float.NaN; runCurrent()
+        run.gps.value = -3f; runCurrent()
+        run.gps.value = null; runCurrent()
+
+        assertEquals("nichts Unbelegtes in der Fahrt: ${run.rows.drop(before)}", before, run.rows.size)
+    }
+
+    @Test
+    fun `a fresh cycle ends the speed-only recording - the GPS rides along with the cycle again`() = runTest {
+        val run = silentRun(resumeAfterMs = 15_000)
+        advanceTimeBy(15_001); runCurrent()                 // veraltet bei 10 s, frischer Zyklus bei 15 s
+        val before = run.rows.size
+
+        run.gps.value = 33f; runCurrent()
+
+        assertEquals("zwischen zwei Zyklen schreibt der GPS-Wert wieder nichts: ${run.rows.drop(before)}", before, run.rows.size)
+    }
+
+    @Test
+    fun `during a hold a GPS change between two cycles writes no second speed row - the held cycles already record it`() = runTest {
+        val run = holdRun()
+        val before = run.rows.gpsOnlyRows().size
+
+        run.gps.value = 60f; runCurrent()
+
+        assertEquals("sonst stuende die Geschwindigkeit doppelt in der Fahrt", before, run.rows.gpsOnlyRows().size)
+    }
+
+    @Test
+    fun `values that never go stale write no state marker and no state log line`() = runTest {
+        val repo = makeRepo(connected = true)
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        every { repo.livePids(any()) } returns flow {
+            repeat(5) { emit(listOf(rpm.copy(timestamp = 1000L + it))); delay(2_000) }
+            awaitCancellation()
+        }
+        collect(makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo))
+
+        advanceTimeBy(9_000); runCurrent()
+
+        assertEquals(0, rows.stateRows().size)
+        coVerify(exactly = 0) { logRepo.log(any(), match { it.contains("fresh values", ignoreCase = true) || it.contains("frozen") }) }
     }
 
     // --- B11: Fahrterkennung mit Hysterese ---
@@ -1026,7 +1312,8 @@ class ReadingsPipelineTest {
         val before = events.size
         gps.value = 20f; runCurrent()
 
-        assertEquals("veraltete Werte duerfen nicht mit neuem GPS 'live' erscheinen: $events", before, events.size)
+        assertTrue("veraltete Werte duerfen nicht mit neuem GPS 'live' erscheinen: $events", events.drop(before).none { it is SessionEvent.Values })
+        assertEquals("die GPS-Geschwindigkeit haengt nicht am Adapter: sie geht allein an die Anzeige", listOf<SessionEvent>(SessionEvent.GpsSpeed(20f)), events.drop(before))
     }
 
     @Test
@@ -1178,9 +1465,9 @@ class ReadingsPipelineTest {
             }
 
             val event = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope)
-                .first { it == SessionEvent.ConnectionLost }
+                .first { it == SessionEvent.ConnectionLost() }
 
-            assertEquals(SessionEvent.ConnectionLost, event)
+            assertEquals(SessionEvent.ConnectionLost(), event)
         }
 
     @Test
@@ -1196,7 +1483,7 @@ class ReadingsPipelineTest {
             val sessionRepo = makeSessionRepo()
 
             makePipeline(repo, sessionRepo = sessionRepo).sessionEvents(backgroundScope)
-                .first { it == SessionEvent.ConnectionLost }
+                .first { it == SessionEvent.ConnectionLost() }
 
             coVerify(exactly = 0) { sessionRepo.startSession(any(), any()) }
         }
@@ -1218,7 +1505,7 @@ class ReadingsPipelineTest {
             }
 
             makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope)
-                .first { it == SessionEvent.ConnectionLost }
+                .first { it == SessionEvent.ConnectionLost() }
             testScheduler.advanceUntilIdle()
 
             assertTrue("the WARN line about the dropped link must be persisted", written)
@@ -1592,7 +1879,7 @@ class ReadingsPipelineTest {
 
         advanceTo(watchMs)
 
-        assertEquals("genau ein Reconnect-Ausloeser: $events", 1, events.count { it == SessionEvent.ConnectionLost })
+        assertEquals("genau ein Reconnect-Ausloeser: $events", 1, events.count { it == SessionEvent.ConnectionLost() })
     }
 
     @Test
@@ -1611,7 +1898,7 @@ class ReadingsPipelineTest {
 
         advanceTo(watchMs)
 
-        assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost })
+        assertTrue("kein Reconnect nach Nutzer-Trennen: $events", events.none { it == SessionEvent.ConnectionLost() })
         assertTrue("die Anzeige geht auf getrennt: $events", events.contains(SessionEvent.Idle))
     }
 
@@ -1630,7 +1917,7 @@ class ReadingsPipelineTest {
         coVerify(exactly = 1) { repo.readDtcsOrSkip() }
         advanceTo(2 * watchMs)
 
-        assertTrue("kein Reconnect-Ausloeser fuer eine ersetzte Verbindung: $events", events.none { it == SessionEvent.ConnectionLost })
+        assertTrue("kein Reconnect-Ausloeser fuer eine ersetzte Verbindung: $events", events.none { it == SessionEvent.ConnectionLost() })
         coVerify(exactly = 0) { logRepo.log(any(), match { it.contains("Periodic fault-code read") }) }
         coVerify(exactly = 2) { repo.readDtcsOrSkip() }               // die Wache lebt: sie liest in der naechsten Minute wieder
         assertTrue("die Sitzung lebt weiter: $events", events.none { it is SessionEvent.Failed || it == SessionEvent.Idle })

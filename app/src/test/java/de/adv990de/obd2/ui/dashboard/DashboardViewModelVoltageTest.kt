@@ -169,7 +169,7 @@ class DashboardViewModelVoltageTest {
     fun `idle, a lost connection, stale and a failure each clear the trend and the next session starts from scratch`() = runTest {
         val events = listOf<SessionEvent>(
             SessionEvent.Idle,
-            SessionEvent.ConnectionLost,
+            SessionEvent.ConnectionLost(),
             SessionEvent.Stale,
             SessionEvent.Failed(UiText.DynamicString("boom")),
         )

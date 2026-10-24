@@ -28,7 +28,7 @@ class SimulatorObdConnection : ObdConnection {
     private val toDispatcher = PipedOutputStream()
     private val fromClient   = PipedInputStream(toDispatcher)
 
-    private val dispatcher = SimulatedEcuDispatcher()
+    private val dispatcher = SimulatedEcuDispatcher(freezeAtMs = SimulatorFreeze.atMs)
 
     @Volatile private var dispatchThread: Thread? = null
 

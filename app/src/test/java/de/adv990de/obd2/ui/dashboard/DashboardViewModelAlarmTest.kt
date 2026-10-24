@@ -207,7 +207,7 @@ class DashboardViewModelAlarmTest {
         advanceUntilIdle()
         s.events.emit(SessionEvent.FaultCodes(emptyList(), isBaseline = true))
         s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))    // a candidate of the first session
-        s.events.emit(SessionEvent.ConnectionLost)
+        s.events.emit(SessionEvent.ConnectionLost())
         s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = true))     // the code is part of the new session's baseline
         s.events.emit(SessionEvent.FaultCodes(listOf(conf("P0301")), isBaseline = false))
         advanceUntilIdle()
@@ -319,7 +319,7 @@ class DashboardViewModelAlarmTest {
     fun `Idle after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.Idle) }
 
     @Test
-    fun `ConnectionLost after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.ConnectionLost) }
+    fun `ConnectionLost after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.ConnectionLost()) }
 
     @Test
     fun `Failed after Stale cancels the grace timer`() = runTest { staleThenSessionEnd(SessionEvent.Failed(UiText.DynamicString("boom"))) }
@@ -384,7 +384,7 @@ class DashboardViewModelAlarmTest {
     fun `Stale clears voltage and coolant but not the fault alarm`() = runTest { sessionEndKeepsOnlyTheFault(SessionEvent.Stale) }
 
     @Test
-    fun `ConnectionLost clears voltage and coolant but not the fault alarm`() = runTest { sessionEndKeepsOnlyTheFault(SessionEvent.ConnectionLost) }
+    fun `ConnectionLost clears voltage and coolant but not the fault alarm`() = runTest { sessionEndKeepsOnlyTheFault(SessionEvent.ConnectionLost()) }
 
     @Test
     fun `Failed clears voltage and coolant but not the fault alarm`() = runTest {

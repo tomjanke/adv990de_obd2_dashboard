@@ -473,6 +473,47 @@ class DashboardAlarmDeviceTest {
 
     // --- Gelaende-Kachel unter dem Band ---
 
+    /**
+     * Das laute Band fuer fehlende Werte ([ValuesLostBanner]) steht in der Spalte **ueber** dem Raster, das Alarmband **auf** dessen oberer Kante: beide gleichzeitig ueberlappen sich nicht — das
+     * Alarmband beginnt da, wo das laute endet (Spezifikation 2026-10-24). Der Zustand "eingefroren" wird gesetzt (`uiState` ist ein `MutableStateFlow`, nur als `StateFlow` herausgegeben); die Sitzung
+     * laeuft nicht (nicht verbunden), der Fehler-Alarm ueberlebt sie mit Absicht.
+     */
+    private fun checkLoudBandAndAlarmBandDoNotOverlap(label: String) {
+        givenAPersistingFaultAlarm()
+        givenOffline()
+        launch(waitForSession = false)
+        // Gesetzt und kurz danach noch einmal: ein verspaetetes `Idle` der Sitzung setzte den Zustand sonst zurueck.
+        repeat(2) {
+            composeRule.runOnUiThread {
+                @Suppress("UNCHECKED_CAST")
+                val state = vm.uiState as MutableStateFlow<DashboardUiState>
+                state.value = state.value.copy(isConnected = true, awaitingFirstValues = false, isStale = true, valuesLost = ValuesLostCause.FROZEN)
+            }
+            composeRule.waitForIdle()
+            if (it == 0) Thread.sleep(400)
+        }
+        waitForBanner()
+
+        val loud = fetchBounds(composeRule.onNodeWithTag(VALUES_LOST_BANNER_TEST_TAG))
+        val alarm = fetchBounds(composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG))
+        Log.i("DashboardAlarmHeights", "$label: lautes Band %.1f bis %.1f dp, Alarmband %.1f bis %.1f dp".format(dp(loud.top), dp(loud.bottom), dp(alarm.top), dp(alarm.bottom)))
+        composeRule.onNodeWithTag(VALUES_LOST_BANNER_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(ALARM_BANNER_TEST_TAG).assertIsDisplayed()
+        assertTrue("$label: das Alarmband ($alarm) beginnt erst unter dem lauten Band ($loud)", alarm.top >= loud.bottom - 1f)
+    }
+
+    @Test
+    fun inPortrait_theLoudBandAndTheAlarmBandDoNotOverlap() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        checkLoudBandAndAlarmBandDoNotOverlap("Hochformat")
+    }
+
+    @Test
+    fun inLandscape_theLoudBandAndTheAlarmBandDoNotOverlap() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        checkLoudBandAndAlarmBandDoNotOverlap("Querformat")
+    }
+
     private fun terrainBounds(tag: String): Rect {
         val b = composeRule.onNodeWithTag(tag, useUnmergedTree = true).getBoundsInRoot()
         return Rect(b.left.value, b.top.value, b.right.value, b.bottom.value)

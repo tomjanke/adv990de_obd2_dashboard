@@ -118,9 +118,10 @@ def scroll_stalled(before, after):
 
 
 SIMULATOR_ROW = "OBD Sim"
-# Baender des Dashboards, die sagen: noch keine (frischen) Werte — Vorschau (offline/verbinde), warte auf Werte, veraltet. Grossgeschrieben,
-# weil uiautomator den DARGESTELLTEN Text liefert ("VORSCHAU \u00b7 NICHT VERBUNDEN"); verglichen wird ohne Beachtung der Schreibweise.
-NO_DATA_BANDS = ("VORSCHAU", "VERBUNDEN \u00b7 WARTE", "KEINE AKTUELLEN")
+# Baender des Dashboards, die sagen: noch keine (frischen) Werte — Vorschau (offline/verbinde), warte auf Werte, veraltet, eingefroren. Grossgeschrieben,
+# weil uiautomator den DARGESTELLTEN Text liefert ("VORSCHAU \u00b7 NICHT VERBUNDEN"); verglichen wird ohne Beachtung der Schreibweise (die lauten Baender
+# "Keine aktuellen Werte" und "Werte eingefroren" stehen seit 1.41.1 in Normalschrift im Dashboard).
+NO_DATA_BANDS = ("VORSCHAU", "VERBUNDEN \u00b7 WARTE", "KEINE AKTUELLEN", "WERTE EINGEFROREN")
 
 
 def bluetooth_state(texts):
@@ -147,8 +148,13 @@ def no_data_bands(texts):
 
 
 def reconnecting(texts):
-    """Das Dashboard zeigt einen Verbindungsversuch ("VORSCHAU \u00b7 VERBINDUNGSVERSUCH 2/5" bzw. "\u2026 VERBINDE \u2026")."""
-    return any("VERBINDUNGSVERSUCH" in text.upper() or text.upper().startswith("VORSCHAU \u00b7 VERBINDE") for text in texts)
+    """Das Dashboard zeigt einen Verbindungsversuch ("VORSCHAU \u00b7 VERBINDUNGSVERSUCH 2/5" bzw. "\u2026 VERBINDE \u2026", nach eingefrorenen Werten "WERTE EINGEFROREN \u00b7 VERBINDE NEU")."""
+    return any(
+        "VERBINDUNGSVERSUCH" in text.upper()
+        or text.upper().startswith("VORSCHAU \u00b7 VERBINDE")
+        or text.upper().startswith("WERTE EINGEFROREN \u00b7 VERBINDE")
+        for text in texts
+    )
 
 
 def data_flows(texts):

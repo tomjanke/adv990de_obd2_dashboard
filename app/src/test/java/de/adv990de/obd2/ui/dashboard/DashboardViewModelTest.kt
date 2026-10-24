@@ -1762,18 +1762,29 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `stale values, a lost connection and a failed session also save the counter`() = runTest {
+    fun `a lost connection and a failed session save the counter`() = runTest {
+        val sink = RecordingFuelSink()
+        val d = drivenWithFuel(sink, longArrayOf(0L))
+
+        d.events.emit(SessionEvent.ConnectionLost())
+        advanceUntilIdle()
+        d.events.emit(SessionEvent.Failed(UiText.DynamicString("x")))
+        advanceUntilIdle()
+
+        assertEquals(2, sink.flushes)
+    }
+
+    @Test
+    fun `stale and frozen values do not end the counting - the session is connected and the GPS does not depend on the adapter (D4)`() = runTest {
         val sink = RecordingFuelSink()
         val d = drivenWithFuel(sink, longArrayOf(0L))
 
         d.events.emit(SessionEvent.Stale)
         advanceUntilIdle()
-        d.events.emit(SessionEvent.ConnectionLost)
-        advanceUntilIdle()
-        d.events.emit(SessionEvent.Failed(UiText.DynamicString("x")))
+        d.events.emit(SessionEvent.Frozen)
         advanceUntilIdle()
 
-        assertEquals(3, sink.flushes)
+        assertEquals("kein Speichern, kein Beenden des Intervalls", 0, sink.flushes)
     }
 
     @Test
@@ -1896,7 +1907,7 @@ class DashboardViewModelTest {
         d.cycle(rpmAt(1_000L, 3000f))
         advanceUntilIdle()
 
-        d.events.emit(SessionEvent.ConnectionLost)
+        d.events.emit(SessionEvent.ConnectionLost())
         advanceUntilIdle()
         assertTrue("waehrend der Wiederverbindung keine alte Kurve", d.vm.uiState.value.sparklines.isEmpty())
 

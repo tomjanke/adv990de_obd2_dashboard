@@ -113,19 +113,34 @@ internal class FrozenValuesGuard {
     /** Fuer den laufenden Fall wurde schon neu verbunden und seither hat sich kein Wert bewegt. */
     private var reconnected = false
 
-    /** Beginnt eine Sitzung: Zaehlung und Vergleichswerte von vorn, [minDuration] aus der Einstellung des Watchdogs; ob schon neu verbunden wurde, bleibt. */
+    /**
+     * Die Werte werden gerade zurueckgehalten: seit dem ersten [FrozenAction.Hold] dieser Sitzung, bis sich ein Wert bewegt oder der Motor ausgeht. Die Pipeline liest es nach jedem
+     * Zyklus, um das Ende der Sperre zu erkennen — ein durchgelassener Zyklus bei `holding == false` nach einem Hold ist ein bewegter Wert.
+     */
+    var holding = false
+        private set
+
+    /**
+     * Beginnt eine Sitzung: Zaehlung und Vergleichswerte von vorn, [minDuration] aus der Einstellung des Watchdogs; ob schon neu verbunden wurde, bleibt. Eine neue Sitzung beginnt nie in
+     * der Sperre: ihre ersten Zyklen laufen wieder durch, bis die Grenze erneut erreicht ist.
+     */
     fun beginSession(timeSource: TimeSource, minDuration: Duration) {
         detector = FrozenValuesDetector(timeSource, minDuration)
+        holding = false
     }
 
     fun onCycle(values: List<SensorValue>): FrozenAction = when (detector.update(values)) {
         FrozenState.CHANGED, FrozenState.ENGINE_OFF -> {
             reconnected = false
+            holding = false
             FrozenAction.Pass
         }
-        FrozenState.IGNORED, FrozenState.UNCHANGED -> FrozenAction.Pass
+        // Ein Zyklus ohne Drehzahl kann nicht beweisen, dass der Strom wieder lebt: in der Sperre bleibt er zurueckgehalten.
+        FrozenState.IGNORED -> if (holding) FrozenAction.Hold else FrozenAction.Pass
+        FrozenState.UNCHANGED -> FrozenAction.Pass
         FrozenState.FROZEN ->
             if (reconnected) {
+                holding = true
                 FrozenAction.Hold
             } else {
                 reconnected = true

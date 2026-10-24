@@ -18,8 +18,16 @@ package de.adv990de.obd2.bluetooth
  * [clockMs] ist die Uhr der Simulation (Standard: Wanduhr). Als Parameter, damit Tests die Kurven an festen Zeitpunkten pruefen statt
  * mit `Thread.sleep` auf "irgendeine" Aenderung zu warten (TST-13); die Drehzahl haengt an der absoluten Zeit, die Kuehlmittelrampe an
  * der Zeit seit der Konstruktion (= Verbindungsaufbau).
+ *
+ * [freezeAtMs] ist eine **Testhilfe** (Vorgabe: aus): ab diesem Zeitpunkt der Uhr antwortet das Steuergeraet weiter, aber mit demselben Wert — die Drehzahl, die sie zu diesem Zeitpunkt
+ * hatte (alles, was daraus abgeleitet ist, bleibt damit auch stehen), Kuehlmittel 79 Grad, Spannung 13,7 V — wie bei den Fahrten, in denen die Werte einfroren (52, 60, 67 bis 69). Das gilt
+ * auch fuer eine **neue** Verbindung nach diesem Zeitpunkt (ein Neuverbinden heilt es nicht): ohne diese Hilfe laesst sich der Weg Einfrieren, Erkennung, Neuverbinden, Sperre und Band nur am Fahrzeug
+ * pruefen. Im Debug-Build setzt sie `SimulatorFreeze` aus der Gradle-Property `simFreezeAfterSeconds`; im Release-Build gibt es keinen Simulator.
  */
-class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTimeMillis) {
+class SimulatedEcuDispatcher(
+    private val clockMs: () -> Long = System::currentTimeMillis,
+    private val freezeAtMs: Long? = null,
+) {
 
     private val connectTimeMs = clockMs()
 
@@ -52,7 +60,7 @@ class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTi
         "010B" -> respondMap()
         "0110" -> respondMaf()
         "012F" -> "41 2F A6"   // fuel level 65 % (constant): 0xA6=166, 166*100/255=65
-        "0142" -> "41 42 37 78" // board voltage 14.2 V (constant): 0x3778=14200, /1000
+        "0142" -> if (frozen()) FROZEN_VOLTAGE_RESPONSE else "41 42 37 78" // board voltage 14.2 V (constant): 0x3778=14200, /1000
         "0146" -> "41 46 3C"   // ambient temp 20°C (constant)
         "010E" -> "41 0E 94"   // timing advance 10° (constant)
         else   -> "NO DATA"
@@ -60,8 +68,12 @@ class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTi
 
     // ── Animated helpers ─────────────────────────────────────────────────────
 
+    /** Hat das Einfrieren (Testhilfe) begonnen? */
+    private fun frozen(): Boolean = freezeAtMs != null && clockMs() >= freezeAtMs
+
     private fun rpm(): Int {
-        val t = clockMs()
+        // Eingefroren steht die Uhr der Drehzahl auf dem Zeitpunkt des Einfrierens: alles, was aus der Drehzahl folgt (Geschwindigkeit, Last, ...), bleibt mit stehen.
+        val t = if (frozen()) freezeAtMs!! else clockMs()
         // Triangle wave: 900–8500 rpm over 20 s — varied city/highway driving
         val phase = (t % 20_000L) / 20_000.0          // 0.0 .. 1.0
         val triangle = if (phase < 0.5) 2 * phase else 2 * (1 - phase)  // 0.0 .. 1.0
@@ -79,6 +91,7 @@ class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTi
     }
 
     private fun respondCoolant(): String {
+        if (frozen()) return "41 05 %02X".format(FROZEN_COOLANT_C + 40)
         val elapsed = ((clockMs() - connectTimeMs) / 1000.0).coerceAtMost(90.0)
         val temp = (20 + 70 * elapsed / 90.0).toInt()
         return "41 05 %02X".format(temp + 40)
@@ -102,6 +115,12 @@ class SimulatedEcuDispatcher(private val clockMs: () -> Long = System::currentTi
     private fun respondMaf(): String {
         val mafCentigs = (50 + 4950.0 * (rpm() - 900) / 7600).toInt().coerceIn(50, 4999)
         return "41 10 %02X %02X".format(mafCentigs / 256, mafCentigs % 256)
+    }
+
+    private companion object {
+        /** Die Kuehlmitteltemperatur und die Spannung (13,7 V = 0x3584 = 13700 mV), auf denen das eingefrorene Steuergeraet steht — die Werte der Fahrt vom 2026-10-24. */
+        const val FROZEN_COOLANT_C = 79
+        const val FROZEN_VOLTAGE_RESPONSE = "41 42 35 84"
     }
 
     // ── Bitmap builder ───────────────────────────────────────────────────────

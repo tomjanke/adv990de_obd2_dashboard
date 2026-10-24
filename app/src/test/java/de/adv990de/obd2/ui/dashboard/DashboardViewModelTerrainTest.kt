@@ -250,7 +250,7 @@ class DashboardViewModelTerrainTest {
 
         s.events.emit(SessionEvent.Idle); advanceUntilIdle()
         assertEquals(before, s.vm.terrain.value)
-        s.events.emit(SessionEvent.ConnectionLost); advanceUntilIdle()
+        s.events.emit(SessionEvent.ConnectionLost()); advanceUntilIdle()
         assertEquals(before, s.vm.terrain.value)
         s.events.emit(SessionEvent.Stale); advanceUntilIdle()
         assertEquals(before, s.vm.terrain.value)

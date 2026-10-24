@@ -298,6 +298,74 @@ class SimulatedEcuDispatcherTest {
         assertEquals("NO DATA", d.respond("0199"))
     }
 
+    // ── Testhilfe: Einfrieren (freezeAtMs) ───────────────────────────────────────
+    //
+    // Das Fahrzeug antwortet weiter, aber mit demselben Wert (Fahrten 52, 60, 67-69): ohne diese Hilfe ist der Weg Einfrieren -> Erkennung -> Neuverbinden -> Sperre -> Band nur
+    // am Fahrzeug zu pruefen. Vorgabe aus: ohne freezeAtMs aendert sich nichts.
+
+    private fun frozenSimulator(clock: FakeClock, freezeAtMs: Long) = SimulatedEcuDispatcher(clock::read, freezeAtMs = freezeAtMs)
+
+    private fun answers(d: SimulatedEcuDispatcher) = listOf("010C", "0105", "0142", "010D", "0104", "0111").map { it to d.respond(it) }
+
+    @Test
+    fun `before the freeze time the answers move as usual`() {
+        val clock = FakeClock(); val d = frozenSimulator(clock, freezeAtMs = START_MS + 30_000)
+
+        clock.nowMs = START_MS
+        val low = answers(d)
+        clock.nowMs = START_MS + 10_000
+
+        assertTrue("die Drehzahl bewegt sich vor dem Einfrieren", low != answers(d))
+    }
+
+    @Test
+    fun `from the freeze time on RPM, coolant, voltage and everything derived from RPM stand still`() {
+        val clock = FakeClock(); val d = frozenSimulator(clock, freezeAtMs = START_MS + 30_000)
+
+        clock.nowMs = START_MS + 30_000
+        val atFreeze = answers(d)
+        for (later in listOf(1_000L, 7_500L, 10_000L, 61_000L)) {
+            clock.nowMs = START_MS + 30_000 + later
+            assertEquals("+$later ms nach dem Einfrieren", atFreeze, answers(d))
+        }
+    }
+
+    @Test
+    fun `the frozen values are those of a running engine - rpm over 500, coolant 79, voltage 13,7 V`() {
+        val clock = FakeClock(); val d = frozenSimulator(clock, freezeAtMs = START_MS + 30_000)
+        clock.nowMs = START_MS + 40_000
+
+        val parts = d.respond("010C").split(" ")
+        val rpm = (parts[2].toInt(16) * 256 + parts[3].toInt(16)) / 4
+
+        assertTrue("der Motor laeuft (>= 500 rpm), sonst waere nichts eingefroren: $rpm", rpm >= 500)
+        assertEquals("Kuehlmittel 79 Grad", 79, d.respond("0105").split(" ")[2].toInt(16) - 40)
+        assertEquals("Spannung 13,7 V", "41 42 35 84", d.respond("0142"))
+    }
+
+    @Test
+    fun `a reconnect does not cure it - a new dispatcher after the freeze time answers the same`() {
+        val clock = FakeClock(); val first = frozenSimulator(clock, freezeAtMs = START_MS + 30_000)
+        clock.nowMs = START_MS + 50_000
+        val before = answers(first)
+
+        clock.nowMs = START_MS + 80_000
+        val second = frozenSimulator(clock, freezeAtMs = START_MS + 30_000)   // das Neuverbinden baut eine neue Verbindung
+
+        assertEquals(before, answers(second))
+    }
+
+    @Test
+    fun `without a freeze time the simulator never freezes`() {
+        val clock = FakeClock(); val d = simulator(clock)
+
+        clock.nowMs = START_MS
+        val low = answers(d)
+        clock.nowMs = START_MS + 10_000_000L + 10_000
+
+        assertTrue(low != answers(d))
+    }
+
     // ── buildBitmap() require() validation ──────────────────────────────────────
     //
     // buildBitmap()'s `require(offset in 1..32)` guards against a PID literal outside its

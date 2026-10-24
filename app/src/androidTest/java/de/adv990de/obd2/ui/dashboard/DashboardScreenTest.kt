@@ -621,7 +621,8 @@ class DashboardScreenTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithContentDescription("$rpmLabel: 2500 rpm").fetchSemanticsNodes().isNotEmpty()
         }
-        val staleBanner = composeRule.activity.getString(R.string.dashboard_stale_banner).uppercase()
+        // Das laute Band (ValuesLostBanner) setzt den Text so, wie er in der Ressource steht — das schmale Vorschau-Band schrieb ihn in Grossbuchstaben.
+        val staleBanner = composeRule.activity.getString(R.string.values_lost_silent_title)
         composeRule.onAllNodesWithText(staleBanner).assertCountEquals(0)
 
         composeRule.waitUntil(timeoutMillis = 20_000) {

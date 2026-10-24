@@ -43,6 +43,18 @@ data class DashboardUiState(
      * Motor, in den ersten 15 s danach, bei zu wenigen Proben und ohne Verbindung. Wie Gang und Sparklines gehoert er zu EINER Verbindung.
      */
     val voltageTrend: VoltageTrend? = null,
+    /**
+     * Warum die Fahrzeugwerte fehlen, solange die Verbindung steht ([ValuesLostCause]): gesetzt genau dann, wenn [isStale] gilt. [ValuesLostCause.FROZEN] schon ab dem Beginn der Sperre
+     * ([SessionEvent.Frozen]), nicht erst nach [OBD_STALE_AFTER_MS]. Bestimmt das laute Band ([valuesBanner]).
+     */
+    val valuesLost: ValuesLostCause? = null,
+    /**
+     * Die GPS-Geschwindigkeit, solange die Fahrzeugwerte fehlen (nur dann, [isStale]): sie haengt nicht am Adapter, die Geschwindigkeits-Kachel zeigt sie in diesem Zustand
+     * ([withStaleGpsSpeed]). `null` ohne Fix, mit abgeschaltetem GPS und ausserhalb von "veraltet" (dort steht die Geschwindigkeit in [speedKmh]).
+     */
+    val gpsSpeedKmh: Float? = null,
+    /** Warum gerade neu verbunden wird ([isReconnecting]); `null` ausserhalb eines Neuverbindens und bei einem Auto-Connect beim Start. Bestimmt mit [valuesLost] das laute Band. */
+    val reconnectCause: ConnectionLostCause? = null,
 ) {
     companion object {
         fun disconnected(error: UiText? = null) = DashboardUiState(isConnected = false, error = error)

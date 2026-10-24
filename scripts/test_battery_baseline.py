@@ -375,6 +375,33 @@ class ReportTest(unittest.TestCase):
         self.assertIn("keine Fahrten", bb.format_report([]))
 
 
+class HeldValuesTest(unittest.TestCase):
+    """Seit 1.41.1 stehen in einer Sperre bei eingefrorenen Werten Zyklen, die nur die GPS-Geschwindigkeit tragen (010D, Quelle GPS), und eine Zeile VALUES_STATE je Wechsel.
+    Beides darf die Auswertung nicht veraendern: ein Zyklus ohne Drehzahl und Spannung ist nie "laufend" und nie ein Messwert."""
+
+    def test_gps_only_cycles_and_state_markers_change_nothing(self):
+        base = trip(pre=6, dip=8.1, run=30, stop_volts=(13.1, 12.9, 12.5))
+        held = []
+        t = base[-1][0] + 1000
+        held.append((t, "VALUES_STATE", 1.0))
+        for i in range(20):
+            held.append((t + 100 * i, "010D", 100.0 + i))   # nur die GPS-Geschwindigkeit
+        held.append((t + 25_000, "VALUES_STATE", 0.0))
+        before = analyse(base)
+        after = analyse(base + held)
+        self.assertEqual(before.kind, after.kind)
+        self.assertEqual(before.rest_v, after.rest_v)
+        self.assertEqual(before.run_v, after.run_v)
+        self.assertEqual(before.dip_v, after.dip_v)
+        self.assertEqual(before.stop_first_v, after.stop_first_v)
+
+    def test_a_gps_only_cycle_is_not_counted_as_a_voltage_cycle(self):
+        cs = bb.group_cycles([(0, "010D", 90.0), (50, "VALUES_STATE", 1.0)])
+        self.assertEqual(1, len(cs))
+        self.assertIsNone(cs[0].rpm)
+        self.assertIsNone(cs[0].volt)
+
+
 class MainTest(unittest.TestCase):
     def test_reads_a_file_and_prints_the_report(self):
         with tempfile.TemporaryDirectory() as d:

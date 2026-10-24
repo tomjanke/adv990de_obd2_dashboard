@@ -91,8 +91,13 @@ fun DashboardScreen(
     val locationPermission = rememberLocationPermissionState()
     val gpsPermissionMissing = useGpsSpeed && !locationPermission.fine
     // Echte Messwerte nur in der Phase "Live" — auch wenn keiner zu einem Slot gehoert (dann zeigt jede Kachel ihren
-    // Hinweis, z. B. "Vom Fahrzeug nicht unterstuetzt"). In allen anderen Phasen die Vorschau-Belegung ("--").
-    val displayReadings = if (isLive) state.readings else placeholderReadings
+    // Hinweis, z. B. "Vom Fahrzeug nicht unterstuetzt"). In allen anderen Phasen die Vorschau-Belegung ("--") — mit EINER Ausnahme: in "veraltet" zeigt die
+    // Geschwindigkeits-Kachel die GPS-Geschwindigkeit, denn die haengt nicht am Adapter (Entscheidung D3, s. withStaleGpsSpeed).
+    val displayReadings = if (isLive) {
+        state.readings
+    } else {
+        remember(placeholderReadings, phase, state.gpsSpeedKmh) { placeholderReadings.withStaleGpsSpeed(phase, state.gpsSpeedKmh) }
+    }
 
     // Keep screen on for as long as the Dashboard screen is visible, connected or not (User-Wunsch
     // 2026-09-29 — vorher nur bei state.isConnected, s. MEMORY.md). DisposableEffect(Unit) statt
@@ -226,11 +231,19 @@ fun DashboardScreen(
                 }
             )
 
-            // ── Vorschau-Band ─────────────────────────────────────────
+            // ── Band fuer fehlende Werte ──────────────────────────────
             // Ohne Verbindung zeigt das Dashboard die Slot-Belegung mit "--" statt Zahlen.
             // Das Band sagt, warum: Ein Raster aus Kacheln ohne Werte laesst sonst offen, ob
             // die App nichts misst oder nichts messen kann.
-            when (phase) {
+            // Fehlen die Werte bei stehender Verbindung ("eingefroren", "keine aktuellen Werte") oder wird deshalb neu verbunden, ist es das LAUTE Band (56 dp,
+            // gelb, grosse Schrift): das schmale Vorschau-Band bemerkte die Nutzerin auf der Fahrt vom 2026-10-24 nicht. Die schmalen Baender bleiben fuer die
+            // erwarteten Zustaende ("nicht verbunden", "warte auf Werte").
+            val lostBanner = valuesBanner(
+                phase, state.valuesLost, state.reconnectCause, state.isReconnecting, state.reconnectAttempt, state.reconnectTotal,
+            )
+            if (lostBanner != null) {
+                ValuesLostBanner(banner = lostBanner, inline = isLandscape)
+            } else when (phase) {
                 DashboardPhase.Offline -> {
                     // Waehrend einer Wiederverbindung nennt das Band den Versuch (n/5) statt nur "nicht verbunden".
                     val label = previewBannerLabel(state.isReconnecting, state.reconnectAttempt, state.reconnectTotal)
@@ -246,12 +259,8 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     labelRes = R.string.dashboard_waiting_banner,
                 )
-                // Verbunden, aber das Steuergeraet schweigt (z. B. Zuendung aus).
-                DashboardPhase.Stale -> PreviewBanner(
-                    modifier = Modifier.fillMaxWidth(),
-                    labelRes = R.string.dashboard_stale_banner,
-                )
-                DashboardPhase.Live -> Unit
+                // "Veraltet" hat immer das laute Band (valuesBanner), "live" keines.
+                DashboardPhase.Stale, DashboardPhase.Live -> Unit
             }
 
             // ── Sensor grid ───────────────────────────────────────────
@@ -402,10 +411,12 @@ private fun DashboardSlot(
             onLongPress = onLongPress,
         )
     } else {
+        // Die GPS-Geschwindigkeit in "veraltet" ist die einzige Zahl, die ausserhalb von "live" gezeichnet wird; ihre Kurve gibt es nicht (die alte Kurve des Fahrzeugs gehoert nicht zu ihr).
+        val drawsValue = isLive || reading?.isStaleGpsReading() == true
         SensorCardSlot(
-            reading, state.sparklines, useImperial, modifier,
+            reading, if (isLive) state.sparklines else emptyMap(), useImperial, modifier,
             placeholderRes = placeholderRes,
-            isLive = isLive,
+            isLive = drawsValue,
             onLongPress = onLongPress,
             voltageTrend = state.voltageTrend,
         )
