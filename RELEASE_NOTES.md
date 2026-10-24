@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.41.1 (versionCode 133)
+
+Die App sagt jetzt laut, wenn keine Fahrzeugwerte ankommen, und führt die GPS-Geschwindigkeit dann weiter.
+
+### Was sich ändert
+
+- **Ein lautes Band statt des kleinen Hinweises.** Bei „Werte eingefroren“, „Keine aktuellen Werte“ und „Werte eingefroren · verbinde neu 1/5“ steht oben ein **gelbes Band in großer Schrift** (mindestens 56 dp hoch, im Querformat einzeilig) mit Warnsymbol. Es sagt nur, was belegt ist; die Ursache (Adapter oder Steuergerät) steht nicht darin. „Nicht verbunden“ und „warte auf Werte“ behalten das schmale Band.
+- **„Eingefroren“ meldet sich sofort.** Bisher kam das Band erst 10 s nach dem Beginn der Sperre. Jetzt steht es ab dem ersten zurückgehaltenen Zyklus.
+- **Die GPS-Geschwindigkeit läuft weiter.** In diesen Zuständen zeigt die Geschwindigkeits-Kachel die GPS-Geschwindigkeit (beschriftet „Geschw. (GPS)“); alle anderen Kacheln und der Drehzahlbalken bleiben „--“. Die Tankanzeige zählt die Kilometer weiter (die Fahrt vom 24.10. verlor in acht Minuten ohne Werte rund 13 km).
+- **Aufgezeichnet wird sie auch.** In der Sperre schreibt jeder zurückgehaltene Zyklus die GPS-Geschwindigkeit in die Fahrt, bei „Keine aktuellen Werte“ jede GPS-Änderung. Die ersten 10 s ohne Zyklus (noch nicht „veraltet“) bleiben ohne GPS-Zeile.
+- **Der Zustand steht im Log und in der Fahrt.** Bei jedem Wechsel eine Zeile im App-Log (Beginn der Sperre mit dem zurückgehaltenen Zyklus, Ende, „keine aktuellen Werte“) und eine Zeile `VALUES_STATE` in der Fahrt (0 = Werte da, 1 = eingefroren, 2 = keine aktuellen Werte). So lässt sich der nächste Fall belegen. Wer die CSV auswertet: es gibt jetzt Zyklen ohne Fahrzeugwerte, nur mit der GPS-Geschwindigkeit.
+- **Unverändert:** die Erkennung (20 Zyklen und die eingestellte Zeit, einmal neu verbinden, dann zurückhalten), die Datenbank (bleibt v5), die Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Meine Auslegung
+
+- Du hast „Punkte 1–3 bzw. 1–4“ umzusetzen gesagt. Ich habe alle vier offenen Entscheidungen nach meiner Empfehlung gesetzt: gelb statt rot, Zustandszeile in der Fahrt, GPS-Anzeige nur bei „veraltet“, Tankzähler zählt weiter. Zur Bandhöhe hast du „wie das Alarmband“ gesagt; es bleibt bei 56 dp (das Alarmband hat 72 dp), weil das Band im Querformat sonst Kachelhöhe kostet.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Die Ursache des Einfrierens ist weiter unbekannt, ebenso, ob ein Neuverbinden von Hand es heilt. Geprüft ist die Anzeige am Gerät gegen den eingebauten Simulator (er friert auf Wunsch ein) und mit Tests.
+- **Die rund 60 s vor der Sperre bleiben ohne Signal:** erkannt wird weiter erst nach 20 Zyklen und dem Neuverbinden. Früher zu erkennen wäre eine eigene Entscheidung.
+- Im Querformat am echten Dashboard (mit Tankzeile) ist die Kachelhöhe mit dem Band nicht gemessen; gerechnet bleibt sie knapp über den 120 dp.
+- Das Band hat keinen Ton und keine Benachrichtigung und ist nicht anklickbar.
+
 ## Version 1.41.0 (versionCode 132)
 
 Der App-Log lässt sich jetzt exportieren, so wie alle Fahrten.
