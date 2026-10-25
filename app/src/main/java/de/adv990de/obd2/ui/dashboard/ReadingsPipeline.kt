@@ -20,12 +20,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -35,7 +33,6 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
@@ -98,10 +95,10 @@ class ReadingsPipeline @Inject constructor(
     private var moving = false
 
     /**
-     * Der Zustand der Fahrzeugwerte dieser Sitzung (da / eingefroren / keine aktuellen, [ValuesState]): jeder Wechsel geht einmal ins App-Log und als Zeile in die Fahrt.
-     * Mit der Sitzung neu gebaut ([resetSession]), damit er die Uhr [frozenTimeSource] nutzt, die Tests vorher setzen.
+     * Der Zustand der Fahrzeugwerte dieser Sitzung (da / eingefroren / keine aktuellen, [ValuesState]): jeder Wechsel geht einmal ins App-Log und als Zeile in die Fahrt ([ValuesStateReporter]).
+     * Mit der Sitzung neu begonnen ([resetSession]), damit er die Uhr [frozenTimeSource] nutzt, die Tests vorher setzen.
      */
-    private var valuesState = ValuesStateTracker(TimeSource.Monotonic)
+    private val valuesState = ValuesStateReporter(log = ::logBestEffort, record = ::recordDerived)
 
     /** Die Fehlerwache der Sitzung (Nachlesen unterwegs, s. [FaultWatch]); die Pipeline reicht ihr Reconnect-Signal, Log und Fehlerhistorie durch. */
     private val faultWatch = FaultWatch(
@@ -166,25 +163,6 @@ class ReadingsPipeline @Inject constructor(
     private val connectionLostSignal = MutableSharedFlow<ConnectionLostCause>(replay = 0, extraBufferCapacity = 1)
 
     /**
-     * GPS-Geschwindigkeit in km/h, null wenn das Feature aus ist, keine Berechtigung vorliegt oder
-     * kein Fix mit Geschwindigkeit ansteht.
-     *
-     * `Eagerly` ist hier Pflicht, nicht Geschmack: Ein `WhileSubscribed`-Flow ohne Sammler startet
-     * seinen Upstream nie — der GPS-Empfaenger liefe nie an. Genau dieser Fehler liess die
-     * GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen. Seit 1.15.2 wird dieser Flow
-     * zusaetzlich per `collect` in [gpsRefresh] gesammelt (nicht mehr nur ueber [StateFlow.value]
-     * gelesen), damit ein neuer GPS-Fix die Anzeige sofort ausloest statt auf den naechsten
-     * OBD-Takt zu warten.
-     *
-     * Der `flatMapLatest` sorgt dafuer, dass der GPS-Empfaenger trotzdem nur laeuft, solange der
-     * Schalter an ist.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private fun gpsSpeedKmh(scope: CoroutineScope): StateFlow<Float?> = appPreferences.useGpsSpeed
-        .flatMapLatest { enabled -> if (enabled) gpsSpeedSource.speedKmh else flowOf(null) }
-        .stateIn(scope, SharingStarted.Eagerly, null)
-
-    /**
      * Der Ereignisstrom einer Sitzung. Kalt: Er laeuft erst, wenn jemand sammelt, und endet mit
      * dem [scope], der die GPS-Quelle traegt.
      *
@@ -194,7 +172,7 @@ class ReadingsPipeline @Inject constructor(
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun events(scope: CoroutineScope): Flow<SessionEvent> {
-        val gpsSpeed = gpsSpeedKmh(scope)
+        val gpsSpeed = gpsSpeedFlow(scope, appPreferences.useGpsSpeed, gpsSpeedSource.speedKmh)
         val readingsFlow = combine(
             obdRepository.isConnectedFlow,
             appPreferences.slotPids,
@@ -231,7 +209,7 @@ class ReadingsPipeline @Inject constructor(
         obdCycles.value = 0
         obdStale.value = false
         moving = false
-        valuesState = ValuesStateTracker(frozenTimeSource)
+        valuesState.begin(frozenTimeSource)
         faultWatch.reset()
         sessionRunning = true
     }
@@ -254,7 +232,7 @@ class ReadingsPipeline @Inject constructor(
         .onEach {
             markStale()
             // "Keine aktuellen Werte" ohne Sperre ist ein eigener Zustand; in der Sperre aendert das Ende der Frist nichts: der Grund steht schon (eingefroren).
-            if (valuesState.state == ValuesState.OK) enterValuesState(ValuesState.SILENT, System.currentTimeMillis())
+            if (valuesState.state == ValuesState.OK) valuesState.enter(ValuesState.SILENT, System.currentTimeMillis())
         }
 
     /** Die Werte sind veraltet oder werden zurueckgehalten: [gpsRefresh] fuehrt nichts mehr neu zusammen, und die Fahrterkennung gilt als "steht" (die Geschwindigkeit liefert niemand mehr). */
@@ -298,19 +276,8 @@ class ReadingsPipeline @Inject constructor(
         val userDisconnectsAtStart = obdRepository.userDisconnectCount.value
         fun lostLinkWantsReconnect() = obdRepository.userDisconnectCount.value == userDisconnectsAtStart
 
-        val supported = obdRepository.supportedPidIds.value
-        val selectedPids = selectPids(
-            slotIds,
-            supported = supported,
-            dynamicThresholdEnabled = appPreferences.rpmDynamicThreshold.first(),
-        )
-
-        // Aufzeichnungs-Einstellung einmal pro Sitzung lesen, nicht pro Zyklus.
-        val logOnlyDtc = appPreferences.logOnlyDtcSessions.first()
-        val watchdogTimeoutMs = appPreferences.obdWatchdogTimeoutSeconds.first() * 1_000L
-        // Die Spannung nur fuer den Alarm: jeden 4. Zyklus, wenn sie keine Kachel ist. Wie die dynamische Schwelle einmal je Sitzung gelesen —
-        // eingeschaltet waehrend der Verbindung wirkt die Abfrage ab der naechsten (der Tracker liest den Schalter selbst live).
-        val slowPids = selectSlowPids(selectedPids, supported, appPreferences.alarmSettings.first().voltageEnabled)
+        // Die Einstellungen der Sitzung einmal lesen, nicht pro Zyklus (s. [SessionPlan]).
+        val plan = readSessionPlan(slotIds, obdRepository.supportedPidIds.value, appPreferences)
 
         val vin = try { obdRepository.readVin() } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -329,7 +296,7 @@ class ReadingsPipeline @Inject constructor(
         // "Nur Fahrten mit DTCs": Die Entscheidung steht schon fest — keine Fahrt anlegen, statt sie
         // aufzuzeichnen und am Ende zu verwerfen (Schreiblast; ein Prozess-Kill dazwischen hinterliess
         // eine DTC-lose Fahrt entgegen der Einstellung).
-        val recordThisTrip = !(logOnlyDtc && !hasDtcForRecording)
+        val recordThisTrip = !(plan.logOnlyDtc && !hasDtcForRecording)
 
         val recorder = SessionRecorder(sessionRepository, crashReporter, ::logBestEffort)
         activeRecorder = recorder
@@ -340,9 +307,9 @@ class ReadingsPipeline @Inject constructor(
             // null (Lesefehler) = nicht erfasst, leer = keine Codes, sonst die Liste.
             if (recordThisTrip) recorder.start(vin, dtcList)
             // Die Zeitgrenze der eingefrorenen Werte ist die Einstellung des Watchdogs ("Reconnect bei eingefrorenen Werten"), mindestens aber [FROZEN_MIN_CYCLES] Zyklen.
-            frozenGuard.beginSession(frozenTimeSource, watchdogTimeoutMs.milliseconds)
+            frozenGuard.beginSession(frozenTimeSource, plan.watchdogTimeoutMs.milliseconds)
             emitAll(
-                obdRepository.livePids(selectedPids, watchdogTimeoutMs = watchdogTimeoutMs, slowPids = slowPids)
+                obdRepository.livePids(plan.selectedPids, watchdogTimeoutMs = plan.watchdogTimeoutMs, slowPids = plan.slowPids)
                     // Eingefrorene Werte erkennen, BEVOR irgendetwas sie fuer lebendig haelt: kein Zaehler, keine Anzeige, keine Aufzeichnung. Neu verbinden
                     // laeuft wie der Watchdog des Repositories ueber ConnectionLost (s. unten); gehaltene Zyklen erreichen die Anzeige nicht — sie bekommt statt
                     // ihrer EINMAL [SessionEvent.Frozen] (sofort "eingefroren", nicht erst nach [OBD_STALE_AFTER_MS]) und danach die GPS-Geschwindigkeit ([gpsRefresh]).
@@ -402,7 +369,7 @@ class ReadingsPipeline @Inject constructor(
      * (s. [SessionEvent.Values]-KDoc) — die Ganganzeige braucht ihn unabhaengig davon, ob das Fahrzeug selbst eine Geschwindigkeit meldet.
      */
     private suspend fun freshCycle(recorder: SessionRecorder, gpsSpeed: StateFlow<Float?>, readings: List<SensorValue>): SessionEvent.Values {
-        enterValuesState(ValuesState.OK, readings.cycleTimestamp())
+        valuesState.enter(ValuesState.OK, readings.cycleTimestamp())
         // Roh zwischenspeichern, bevor GPS ergaenzt wird — s. Doku an [lastObdReadings].
         lastObdReadings.value = readings
         obdStale.value = false
@@ -420,7 +387,7 @@ class ReadingsPipeline @Inject constructor(
      * Ergebnis [SessionEvent.Frozen]; jeder weitere liefert `null`.
      */
     private suspend fun heldCycle(recorder: SessionRecorder, gpsSpeed: StateFlow<Float?>, readings: List<SensorValue>): SessionEvent? {
-        val started = enterValuesState(ValuesState.FROZEN, readings.cycleTimestamp(), held = readings)
+        val started = valuesState.enter(ValuesState.FROZEN, readings.cycleTimestamp(), held = readings)
         if (started) markStale()
         val gpsRow = mergeGpsSpeed(emptyList(), gpsSpeed.value)
         if (gpsRow.isNotEmpty()) recorder.record(gpsRow)
@@ -433,34 +400,8 @@ class ReadingsPipeline @Inject constructor(
         if (row.isNotEmpty()) activeRecorder?.record(row)
     }
 
-    /**
-     * Wechselt den Zustand der Fahrzeugwerte; bei einem **Wechsel** (nie bei demselben Zustand) eine Log-Zeile und eine Zeile `VALUES_STATE` in die Fahrt. Liefert, ob es ein Wechsel war.
-     * [held] ist der Zyklus, der die Sperre ausloeste (er steht im Log: so ist der eingefrorene Wert belegt).
-     */
-    private suspend fun enterValuesState(to: ValuesState, timestamp: Long, held: List<SensorValue> = emptyList()): Boolean {
-        val change = valuesState.enter(to) ?: return false
-        val seconds = change.previousFor.inWholeSeconds
-        when (to) {
-            ValuesState.FROZEN -> logBestEffort(
-                LogLevel.WARN,
-                "Values still frozen after the reconnect: holding them back (not shown, not recorded; GPS speed keeps being recorded). Held cycle: ${held.joinToString(" ") { "${it.pid.id}=${valueText(it.value)}" }}",
-            )
-            ValuesState.SILENT -> logBestEffort(LogLevel.INFO, "No fresh values for ${OBD_STALE_AFTER_MS / 1000} s (stale)")
-            ValuesState.OK -> logBestEffort(
-                LogLevel.INFO,
-                if (change.from == ValuesState.FROZEN) "Values are moving again after $seconds s: showing and recording resume" else "Fresh values again after $seconds s",
-            )
-        }
-        recordDerived(listOf(valuesStateSensorValue(to, timestamp)))
-        return true
-    }
-
     /** Die Zeit eines Zyklus: der neueste Zeitstempel seiner Werte (so steht der Marker an der Stelle der Fahrt, an der er gilt). */
     private fun List<SensorValue>.cycleTimestamp(): Long = maxOfOrNull { it.timestamp } ?: System.currentTimeMillis()
-
-    /** Ganze Zahlen ohne ".0" ("1612", nicht "1612.0"), sonst wie [Float.toString] ("13.7"). */
-    private fun valueText(value: Float): String =
-        if (value.isFinite() && value == value.toLong().toFloat()) value.toLong().toString() else value.toString()
 
     /**
      * Schreibt die abgeleiteten Werte eines OBD-Zyklus — den Gang, den die Gang-Box zeigt, und die Farbe des Oel-Balkens — in die laufende Fahrt

@@ -178,6 +178,17 @@ class ReadingsPipelineTest {
         assertEquals(ValueSource.ECU, ecuSpeed.source)
     }
 
+    @Test
+    fun `with the GPS setting off the pipeline hands on no GPS speed, even when the source has a fix`() = runTest {
+        val events = makePipeline(
+            makeRepo(connected = true),
+            prefs = fakeAppPreferences(useGpsSpeed = false),
+            gps = makeGps(42f),
+        ).sessionEvents(backgroundScope).take(1).toList()
+
+        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
+    }
+
     // --- Test 4 ---
 
     @Test
@@ -1105,6 +1116,28 @@ class ReadingsPipelineTest {
         advanceTimeBy(5_000); runCurrent()                  // t = 15 s: der naechste Zyklus
         assertEquals(listOf(2f, 0f), rows.stateRows().map { it.value })
         coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, match { it.contains("Fresh values again") }) }
+    }
+
+    @Test
+    fun `a new session starts with the values being there - the state of the one before does not leak into it`() = runTest {
+        val connected = MutableStateFlow(true)
+        val repo = makeRepo(connected = true).also { every { it.isConnectedFlow } returns connected }
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        every { repo.livePids(any()) } returnsMany listOf(
+            flow { emit(listOf(rpm)); awaitCancellation() },                                  // die erste Sitzung schweigt danach
+            flow { emit(listOf(rpm.copy(timestamp = 5000L))); awaitCancellation() },          // die zweite beginnt mit einem frischen Zyklus
+        )
+        collect(makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo))
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        assertEquals("die erste Sitzung endet in 'keine aktuellen Werte'", listOf(2f), rows.stateRows().map { it.value })
+
+        connected.value = false; runCurrent()
+        connected.value = true; runCurrent()
+
+        assertEquals("kein 'Werte da' fuer eine Sitzung, die ohnehin damit beginnt: ${rows.stateRows()}", listOf(2f), rows.stateRows().map { it.value })
+        coVerify(exactly = 0) { logRepo.log(LogLevel.INFO, match { it.contains("Fresh values again") }) }
     }
 
     // --- "Keine aktuellen Werte" ohne Sperre: die GPS-Geschwindigkeit geht weiter in die Fahrt (Auftrag 2026-10-25, Punkt 3 der Spezifikation) ---

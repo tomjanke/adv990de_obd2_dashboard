@@ -13,8 +13,8 @@ import de.adv990de.obd2.alarm.AlarmNotifier
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.data.ObdRepository
-import de.adv990de.obd2.fuel.DistanceIntegrator
 import de.adv990de.obd2.fuel.FuelDistanceSink
+import de.adv990de.obd2.fuel.FuelDistanceTracker
 import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -82,28 +83,8 @@ class DashboardViewModel @Inject constructor(
     val rpmDynamicThreshold: StateFlow<Boolean> = appPreferences.rpmDynamicThreshold
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Fahrzeugspezifische Getriebedaten fuer die virtuelle Ganganzeige. `Eagerly`: wird
-     *  synchron ueber `.value` in [applyReadings] gelesen, nicht ueber einen Compose-Collector
-     *  gehalten — ohne `Eagerly` bliebe der Wert fuer immer auf dem Default stehen (derselbe
-     *  Fehler, der die GPS-Geschwindigkeit bis 1.10.1 nie im Dashboard ankommen liess, siehe
-     *  `ReadingsPipeline.gpsSpeedKmh`). */
-    private val gearRatios: StateFlow<GearRatios> = combine(
-        appPreferences.wheelCircumferenceMm,
-        appPreferences.primaryRatio,
-        appPreferences.secondaryRatio,
-        appPreferences.gearRatios,
-    ) { wheelCircumferenceMm, primaryRatio, secondaryRatio, ratios ->
-        GearRatios(wheelCircumferenceMm, primaryRatio, secondaryRatio, ratios)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        GearRatios(
-            AppPreferences.DEFAULT_WHEEL_CIRCUMFERENCE_MM,
-            AppPreferences.DEFAULT_PRIMARY_RATIO,
-            AppPreferences.DEFAULT_SECONDARY_RATIO,
-            AppPreferences.DEFAULT_GEAR_RATIOS,
-        )
-    )
+    /** Fahrzeugspezifische Getriebedaten fuer die virtuelle Ganganzeige, `Eagerly` gehalten (s. [gearRatiosFlow]); gelesen ueber `.value` in [applyReadings]. */
+    private val gearRatios: StateFlow<GearRatios> = gearRatiosFlow(appPreferences, viewModelScope)
 
     /** The 4 slot → PID-ID assignments, in slot order. */
     val slotPids: StateFlow<List<String>> = appPreferences.slotPids
@@ -113,30 +94,16 @@ class DashboardViewModel @Inject constructor(
      *  Die UI unterscheidet damit "Slot nicht belegt" von "Fahrzeug liefert den Wert nicht". */
     val supportedPidIds: StateFlow<Set<String>?> get() = obdRepository.supportedPidIds
 
-    /**
-     * PIDs available in the picker: ECU-supported when connected, full registry otherwise — dazu immer die Gelaende-Kachel ([DerivedPids.TERRAIN]): sie ist
-     * kein Wert des Fahrzeugs, sondern des Telefons, und haengt nicht an der PID-Liste des Steuergeraets.
-     */
+    /** Die PIDs der Slot-Auswahl, s. [availablePidsFor]: vom Steuergeraet gemeldet, ohne Verbindung die ganze Registry. */
     val availablePids: StateFlow<List<PidDefinition>> = combine(
         obdRepository.supportedPidIds,
         appPreferences.useGpsSpeed,
-    ) { supported, gpsEnabled ->
-        val all = PidRegistry.all.values.sortedBy { it.name }
-        val vehicle = if (supported.isNullOrEmpty()) {
-            all
-        } else {
-            // Die Geschwindigkeit bleibt waehlbar, solange das GPS sie liefern kann — sonst
-            // verschwaende sie bei genau den Fahrzeugen aus dem Picker, fuer die das Feature
-            // gebaut wurde.
-            all.filter { it.id in supported || (gpsEnabled && it.id == PidRegistry.SPEED.id) }
-        }
-        vehicle + DerivedPids.TERRAIN
-    }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            PidRegistry.all.values.sortedBy { it.name } + DerivedPids.TERRAIN
-        )
+        ::availablePidsFor,
+    ).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        PidRegistry.all.values.sortedBy { it.name } + DerivedPids.TERRAIN
+    )
 
     /** Persists a slot → PID assignment. */
     fun setSlotPid(slot: Int, pidId: String) {
@@ -177,8 +144,8 @@ class DashboardViewModel @Inject constructor(
     /** Hoehe, Steigung und Peilung der Gelaende-Kachel ueber die Zeit einer Verbindung — s. [TerrainTracker]. */
     private val terrainTracker = TerrainTracker()
 
-    /** Die GPS-Kilometer fuer die Tankanzeige (Strecke = Integral der GPS-Geschwindigkeit) — s. [DistanceIntegrator] und `FuelRepository`. */
-    private val fuelIntegrator = DistanceIntegrator()
+    /** Die GPS-Kilometer fuer die Tankanzeige (Strecke = Integral der GPS-Geschwindigkeit) — s. [FuelDistanceTracker] und `FuelRepository`. */
+    private val fuelTracker = FuelDistanceTracker(fuelDistanceSink) { nowMillis() }
 
     /**
      * Die zuletzt gemeldete rohe GPS-Geschwindigkeit dieser Sitzung (aus [SessionEvent.Values] und [SessionEvent.GpsSpeed]). Beginnt "veraltet", steht sie sofort in der Anzeige,
@@ -249,8 +216,7 @@ class DashboardViewModel @Inject constructor(
                 lastGpsSpeedKmh = event.gpsSpeedKmh
                 val shown = applyReadings(event.values, event.gpsSpeedKmh, event.isObdCycle)
                 // Auch ein GPS-Zwischenupdate zaehlt: die Strecke haengt an der Zeit und der GPS-Geschwindigkeit, nicht an den OBD-Zyklen.
-                val km = fuelIntegrator.sample(event.gpsSpeedKmh, nowMillis())
-                if (km > 0f) fuelDistanceSink.addDistance(km)
+                fuelTracker.sample(event.gpsSpeedKmh)
                 // Der angezeigte Gang und die Farbe des Oel-Balkens gehoeren in die Aufzeichnung — je OBD-Zyklus, nicht bei jedem
                 // GPS-Zwischenupdate (dasselbe Raster wie die anderen Werte), beide Zeilen in einem Aufruf. Ein Ereignis ohne Wert ist kein Zyklus.
                 if (event.isObdCycle) {
@@ -290,8 +256,7 @@ class DashboardViewModel @Inject constructor(
 
     /** Ohne Verbindung gibt es keine Strecke: das Intervall endet (kein Raten ueber die Luecke) und der Zaehler wird gespeichert. */
     private fun endFuelInterval() {
-        fuelIntegrator.reset()
-        fuelDistanceSink.flush()
+        fuelTracker.endInterval()
         lastGpsSpeedKmh = null
     }
 
@@ -301,9 +266,8 @@ class DashboardViewModel @Inject constructor(
      */
     private fun onGpsSpeed(kmh: Float?) {
         lastGpsSpeedKmh = kmh
-        if (_uiState.value.isStale) _uiState.value = _uiState.value.copy(gpsSpeedKmh = kmh)
-        val km = fuelIntegrator.sample(kmh, nowMillis())
-        if (km > 0f) fuelDistanceSink.addDistance(km)
+        if (_uiState.value.isStale) _uiState.update { it.copy(gpsSpeedKmh = kmh) }
+        fuelTracker.sample(kmh)
     }
 
     override fun onCleared() {
@@ -312,28 +276,13 @@ class DashboardViewModel @Inject constructor(
             alarmController.release()
         } finally {
             // Das ViewModel endet mit der Activity: der Zaehler soll nicht nur im Speicher stehen — auch dann nicht verloren gehen, wenn das Beiwerk oben scheitert.
-            fuelDistanceSink.flush()
+            fuelTracker.flush()
         }
     }
 
-    /**
-     * Der Link zum Adapter ist aufgebaut, Werte fehlen noch. Setzt nur, was bei einem schon "verbundenen"
-     * Zustand nicht ueberschrieben werden soll (kommt der erste Messwert vor diesem Aufruf, bleibt alles).
-     */
+    /** Der Link zum Adapter steht, Werte fehlen noch — der Uebergang steht in [afterLinkUp]. */
     private fun onLinkUp() {
-        val current = _uiState.value
-        if (current.isConnected) return
-        _uiState.value = current.copy(
-            isConnected = true,
-            isReconnecting = false,
-            reconnectAttempt = 0,
-            reconnectCause = null,
-            error = null,
-            isStale = false,
-            valuesLost = null,
-            gpsSpeedKmh = null,
-            awaitingFirstValues = true,
-        )
+        _uiState.update { it.afterLinkUp() }
     }
 
     /** Was die Anzeige nach einem Zyklus von den abgeleiteten Werten zeigt — das, was der Aufrufer aufzeichnet. */
@@ -372,120 +321,44 @@ class DashboardViewModel @Inject constructor(
         val newOilBarColor = oilBarTracker.update(values, previous = _uiState.value.oilBarColor)
         // Nur ein echter OBD-Zyklus bewegt den Spannungs-Trend: ein GPS-Zwischenupdate wiederholt die alten Werte (s. VoltageTrendTracker).
         val newVoltageTrend = voltageTracker.update(values, isObdCycle)
-        _uiState.value = _uiState.value.copy(
-            readings = values.filter { sv -> sv.pid.id in displayIds },
-            rpmValue = newRpmValue,
-            engineTempC = engineTempC,
-            speedKmh = newSpeedKmh,
-            gear = gearReading.gear,
-            isNeutral = gearReading.isNeutral,
-            oilBarColor = newOilBarColor,
-            // Die Restzeit laeuft mit der Uhr, nicht nur mit neuen Messwerten: auch ein GPS-Zwischenupdate rechnet sie neu.
-            oilBarGreenInMillis = oilBarTracker.greenInMillis(),
-            voltageTrend = newVoltageTrend,
-            isConnected = true,
-            isReconnecting = false,
-            reconnectCause = null,
-            isStale = false,
-            valuesLost = null,
-            gpsSpeedKmh = null,
-            awaitingFirstValues = false,
-            error = null,
-            sparklines = sparklines.snapshot()
-        )
+        val oilBarGreenInMillis = oilBarTracker.greenInMillis()
+        val sparklineSnapshot = sparklines.snapshot()
+        _uiState.update {
+            it.afterReadings(
+                values = values,
+                displayIds = displayIds,
+                rpmValue = newRpmValue,
+                engineTempC = engineTempC,
+                speedKmh = newSpeedKmh,
+                gear = gearReading,
+                oilBarColor = newOilBarColor,
+                oilBarGreenInMillis = oilBarGreenInMillis,
+                voltageTrend = newVoltageTrend,
+                sparklines = sparklineSnapshot,
+            )
+        }
         return ShownDerived(gearReading, newOilBarColor)
     }
 
-    /**
-     * Das Steuergeraet schweigt bei stehender Verbindung (B29) oder die Werte sind eingefroren und werden zurueckgehalten: Die Werte sind veraltet und werden
-     * nicht weiter als live gezeigt — Kacheln "--", Drehzahlbalken leer, Gang "–". Verbindungsstatus
-     * und Verbindungs-Punkt bleiben (der Adapter ist ja da). Die Oel-Balken-Farbe bleibt gehalten (sie
-     * hat ihr eigenes 60-s-Luecken-Limit); sie wird ohne "live" ohnehin grau gezeichnet.
-     *
-     * [cause] ist die Ursache; **"eingefroren" bleibt, wenn es schon galt** (das [SessionEvent.Stale] zehn Sekunden nach dem Beginn der Sperre aendert den Grund nicht).
-     * Die GPS-Geschwindigkeit steht ab jetzt in der Anzeige ([DashboardUiState.gpsSpeedKmh]), der Wert des letzten Zyklus, bis das GPS einen neuen meldet.
-     */
+    /** Die Fahrzeugwerte fehlen bei stehender Verbindung (schweigendes Steuergeraet oder eingefroren, [cause]) — der Zustand danach steht in [afterStale]. */
     private fun applyStale(cause: ValuesLostCause) {
         gearTracker.reset()
         voltageTracker.reset()
-        val shownCause = if (_uiState.value.valuesLost == ValuesLostCause.FROZEN) ValuesLostCause.FROZEN else cause
-        _uiState.value = _uiState.value.copy(
-            voltageTrend = null,
-            isStale = true,
-            valuesLost = shownCause,
-            gpsSpeedKmh = lastGpsSpeedKmh,
-            awaitingFirstValues = false,
-            readings = emptyList(),
-            rpmValue = 0f,
-            engineTempC = null,
-            speedKmh = null,
-            gear = null,
-            isNeutral = false,
-        )
+        _uiState.update { it.afterStale(cause, lastGpsSpeedKmh) }
     }
 
-    /**
-     * Keine Verbindung. Steht ein Fehler oder eine laufende Wiederverbindung im Zustand, bleibt
-     * dieser erhalten und nur die veralteten Messwerte verschwinden — sonst ueberschriebe der
-     * Leerlauf genau die Meldung, die der Nutzer lesen soll.
-     */
+    /** Keine Verbindung — der Zustand danach steht in [afterIdle] (ein Fehler oder eine laufende Wiederverbindung bleiben stehen). */
     private fun applyIdle() {
         sparklines.clear()
         gearTracker.reset()
         voltageTracker.reset()
-        _uiState.value = if (_uiState.value.error != null || _uiState.value.isReconnecting) {
-            // speedKmh/gear werden hier explizit mit zurueckgesetzt (anders als rpmValue/
-            // engineTempC): Sonst faedelt der erste Zyklus nach einem Reconnect
-            // determineGear(..., lastGear = <alter, nie neu bestaetigter Gang>, ...) ein und
-            // die Hysterese "erinnert" sich an einen Zustand von vor dem Verbindungsabbruch.
-            _uiState.value.copy(
-                isConnected = false,
-                isStale = false,
-                awaitingFirstValues = false,
-                readings = emptyList(),
-                speedKmh = null,
-                gpsSpeedKmh = null,
-                valuesLost = null,
-                gear = null,
-                isNeutral = false,
-                oilBarColor = null,
-                oilBarGreenInMillis = OIL_BAR_GREEN_HOLD_MS,
-                voltageTrend = null,
-                sparklines = emptyMap(),
-            )
-        } else {
-            DashboardUiState.disconnected()
-        }
+        _uiState.update { it.afterIdle() }
     }
 
     // ── Verbindungs-Ereignisse ───────────────────────────────────────────────
 
     private fun onConnectionEvent(event: ConnectionEvent) {
-        when (event) {
-            is ConnectionEvent.Attempting -> {
-                _uiState.value = if (event.attempt == 0) {
-                    // Auto-Connect beim Start: Der uebrige Zustand bleibt, es gab noch keinen.
-                    _uiState.value.copy(isReconnecting = true, reconnectAttempt = 0)
-                } else {
-                    DashboardUiState(
-                        isReconnecting = true,
-                        reconnectAttempt = event.attempt,
-                        reconnectTotal = event.total,
-                        // Der Grund des Neuverbindens gilt ueber alle Versuche; der Versuch ersetzt den Zustand, nicht den Grund.
-                        reconnectCause = _uiState.value.reconnectCause,
-                    )
-                }
-            }
-            // Der Spinner haelt nicht bis zum ersten Messwert an — die Verbindung steht.
-            ConnectionEvent.Connected ->
-                _uiState.value = _uiState.value.copy(isReconnecting = false, reconnectAttempt = 0, reconnectCause = null)
-            is ConnectionEvent.Failed ->
-                _uiState.value = DashboardUiState.disconnected(event.error)
-            // Der Nutzer hat getrennt, waehrend wiederverbunden wurde: sauber getrennt, ohne Spinner und
-            // ohne den Fehler eines frueheren Versuchs. (Der Messwert-Strom meldet Idle, sobald die
-            // Verbindung weg ist; applyIdle() haette Spinner und Fehler sonst stehen lassen.)
-            ConnectionEvent.Aborted -> _uiState.value = DashboardUiState()
-        }
+        _uiState.update { it.afterConnectionEvent(event) }
     }
 
     /**
@@ -500,23 +373,7 @@ class DashboardViewModel @Inject constructor(
         sparklines.clear()
         gearTracker.reset()
         voltageTracker.reset()
-        _uiState.value = _uiState.value.copy(
-            sparklines = emptyMap(),
-            voltageTrend = null,
-            // Ein gemeldeter Verbindungsverlust heisst per Definition "nicht mehr verbunden" — unabhaengig davon,
-            // ob das Idle-Ereignis des Messwert-Stroms schon da ist. Seit onLinkUp() den Link vor dem ersten Wert
-            // als verbunden fuehrt, bliebe isConnected sonst wahr, solange isConnectedFlow nicht gekippt ist
-            // (die Reihenfolge der beiden Wege ist nicht garantiert). readings/Gang/... raeumt applyIdle() ab.
-            isConnected = false,
-            isStale = false,
-            valuesLost = null,
-            gpsSpeedKmh = null,
-            awaitingFirstValues = false,
-            isReconnecting = true,
-            reconnectAttempt = 0,
-            reconnectTotal = RECONNECT_ATTEMPT_COUNT,
-            reconnectCause = cause,
-        )
+        _uiState.update { it.afterConnectionLost(cause) }
         connectionCoordinator.requestReconnect()
     }
 
