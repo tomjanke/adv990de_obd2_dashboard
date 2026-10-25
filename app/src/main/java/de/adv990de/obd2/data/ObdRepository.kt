@@ -18,17 +18,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -76,6 +73,14 @@ class ObdRepository @Inject constructor(
 ) {
 
     private val diagnostics = DiagnosticReads(pidParser, dtcParser, onLinkBroken = ::disconnectIfCurrent)
+
+    /** Die Abfrageschleife der Live-Werte ([livePids]); sie erfragt die Verbindung je Zyklus ueber `elm` und meldet ihre Rohantworten und ihre gebrochene Verbindung hierher. */
+    private val poller = LivePoller(
+        pidParser,
+        currentController = { elm },
+        onLinkBroken = ::disconnectIfCurrent,
+        onCycleRaw = { lastCycleRaw = it },
+    )
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
@@ -319,29 +324,8 @@ class ObdRepository @Inject constructor(
     }
 
     /**
-     * Continuously polls the given PIDs and emits the latest values.
-     * Skips PIDs that return NO DATA without stopping the stream.
-     *
-     * Two independent escalation paths can force a reconnect, whichever crosses its own
-     * threshold first: 5 consecutive BusInit errors (bus stuck), or the watchdog: a cycle without
-     * a single reading that hit at least one Timeout or UnknownResponse, at a point where
-     * [watchdogTimeoutMs] of real time have passed since the link last showed it works. That is
-     * the last cycle with readings, or one the ECU answered entirely with NO DATA (e.g. ignition
-     * off): a well-formed answer, so such a cycle restarts the clock rather than counting against
-     * it, and NoData alone never trips the watchdog. It catches a silently frozen adapter/BLE
-     * stack that keeps timing out without ever hitting BusInit, and an adapter that still answers
-     * but only unparseably (e.g. echo back on after it reset itself), which a reconnect cures by
-     * re-running initialize(). The check runs once per cycle, so it fires up to one cycle after
-     * the threshold. See [isReadingsStale].
-     *
-     * [timeSource] only exists so tests can inject kotlinx-coroutines-test's virtual clock
-     * (`testTimeSource`); production uses the default [TimeSource.Monotonic]. It has to be real
-     * time: a single Timeout already blocks for ElmController's 5 s read timeout, so the earlier
-     * approach of adding [pollIntervalMs] per empty cycle undercounted a real stall 30-40x.
-     *
-     * [slowPids] (nicht in [pids]) kommen zusaetzlich in jedem [slowEveryCycles]-ten Zyklus dran, der erste (Zaehler 0) eingeschlossen — die
-     * Spannung fuer den Spannungsalarm aendert sich langsam und kostet 0,15-0,3 s je Befehl. Watchdog, BusInit und Teilzyklen behandeln so
-     * einen Zyklus wie jeden anderen.
+     * Pollt die PIDs fortlaufend und liefert die jeweils neuesten Werte; die Schleife (Eskalation bei BusInit, der Watchdog, die langsamen PIDs) steht in [LivePoller.poll],
+     * dort auch die Beschreibung der Parameter. Die Zeitlimit-Richtlinie steht oben an der Klasse.
      */
     fun livePids(
         pids: List<PidDefinition> = PidRegistry.defaults,
@@ -350,85 +334,7 @@ class ObdRepository @Inject constructor(
         timeSource: TimeSource = TimeSource.Monotonic,
         slowPids: List<PidDefinition> = emptyList(),
         slowEveryCycles: Int = SLOW_PID_EVERY_CYCLES,
-    ): Flow<List<SensorValue>> = flow {
-        require(slowEveryCycles >= 1) { "slowEveryCycles must be at least 1, was $slowEveryCycles" }
-        var consecutiveBusInitErrors = 0
-        var lastSuccessMark = timeSource.markNow()
-        var cycle = 0L
-        while (true) {
-            // elm is @Volatile; capture into a local so the reference stays alive even if
-            // a concurrent disconnect() nulls elm after the null check.
-            val controller = elm ?: break
-            val values = mutableListOf<SensorValue>()
-            val rawByCommand = LinkedHashMap<String, String>()
-            var busInitOccurred = false
-            var timeoutOrUnknownOccurred = false
-            val cyclePids = if (slowPids.isNotEmpty() && cycle % slowEveryCycles == 0L) pids + slowPids else pids
-            for (pid in cyclePids) {
-                try {
-                    val raw = controller.sendCommand(pid.id)
-                    rawByCommand[pid.id] = raw
-                    values.add(pidParser.parse(pid, raw))
-                } catch (_: ObdException.NoData) {
-                    // Benign: the ECU explicitly has nothing to report for this PID, so the link
-                    // itself demonstrably works. A cycle of nothing else restarts the watchdog below.
-                } catch (_: ObdException.UnknownResponse) {
-                    // The adapter answered, but unparseably. Once persistent (e.g. echo back on
-                    // after the adapter reset itself), no reading gets through: counts for the watchdog.
-                    timeoutOrUnknownOccurred = true
-                } catch (_: ObdException.Timeout) {
-                    // skip this PID this cycle — adapter may be slow; counts for the watchdog
-                    timeoutOrUnknownOccurred = true
-                } catch (_: ObdException.BusInit) {
-                    busInitOccurred = true
-                    break  // bus re-initializing; skip rest of this poll cycle
-                } catch (e: ObdException.ConnectionLost) {
-                    // disconnect() acquires connectMutex. If reconnect() is currently holding
-                    // that mutex (i.e., is mid-BT-connect), this NonCancellable block will
-                    // suspend until reconnect() releases the lock. Self-resolving, not a true
-                    // deadlock, but the NonCancellable section may run longer than expected.
-                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
-                    throw e  // fatal — propagate to ViewModel
-                }
-            }
-            lastCycleRaw = rawByCommand
-            if (busInitOccurred) {
-                consecutiveBusInitErrors++
-                // After 5 consecutive BusInit errors the bus is stuck — escalate to ConnectionLost
-                // so the ViewModel triggers auto-reconnect instead of polling silently forever.
-                if (consecutiveBusInitErrors >= 5) {
-                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
-                    throw ObdException.ConnectionLost()
-                }
-            } else {
-                consecutiveBusInitErrors = 0
-            }
-            // Silent drop: when all PIDs return NoData/Timeout/UnknownResponse in a cycle, nothing
-            // is emitted. The collector sees no update for this cycle; the UI retains the last values.
-            // Also suppress partial-cycle values collected before a BusInit interrupted the loop —
-            // emitting them would show a stale mix of fresh and un-refreshed PID readings.
-            if (!busInitOccurred && values.isNotEmpty()) {
-                lastSuccessMark = timeSource.markNow()
-                emit(values)
-            } else if (timeoutOrUnknownOccurred) {
-                // The watchdog. A NoData from another PID in the same cycle does not offset the
-                // Timeout/UnknownResponse. BusInit keeps its own 5-strike counter above.
-                if (isReadingsStale(lastSuccessMark.elapsedNow().inWholeMilliseconds, watchdogTimeoutMs)) {
-                    withContext(NonCancellable) { disconnectIfCurrent(controller) }
-                    throw ObdException.ConnectionLost()
-                }
-            } else if (!busInitOccurred) {
-                // Entirely NoData this cycle: the link works, so nothing to escalate, but nothing
-                // to emit either. Restart the watchdog's clock anyway, so a later isolated Timeout
-                // is judged against this recent baseline, not against the last reading from before
-                // a long, benign NO DATA stretch (e.g. parked, ignition off), which would escalate
-                // on the spot.
-                lastSuccessMark = timeSource.markNow()
-            }
-            cycle++
-            delay(pollIntervalMs)
-        }
-    }
+    ): Flow<List<SensorValue>> = poller.poll(pids, pollIntervalMs, watchdogTimeoutMs, timeSource, slowPids, slowEveryCycles)
 
     // Die einmaligen Lesevorgaenge (Fehlercodes, Freeze-Frame, FIN) stehen in [DiagnosticReads]; ohne Verbindung liefern sie "nichts".
     suspend fun readDtcs(): List<DtcEntry> = elm?.let { diagnostics.readDtcs(it) } ?: emptyList()
