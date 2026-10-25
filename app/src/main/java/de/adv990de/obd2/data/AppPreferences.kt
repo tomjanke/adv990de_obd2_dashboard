@@ -14,6 +14,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import de.adv990de.obd2.alarm.AlarmSettings
+import de.adv990de.obd2.logbook.GpsOdometer
+import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.fuel.FuelRangeLimits
@@ -396,4 +398,20 @@ class AppPreferences @Inject constructor(
     suspend fun setAlarmVoltageWarningDeciV(value: Int) = alarms.setVoltageWarningDeciV(value)
     suspend fun setAlarmCoolantNoticeC(value: Int) = alarms.setCoolantNoticeC(value)
     suspend fun setAlarmCoolantWarningC(value: Int) = alarms.setCoolantWarningC(value)
+
+    // ── Wartungsintervalle und GPS-Zaehler des Kilometerstands (s. de.adv990de.obd2.logbook, Phase 3) ──
+    // Schluessel, Lesen und Schreiben stehen in [MaintenancePreferences]; hier nur der oeffentliche Weg.
+
+    private val maintenance = MaintenancePreferences(dataStore, data)
+
+    /** Die vom Nutzer festgelegten Wartungsintervalle in km je Art; eine Art ohne Intervall fehlt (es gibt keine Vorgabe). */
+    val maintenanceIntervals: Flow<Map<LogType, Int>> = maintenance.intervals
+
+    /** [km] = 0 loescht das Intervall der [type]; sonst muss er in `MaintenanceIntervalLimits` liegen. */
+    suspend fun setMaintenanceInterval(type: LogType, km: Int) = maintenance.setInterval(type, km)
+
+    /** Der GPS-Zaehler fuer den geschaetzten Kilometerstand; `null`, solange keiner gespeichert ist. */
+    val gpsOdometer: Flow<GpsOdometer?> = maintenance.gpsOdometer
+
+    suspend fun setGpsOdometer(anchorKm: Int, gpsKm: Float) = maintenance.setGpsOdometer(anchorKm, gpsKm)
 }

@@ -30,6 +30,9 @@ internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_dri
  *  them already being laid out — needed once the list grew past what a single screen shows. */
 internal const val SETTINGS_LIST_TEST_TAG = "settings_list"
 
+/** Test-only selector for the "Wartungsintervalle" link row in the vehicle group. */
+internal const val MAINTENANCE_LINK_TEST_TAG = "settings_maintenance_link"
+
 /** Test-only selectors for the two fixed-choice rows of the Connection section. Both groups offer
  *  "10" and "30", so instrumentation tests locate a segment by its text PLUS this ancestor tag. */
 internal const val OBD_WATCHDOG_CHOICE_TEST_TAG = "settings_obd_watchdog_choice"

@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.FileTooLargeException
+import de.adv990de.obd2.data.LogbookOdometer
 import de.adv990de.obd2.data.LogbookExporter
 import de.adv990de.obd2.data.LogbookImporter
 import de.adv990de.obd2.data.VehicleLogRepository
@@ -13,7 +15,16 @@ import de.adv990de.obd2.di.ApplicationScope
 import de.adv990de.obd2.logbook.ImportPlan
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
+import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.logbook.LogbookInsights
+import de.adv990de.obd2.logbook.MAINTENANCE_TYPES
+import de.adv990de.obd2.logbook.MaintenanceIntervalLimits
+import de.adv990de.obd2.logbook.MaintenanceRow
+import de.adv990de.obd2.logbook.estimateKm
+import de.adv990de.obd2.logbook.gpsShareKm
+import de.adv990de.obd2.logbook.maintenanceRows
 import de.adv990de.obd2.logbook.logbookFileName
+import de.adv990de.obd2.logbook.logbookInsights
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.UndoableDeletion
 import kotlinx.coroutines.CancellationException
@@ -40,6 +51,12 @@ sealed interface ImportState {
 }
 
 /**
+ * Die Uebersicht der Wartung: [rows] (je Art das Intervall des Nutzers und die Faelligkeit), [loggedKm] (hoechster Stand im Logbuch), [estimatedKm] (er plus die GPS-Kilometer seit diesem Stand,
+ * `null` ohne Eintrag) und [gpsShareKm] (wie viele Kilometer die Schaetzung ueber dem Logbuch-Stand liegt; 0 = es steht der Logbuch-Stand, ohne "ca.").
+ */
+data class MaintenanceState(val rows: List<MaintenanceRow>, val loggedKm: Int?, val estimatedKm: Int?, val gpsShareKm: Int)
+
+/**
  * Die Logbuch-Liste: Filter, Loeschen nach dem Loesch-Vertrag (Papierkorb oder Wischen, ohne Dialog, nur Rueckgaengig), Export (Teilen oder Speichern) und Import
  * (Datei lesen, Vorschau, erst nach der Bestaetigung schreiben). Der Export enthaelt das **ganze** Logbuch ohne die Eintraege im Rueckgaengig-Fenster — der Filter
  * gilt nur fuer die Anzeige, die Sicherung soll vollstaendig sein.
@@ -49,6 +66,8 @@ class LogbookViewModel @Inject constructor(
     private val repository: VehicleLogRepository,
     private val exporter: LogbookExporter,
     private val importer: LogbookImporter,
+    private val appPreferences: AppPreferences,
+    odometer: LogbookOdometer,
     @ApplicationScope appScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -73,6 +92,35 @@ class LogbookViewModel @Inject constructor(
 
     /** Gibt es ueberhaupt einen sichtbaren Eintrag (egal welcher Filter)? Unterscheidet den leeren Filter vom leeren Logbuch. */
     val hasEntries: StateFlow<Boolean> = visible.map { it.isNotEmpty() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * Die Auswertung (Verbrauch, Wartung, Wert je Zeile) aus **allem**, was der Nutzer sieht — nicht vom Filter eingeengt (die Karten zeigen das ganze Logbuch) und ohne die
+     * Eintraege im Rueckgaengig-Fenster. Die Rechnung ist rein und fuer einige hundert Eintraege billig (Millisekunden).
+     */
+    val insights: StateFlow<LogbookInsights> =
+        visible.map { logbookInsights(it) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), logbookInsights(emptyList()))
+
+    /**
+     * Die Wartungs-Uebersicht mit den Intervallen des Nutzers (ohne Vorgabe: leer, bis er eines festlegt) und dem **geschaetzten** Stand: der hoechste Logbuch-Stand plus die GPS-Kilometer
+     * seit diesem Stand ([LogbookOdometer], gehoert zu genau diesem Stand). Wie die Auswertung aus allem, was der Nutzer sieht — ohne Eintraege im Rueckgaengig-Fenster.
+     */
+    val maintenance: StateFlow<MaintenanceState> =
+        combine(insights, appPreferences.maintenanceIntervals, odometer.counter) { insights, intervals, counter ->
+            val logged = insights.maintenance.firstOrNull()?.currentKm
+            val estimated = estimateKm(logged, counter)
+            MaintenanceState(maintenanceRows(insights.maintenance, intervals, estimated), logged, estimated, gpsShareKm(logged, counter))
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            MaintenanceState(maintenanceRows(logbookInsights(emptyList()).maintenance, emptyMap(), null), null, null, 0),
+        )
+
+    /** Legt das Intervall der [type] in km fest; 0 loescht es. Eine unbrauchbare Eingabe (andere Art, ausserhalb von [MaintenanceIntervalLimits]) wird nicht geschrieben — das Feld prueft sie schon. */
+    fun setInterval(type: LogType, km: Int) {
+        if (type !in MAINTENANCE_TYPES) return
+        if (km != 0 && km !in MaintenanceIntervalLimits.MIN_KM..MaintenanceIntervalLimits.MAX_KM) return
+        viewModelScope.launch { appPreferences.setMaintenanceInterval(type, km) }
+    }
 
     fun setFilter(filter: LogFilter) {
         _filter.value = filter

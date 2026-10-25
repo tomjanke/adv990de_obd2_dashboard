@@ -80,4 +80,27 @@ class FuelDistanceTrackerTest {
         assertEquals(1, sink.added.size)
         assertEquals(60f * 8_000f / 3_600_000f, sink.added.single(), 1e-4f)
     }
+
+    @Test
+    fun `a fan-out sink hands every distance and every flush to all sinks in order`() {
+        val calls = mutableListOf<String>()
+        fun recording(name: String) = object : FuelDistanceSink {
+            override fun addDistance(km: Float) { calls += "$name add $km" }
+            override fun flush() { calls += "$name flush" }
+        }
+        val fan = FuelDistanceSink.fanOut(recording("a"), recording("b"))
+
+        fan.addDistance(0.5f)
+        fan.flush()
+
+        assertEquals(listOf("a add 0.5", "b add 0.5", "a flush", "b flush"), calls)
+    }
+
+    @Test
+    fun `a fan-out sink of nothing does nothing`() {
+        val fan = FuelDistanceSink.fanOut()
+
+        fan.addDistance(1f)
+        fan.flush()
+    }
 }

@@ -571,4 +571,70 @@
         <item quantity="other">… und %1$d weitere</item>
     </plurals>
     <string name="logbook_import_bad_value">%1$s ist ungültig</string>
+
+    <!-- Logbuch, Auswertung (Phase 2) -->
+    <string name="logbook_section_overview">Übersicht</string>
+    <string name="logbook_section_stats">Auswertung</string>
+    <string name="logbook_section_entries">Einträge</string>
+    <string name="logbook_overview_never">noch kein Eintrag</string>
+    <string name="logbook_overview_since">vor %1$s km</string>
+    <string name="logbook_overview_last">%1$s · bei %2$s km</string>
+    <string name="logbook_overview_spacing">Ø Abstand %1$s km</string>
+    <string name="logbook_overview_basis">Gerechnet ab dem höchsten Kilometerstand im Logbuch (%1$s km).</string>
+    <string name="logbook_fmt_ml_per_1000">%1$s ml/1000 km</string>
+    <string name="logbook_fmt_euro_per_100">%1$s €/100 km</string>
+    <string name="logbook_fmt_average">Ø %1$s</string>
+    <plurals name="logbook_stats_intervals">
+        <item quantity="one">%1$d Intervall</item>
+        <item quantity="other">%1$d Intervalle</item>
+    </plurals>
+    <string name="logbook_stats_latest">zuletzt %1$s</string>
+    <string name="logbook_stats_empty_fuel">Noch keine Auswertung: mindestens zwei volle Tankungen nötig.</string>
+    <string name="logbook_stats_empty_fluid">Noch keine Auswertung: mindestens zwei Einträge nötig.</string>
+    <string name="logbook_cd_open_stats">Auswertung öffnen</string>
+    <string name="logbook_stats_title_fuel">Verbrauch Tanken</string>
+    <string name="logbook_stats_title_oil">Verbrauch Öl</string>
+    <string name="logbook_stats_title_coolant">Verbrauch Kühlflüssigkeit</string>
+    <string name="logbook_stats_section_figures">Kennzahlen</string>
+    <string name="logbook_stats_section_intervals">Intervalle</string>
+    <string name="logbook_stat_average">Durchschnitt</string>
+    <string name="logbook_stat_latest">Letzter Wert</string>
+    <string name="logbook_stat_best">Bester Wert</string>
+    <string name="logbook_stat_worst">Schlechtester Wert</string>
+    <string name="logbook_stat_total_liters">Getankt gesamt</string>
+    <string name="logbook_stat_avg_distance">Ø Strecke je Tankung</string>
+    <string name="logbook_stat_avg_price">Ø Preis je Liter</string>
+    <string name="logbook_stat_cost_100">Kosten je 100 km</string>
+    <string name="logbook_stat_total_amount">Summe Menge</string>
+    <string name="logbook_stat_total_km">Summe Kilometer</string>
+    <string name="logbook_stat_interval_count">Intervalle</string>
+    <string name="logbook_interval_range">%1$s bis %2$s km</string>
+    <plurals name="logbook_stats_skipped">
+        <item quantity="one">%1$d Intervall ausgelassen (gleicher Kilometerstand).</item>
+        <item quantity="other">%1$d Intervalle ausgelassen (gleicher Kilometerstand).</item>
+    </plurals>
+    <string name="logbook_stats_hint_fuel">Nur volle Tankungen schließen ein Intervall ab; Teiltankungen dazwischen zählen mit. Der Durchschnitt ist die Summe der Liter durch die Summe der Kilometer.</string>
+    <string name="logbook_stats_hint_fluid">Die App kennt keine Wechsel: Ein Intervall über einen Wechsel ist zu niedrig. Die Einzelwerte streuen stark, maßgeblich ist der Durchschnitt.</string>
+    <plurals name="logbook_chart_description">
+        <item quantity="one">Verlauf, %1$d Wert, Durchschnitt %2$s, zuletzt %3$s</item>
+        <item quantity="other">Verlauf, %1$d Werte, Durchschnitt %2$s, zuletzt %3$s</item>
+    </plurals>
+
+    <!-- Logbuch, Erinnerungen (Phase 3) -->
+    <string name="logbook_fmt_approx">ca. %1$s</string>
+    <string name="logbook_interval_every">alle %1$s km</string>
+    <string name="logbook_interval_set">Intervall festlegen</string>
+    <string name="logbook_due_in">fällig in %1$s km</string>
+    <string name="logbook_due_now">jetzt fällig</string>
+    <string name="logbook_due_overdue">überfällig seit %1$s km</string>
+    <string name="logbook_overview_basis_approx">Gerechnet ab ca. %1$s km: dem höchsten Stand im Logbuch (%2$s km) plus %3$s km per GPS.</string>
+    <string name="logbook_cd_set_interval">Wartungsintervall festlegen</string>
+    <string name="logbook_interval_title">Intervall: %1$s</string>
+    <string name="logbook_interval_label">Intervall (km)</string>
+    <string name="logbook_interval_help">Nach so vielen Kilometern ab dem letzten Eintrag ist die Wartung fällig. Leer lassen, um das Intervall zu löschen.</string>
+    <string name="logbook_interval_error">Eine ganze Zahl von 50 bis 100.000</string>
+    <string name="settings_maintenance_title">Wartungsintervalle</string>
+    <string name="settings_maintenance_summary">Kettenpflege, Service, Reifen: wann die Wartung fällig wird</string>
+    <string name="settings_maintenance_intro">Nach wie vielen Kilometern eine Wartung fällig ist. Ohne Intervall gibt es keine Erinnerung. Das Logbuch zeigt „fällig in N km“ ab dem letzten Eintrag der Art, gerechnet mit dem geschätzten Kilometerstand (letzter Stand im Logbuch plus die per GPS gezählten Kilometer).</string>
+    <string name="settings_maintenance_not_set">Nicht festgelegt</string>
 </resources>

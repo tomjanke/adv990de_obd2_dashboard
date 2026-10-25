@@ -47,6 +47,16 @@ internal fun LazyListScope.vehicleSection(
         FuelRangeSettingRow(rangeFullKm = fuelRangeFullKm, onRangeChange = onFuelRangeChange)
         HorizontalDivider()
     }
+    // Wartungsintervalle des Logbuchs (Phase 3): ohne Vorgabe, der Nutzer nennt die Werte.
+    item {
+        SettingsLinkRow(
+            title = stringResource(R.string.settings_maintenance_title),
+            summary = stringResource(R.string.settings_maintenance_summary),
+            onClick = { navController.navigate(Screen.MaintenanceIntervals.route) },
+            modifier = Modifier.testTag(MAINTENANCE_LINK_TEST_TAG),
+        )
+        HorizontalDivider()
+    }
     item {
         SettingsLinkRow(
             title = stringResource(R.string.settings_vehicle_info),

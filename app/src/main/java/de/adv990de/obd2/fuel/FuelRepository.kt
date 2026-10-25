@@ -35,6 +35,12 @@ interface FuelDistanceSink {
             override fun addDistance(km: Float) = Unit
             override fun flush() = Unit
         }
+
+        /** Ein Sink, der jede Strecke und jedes [flush] an alle [sinks] weitergibt, in dieser Reihenfolge (die Tankanzeige und der Kilometerstand des Logbuchs zaehlen dieselben Kilometer). */
+        fun fanOut(vararg sinks: FuelDistanceSink): FuelDistanceSink = object : FuelDistanceSink {
+            override fun addDistance(km: Float) = sinks.forEach { it.addDistance(km) }
+            override fun flush() = sinks.forEach { it.flush() }
+        }
     }
 }
 

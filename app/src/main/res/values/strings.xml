@@ -571,4 +571,70 @@
         <item quantity="other">… and %1$d more</item>
     </plurals>
     <string name="logbook_import_bad_value">%1$s is not valid</string>
+
+    <!-- Logbook, analysis (phase 2) -->
+    <string name="logbook_section_overview">Overview</string>
+    <string name="logbook_section_stats">Analysis</string>
+    <string name="logbook_section_entries">Entries</string>
+    <string name="logbook_overview_never">no entry yet</string>
+    <string name="logbook_overview_since">%1$s km ago</string>
+    <string name="logbook_overview_last">%1$s · at %2$s km</string>
+    <string name="logbook_overview_spacing">Avg. spacing %1$s km</string>
+    <string name="logbook_overview_basis">Counted from the highest odometer reading in the log (%1$s km).</string>
+    <string name="logbook_fmt_ml_per_1000">%1$s ml/1000 km</string>
+    <string name="logbook_fmt_euro_per_100">%1$s €/100 km</string>
+    <string name="logbook_fmt_average">Ø %1$s</string>
+    <plurals name="logbook_stats_intervals">
+        <item quantity="one">%1$d interval</item>
+        <item quantity="other">%1$d intervals</item>
+    </plurals>
+    <string name="logbook_stats_latest">latest %1$s</string>
+    <string name="logbook_stats_empty_fuel">No analysis yet: at least two full fill-ups are needed.</string>
+    <string name="logbook_stats_empty_fluid">No analysis yet: at least two entries are needed.</string>
+    <string name="logbook_cd_open_stats">Open analysis</string>
+    <string name="logbook_stats_title_fuel">Fuel consumption</string>
+    <string name="logbook_stats_title_oil">Oil consumption</string>
+    <string name="logbook_stats_title_coolant">Coolant consumption</string>
+    <string name="logbook_stats_section_figures">Key figures</string>
+    <string name="logbook_stats_section_intervals">Intervals</string>
+    <string name="logbook_stat_average">Average</string>
+    <string name="logbook_stat_latest">Latest value</string>
+    <string name="logbook_stat_best">Best value</string>
+    <string name="logbook_stat_worst">Worst value</string>
+    <string name="logbook_stat_total_liters">Total fuel</string>
+    <string name="logbook_stat_avg_distance">Avg. distance per fill-up</string>
+    <string name="logbook_stat_avg_price">Avg. price per litre</string>
+    <string name="logbook_stat_cost_100">Cost per 100 km</string>
+    <string name="logbook_stat_total_amount">Total amount</string>
+    <string name="logbook_stat_total_km">Total distance</string>
+    <string name="logbook_stat_interval_count">Intervals</string>
+    <string name="logbook_interval_range">%1$s to %2$s km</string>
+    <plurals name="logbook_stats_skipped">
+        <item quantity="one">%1$d interval left out (same odometer reading).</item>
+        <item quantity="other">%1$d intervals left out (same odometer reading).</item>
+    </plurals>
+    <string name="logbook_stats_hint_fuel">Only full fill-ups close an interval; partial fill-ups in between count towards it. The average is the sum of the litres over the sum of the kilometres.</string>
+    <string name="logbook_stats_hint_fluid">The app does not know about changes: an interval across a change is too low. The single values scatter a lot, the average is what counts.</string>
+    <plurals name="logbook_chart_description">
+        <item quantity="one">Trend, %1$d value, average %2$s, latest %3$s</item>
+        <item quantity="other">Trend, %1$d values, average %2$s, latest %3$s</item>
+    </plurals>
+
+    <!-- Logbook, reminders (phase 3) -->
+    <string name="logbook_fmt_approx">approx. %1$s</string>
+    <string name="logbook_interval_every">every %1$s km</string>
+    <string name="logbook_interval_set">Set interval</string>
+    <string name="logbook_due_in">due in %1$s km</string>
+    <string name="logbook_due_now">due now</string>
+    <string name="logbook_due_overdue">overdue by %1$s km</string>
+    <string name="logbook_overview_basis_approx">Counted from approx. %1$s km: the highest reading in the log (%2$s km) plus %3$s km by GPS.</string>
+    <string name="logbook_cd_set_interval">Set maintenance interval</string>
+    <string name="logbook_interval_title">Interval: %1$s</string>
+    <string name="logbook_interval_label">Interval (km)</string>
+    <string name="logbook_interval_help">The maintenance is due after this many kilometres from the last entry. Leave empty to clear the interval.</string>
+    <string name="logbook_interval_error">A whole number from 50 to 100,000</string>
+    <string name="settings_maintenance_title">Maintenance intervals</string>
+    <string name="settings_maintenance_summary">Chain care, service, tires: when maintenance is due</string>
+    <string name="settings_maintenance_intro">After how many kilometres a maintenance is due. Without an interval there is no reminder. The logbook shows “due in N km” from the last entry of the kind, counted with the estimated odometer reading (the last reading in the log plus the kilometres counted by GPS).</string>
+    <string name="settings_maintenance_not_set">Not set</string>
 </resources>

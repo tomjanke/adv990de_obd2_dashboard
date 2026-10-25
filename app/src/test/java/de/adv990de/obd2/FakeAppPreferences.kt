@@ -3,6 +3,8 @@ package de.adv990de.obd2
 import de.adv990de.obd2.alarm.AlarmSettings
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.logbook.GpsOdometer
+import de.adv990de.obd2.logbook.LogType
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +40,8 @@ internal fun fakeAppPreferences(
     fuelRangeFullKm: Int = 0,
     fuelKmSinceFill: Float = 0f,
     alarmSettings: AlarmSettings = AlarmSettings(),
+    maintenanceIntervals: Map<LogType, Int> = emptyMap(),
+    gpsOdometer: GpsOdometer? = null,
 ): AppPreferences = mockk {
     every { this@mockk.lastDevice } returns flowOf(lastDevice)
     every { this@mockk.showAllBtDevices } returns flowOf(showAllBtDevices)
@@ -61,4 +65,6 @@ internal fun fakeAppPreferences(
     every { this@mockk.fuelRangeFullKm } returns flowOf(fuelRangeFullKm)
     every { this@mockk.fuelKmSinceFill } returns flowOf(fuelKmSinceFill)
     every { this@mockk.alarmSettings } returns flowOf(alarmSettings)
+    every { this@mockk.maintenanceIntervals } returns flowOf(maintenanceIntervals)
+    every { this@mockk.gpsOdometer } returns flowOf(gpsOdometer)
 }

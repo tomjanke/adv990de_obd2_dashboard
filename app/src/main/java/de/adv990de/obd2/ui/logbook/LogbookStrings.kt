@@ -101,6 +101,41 @@ internal fun formatL100(value: Double, locale: Locale): String = NumberFormat.ge
     maximumFractionDigits = 1
 }.format(value)
 
+/** Milliliter je 1000 km, ganzzahlig (die Einzelwerte streuen um Dutzende ml: eine Nachkommastelle taeuschte Genauigkeit vor). */
+internal fun formatMlPer1000(value: Double, locale: Locale): String = NumberFormat.getIntegerInstance(locale).format(value)
+
+/** Preis je Liter aus Cent je Liter, mit drei Nachkommastellen (wie an der Zapfsaeule), ohne Tausendertrenner. */
+internal fun formatPricePerLiter(centsPerLiter: Double, locale: Locale): String = NumberFormat.getNumberInstance(locale).apply {
+    minimumFractionDigits = 3
+    maximumFractionDigits = 3
+    isGroupingUsed = false
+}.format(centsPerLiter / 100.0)
+
+/** Euro aus einem Cent-Betrag mit Bruchteilen (z. B. Kosten je 100 km), zwei Nachkommastellen, ohne Tausendertrenner. */
+internal fun formatEurosDouble(cents: Double, locale: Locale): String = NumberFormat.getNumberInstance(locale).apply {
+    minimumFractionDigits = 2
+    maximumFractionDigits = 2
+    isGroupingUsed = false
+}.format(cents / 100.0)
+
+/** Liter aus Millilitern fuer Summen (mit Tausendertrenner, eine Nachkommastelle). */
+internal fun formatLitersTotal(ml: Long, locale: Locale): String = NumberFormat.getNumberInstance(locale).apply {
+    minimumFractionDigits = 1
+    maximumFractionDigits = 1
+}.format(ml / 1000.0)
+
+/** Kilometer als gerundete ganze Zahl mit Tausendertrenner (Mittelwerte). */
+internal fun formatKmRounded(km: Double, locale: Locale): String = NumberFormat.getIntegerInstance(locale).format(km)
+
+/** Der Titel der Detailseite der Auswertung; nur Tanken, Oel und Kuehlfluessigkeit haben eine. */
+@StringRes
+internal fun LogType.statsTitleRes(): Int = when (this) {
+    LogType.FUEL -> R.string.logbook_stats_title_fuel
+    LogType.OIL -> R.string.logbook_stats_title_oil
+    LogType.COOLANT -> R.string.logbook_stats_title_coolant
+    else -> throw IllegalArgumentException("Keine Auswertung fuer $this")
+}
+
 /** Ein Tag im mittleren Stil der Sprache, z. B. `02.10.2026`. */
 internal fun formatLogDate(date: LocalDate, locale: Locale): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(date)

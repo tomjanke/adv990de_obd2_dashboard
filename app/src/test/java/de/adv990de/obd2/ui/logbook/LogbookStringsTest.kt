@@ -51,7 +51,7 @@ class LogbookStringsTest {
         val de = texts("values-de")
         val same = setOf(
             "logbook_fmt_km", "logbook_fmt_liters", "logbook_fmt_ml", "logbook_fmt_euro", "logbook_fmt_euro_per_liter", "logbook_fmt_l100", "logbook_counter",
-            "logbook_row_join", "logbook_date_ok",
+            "logbook_row_join", "logbook_date_ok", "logbook_fmt_ml_per_1000", "logbook_fmt_euro_per_100", "logbook_fmt_average",
         )
         for ((name, text) in en) {
             assertTrue("$name leer (en)", text.isNotBlank())
@@ -125,5 +125,42 @@ class LogbookStringsTest {
     fun `a date shows in the medium style of the language`() {
         assertEquals("02.10.2026", formatLogDate(LocalDate.of(2026, 10, 2), Locale.GERMANY))
         assertEquals("Oct 2, 2026", formatLogDate(LocalDate.of(2026, 10, 2), Locale.US))
+    }
+
+    // --- Zahlen der Auswertung ---
+
+    @Test
+    fun `consumption and cost figures of the analysis follow the language of the device`() {
+        assertEquals("361", formatMlPer1000(361.4, Locale.GERMANY))
+        assertEquals("362", formatMlPer1000(361.5, Locale.GERMANY))
+        assertEquals("1.234", formatMlPer1000(1_234.0, Locale.GERMANY))
+        assertEquals("1,234", formatMlPer1000(1_234.0, Locale.US))
+        assertEquals("1,914", formatPricePerLiter(191.4, Locale.GERMANY))
+        assertEquals("1.914", formatPricePerLiter(191.4, Locale.US))
+        assertEquals("9,60", formatEurosDouble(960.0, Locale.GERMANY))
+        assertEquals("9.60", formatEurosDouble(960.0, Locale.US))
+        assertEquals("1.111,9", formatLitersTotal(1_111_900L, Locale.GERMANY))
+        assertEquals("1,111.9", formatLitersTotal(1_111_900L, Locale.US))
+        assertEquals("198", formatKmRounded(197.9, Locale.GERMANY))
+        assertEquals("1.250", formatKmRounded(1_250.0, Locale.GERMANY))
+    }
+
+    @Test
+    fun `the figures round to the shown decimals, not down`() {
+        assertEquals("7,7", formatL100(7.7049, Locale.GERMANY))
+        assertEquals("7,8", formatL100(7.75, Locale.GERMANY))
+        assertEquals("1,915", formatPricePerLiter(191.46, Locale.GERMANY))
+        assertEquals("0,01", formatEurosDouble(0.6, Locale.GERMANY))
+    }
+
+    @Test
+    fun `fuel, oil and coolant have a title for their analysis page, no other kind does`() {
+        assertEquals("logbook_stats_title_fuel", resourceName(LogType.FUEL.statsTitleRes()))
+        assertEquals("logbook_stats_title_oil", resourceName(LogType.OIL.statsTitleRes()))
+        assertEquals("logbook_stats_title_coolant", resourceName(LogType.COOLANT.statsTitleRes()))
+        for (type in LogType.entries - setOf(LogType.FUEL, LogType.OIL, LogType.COOLANT)) {
+            val thrown = runCatching { type.statsTitleRes() }.exceptionOrNull()
+            assertTrue("$type", thrown is IllegalArgumentException)
+        }
     }
 }

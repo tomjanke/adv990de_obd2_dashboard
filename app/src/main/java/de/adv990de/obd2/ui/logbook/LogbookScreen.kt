@@ -43,7 +43,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -63,6 +66,7 @@ import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.components.shareCsv
@@ -82,10 +86,18 @@ private val FabClearance = 88.dp
 internal const val LOGBOOK_ADD_TEST_TAG = "logbook_add"
 internal const val LOGBOOK_EXPORT_TEST_TAG = "logbook_export"
 internal const val LOGBOOK_IMPORT_TEST_TAG = "logbook_import"
+internal const val LOGBOOK_LIST_TEST_TAG = "logbook_list"
 internal fun logbookRowTestTag(id: Long) = "logbook_row_$id"
 
-/** Schluessel der unsichtbaren Marke ganz oben in der Liste (s. [LogbookScreen]); die Eintraege haben Long-Schluessel, die Marke einen Text. */
+/** Schluessel der unsichtbaren Marke ganz oben in der Liste (s. [LogbookScreen]); die Eintraege haben Long-Schluessel, die Marke und die Abschnitte einen Text. */
 private const val LIST_TOP_ANCHOR_KEY = "list_top_anchor"
+private const val OVERVIEW_KEY = "overview"
+private const val STATS_KEY = "stats"
+private const val ENTRIES_HEADER_KEY = "entries_header"
+private const val EMPTY_FILTER_KEY = "empty_filter"
+
+/** Hoehe des Hinweises "Keine Eintraege dieser Art" in der Liste (der Rest der Seite ist die Auswertung darueber). */
+private val EmptyFilterHeight = 160.dp
 internal fun logbookFilterTestTag(filter: LogFilter) = "logbook_filter_${filter.name}"
 
 /**
@@ -101,6 +113,8 @@ internal fun LogbookScreen(
     vm: LogbookViewModel = hiltViewModel(),
 ) {
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val insights by vm.insights.collectAsStateWithLifecycle()
+    val maintenance by vm.maintenance.collectAsStateWithLifecycle()
     val hasEntries by vm.hasEntries.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
@@ -114,6 +128,8 @@ internal fun LogbookScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // Der Dialog "Intervall festlegen" einer Wartungsart (Tipp auf eine Zelle der Uebersicht); der Name der Art ueberlebt eine Drehung.
+    var intervalDialogFor by rememberSaveable { mutableStateOf<String?>(null) }
 
     // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); "Importieren": die Dateiauswahl des Systems. Das Ergebnis ist die Uri, null bei Abbruch.
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri -> if (uri != null) vm.saveExportTo(uri) }
@@ -179,6 +195,23 @@ internal fun LogbookScreen(
 
     LogbookImportDialog(state = importState, onConfirm = vm::confirmImport, onDismiss = vm::dismissImport)
 
+    intervalDialogFor?.let { name ->
+        val type = LogType.entries.firstOrNull { it.name == name }
+        if (type == null) {
+            intervalDialogFor = null
+        } else {
+            MaintenanceIntervalDialog(
+                type = type,
+                initialKm = maintenance.rows.firstOrNull { it.item.type == type }?.intervalKm,
+                onSave = { km ->
+                    vm.setInterval(type, km)
+                    intervalDialogFor = null
+                },
+                onDismiss = { intervalDialogFor = null },
+            )
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -220,16 +253,32 @@ internal fun LogbookScreen(
             header()
             LogbookFilterRow(selected = filter, onSelect = vm::setFilter)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (entries.isEmpty()) {
-                    EmptyState(
-                        icon = Icons.Default.Book,
-                        text = stringResource(if (hasEntries) R.string.logbook_empty_filter else R.string.logbook_empty),
-                    )
+                if (!hasEntries) {
+                    EmptyState(icon = Icons.Default.Book, text = stringResource(R.string.logbook_empty))
                 } else {
-                    LazyColumn(contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = FabClearance)) {
+                    val sections = insightSectionsFor(filter)
+                    val locale = LocalLocale.current.platformLocale
+                    LazyColumn(Modifier.testTag(LOGBOOK_LIST_TEST_TAG), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = FabClearance)) {
                         // Eine Liste mit Schluesseln verankert sich am obersten sichtbaren Eintrag: ein neuer neuester Eintrag (Import, "Rueckgaengig" beim Loeschen des
                         // neuesten) laege sonst verdeckt oberhalb. Diese Marke ist 1 dp hoch (bei 0 dp zaehlt Compose sie nicht als sichtbar und verankert sich wieder am ersten Eintrag) und bleibt der Anker, solange die Liste ganz oben steht — Neues erscheint darunter.
                         item(key = LIST_TOP_ANCHOR_KEY) { Spacer(Modifier.height(1.dp)) }
+                        // Was zum Filter ausgewertet wird (s. insightSectionsFor): die Uebersicht der Wartung und/oder die Karten, jeweils ueber den Eintraegen.
+                        if (sections.overview) item(key = OVERVIEW_KEY) { LogbookOverview(maintenance, onEditInterval = { intervalDialogFor = it.name }) }
+                        if (sections.cards.isNotEmpty()) {
+                            item(key = STATS_KEY) {
+                                LogbookStatsCards(sections.cards, insights, onOpen = { navController.navigate(Screen.LogbookStats.routeFor(it)) })
+                            }
+                        }
+                        item(key = ENTRIES_HEADER_KEY) {
+                            SectionLabel(stringResource(R.string.logbook_section_entries), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                        if (entries.isEmpty()) {
+                            item(key = EMPTY_FILTER_KEY) {
+                                Box(Modifier.fillMaxWidth().height(EmptyFilterHeight)) {
+                                    EmptyState(icon = Icons.Default.Book, text = stringResource(R.string.logbook_empty_filter))
+                                }
+                            }
+                        }
                         items(entries, key = { it.id }) { entry ->
                             // Das Wischen ist nur eine Ergaenzung zum Papierkorb-Knopf.
                             SwipeToDeleteRow(onDelete = { vm.delete(entry.id) }, modifier = Modifier.testTag(logbookRowTestTag(entry.id))) {
@@ -237,6 +286,7 @@ internal fun LogbookScreen(
                                     entry = entry,
                                     onOpen = { navController.navigate(Screen.LogEntry.routeFor(entry.id)) },
                                     onDelete = { vm.delete(entry.id) },
+                                    consumption = insights.consumption[entry.id]?.let { consumptionText(it, locale) },
                                 )
                             }
                             HorizontalDivider()
@@ -266,9 +316,9 @@ internal fun LogbookFilterRow(selected: LogFilter, onSelect: (LogFilter) -> Unit
     }
 }
 
-/** Eine Zeile des Logbuchs: Art (bei Tanken, Oel und Kuehlfluessigkeit mit Menge), Datum und Stand, darunter Kosten, Teiltankung, Fabrikat oder Notiz. */
+/** Eine Zeile des Logbuchs: Art (bei Tanken, Oel und Kuehlfluessigkeit mit Menge), Datum und Stand, darunter der abgeleitete Verbrauch ([consumption], falls der Eintrag ein Intervall schliesst), Kosten, Teiltankung, Fabrikat oder Notiz. */
 @Composable
-internal fun LogbookRow(entry: LogEntry, onOpen: () -> Unit, onDelete: () -> Unit) {
+internal fun LogbookRow(entry: LogEntry, onOpen: () -> Unit, onDelete: () -> Unit, consumption: String? = null) {
     val locale = LocalLocale.current.platformLocale
     val label = stringResource(entry.type.labelRes())
     val amount = entryAmountText(entry, locale)
@@ -279,6 +329,7 @@ internal fun LogbookRow(entry: LogEntry, onOpen: () -> Unit, onDelete: () -> Uni
         stringResource(R.string.logbook_fmt_km, formatOdometer(entry.odometerKm, locale)),
     )
     val extras = buildList {
+        consumption?.let { add(it) }
         entry.costCents?.let { add(stringResource(R.string.logbook_fmt_euro, formatEuros(it, locale))) }
         if (entry.type == LogType.FUEL && entry.fullTank == false) add(stringResource(R.string.logbook_row_partial))
         entry.brand?.let { add(it) }
@@ -326,9 +377,9 @@ private fun previewEntry(id: Long, type: LogType, km: Int, amountMl: Int? = null
 private fun LogbookRowsPreviewContent() {
     Column {
         LogbookFilterRow(selected = LogFilter.All, onSelect = {})
-        LogbookRow(previewEntry(1, LogType.FUEL, 40_362, 14_370, true, 2_743), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(1, LogType.FUEL, 40_362, 14_370, true, 2_743), onOpen = {}, onDelete = {}, consumption = "7,9 l/100 km")
         LogbookRow(previewEntry(2, LogType.FUEL, 40_100, 5_000, false, note = "Reserve, kurz vor Hamburg und dann noch ein sehr langer Text, der abgeschnitten wird"), onOpen = {}, onDelete = {})
-        LogbookRow(previewEntry(3, LogType.OIL, 40_100, 150), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(3, LogType.OIL, 40_100, 150), onOpen = {}, onDelete = {}, consumption = "361 ml/1000 km")
         LogbookRow(previewEntry(4, LogType.TIRE_CHANGE, 37_000, brand = "Michelin Anakee Adventure 150/70-18"), onOpen = {}, onDelete = {})
         LogbookRow(previewEntry(5, LogType.CHAIN_KIT_CHANGE, 36_000), onOpen = {}, onDelete = {})
     }

@@ -1,5 +1,6 @@
 package de.adv990de.obd2.ui.navigation
 
+import de.adv990de.obd2.logbook.LogType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -37,6 +38,21 @@ class ParentTabTest {
     }
 
     @Test
+    fun `the maintenance intervals page belongs to the settings tab`() {
+        assertEquals("maintenance_intervals", Screen.MaintenanceIntervals.route)
+        assertEquals(Screen.Settings, parentTab(Screen.MaintenanceIntervals.route))
+    }
+
+    @Test
+    fun `the analysis page of the logbook belongs to the trips tab and is opened with the kind in the route`() {
+        assertEquals("logbook_stats/{type}", Screen.LogbookStats.route)
+        assertEquals(Screen.TripsAndFaults, parentTab(Screen.LogbookStats.route))
+        assertEquals("logbook_stats/FUEL", Screen.LogbookStats.routeFor(LogType.FUEL))
+        assertEquals("logbook_stats/OIL", Screen.LogbookStats.routeFor(LogType.OIL))
+        assertEquals("logbook_stats/COOLANT", Screen.LogbookStats.routeFor(LogType.COOLANT))
+    }
+
+    @Test
     fun `every settings sub-page belongs to the Settings tab`() {
         for (route in listOf(
             Screen.VehicleInfo.route,
@@ -67,9 +83,9 @@ class ParentTabTest {
      *  decided which tab owns it — so it cannot silently be left without a highlight. */
     private fun expectedParent(screen: Screen): Screen = when (screen) {
         Screen.Dashboard -> Screen.Dashboard
-        Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry -> Screen.TripsAndFaults
+        Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry, Screen.LogbookStats -> Screen.TripsAndFaults
         Screen.Settings, Screen.VehicleInfo, Screen.AppInfo, Screen.AppLogs,
-        Screen.GearSettings, Screen.Licenses -> Screen.Settings
+        Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals -> Screen.Settings
     }
 
     @Test
@@ -77,7 +93,7 @@ class ParentTabTest {
         val all = listOf(
             Screen.Dashboard, Screen.TripsAndFaults, Screen.FreezeFrame, Screen.VehicleInfo,
             Screen.Settings, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
-            Screen.Licenses, Screen.LogEntry,
+            Screen.Licenses, Screen.LogEntry, Screen.LogbookStats, Screen.MaintenanceIntervals,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))
     }

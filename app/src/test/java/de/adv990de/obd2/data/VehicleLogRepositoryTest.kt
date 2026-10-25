@@ -13,6 +13,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -192,5 +193,25 @@ class VehicleLogRepositoryTest {
         coEvery { dao.latestByOdometer() } returns null
 
         assertNull(repo.latestByOdometer())
+    }
+
+    @Test
+    fun `the highest odometer reading follows the entries, null without any, repeated values once`() = runTest {
+        every { dao.observeAll() } returns kotlinx.coroutines.flow.flowOf(
+            emptyList(),
+            listOf(row("FUEL", id = 1, km = 40_000)),
+            listOf(row("FUEL", id = 1, km = 40_000), row("OIL", id = 2, km = 39_000)),
+            listOf(row("FUEL", id = 1, km = 40_000), row("OIL", id = 2, km = 41_500)),
+            listOf(row("FUEL", id = 1, km = 40_000), row("OIL", id = 2, km = 41_500), row("OIL", id = 3, km = 41_400)),
+        )
+
+        assertEquals(listOf(null, 40_000, 41_500), repo.maxOdometerKm.toList())
+    }
+
+    @Test
+    fun `a row of an unknown kind does not count for the highest reading`() = runTest {
+        every { dao.observeAll() } returns kotlinx.coroutines.flow.flowOf(listOf(row("FUEL", id = 1, km = 40_000), row("FROM_THE_FUTURE", id = 2, km = 99_000)))
+
+        assertEquals(listOf(40_000), repo.maxOdometerKm.toList())
     }
 }

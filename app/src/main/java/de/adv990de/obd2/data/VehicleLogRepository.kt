@@ -5,6 +5,7 @@ import de.adv990de.obd2.data.db.entity.VehicleLogEntity
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import javax.inject.Inject
@@ -25,6 +26,9 @@ class VehicleLogRepository @Inject constructor(private val dao: VehicleLogDao) {
 
     /** Neueste zuerst (Datum, Stand, Anlage); Zeilen unbekannter Art fehlen. */
     val entries: Flow<List<LogEntry>> by lazy { dao.observeAll().map { rows -> rows.mapNotNull { it.toEntry() } } }
+
+    /** Der hoechste Kilometerstand im Logbuch, `null` ohne Eintrag; meldet nur Aenderungen (Zeilen unbekannter Art zaehlen nicht). */
+    val maxOdometerKm: Flow<Int?> by lazy { entries.map { list -> list.maxOfOrNull { it.odometerKm } }.distinctUntilChanged() }
 
     /** Alle Eintraege, aelteste zuerst — fuer den Export. */
     suspend fun all(): List<LogEntry> = dao.getAll().mapNotNull { it.toEntry() }

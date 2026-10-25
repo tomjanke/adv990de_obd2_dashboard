@@ -16,11 +16,14 @@ import de.adv990de.obd2.ui.freezeframe.FreezeFrameScreen
 import de.adv990de.obd2.ui.trips.TripsAndFaultsScreen
 import de.adv990de.obd2.ui.settings.AppLogsScreen
 import de.adv990de.obd2.ui.settings.GearSettingsScreen
+import de.adv990de.obd2.ui.settings.MaintenanceIntervalsScreen
 import de.adv990de.obd2.ui.settings.SettingsScreen
 import de.adv990de.obd2.ui.appinfo.AppInfoScreen
 import de.adv990de.obd2.ui.licenses.LicensesScreen
 import de.adv990de.obd2.ui.logbook.LOG_ENTRY_ID_ARG
+import de.adv990de.obd2.ui.logbook.LOG_STATS_TYPE_ARG
 import de.adv990de.obd2.ui.logbook.LogEntryScreen
+import de.adv990de.obd2.ui.logbook.LogbookStatsScreen
 import de.adv990de.obd2.ui.vehicleinfo.VehicleInfoScreen
 
 @Composable
@@ -48,11 +51,17 @@ fun AppNavHost(navController: NavHostController) {
             composable(Screen.GearSettings.route) { GearSettingsScreen(navController) }
             composable(Screen.AppInfo.route) { AppInfoScreen(navController) }
             composable(Screen.Licenses.route) { LicensesScreen(navController) }
+            composable(Screen.MaintenanceIntervals.route) { MaintenanceIntervalsScreen(navController) }
             // Die Eintragsseite des Logbuchs; die Id ist optional (0 = neuer Eintrag).
             composable(
                 Screen.LogEntry.route,
                 arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L }),
             ) { LogEntryScreen(navController) }
+            // Die Detailseite der Auswertung; die Art (FUEL, OIL oder COOLANT) steht in der Route.
+            composable(
+                Screen.LogbookStats.route,
+                arguments = listOf(navArgument(LOG_STATS_TYPE_ARG) { type = NavType.StringType }),
+            ) { LogbookStatsScreen(navController) }
         }
     }
 }
