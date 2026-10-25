@@ -46,7 +46,7 @@ class CodeHygieneSourceTest {
         "ui/UiText.kt" to "kein sichtbares Composable: loest nur Text auf (UiText.asString)",
         "ui/components/ExportChoiceDialog.kt" to "der gemeinsame Rumpf zweier Dialoge: ihre Vorschauen (ExportAllDialog.kt, AppLogExportDialog.kt) zeigen ihn in beiden Flaechen",
         "ui/components/UndoSnackbarEffect.kt" to "ein Effekt ohne eigene Darstellung, er zeigt in den Snackbar-Host des Aufrufers",
-        "ui/dashboard/DashboardScreen.kt" to "braucht hiltViewModel(); die Bausteine (RpmBar, Kacheln, Banner) haben Vorschauen in DashboardComponents.kt, OilTemperatureBarStrip.kt und SlotComponents.kt",
+        "ui/dashboard/DashboardScreen.kt" to "braucht hiltViewModel(); die Bausteine (RpmBar, Kacheln, Banner) haben Vorschauen in DashboardComponents.kt, OilTemperatureBarStrip.kt, ConnectionIndicator.kt, DashboardSlotGrid.kt und SlotComponents.kt",
         "ui/freezeframe/FreezeFrameScreen.kt" to "braucht hiltViewModel() und hat keinen zustandslosen Teil",
         "ui/licenses/LicensesScreen.kt" to "liest die Lizenztexte aus den Assets der App, die eine Vorschau nicht kennt",
         "ui/navigation/AppNavHost.kt" to "der Navigationsgraph: jedes Ziel braucht hiltViewModel()",

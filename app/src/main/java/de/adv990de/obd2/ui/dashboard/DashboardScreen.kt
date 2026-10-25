@@ -5,22 +5,14 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -36,20 +28,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
-import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
-import de.adv990de.obd2.terrain.TerrainDisplay
 import de.adv990de.obd2.ui.components.FuelGaugeRow
 import de.adv990de.obd2.ui.components.FuelResetDialog
-import de.adv990de.obd2.ui.components.StatusDot
-import de.adv990de.obd2.ui.components.StatusDotState
 import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
@@ -176,58 +162,18 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 isLive = isLive,
                 trailingContent = {
-                    val dotState = dashboardStatusDotState(
+                    ConnectionIndicator(
                         isConnected = state.isConnected,
                         isReconnecting = state.isReconnecting,
                         hasError = state.error != null,
+                        onOpenSettings = {
+                            navController.navigate(Screen.Settings.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
                     )
-                    if (state.isConnected) {
-                        Row(
-                            modifier = Modifier.padding(start = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            // 0dp: Dot soll so nah wie moeglich am Bluetooth-Icon sitzen.
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        ) {
-                            if (dotState != null) {
-                                StatusDot(state = dotState, color = connectionDotColor(dotState))
-                            }
-                            Icon(
-                                painterResource(R.drawable.ic_bluetooth),
-                                contentDescription = stringResource(R.string.dashboard_bt_connected_desc),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.padding(start = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            // Negativer Abstand gleicht IconButtons eigenes ~12dp-Innenpolster
-                            // um sein 24dp-Icon aus (Default-Touch-Ziel 48dp) — sonst saehe der
-                            // Dot hier deutlich weiter vom Icon-Glyphen entfernt aus als bei der
-                            // verbundenen Variante oben, die ein reines Icon ohne Polster nutzt.
-                            horizontalArrangement = Arrangement.spacedBy((-12).dp),
-                        ) {
-                            if (dotState != null) {
-                                StatusDot(state = dotState, color = connectionDotColor(dotState))
-                            }
-                            IconButton(onClick = {
-                                navController.navigate(Screen.Settings.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_bluetooth),
-                                    contentDescription = stringResource(
-                                        if (state.isReconnecting) R.string.dashboard_bt_connecting_desc
-                                        else R.string.dashboard_bt_disconnected_desc
-                                    ),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
                 }
             )
 
@@ -279,64 +225,20 @@ fun DashboardScreen(
             // Alarmband: ueberlagert die obere Kante des Rasters und verschiebt NICHTS (Entscheidung des Nutzers 2026-10-18; vorher eine eigene Zeile, die den Kacheln Hoehe nahm und im
             // Querformat bis auf 105 dp druecken konnte). Das Band steht nach dem Raster in der Box und liegt damit darueber; das Wertefeld jeder Kachel liegt unterhalb (Test).
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (isLandscape) {
-                        // Landscape: vier gleich breite Spalten nebeneinander — nutzt die Breite,
-                        // statt eine Spalte zu stapeln und eine halbe Kachel leer zu lassen.
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(tileHeight)
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                            horizontalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            repeat(4) { i ->
-                                DashboardSlot(
-                                    slotPid = slotPids.getOrNull(i),
-                                    reading = slots[i],
-                                    state = state,
-                                    terrain = terrain,
-                                    useImperial = useImperial,
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                                    placeholderRes = slotPlaceholderRes(
-                                        slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
-                                    ),
-                                    isLive = isLive,
-                                    onLongPress = { pickerSlot = i }
-                                )
-                            }
-                        }
-                    } else {
-                        // Portrait: zwei Spalten, zwei Reihen (CLAUDE.md: "2 Spalten Standard")
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            repeat(2) { row ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().height(tileHeight),
-                                    horizontalArrangement = Arrangement.spacedBy(1.dp)
-                                ) {
-                                    repeat(2) { col ->
-                                        val i = row * 2 + col
-                                        DashboardSlot(
-                                            slotPid = slotPids.getOrNull(i),
-                                            reading = slots[i],
-                                            state = state,
-                                            terrain = terrain,
-                                            useImperial = useImperial,
-                                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                                            placeholderRes = slotPlaceholderRes(
-                                                slotPids.getOrNull(i), supportedPidIds, state.isConnected, useGpsSpeed, gpsPermissionMissing,
-                                            ),
-                                            isLive = isLive,
-                                            onLongPress = { pickerSlot = i }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                DashboardSlotGrid(
+                    slotPids = slotPids,
+                    slots = slots,
+                    state = state,
+                    terrain = terrain,
+                    useImperial = useImperial,
+                    supportedPidIds = supportedPidIds,
+                    useGpsSpeed = useGpsSpeed,
+                    gpsPermissionMissing = gpsPermissionMissing,
+                    isLive = isLive,
+                    isLandscape = isLandscape,
+                    tileHeight = tileHeight,
+                    onLongPress = { pickerSlot = it },
+                )
                 alarms.firstOrNull()?.let { alarm ->
                     AlarmBanner(
                         alarm = alarm,
@@ -383,42 +285,5 @@ fun DashboardScreen(
                 onDismiss = { pickerSlot = null }
             )
         }
-    }
-}
-
-/**
- * Eine Kachel des Rasters: die Gelaende-Kachel, wenn der Slot [DerivedPids.TERRAIN_ID] traegt (sie zeigt drei Werte des Telefons, `DashboardViewModel.terrain`, unabhaengig von der Verbindung), sonst die
- * Kachel eines Messwerts. Eine Stelle fuer beide Ausrichtungen, damit Hoch- und Querformat nie auseinanderlaufen.
- */
-@Composable
-private fun DashboardSlot(
-    slotPid: String?,
-    reading: SensorValue?,
-    state: DashboardUiState,
-    terrain: TerrainDisplay?,
-    useImperial: Boolean,
-    modifier: Modifier,
-    @androidx.annotation.StringRes placeholderRes: Int,
-    isLive: Boolean,
-    onLongPress: () -> Unit,
-) {
-    if (slotPid == DerivedPids.TERRAIN_ID) {
-        TerrainSlot(
-            terrain = terrain,
-            useImperial = useImperial,
-            placeholderRes = placeholderRes,
-            modifier = modifier,
-            onLongPress = onLongPress,
-        )
-    } else {
-        // Die GPS-Geschwindigkeit in "veraltet" ist die einzige Zahl, die ausserhalb von "live" gezeichnet wird; ihre Kurve gibt es nicht (die alte Kurve des Fahrzeugs gehoert nicht zu ihr).
-        val drawsValue = isLive || reading?.isStaleGpsReading() == true
-        SensorCardSlot(
-            reading, if (isLive) state.sparklines else emptyMap(), useImperial, modifier,
-            placeholderRes = placeholderRes,
-            isLive = drawsValue,
-            onLongPress = onLongPress,
-            voltageTrend = state.voltageTrend,
-        )
     }
 }
