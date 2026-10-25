@@ -1,5 +1,15 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.42.1 (versionCode 135)
+
+Aufgeräumt, nichts Sichtbares: **vier große Quelltext-Dateien sind aufgeteilt**, die App verhält sich wie in 1.42.0.
+
+### Was sich ändert
+
+- **Für dich: nichts.** Kein Bildschirm, keine Einstellung, keine Daten und kein Verhalten ändern sich. Das Fahrzeug bleibt rein lesend.
+- **Im Code:** die Eintragsseite des Logbuchs (Datumsfeld und die zwei Rückfragen), der Öl-Streifen, das Bluetooth-Symbol mit dem Verbindungs-Punkt und das Kachelraster des Dashboards sowie die Abfrageschleife der Live-Werte stehen jetzt in eigenen Dateien (`LogEntryDialogs`, `OilTemperatureBarStrip`, `ConnectionIndicator`, `DashboardSlotGrid`, `LivePoller`). Das Kachelraster ist dabei nur noch einmal geschrieben statt je Ausrichtung. Dazu acht neue Tests für die Abfrageschleife und vier Vorschauen.
+- **Nicht angefasst:** `DashboardViewModel` und `ReadingsPipeline` (beide noch über 400 Zeilen, die Aufteilung hängt an gemeinsamem Zustand und bleibt eine eigene Entscheidung).
+
 ## Version 1.42.0 (versionCode 134)
 
 Neu: ein **Logbuch** für Tanken, Öl, Kühlflüssigkeit und Wartung, mit Export und Import.
