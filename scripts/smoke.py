@@ -142,6 +142,11 @@ def live_rpm(texts):
     return None
 
 
+def logbook_add_button(texts):
+    """Der Knopf zum Anlegen im Logbuch: uiautomator zeigt ihn mit der Beschreibung des Symbols ("Eintrag hinzufuegen"), nicht mit seinem Text "Eintrag" (Release 1.42.0)."""
+    return "Eintrag hinzuf\u00fcgen" in texts or "Eintrag" in texts
+
+
 def no_data_bands(texts):
     """Die Baender unter den Texten, die "noch keine (frischen) Werte" sagen."""
     return [text for text in texts if text.upper().startswith(NO_DATA_BANDS)]
@@ -286,7 +291,7 @@ def main():
                 check(f"Bereich {section} oeffnet", ok and alive())
                 if section == "Logbuch":
                     # Der Knopf zum Anlegen gehoert zum Logbuch (auch ohne Eintraege).
-                    check("Logbuch zeigt den Knopf Eintrag", "Eintrag" in texts())
+                    check("Logbuch zeigt den Knopf Eintrag", logbook_add_button(texts()))
     tap_text("Live")
     time.sleep(2)
     check("Reiter Live zurueck", any("DREHZAHL" in x.upper() for x in texts()))

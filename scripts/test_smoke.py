@@ -215,5 +215,20 @@ class ScrollStalledTest(unittest.TestCase):
         self.assertTrue(smoke.scroll_stalled(before, after))
 
 
+class LogbookAddButtonTest(unittest.TestCase):
+    def test_sees_the_button_by_the_description_uiautomator_shows(self):
+        # Am Geraet (Release 1.42.0): der Knopf erscheint mit der Beschreibung des Symbols, nicht mit seinem Text "Eintrag".
+        self.assertTrue(smoke.logbook_add_button(["Logbuch", "Eintrag hinzuf\u00fcgen", "Live"]))
+
+    def test_sees_the_button_by_its_label_too(self):
+        self.assertTrue(smoke.logbook_add_button(["Logbuch", "Eintrag"]))
+
+    def test_the_hint_of_the_empty_list_is_not_the_button(self):
+        self.assertFalse(smoke.logbook_add_button(["Noch keine Eintr\u00e4ge. Mit \u201eEintrag\u201c kommt der erste hinzu."]))
+
+    def test_no_button_without_the_logbook(self):
+        self.assertFalse(smoke.logbook_add_button(["Fahrten", "Aktuell", "Historie"]))
+
+
 if __name__ == "__main__":
     unittest.main()
