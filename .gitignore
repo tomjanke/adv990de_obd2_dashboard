@@ -91,3 +91,6 @@ lint/tmp/
 
 # Claude Code (lokale, nutzerspezifische Einstellungen)
 .claude/settings.local.json
+
+# Python (Skripte in scripts/ werden von den JVM-Tests ausgeführt)
+__pycache__/

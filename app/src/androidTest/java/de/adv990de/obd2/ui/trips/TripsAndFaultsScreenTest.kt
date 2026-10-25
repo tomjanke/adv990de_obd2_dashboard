@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,14 +31,16 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Der Menuepunkt "Fahrten" ([TripsAndFaultsScreen]): ein dreiteiliger Umschalter "Fahrten | Aktuell | Historie" ueber der Fahrtenliste und den
- * beiden Ansichten der Fehlercodes. Die Inhalte der Seiten selbst pruefen `HistoryScreenTest` und `DtcScreenTest`; hier die Verdrahtung: welcher
+ * Der Menuepunkt "Fahrten" ([TripsAndFaultsScreen]): ein vierteiliger Umschalter "Fahrten | Aktuell | Historie | Logbuch" ueber der Fahrtenliste, den
+ * beiden Ansichten der Fehlercodes und dem Logbuch. Die Inhalte der Seiten selbst pruefen `HistoryScreenTest` und `DtcScreenTest`; hier die Verdrahtung: welcher
  * Bereich steht wo, bleibt er nach einer Drehung und nach der Rueckkehr aus dem Freeze-Frame, und liest ein Wechsel nicht erneut vom Fahrzeug.
  *
  * Der Hilt-Graph kommt aus `TestAppModule` (echte `SessionRepository` und `DtcHistoryRepository` auf der Test-Datenbank); nur das
@@ -77,10 +80,11 @@ class TripsAndFaultsScreenTest {
     }
 
     @Test
-    fun itStartsOnTheTrips_withThreeSegmentsOfAtLeast56dp() {
+    fun itStartsOnTheTrips_withFourSegmentsOfAtLeast56dp() {
         launch()
 
         composeRule.onNodeWithText(string(R.string.history_title)).assertIsDisplayed()
+        assertEquals(4, TripsSection.entries.size)
         for (section in TripsSection.entries) {
             segment(section).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
             composeRule.onNodeWithText(string(section.labelRes)).assertIsDisplayed()
@@ -108,6 +112,83 @@ class TripsAndFaultsScreenTest {
         composeRule.onNodeWithText(string(R.string.history_title)).assertIsDisplayed()
         composeRule.onAllNodesWithText(string(R.string.dtc_title)).assertCountEquals(0)
         segment(TripsSection.Trips).assertIsSelected()
+    }
+
+    @Test
+    fun theLogbookSegmentShowsTheLogbook_andLeavingItBringsTheTripsBack() {
+        launch()
+
+        segment(TripsSection.Logbook).performClick()
+        composeRule.waitForIdle()
+        // "Logbuch" steht zweimal da: als Segment und als Titel der Seite.
+        composeRule.onAllNodesWithText(string(R.string.logbook_title)).assertCountEquals(2)
+        composeRule.onNodeWithText(string(R.string.logbook_empty)).assertIsDisplayed()
+        segment(TripsSection.Logbook).assertIsSelected()
+        composeRule.onAllNodesWithText(string(R.string.history_title)).assertCountEquals(0)
+
+        segment(TripsSection.Trips).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(string(R.string.history_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.logbook_title)).assertCountEquals(1)   // nur noch das Segment
+    }
+
+    @Test
+    fun theLogbookSegmentDoesNotReadTheVehicle() {
+        launch(initial = TripsSection.Logbook)
+
+        coVerify(exactly = 0) { obdRepository.readDtcs() }
+    }
+
+    /** Zeigt den Umschalter in einem Fenster der Breite [widthDp] mit der Systemschrift [fontScale] und liefert je Bereich das Textlayout seiner Beschriftung. */
+    private fun labelLayouts(widthDp: Int, fontScale: Float): Map<TripsSection, androidx.compose.ui.text.TextLayoutResult> {
+        composeRule.setContent {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, fontScale = fontScale),
+            ) {
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.requiredWidth(widthDp.dp)) {
+                    SectionSwitch(selected = TripsSection.Trips, onSelect = {})
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        return TripsSection.entries.associateWith { section ->
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            composeRule.onNodeWithText(string(section.labelRes)).fetchSemanticsNode()
+                .config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+            layouts.first()
+        }
+    }
+
+    // Das Wagnis der vier Segmente ("Historie" und "Logbuch" sind die laengsten Woerter). Gemessen am Pixel 8 Pro am 2026-10-25: auf einer Zeile bei 448 dp mit Schrift bis 130 %
+    // und bei 360 dp mit normaler Schrift; bei 360 dp und 130 % (auch 392 dp und 130 % bei zwei Woertern) brechen sie um. `hasVisualOverflow` taugt dafuer nicht (es meldet auch
+    // passende Texte), gezaehlt werden die Zeilen.
+
+    private fun assertOneLineAt(widthDp: Int, fontScale: Float) {
+        for ((section, layout) in labelLayouts(widthDp, fontScale)) {
+            assertEquals("${string(section.labelRes)} bei $widthDp dp, Schrift $fontScale", 1, layout.lineCount)
+        }
+    }
+
+    // `setContent` darf je Test nur einmal laufen: ein Test je Schriftgroesse.
+    @Test
+    fun theFourLabelsFitOnOneLine_at448dp_withTheNormalFont() = assertOneLineAt(448, 1.0f)
+
+    @Test
+    fun theFourLabelsFitOnOneLine_at448dp_withTheFontAt115Percent() = assertOneLineAt(448, 1.15f)
+
+    @Test
+    fun theFourLabelsFitOnOneLine_at448dp_withTheFontAt130Percent() = assertOneLineAt(448, 1.3f)
+
+    @Test
+    fun theFourLabelsFitOnOneLine_inTheNarrowest360dpWindow_withTheNormalFont() = assertOneLineAt(360, 1.0f)
+
+    @Test
+    fun inTheWorstCase_360dpWithTheFontAt130Percent_theLabelsWrapToTwoLines_butNothingIsCutOff() {
+        for ((section, layout) in labelLayouts(widthDp = 360, fontScale = 1.3f)) {
+            assertTrue("${string(section.labelRes)}: ${layout.lineCount} Zeilen", layout.lineCount <= 2)
+            assertTrue("${string(section.labelRes)} wird in der Hoehe abgeschnitten", !layout.didOverflowHeight)
+        }
     }
 
     @Test

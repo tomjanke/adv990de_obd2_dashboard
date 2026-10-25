@@ -40,7 +40,7 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 ### Sehr nützlich, überschaubarer Aufwand
 
-**F6 — Trip-Computer, Betriebsstunden und Wartungserinnerungen** (klein). Trip A/B, Durchschnitt, Standzeit; Betriebsstunden (Enduros werden oft nach Stunden gewartet: Luftfilter, Öl); Kettenpflege nach Kilometern. Distanzintegrator und Fahrtdauer gibt es schon.
+**F6 — Trip-Computer, Betriebsstunden und Wartungserinnerungen** (klein). Trip A/B, Durchschnitt, Standzeit; Betriebsstunden (Enduros werden oft nach Stunden gewartet: Luftfilter, Öl); Kettenpflege nach Kilometern. Distanzintegrator und Fahrtdauer gibt es schon. **In der Fassung des Nutzers beschlossen und Phase 1 umgesetzt (2026-10-20 bis 2026-10-25, Entscheidungsprotokoll Punkt 63):** ein **Logbuch** mit Datum und Kilometerstand (Basis Kilometer, nicht Betriebsstunden; Trip A/B und Betriebsstunden entfallen) für Tanken, Öl, Kühlflüssigkeit, Kettenpflege, Service, Reifen- und Kettenkit-Wechsel, CSV-Export und -Import; released als 1.42.0. **Noch offen:** die Auswertung mit Diagramm (Phase 2) und Erinnerungen (Phase 3), beides nicht bestellt.
 
 **F7 — Höhe, Steigung und Peilung** (mittel). Aus Barometer und GPS des Pixel, offline. **Beschlossen und umgesetzt (2026-10-18, Entscheidungsprotokoll Punkt 49):** eine Kachel „Gelände“ — Höhe groß, Steigung als Graph der letzten 1000 m, Peilung als Windrose; released als 1.35.0, am Motorrad nicht geprüft. Entwurf und Plan: `docs/superpowers/archive/specs|plans/2026-10-18-terrain-tile*`.
 

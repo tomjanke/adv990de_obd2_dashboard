@@ -440,4 +440,135 @@
     <string name="voltage_state_charging">charging</string>
     <string name="voltage_state_marginal">barely charging</string>
     <string name="voltage_state_discharging">discharging</string>
+
+    <!-- Logbook: reasons an import fails (the file is the app's own CSV export) -->
+    <string name="logbook_import_error_format">This is not a valid logbook file. It needs the columns date, type and odometer_km and at most 20,000 rows.</string>
+    <string name="logbook_import_error_too_large">The file is larger than 5 MB.</string>
+    <string name="logbook_import_error_unreadable">The file could not be read.</string>
+    <string name="logbook_import_error_write">Nothing was imported: the entries could not be saved.</string>
+
+    <!-- Logbook: the fourth section of "Drives" -->
+    <string name="trips_section_logbook">Logbook</string>
+    <string name="logbook_title">Logbook</string>
+    <string name="logbook_cd_export">Export logbook</string>
+    <string name="logbook_cd_import">Import logbook</string>
+    <string name="logbook_add">Entry</string>
+    <string name="logbook_cd_add">Add an entry</string>
+    <string name="logbook_cd_delete">Delete entry</string>
+    <string name="logbook_cd_open">Show or edit the entry</string>
+    <string name="logbook_empty">No entries yet. \"Entry\" adds the first one.</string>
+    <string name="logbook_empty_filter">No entries of this kind.</string>
+    <string name="logbook_deleted">Entry deleted</string>
+    <string name="logbook_filter_all">All</string>
+    <string name="logbook_filter_fuel">Refuel</string>
+    <string name="logbook_filter_oil">Oil</string>
+    <string name="logbook_filter_coolant">Coolant</string>
+    <string name="logbook_filter_maintenance">Maintenance</string>
+
+    <!-- Logbook: the nine kinds of entry -->
+    <string name="logbook_type_fuel">Refuel</string>
+    <string name="logbook_type_oil">Top up oil</string>
+    <string name="logbook_type_coolant">Top up coolant</string>
+    <string name="logbook_type_chain_small">Chain care (small)</string>
+    <string name="logbook_type_chain_large">Chain care (large)</string>
+    <string name="logbook_type_service_small">Service (small)</string>
+    <string name="logbook_type_service_large">Service (large)</string>
+    <string name="logbook_type_tire_change">Tire change</string>
+    <string name="logbook_type_chain_kit_change">Chain kit change</string>
+
+    <!-- Logbook: numbers with their unit (the number is formatted for the device language) -->
+    <string name="logbook_fmt_km">%1$s km</string>
+    <string name="logbook_fmt_liters">%1$s l</string>
+    <string name="logbook_fmt_ml">%1$s ml</string>
+    <string name="logbook_fmt_euro">%1$s €</string>
+    <string name="logbook_fmt_euro_per_liter">%1$s €/l</string>
+    <string name="logbook_fmt_l100">%1$s l/100 km</string>
+    <string name="logbook_row_partial">partial fill</string>
+    <string name="logbook_row_join">%1$s · %2$s</string>
+    <string name="logbook_date_ok">OK</string>
+
+    <!-- Logbook: the entry page -->
+    <string name="logbook_entry_new_title">New entry</string>
+    <string name="logbook_entry_edit_title">Edit entry</string>
+    <string name="logbook_field_kind">Kind</string>
+    <string name="logbook_field_date">Date</string>
+    <string name="logbook_field_odometer">Odometer (km)</string>
+    <string name="logbook_field_liters">Liters</string>
+    <string name="logbook_field_cost">Total cost (€)</string>
+    <string name="logbook_field_amount_ml">Amount (ml)</string>
+    <string name="logbook_field_brand">Make and model</string>
+    <string name="logbook_field_note">Note</string>
+    <string name="logbook_cd_pick_date">Choose a date</string>
+    <string name="logbook_full_tank_title">Filled up</string>
+    <string name="logbook_full_tank_summary">Tank filled to the top. Needed for the consumption.</string>
+    <string name="logbook_last_reading">Last reading: %1$s km on %2$s</string>
+    <string name="logbook_price_per_liter">= %1$s per liter</string>
+    <string name="logbook_counter">%1$d/%2$d</string>
+    <string name="logbook_save">Save</string>
+    <string name="logbook_save_error">Could not save: %1$s</string>
+    <string name="logbook_error_missing">Please fill in</string>
+    <string name="logbook_error_odometer_invalid">Digits only</string>
+    <string name="logbook_error_odometer_range">From 0 to 999,999 km</string>
+    <string name="logbook_error_amount_invalid_liters">A number with at most 3 decimals</string>
+    <string name="logbook_error_amount_invalid_ml">Whole milliliters</string>
+    <string name="logbook_error_amount_range_liters">More than 0 and at most 100 liters</string>
+    <string name="logbook_error_amount_range_ml">More than 0 and at most 5,000 ml</string>
+    <string name="logbook_error_amount_range">Amount out of range</string>
+    <string name="logbook_error_cost_invalid">An amount in euros with at most 2 decimals</string>
+    <string name="logbook_error_cost_range">From 0.01 to 999.99 €</string>
+    <string name="logbook_error_date_future">Not in the future</string>
+    <string name="logbook_error_note_long">At most 200 characters</string>
+    <string name="logbook_error_brand_missing">Required for a tire change</string>
+    <string name="logbook_error_brand_long">At most 80 characters</string>
+    <string name="logbook_error_brand_not_allowed">Only for a tire change</string>
+    <string name="logbook_warning_title">Save anyway?</string>
+    <string name="logbook_warning_confirm">Save anyway</string>
+    <string name="logbook_warning_check">Check</string>
+    <string name="logbook_warning_out_of_order">The odometer reading and the date do not fit another entry (%1$s, %2$s km).</string>
+    <string name="logbook_warning_price">A price of %1$s per liter looks implausible (usual: 0.50 to 5.00 €).</string>
+    <string name="logbook_warning_consumption">A consumption of %1$s looks implausible (usual: 2 to 20 l/100 km).</string>
+    <string name="logbook_gauge_title">Reset the fuel gauge?</string>
+    <string name="logbook_gauge_message">You filled up. Set the fuel gauge on the dashboard back to full?</string>
+    <string name="logbook_yes">Yes</string>
+    <string name="logbook_no">No</string>
+
+    <!-- Logbook: export and import -->
+    <string name="logbook_export_title">Export logbook</string>
+    <plurals name="logbook_export_message">
+        <item quantity="one">%1$d entry as one CSV file. The logbook is deleted with the app data, so keep the file safe.</item>
+        <item quantity="other">%1$d entries as one CSV file. The logbook is deleted with the app data, so keep the file safe.</item>
+    </plurals>
+    <string name="logbook_export_saved">Logbook saved</string>
+    <string name="logbook_export_none">No entries to export.</string>
+    <string name="logbook_import_title">Import logbook</string>
+    <string name="logbook_import_working">Working …</string>
+    <plurals name="logbook_import_new">
+        <item quantity="one">%1$d new entry</item>
+        <item quantity="other">%1$d new entries</item>
+    </plurals>
+    <plurals name="logbook_import_duplicates">
+        <item quantity="one">%1$d already in the logbook</item>
+        <item quantity="other">%1$d already in the logbook</item>
+    </plurals>
+    <plurals name="logbook_import_rejected">
+        <item quantity="one">%1$d row cannot be read</item>
+        <item quantity="other">%1$d rows cannot be read</item>
+    </plurals>
+    <plurals name="logbook_import_warnings">
+        <item quantity="one">%1$d of the new entries has a notice (reading and date, price or consumption)</item>
+        <item quantity="other">%1$d of the new entries have a notice (reading and date, price or consumption)</item>
+    </plurals>
+    <string name="logbook_import_nothing_new">Nothing to import.</string>
+    <string name="logbook_import_confirm">Import</string>
+    <string name="logbook_import_close">Close</string>
+    <plurals name="logbook_import_done">
+        <item quantity="one">%1$d entry imported</item>
+        <item quantity="other">%1$d entries imported</item>
+    </plurals>
+    <string name="logbook_import_row">Line %1$d: %2$s</string>
+    <plurals name="logbook_import_more_rows">
+        <item quantity="one">… and %1$d more</item>
+        <item quantity="other">… and %1$d more</item>
+    </plurals>
+    <string name="logbook_import_bad_value">%1$s is not valid</string>
 </resources>

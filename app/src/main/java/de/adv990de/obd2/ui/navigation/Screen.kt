@@ -11,4 +11,12 @@ sealed class Screen(val route: String) {
     object AppLogs : Screen("app_logs")
     object GearSettings : Screen("gear_settings")
     object Licenses : Screen("licenses")
+
+    /**
+     * Die Eintragsseite des Logbuchs (neu oder bearbeiten), erreicht aus dem Bereich "Logbuch" des Reiters "Fahrten". Die Id des Eintrags ist ein optionales Argument:
+     * `0` oder fehlend heisst neuer Eintrag. Die Route ist das **Muster** (`destination.route` liefert es), geoeffnet wird mit [routeFor].
+     */
+    object LogEntry : Screen("logbook_entry?id={id}") {
+        fun routeFor(id: Long) = "logbook_entry?id=$id"
+    }
 }

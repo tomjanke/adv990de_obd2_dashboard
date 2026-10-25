@@ -1,0 +1,349 @@
+package de.adv990de.obd2.ui.logbook
+
+import android.content.ActivityNotFoundException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
+import de.adv990de.obd2.R
+import de.adv990de.obd2.logbook.LogEntry
+import de.adv990de.obd2.logbook.LogFilter
+import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.SwipeToDeleteRow
+import de.adv990de.obd2.ui.components.UndoSnackbarEffect
+import de.adv990de.obd2.ui.components.shareCsv
+import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.theme.PreviewTheme
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.Locale
+
+/** Glove-friendly touch size of the row and top-bar buttons (CLAUDE.md design principle 4). */
+private val RowButtonSize = 56.dp
+
+/** Platz unter der letzten Zeile, damit der Knopf "Eintrag" sie nicht verdeckt. */
+private val FabClearance = 88.dp
+
+/** Test tags. */
+internal const val LOGBOOK_ADD_TEST_TAG = "logbook_add"
+internal const val LOGBOOK_EXPORT_TEST_TAG = "logbook_export"
+internal const val LOGBOOK_IMPORT_TEST_TAG = "logbook_import"
+internal fun logbookRowTestTag(id: Long) = "logbook_row_$id"
+
+/** Schluessel der unsichtbaren Marke ganz oben in der Liste (s. [LogbookScreen]); die Eintraege haben Long-Schluessel, die Marke einen Text. */
+private const val LIST_TOP_ANCHOR_KEY = "list_top_anchor"
+internal fun logbookFilterTestTag(filter: LogFilter) = "logbook_filter_${filter.name}"
+
+/**
+ * Das Logbuch (vierter Bereich von "Fahrten"): Kopfleiste mit Export und Import, Filter, die Liste (neueste zuerst) und der Knopf "Eintrag". Eine Zeile oeffnet den
+ * Eintrag zum Bearbeiten; Loeschen nach dem Loesch-Vertrag (Papierkorb oder Wischen, ohne Dialog, nur Rueckgaengig). Eigenes Scaffold wie die Fahrtenliste; der Umschalter
+ * des Hosts steht als [header] ueber der Liste.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun LogbookScreen(
+    navController: NavController,
+    header: @Composable () -> Unit = {},
+    vm: LogbookViewModel = hiltViewModel(),
+) {
+    val entries by vm.entries.collectAsStateWithLifecycle()
+    val hasEntries by vm.hasEntries.collectAsStateWithLifecycle()
+    val filter by vm.filter.collectAsStateWithLifecycle()
+    val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
+    val exportDialogVisible by vm.exportDialogVisible.collectAsStateWithLifecycle()
+    val shareUri by vm.shareUri.collectAsStateWithLifecycle()
+    val exportError by vm.exportError.collectAsStateWithLifecycle()
+    val saved by vm.saved.collectAsStateWithLifecycle()
+    val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
+    val importState by vm.importState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); "Importieren": die Dateiauswahl des Systems. Das Ergebnis ist die Uri, null bei Abbruch.
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri -> if (uri != null) vm.saveExportTo(uri) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.pickImport(uri) }
+
+    // Strings auf Composable-Ebene aufloesen (context.getString() in einem Effekt umgeht die Recomposition bei Sprachwechsel).
+    val shareChooserTitle = stringResource(R.string.logbook_export_title)
+    val shareNoAppMessage = stringResource(R.string.history_share_no_app)
+    val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
+    val savedMessage = stringResource(R.string.logbook_export_saved)
+    val nothingToExportMessage = stringResource(R.string.logbook_export_none)
+    val dialogUnavailableMessage = stringResource(R.string.history_save_unavailable)
+
+    LaunchedEffect(shareUri) {
+        shareUri?.let { uri ->
+            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
+            vm.consumeShareUri()
+        }
+    }
+    LaunchedEffect(saved) {
+        if (saved) {
+            snackbarHostState.showSnackbar(savedMessage)
+            vm.consumeSaved()
+        }
+    }
+    LaunchedEffect(nothingToExport) {
+        if (nothingToExport) {
+            snackbarHostState.showSnackbar(nothingToExportMessage)
+            vm.consumeNothingToExport()
+        }
+    }
+    LaunchedEffect(exportErrorMessage) {
+        exportErrorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.consumeExportError()
+        }
+    }
+
+    // Der Loesch-Vertrag: Papierkorb oder Wischen -> der Eintrag verschwindet sofort -> "Rueckgaengig" so lange wie das Fenster -> erst dann wirklich geloescht.
+    UndoSnackbarEffect(
+        batchId = undoBatchId,
+        message = stringResource(R.string.logbook_deleted),
+        undoLabel = stringResource(R.string.undo),
+        snackbarHostState = snackbarHostState,
+        onUndo = vm::undoDelete,
+    )
+
+    if (exportDialogVisible) {
+        LogbookExportDialog(
+            entryCount = entries.size.coerceAtLeast(1),
+            onShare = vm::shareExport,
+            onSave = {
+                vm.cancelExport()
+                try {
+                    saveLauncher.launch(vm.exportFileName())
+                } catch (_: ActivityNotFoundException) {
+                    scope.launch { snackbarHostState.showSnackbar(dialogUnavailableMessage) }
+                }
+            },
+            onDismiss = vm::cancelExport,
+        )
+    }
+
+    LogbookImportDialog(state = importState, onConfirm = vm::confirmImport, onDismiss = vm::dismissImport)
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.logbook_title)) },
+                actions = {
+                    // Sicherung: das ganze Logbuch als CSV. Ohne sichtbaren Eintrag gibt es nichts zu exportieren.
+                    IconButton(onClick = vm::requestExport, enabled = hasEntries, modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_EXPORT_TEST_TAG)) {
+                        Icon(Icons.Default.Download, contentDescription = stringResource(R.string.logbook_cd_export))
+                    }
+                    IconButton(
+                        onClick = {
+                            try {
+                                importLauncher.launch(arrayOf("*/*"))
+                            } catch (_: ActivityNotFoundException) {
+                                scope.launch { snackbarHostState.showSnackbar(dialogUnavailableMessage) }
+                            }
+                        },
+                        modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_IMPORT_TEST_TAG),
+                    ) {
+                        Icon(Icons.Default.Upload, contentDescription = stringResource(R.string.logbook_cd_import))
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { navController.navigate(Screen.LogEntry.routeFor(0)) },
+                icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.logbook_cd_add)) },
+                text = { Text(stringResource(R.string.logbook_add)) },
+                modifier = Modifier.testTag(LOGBOOK_ADD_TEST_TAG),
+            )
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            header()
+            LogbookFilterRow(selected = filter, onSelect = vm::setFilter)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (entries.isEmpty()) {
+                    EmptyState(
+                        icon = Icons.Default.Book,
+                        text = stringResource(if (hasEntries) R.string.logbook_empty_filter else R.string.logbook_empty),
+                    )
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = FabClearance)) {
+                        // Eine Liste mit Schluesseln verankert sich am obersten sichtbaren Eintrag: ein neuer neuester Eintrag (Import, "Rueckgaengig" beim Loeschen des
+                        // neuesten) laege sonst verdeckt oberhalb. Diese Marke ist 1 dp hoch (bei 0 dp zaehlt Compose sie nicht als sichtbar und verankert sich wieder am ersten Eintrag) und bleibt der Anker, solange die Liste ganz oben steht — Neues erscheint darunter.
+                        item(key = LIST_TOP_ANCHOR_KEY) { Spacer(Modifier.height(1.dp)) }
+                        items(entries, key = { it.id }) { entry ->
+                            // Das Wischen ist nur eine Ergaenzung zum Papierkorb-Knopf.
+                            SwipeToDeleteRow(onDelete = { vm.delete(entry.id) }, modifier = Modifier.testTag(logbookRowTestTag(entry.id))) {
+                                LogbookRow(
+                                    entry = entry,
+                                    onOpen = { navController.navigate(Screen.LogEntry.routeFor(entry.id)) },
+                                    onDelete = { vm.delete(entry.id) },
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Die Filter als Chips in einer Zeile, die bei schmalem Fenster waagerecht scrollt; jeder Chip >= 56 dp hoch. */
+@Composable
+internal fun LogbookFilterRow(selected: LogFilter, onSelect: (LogFilter) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LogFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = filter == selected,
+                onClick = { onSelect(filter) },
+                label = { Text(stringResource(filter.labelRes())) },
+                modifier = Modifier.heightIn(min = RowButtonSize).testTag(logbookFilterTestTag(filter)),
+            )
+        }
+    }
+}
+
+/** Eine Zeile des Logbuchs: Art (bei Tanken, Oel und Kuehlfluessigkeit mit Menge), Datum und Stand, darunter Kosten, Teiltankung, Fabrikat oder Notiz. */
+@Composable
+internal fun LogbookRow(entry: LogEntry, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val locale = LocalLocale.current.platformLocale
+    val label = stringResource(entry.type.labelRes())
+    val amount = entryAmountText(entry, locale)
+    val headline = if (amount != null) stringResource(R.string.logbook_row_join, label, amount) else label
+    val dateAndStand = stringResource(
+        R.string.logbook_row_join,
+        formatLogDate(entry.date, locale),
+        stringResource(R.string.logbook_fmt_km, formatOdometer(entry.odometerKm, locale)),
+    )
+    val extras = buildList {
+        entry.costCents?.let { add(stringResource(R.string.logbook_fmt_euro, formatEuros(it, locale))) }
+        if (entry.type == LogType.FUEL && entry.fullTank == false) add(stringResource(R.string.logbook_row_partial))
+        entry.brand?.let { add(it) }
+        entry.note?.takeIf { it.isNotBlank() }?.let { add(it) }
+    }
+    ListItem(
+        // Die ganze Zeile oeffnet den Eintrag; Loeschen bleibt ein eigener Knopf.
+        modifier = Modifier.clickable(onClickLabel = stringResource(R.string.logbook_cd_open), onClick = onOpen),
+        headlineContent = { Text(headline) },
+        supportingContent = {
+            Column {
+                Text(dateAndStand)
+                if (extras.isNotEmpty()) {
+                    Text(extras.reduce { a, b -> stringResource(R.string.logbook_row_join, a, b) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        },
+        trailingContent = {
+            IconButton(onClick = onDelete, modifier = Modifier.size(RowButtonSize)) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.logbook_cd_delete))
+            }
+        },
+    )
+}
+
+/** Die Menge eines Eintrags mit Einheit (Liter beim Tanken, Milliliter bei Oel und Kuehlfluessigkeit), `null` bei den Arten ohne Menge. */
+@Composable
+internal fun entryAmountText(entry: LogEntry, locale: Locale): String? {
+    val ml = entry.amountMl ?: return null
+    return when (entry.type) {
+        LogType.FUEL -> stringResource(R.string.logbook_fmt_liters, formatLiters(ml, locale))
+        LogType.OIL, LogType.COOLANT -> stringResource(R.string.logbook_fmt_ml, formatMl(ml, locale))
+        else -> null
+    }
+}
+
+// region — Previews
+//
+// LogbookScreen selbst braucht `hiltViewModel()` (und ein Scaffold mit Dateidialogen); Filter und Zeile sind zustandslos.
+
+private fun previewEntry(id: Long, type: LogType, km: Int, amountMl: Int? = null, full: Boolean? = null, cost: Int? = null, note: String? = null, brand: String? = null) =
+    LogEntry(id, type, LocalDate.of(2026, 10, 2), km, amountMl, full, cost, note, brand)
+
+@Composable
+private fun LogbookRowsPreviewContent() {
+    Column {
+        LogbookFilterRow(selected = LogFilter.All, onSelect = {})
+        LogbookRow(previewEntry(1, LogType.FUEL, 40_362, 14_370, true, 2_743), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(2, LogType.FUEL, 40_100, 5_000, false, note = "Reserve, kurz vor Hamburg und dann noch ein sehr langer Text, der abgeschnitten wird"), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(3, LogType.OIL, 40_100, 150), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(4, LogType.TIRE_CHANGE, 37_000, brand = "Michelin Anakee Adventure 150/70-18"), onOpen = {}, onDelete = {})
+        LogbookRow(previewEntry(5, LogType.CHAIN_KIT_CHANGE, 36_000), onOpen = {}, onDelete = {})
+    }
+}
+
+@Preview(name = "Logbook rows (light)", showBackground = true)
+@Composable
+private fun PreviewLogbookRowsLight() {
+    PreviewTheme(dark = false) { LogbookRowsPreviewContent() }
+}
+
+@Preview(name = "Logbook rows (dark)", showBackground = true)
+@Composable
+private fun PreviewLogbookRowsDark() {
+    PreviewTheme(dark = true) { LogbookRowsPreviewContent() }
+}
+
+// endregion

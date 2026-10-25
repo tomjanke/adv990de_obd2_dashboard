@@ -10,6 +10,7 @@ import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.data.db.entity.DtcHistoryEntity
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.data.db.entity.VehicleLogEntity
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -52,10 +53,24 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 }
 
 /**
+ * Das Logbuch (`vehicle_log`, s. [VehicleLogEntity]). Neue Tabelle, nichts Bestehendes wird angefasst: Fahrten, Messwerte, Logs und Fehlerhistorie bleiben. Von Hand
+ * geschrieben wie [MIGRATION_1_2]; `AppDatabaseMigrationTest` validiert sie gegen das exportierte 6.json und prueft, dass Altdaten bleiben.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE vehicle_log (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type TEXT NOT NULL, " +
+            "epochDay INTEGER NOT NULL, odometerKm INTEGER NOT NULL, amountMl INTEGER, fullTank INTEGER, " +
+            "costCents INTEGER, note TEXT, brand TEXT)"
+        )
+    }
+}
+
+/**
  * Die Version der Datenbank — die EINE Stelle (`@Database(version = …)` unten und die Pruefung in
  * `AppDatabaseMigrationsTest`, dass [ALL_MIGRATIONS] bis hierher reicht, lesen sie).
  */
-const val APP_DATABASE_VERSION = 5
+const val APP_DATABASE_VERSION = 6
 
 /**
  * Alle Migrationen, in der Reihenfolge ihrer Versionen. Produktion ([appDatabaseBuilder]) und Tests benutzen
@@ -63,7 +78,7 @@ const val APP_DATABASE_VERSION = 5
  * oder fehlt sie fuer eine neue Version, schlaegt `AppDatabaseMigrationsTest` auf dem JVM fehl, statt dass ein
  * Update-Nutzer beim ersten Start abstuerzt.
  */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
 /**
  * Der Produktions-Builder der Datenbank: Name und Migrationen. Kein destruktiver Fallback — ein Schema-Fehler
@@ -78,7 +93,7 @@ fun appDatabaseBuilder(context: Context, name: String?): RoomDatabase.Builder<Ap
     Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(*ALL_MIGRATIONS)
 
 @Database(
-    entities = [SessionEntity::class, SensorReadingEntity::class, AppLogEntity::class, DtcHistoryEntity::class],
+    entities = [SessionEntity::class, SensorReadingEntity::class, AppLogEntity::class, DtcHistoryEntity::class, VehicleLogEntity::class],
     version = APP_DATABASE_VERSION,
     exportSchema = true
 )
@@ -87,4 +102,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sensorReadingDao(): SensorReadingDao
     abstract fun appLogDao(): AppLogDao
     abstract fun dtcHistoryDao(): DtcHistoryDao
+    abstract fun vehicleLogDao(): VehicleLogDao
 }

@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 private const val TEST_DB = "migration-test"
 
 /**
- * Covers [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4] and [MIGRATION_4_5], which hand-write their SQL statements
+ * Covers [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4], [MIGRATION_4_5] and [MIGRATION_5_6], which hand-write their SQL statements
  * instead of relying on Room's generated migrations — a hand-written migration has no compile-time
  * guarantee of matching the exported schema, so this asserts the resulting table shape (Room validates
  * it against the exported JSON), that rows written before the migration survive it, and that the DAO
@@ -267,6 +267,78 @@ class AppDatabaseMigrationTest {
             assertEquals("P0301,P0420?", db.sessionDao().getById(withCodes)!!.dtcCodes)
             assertEquals("the read found nothing: an empty text, not null", "", db.sessionDao().getById(noneFound)!!.dtcCodes)
             assertEquals("not recorded: null", null, db.sessionDao().getById(notRecorded)!!.dtcCodes)
+        }
+    }
+
+    // ── 5 -> 6: the logbook ───────────────────────────────────────────────────
+
+    @Test
+    fun migrate5To6_createsTheLogbookTableWithTheExpectedColumns() {
+        helper.createDatabase(TEST_DB, 5).close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 6, true, MIGRATION_5_6)
+
+        migratedDb.query("PRAGMA table_info(vehicle_log)").use { cursor ->
+            val name = cursor.getColumnIndexOrThrow("name")
+            val notNull = cursor.getColumnIndexOrThrow("notnull")
+            val columns = generateSequence { if (cursor.moveToNext()) cursor.getString(name) to cursor.getInt(notNull) else null }.toMap()
+            assertEquals(
+                setOf("id", "type", "epochDay", "odometerKm", "amountMl", "fullTank", "costCents", "note", "brand"),
+                columns.keys,
+            )
+            assertEquals("Art, Tag und Stand sind Pflicht", listOf(1, 1, 1), listOf("type", "epochDay", "odometerKm").map { columns.getValue(it) })
+            assertEquals("Menge, voll, Kosten, Notiz und Fabrikat sind nur bei manchen Arten belegt", listOf(0, 0, 0, 0, 0), listOf("amountMl", "fullTank", "costCents", "note", "brand").map { columns.getValue(it) })
+        }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate5To6_keepsEverythingWrittenBeforeTheUpdate() {
+        helper.createDatabase(TEST_DB, 5).apply {
+            execSQL("INSERT INTO sessions (id, startTime, endTime, vehicleVin, dtcCodes) VALUES (1, 1000, 2000, 'VIN123', 'P0301')")
+            execSQL("INSERT INTO sensor_readings (id, sessionId, timestamp, pidId, value, source) VALUES (1, 1, 1500, '010D', 80.0, 'ECU')")
+            execSQL("INSERT INTO app_log (id, timestamp, level, message) VALUES (1, 1600, 'INFO', 'hello')")
+            execSQL("INSERT INTO dtc_history (code, firstSeen, lastSeen, lastWasPending) VALUES ('P0301', 1000, 1800, 0)")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 6, true, MIGRATION_5_6)
+
+        migratedDb.query("SELECT vehicleVin, dtcCodes FROM sessions WHERE id = 1").use {
+            assertEquals(1, it.count); it.moveToFirst(); assertEquals("VIN123", it.getString(0)); assertEquals("P0301", it.getString(1))
+        }
+        migratedDb.query("SELECT value FROM sensor_readings WHERE sessionId = 1").use { assertEquals(1, it.count) }
+        migratedDb.query("SELECT message FROM app_log").use { it.moveToFirst(); assertEquals("hello", it.getString(0)) }
+        migratedDb.query("SELECT code FROM dtc_history").use { it.moveToFirst(); assertEquals("P0301", it.getString(0)) }
+        migratedDb.query("SELECT COUNT(*) FROM vehicle_log").use { it.moveToFirst(); assertEquals("das Logbuch beginnt leer", 0, it.getInt(0)) }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To6_theWholeChainWorks() {
+        helper.createDatabase(TEST_DB, 1).close()
+
+        helper.runMigrationsAndValidate(TEST_DB, 6, true, *ALL_MIGRATIONS).close()
+    }
+
+    @Test
+    fun migrate5To6_theLogbookIsUsableThroughTheDao() {
+        helper.createDatabase(TEST_DB, 5).close()
+        helper.runMigrationsAndValidate(TEST_DB, 6, true, MIGRATION_5_6).close()
+
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
+        helper.closeWhenFinished(db)
+
+        runBlocking {
+            val id = db.vehicleLogDao().upsert(
+                de.adv990de.obd2.data.db.entity.VehicleLogEntity(
+                    type = "FUEL", epochDay = 20_000, odometerKm = 40_362, amountMl = 14_370,
+                    fullTank = true, costCents = 2_743, note = null, brand = null,
+                ),
+            )
+
+            assertEquals(14_370, db.vehicleLogDao().getById(id)!!.amountMl)
+            assertEquals(listOf(id), db.vehicleLogDao().observeAll().first().map { it.id })
         }
     }
 }

@@ -6,6 +6,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import de.adv990de.obd2.ui.components.BottomNav
@@ -17,6 +19,8 @@ import de.adv990de.obd2.ui.settings.GearSettingsScreen
 import de.adv990de.obd2.ui.settings.SettingsScreen
 import de.adv990de.obd2.ui.appinfo.AppInfoScreen
 import de.adv990de.obd2.ui.licenses.LicensesScreen
+import de.adv990de.obd2.ui.logbook.LOG_ENTRY_ID_ARG
+import de.adv990de.obd2.ui.logbook.LogEntryScreen
 import de.adv990de.obd2.ui.vehicleinfo.VehicleInfoScreen
 
 @Composable
@@ -44,6 +48,11 @@ fun AppNavHost(navController: NavHostController) {
             composable(Screen.GearSettings.route) { GearSettingsScreen(navController) }
             composable(Screen.AppInfo.route) { AppInfoScreen(navController) }
             composable(Screen.Licenses.route) { LicensesScreen(navController) }
+            // Die Eintragsseite des Logbuchs; die Id ist optional (0 = neuer Eintrag).
+            composable(
+                Screen.LogEntry.route,
+                arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L }),
+            ) { LogEntryScreen(navController) }
         }
     }
 }

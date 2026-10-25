@@ -23,23 +23,25 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.dtc.DtcScreen
 import de.adv990de.obd2.ui.history.HistoryScreen
+import de.adv990de.obd2.ui.logbook.LogbookScreen
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
 /**
- * Die drei Bereiche unter dem Menuepunkt "Fahrten": die Fahrten, und die zwei Ansichten der Fehlercodes — was das Fahrzeug jetzt meldet
- * ("Aktuell") und was es frueher gemeldet hat ("Historie"). "Aktuell" und "Historie" sind die Ansichten der DTC-Seite, ihre Texte bleiben.
+ * Die vier Bereiche unter dem Menuepunkt "Fahrten": die Fahrten, die zwei Ansichten der Fehlercodes — was das Fahrzeug jetzt meldet ("Aktuell") und was es frueher
+ * gemeldet hat ("Historie") — und das Logbuch (seit 1.42.0). "Aktuell" und "Historie" sind die Ansichten der DTC-Seite, ihre Texte bleiben.
  */
 internal enum class TripsSection(@StringRes val labelRes: Int) {
     Trips(R.string.trips_section_trips),
     Current(R.string.dtc_tab_current),
     History(R.string.dtc_tab_history),
+    Logbook(R.string.trips_section_logbook),
     ;
 
     /** Zeigt die Fehlerhistorie (lokale Aufzeichnung) statt der Live-Liste. */
     val showsFaultHistory: Boolean get() = this == History
 
-    /** Gehoert zur DTC-Seite (Fehlercodes) und nicht zu den Fahrten. */
-    val isFaultCodes: Boolean get() = this != Trips
+    /** Gehoert zur DTC-Seite (Fehlercodes): "Aktuell" und "Historie", nicht die Fahrten und nicht das Logbuch. */
+    val isFaultCodes: Boolean get() = this == Current || this == History
 }
 
 /** Glove-friendly touch size of the segments (CLAUDE.md design principle 4). */
@@ -49,7 +51,7 @@ private val SegmentMinHeight = 56.dp
 internal fun tripsSectionTestTag(section: TripsSection) = "trips_section_${section.name}"
 
 /**
- * Der Menuepunkt "Fahrten" (seit 1.33.0): die Fahrtenliste und die Fehlercodes unter EINEM dreiteiligen Umschalter statt zweier Reiter.
+ * Der Menuepunkt "Fahrten" (seit 1.33.0): die Fahrtenliste, die Fehlercodes (seit 1.42.0 auch das Logbuch) unter EINEM Umschalter statt mehrerer Reiter.
  * Die beiden Seiten behalten ihr Scaffold, ihre Top-Bar (Titel je Bereich: "Fahrtenverlauf" bzw. "Fehlercodes (DTCs)") und ihre Snackbar;
  * der Umschalter kommt als Slot in ihren Inhalt. Ein Umschalter statt zweier verschachtelter: im Querformat, das der Nutzer ueberwiegend
  * nutzt, ist die Hoehe knapp.
@@ -67,14 +69,14 @@ internal fun TripsAndFaultsScreen(navController: NavController, initialSection: 
 
     // EIN Aufrufpunkt fuer die DTC-Seite: ein Wechsel zwischen "Aktuell" und "Historie" baut sie nicht neu auf (sie liest beim Betreten vom
     // Fahrzeug); zwei Zweige liessen den LaunchedEffect bei jedem Wechsel erneut laufen.
-    if (section == TripsSection.Trips) {
-        HistoryScreen(navController = navController, header = switch)
-    } else {
-        DtcScreen(navController = navController, showHistory = section.showsFaultHistory, header = switch)
+    when {
+        section == TripsSection.Trips -> HistoryScreen(navController = navController, header = switch)
+        section == TripsSection.Logbook -> LogbookScreen(navController = navController, header = switch)
+        else -> DtcScreen(navController = navController, showHistory = section.showsFaultHistory, header = switch)
     }
 }
 
-/** "Fahrten | Aktuell | Historie" — Segmente ≥ 56 dp, die Mindesthoehe sitzt an JEDEM Segment (die Zeile allein dehnt sie nicht). */
+/** "Fahrten | Aktuell | Historie | Logbuch" — Segmente ≥ 56 dp, die Mindesthoehe sitzt an JEDEM Segment (die Zeile allein dehnt sie nicht). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SectionSwitch(selected: TripsSection, onSelect: (TripsSection) -> Unit) {

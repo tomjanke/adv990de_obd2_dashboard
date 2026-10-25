@@ -4,7 +4,7 @@
     python3 -u scripts/smoke.py <versionName> <versionCode> [--package de.adv990de.obd2]
     python3 -u scripts/smoke.py <versionName> <versionCode> --simulator [--package de.adv990de.obd2.debug]
 
-Prueft: die App startet und zeigt das Dashboard, die Reiter Fahrten/Einstellungen oeffnen (in Fahrten die Bereiche Aktuell/Historie/Fahrten), der Beenden-Dialog erscheint
+Prueft: die App startet und zeigt das Dashboard, die Reiter Fahrten/Einstellungen oeffnen (in Fahrten die Bereiche Aktuell/Historie/Logbuch/Fahrten), der Beenden-Dialog erscheint
 (und wird abgebrochen), App-Info nennt Version und Build, und Logcat enthaelt keinen Absturz. Endet mit "ALL PASS" bzw. "FAILURES"
 (Exit-Code 0 bzw. 1).
 
@@ -278,12 +278,15 @@ def main():
         time.sleep(2.5)
         check(f"Reiter {tab} oeffnet", ok and alive())
         if tab == "Fahrten":
-            # Seit 1.33.0 sind DTCs und Verlauf EIN Reiter mit dem Umschalter "Fahrten | Aktuell | Historie". Ohne Fahrzeug liest "Aktuell"
-            # nichts ("Nicht verbunden"); es zaehlt, dass jeder Bereich oeffnet und die App weiterlaeuft.
-            for section in ("Aktuell", "Historie", "Fahrten"):
+            # Seit 1.33.0 sind DTCs und Verlauf EIN Reiter mit dem Umschalter "Fahrten | Aktuell | Historie", seit 1.42.0 mit dem vierten Bereich "Logbuch".
+            # Ohne Fahrzeug liest "Aktuell" nichts ("Nicht verbunden"); es zaehlt, dass jeder Bereich oeffnet und die App weiterlaeuft.
+            for section in ("Aktuell", "Historie", "Logbuch", "Fahrten"):
                 ok = tap_text(section)
                 time.sleep(1.5)
                 check(f"Bereich {section} oeffnet", ok and alive())
+                if section == "Logbuch":
+                    # Der Knopf zum Anlegen gehoert zum Logbuch (auch ohne Eintraege).
+                    check("Logbuch zeigt den Knopf Eintrag", "Eintrag" in texts())
     tap_text("Live")
     time.sleep(2)
     check("Reiter Live zurueck", any("DREHZAHL" in x.upper() for x in texts()))

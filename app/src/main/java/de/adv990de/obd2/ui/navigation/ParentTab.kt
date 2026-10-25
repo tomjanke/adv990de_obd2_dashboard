@@ -9,7 +9,7 @@ package de.adv990de.obd2.ui.navigation
  */
 internal fun parentTab(route: String?): Screen? = when (route) {
     Screen.Dashboard.route -> Screen.Dashboard
-    Screen.TripsAndFaults.route, Screen.FreezeFrame.route -> Screen.TripsAndFaults
+    Screen.TripsAndFaults.route, Screen.FreezeFrame.route, Screen.LogEntry.route -> Screen.TripsAndFaults
     Screen.Settings.route,
     Screen.VehicleInfo.route,
     Screen.AppInfo.route,

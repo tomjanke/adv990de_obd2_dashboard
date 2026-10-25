@@ -24,6 +24,19 @@ class ParentTabTest {
     }
 
     @Test
+    fun `the logbook entry page belongs to the Fahrten tab - under the route pattern the NavController reports`() {
+        // `destination.route` liefert das MUSTER mit dem Platzhalter, nicht die geoeffnete Adresse.
+        assertEquals("logbook_entry?id={id}", Screen.LogEntry.route)
+        assertEquals(Screen.TripsAndFaults, parentTab(Screen.LogEntry.route))
+    }
+
+    @Test
+    fun `the address that opens an entry carries its id, 0 is a new entry`() {
+        assertEquals("logbook_entry?id=0", Screen.LogEntry.routeFor(0))
+        assertEquals("logbook_entry?id=42", Screen.LogEntry.routeFor(42))
+    }
+
+    @Test
     fun `every settings sub-page belongs to the Settings tab`() {
         for (route in listOf(
             Screen.VehicleInfo.route,
@@ -54,7 +67,7 @@ class ParentTabTest {
      *  decided which tab owns it — so it cannot silently be left without a highlight. */
     private fun expectedParent(screen: Screen): Screen = when (screen) {
         Screen.Dashboard -> Screen.Dashboard
-        Screen.TripsAndFaults, Screen.FreezeFrame -> Screen.TripsAndFaults
+        Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry -> Screen.TripsAndFaults
         Screen.Settings, Screen.VehicleInfo, Screen.AppInfo, Screen.AppLogs,
         Screen.GearSettings, Screen.Licenses -> Screen.Settings
     }
@@ -64,7 +77,7 @@ class ParentTabTest {
         val all = listOf(
             Screen.Dashboard, Screen.TripsAndFaults, Screen.FreezeFrame, Screen.VehicleInfo,
             Screen.Settings, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
-            Screen.Licenses,
+            Screen.Licenses, Screen.LogEntry,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))
     }

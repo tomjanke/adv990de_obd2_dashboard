@@ -94,7 +94,7 @@ internal fun createExportFile(dir: File, name: String): File {
     }
 }
 
-private val EXPORT_FILE = Regex("""(?:session|applog)_.*\.csv""")
+private val EXPORT_FILE = Regex("""(?:session|applog|logbook)_.*\.csv""")
 
 /**
  * Loescht Exportdateien in [dir], die aelter als [maxAgeMs] sind (DAT-07: sie wurden nie geloescht). Angefasst

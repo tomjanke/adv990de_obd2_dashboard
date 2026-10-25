@@ -16,6 +16,7 @@ import de.adv990de.obd2.data.appPreferencesCorruptionHandler
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.DtcHistoryDao
+import de.adv990de.obd2.data.db.VehicleLogDao
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,12 @@ object TestAppModule {
     @Provides
     @Singleton
     fun provideDtcHistoryDao(db: AppDatabase): DtcHistoryDao = db.dtcHistoryDao()
+
+    /** Same provider as [AppModule.provideVehicleLogDao] — this module replaces AppModule, so
+     *  everything that injects the DAO (VehicleLogRepository) needs it here too. */
+    @Provides
+    @Singleton
+    fun provideVehicleLogDao(db: AppDatabase): VehicleLogDao = db.vehicleLogDao()
 
     /** Same provider as [AppModule.provideApplicationScope] — this module replaces AppModule, so
      *  everything that injects the app-wide scope (e.g. AppLogsViewModel) needs it here too. */
