@@ -1,5 +1,34 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.43.0 (versionCode 137)
+
+Neu im Logbuch: eine **Auswertung** (Verbrauch mit Diagramm, Wartungsabstände) und **Erinnerungen** („fällig in N km“) für Wartungsintervalle, die du selbst festlegst.
+
+### Was sich ändert
+
+- **Auswertung über der Liste.** Das Logbuch zeigt jetzt oben eine **Übersicht** der Wartung (Kettenpflege klein/groß, Service klein/groß, Reifenwechsel, Kettenkit-Wechsel: „vor N km“, Datum und Stand des letzten Eintrags, bei Reifen das Fabrikat, der mittlere Abstand) und die **Auswertung** mit je einer Karte für **Tanken**, **Öl** und **Kühlflüssigkeit**: der Durchschnitt als große Zahl (l/100 km bzw. ml/1000 km), ein Mini-Diagramm und „n Intervalle · zuletzt …“. Der **Filter** bestimmt, was oben steht: „Alle“ zeigt die Übersicht und alle drei Karten, Tanken, Öl und Kühlflüssigkeit nur die eigene Karte, Wartung die Übersicht.
+- **Verbrauch je Eintrag.** Jede Zeile, die ein Verbrauchsintervall abschließt, zeigt den Wert („7,4 l/100 km“, „100 ml/1000 km“).
+- **Detailseite je Karte.** Ein Tipp auf eine Karte öffnet das große **Balkendiagramm** (die letzten 24 Intervalle, der jüngste rechts, der Durchschnitt als gestrichelte Linie), die **Kennzahlen** (Durchschnitt, letzter, bester und schlechtester Wert; bei Tanken Summe der Liter, mittlere Strecke, Ø Preis je Liter, Kosten je 100 km), die **Intervalle** (jüngste zuerst) und Hinweise zur Rechnung.
+- **So wird gerechnet.** Tanken **Voll-zu-Voll**: ein Intervall endet bei jeder vollen Tankung mit einer vollen Vorgängerin, Teiltankungen dazwischen zählen mit. Der **Durchschnitt ist die Summe der Liter durch die Summe der Kilometer** (nicht der Mittelwert der Einzelwerte: der ist verzerrt). Öl und Kühlflüssigkeit je Art zwischen zwei Einträgen derselben Art, mit der Menge des späteren Eintrags. Ein gelöschter Eintrag verschwindet sofort auch aus der Auswertung, „Rückgängig“ bringt ihn zurück.
+- **Wartungsintervalle (Erinnerungen).** In **Einstellungen → Fahrzeug → „Wartungsintervalle“** legst du je Wartungsart fest, nach wie vielen Kilometern sie fällig ist (50 bis 100 000 km, leer löscht das Intervall); derselbe Dialog öffnet sich mit einem Tipp auf eine Zelle der Übersicht. **Es gibt keine vorbelegten Werte** — ohne Intervall steht „Intervall festlegen“. Mit Intervall zeigt die Zelle **„fällig in N km“** ab dem letzten Eintrag der Art, **gelb im letzten Zehntel** des Intervalls, **rot ab der Fälligkeit** („jetzt fällig“, „überfällig seit N km“); der Text sagt es auch ohne Farbe.
+- **Geschätzter Kilometerstand („ca.“).** Die App kennt deinen Tacho nicht. Für „fällig in“ rechnet sie mit dem **höchsten Stand im Logbuch plus den per GPS gezählten Kilometern seit genau diesem Eintrag** (dieselben Kilometer wie bei der Tankanzeige) und kennzeichnet das mit „ca.“; die Zeile unter der Übersicht nennt die Rechnung. Ein neuer Eintrag mit dem echten Tachostand setzt den Zähler neu.
+- **Nur im Logbuch.** Fälligkeit erscheint **nicht** im Dashboard und löst **keine** Benachrichtigung aus (so hast du es entschieden).
+- **Unverändert:** das Fahrzeug bleibt rein lesend, die Datenbank bleibt **v6** (die Auswertung rechnet aus den vorhandenen Einträgen), keine neue Berechtigung. Die Intervalle und der GPS-Zähler stehen im DataStore, nicht in der Datenbank.
+
+### Meine Auslegung
+
+- **„Bald fällig“ = das letzte Zehntel des Intervalls (mindestens 1 km)** ist meine Darstellungswahl, kein Wert von dir; er lässt sich an einer Stelle ändern.
+- Die Übersicht rechnet „fällig in“ und „vor N km“ gegen den **geschätzten** Stand, die Prüfregeln beim Speichern und der Hinweis „Letzter Stand“ bleiben beim Stand der Einträge. Ein zu niedriger Schätzwert ersetzt nie einen höheren Stand aus dem Logbuch.
+
+### Grenzen
+
+- **Die Schätzung ist meist zu niedrig.** Gezählt wird nur bei **verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“** (wie bei der Tankanzeige). Fährst du ohne OBD-Verbindung, fehlen diese Kilometer, und „fällig in N km“ ist zu optimistisch. Ein neuer Eintrag mit dem echten Tachostand korrigiert das. Die Schätzung ist nur gegen eingespielte Werte getestet, nie am Fahrzeug, und die GPS-Genauigkeit der Strecke ist für diese Rechnung nicht gemessen.
+- **Nur nach Kilometern.** Eine Wartung nach Zeit (etwa Reifen alle zwei Jahre) kennt das Logbuch nicht.
+- **Öl und Kühlflüssigkeit:** die App kennt keine Wechsel — ein Intervall über einen Wechsel ist zu niedrig; die Einzelwerte streuen stark (50-ml-Schritte, Ablesung nach Augenmaß), maßgeblich ist der Durchschnitt. Wechselst du Reifen vorne und hinten getrennt, zeigt die Übersicht nur den letzten Eintrag der Art.
+- **Tanken:** Teiltankungen im Altbestand gelten als voll und verzerren einzelne Intervalle; der Kilometerstand bleibt Handeingabe, ein falscher Stand verfälscht sein Intervall.
+- **Am Fahrzeug nichts geprüft.** Gerendert und im Gerätetest gesehen (Pixel 8 Pro, Querformat); die Ablesbarkeit am Motorrad und im Hochformat ist nicht geprüft. In der ersten Fassung waren die Karten im Querformat abgeschnitten — das ist behoben.
+- **Tests:** 2777 JVM-Tests (155 mehr), 737 Gerätetests; 110 Mutationsproben (60 an der Auswertung, 50 an den Erinnerungen), alle nicht gleichwertigen erkannt; ein gleichwertiger Mutant bleibt dokumentiert.
+
 ## Version 1.42.2 (versionCode 136)
 
 Aufgeräumt, nichts Sichtbares: **`DashboardViewModel` und `ReadingsPipeline` sind in kleinere Einheiten zerlegt**, die App verhält sich wie in 1.42.1.
