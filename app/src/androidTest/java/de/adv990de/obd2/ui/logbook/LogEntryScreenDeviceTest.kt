@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.logbook
 
 import androidx.compose.material3.Text
 import android.content.pm.ActivityInfo
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -18,6 +19,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -115,6 +118,30 @@ class LogEntryScreenDeviceTest {
         }
         composeRule.runOnUiThread { navController.navigate(Screen.LogEntry.routeFor(id)) }
         composeRule.waitForIdle()
+    }
+
+    /**
+     * Prueft, dass der Knoten im Bild ist, **nachdem die Bildschirmtastatur weg ist**. Mit der Tastatur ist die Aussage nicht stabil: sie blendet sich nach "Fertig" bzw. nach dem
+     * Tipp auf "Speichern" von selbst aus oder bleibt stehen, je nach Zustand des Geraets (ein voller Lauf nach den Vorschauen zeigte es reproduzierbar, die Klasse allein nie), und die
+     * Test-Uhr von Compose kennt die Animation nicht — `waitForIdle()` kehrt davor zurueck. Steht sie noch, endet der sichtbare Teil der Seite (im Querformat 386 von 1008 px) rund
+     * 10 px vor dem Rand des Feldes: der Text steht im Bild, der Innenabstand darunter nicht (gemessen: Feld 207..386 statt 207..396), und `assertIsDisplayed` verlangt den ganzen
+     * Knoten. Der Test blendet die Tastatur deshalb selbst aus und wartet bis zur Sichtbarkeit (hoechstens 5 s); ein Feld, das nie ins Bild kommt (die Seite scrollte nicht zum
+     * Fehler), scheitert weiter — das haelt der Test mit seiner Mutation fest.
+     */
+    private fun assertDisplayedWithoutKeyboard(node: SemanticsNodeInteraction) {
+        composeRule.runOnUiThread {
+            val window = composeRule.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            try {
+                node.assertIsDisplayed()
+                true
+            } catch (_: AssertionError) {
+                false
+            }
+        }
+        node.assertIsDisplayed()
     }
 
     private fun field(field: FormField) = composeRule.onNodeWithTag(logbookFieldTestTag(field))
@@ -228,7 +255,7 @@ class LogEntryScreenDeviceTest {
         field(FormField.NOTE).performScrollTo().performImeAction()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)).assertIsDisplayed()
+        assertDisplayedWithoutKeyboard(composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)))
         assertTrue(inDatabase().isEmpty())
     }
 
@@ -265,7 +292,7 @@ class LogEntryScreenDeviceTest {
 
         tapSave()
 
-        composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)).assertIsDisplayed()
+        assertDisplayedWithoutKeyboard(composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)))
         composeRule.onNodeWithText(string(R.string.logbook_error_missing)).assertExists()   // die Menge fehlt
         composeRule.onAllNodesWithText(LIST_MARKER).assertCountEquals(0)
         assertTrue(inDatabase().isEmpty())
@@ -279,7 +306,7 @@ class LogEntryScreenDeviceTest {
 
         tapSave()   // tippt unten auf "Speichern": der Fehler am Stand steht oben, ausserhalb des kleinen Fensters
 
-        composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)).assertIsDisplayed()
+        assertDisplayedWithoutKeyboard(composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)))
         assertTrue(inDatabase().isEmpty())
     }
 
@@ -292,7 +319,7 @@ class LogEntryScreenDeviceTest {
         field(FormField.NOTE).performScrollTo().performImeAction()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)).assertIsDisplayed()
+        assertDisplayedWithoutKeyboard(composeRule.onNodeWithText(string(R.string.logbook_error_odometer_invalid)))
     }
 
     @Test
