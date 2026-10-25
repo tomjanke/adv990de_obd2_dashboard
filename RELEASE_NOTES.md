@@ -1,5 +1,17 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.42.2 (versionCode 136)
+
+Aufgeräumt, nichts Sichtbares: **`DashboardViewModel` und `ReadingsPipeline` sind in kleinere Einheiten zerlegt**, die App verhält sich wie in 1.42.1.
+
+### Was sich ändert
+
+- **Für dich: nichts.** Kein Bildschirm, keine Einstellung, keine Daten und kein Verhalten ändern sich. Das Fahrzeug bleibt rein lesend.
+- **Im Code:** die Zustandsübergänge des Dashboards (Verbindung steht, Werte eingefroren oder veraltet, Verbindungsverlust, Wiederverbindung) sind jetzt reine Funktionen in `DashboardStateTransitions`, die Strecke der Tankanzeige ist der `FuelDistanceTracker`, die Auswahlliste der Kacheln und die Getriebedaten haben eigene Dateien (`AvailablePids`, `GearRatiosFlow`). Aus der Pipeline der Messwerte sind die GPS-Geschwindigkeit (`GpsSpeedFlow`), der Zustand der Fahrzeugwerte mit seiner Log-Zeile und Marker-Zeile (`ValuesStateReporter`) und die einmal je Sitzung gelesenen Einstellungen (`SessionPlan`) herausgezogen. `DashboardViewModel` hat danach 387 statt 530 Zeilen, `ReadingsPipeline` 453 statt 512.
+- **Eine technische Kleinigkeit:** das ViewModel schreibt den Zustand jetzt atomar (`update` statt `value = value.copy(…)`); das Ergebnis ist dasselbe.
+- **Nicht angefasst:** `ReadingsPipeline` bleibt die einzige Datei über 400 Zeilen. Der Rest hängt am gemeinsamen Zustand der Sitzung und an den dokumentierten Reentrancy-Fallen; ihn herauszuziehen wäre ein größerer Umbau und ist bewusst nicht Teil dieses Releases (Entscheidung des Nutzers: erstmal so lassen).
+- **Tests:** 62 neue Tests (davon zwei in der Pipeline für Lücken, die die Mutationsproben aufdeckten); 72 Mutationsproben, alle erkannt.
+
 ## Version 1.42.1 (versionCode 135)
 
 Aufgeräumt, nichts Sichtbares: **vier große Quelltext-Dateien sind aufgeteilt**, die App verhält sich wie in 1.42.0.
