@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.41.1** (versionCode 133) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
+> Aktuelle Version: **1.42.0** (versionCode 134) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
 ---
 
@@ -22,6 +22,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 - **Min/Max je Fahrt** *(seit 1.38.0)* — der Detail-Dialog einer Fahrt (Tipp auf die Zeile unter „Fahrten“) zeigt hinter den Fehlercodes die **Messwerte der Fahrt**: kleinster und größter Wert von **Kühlmittel** und **Bordspannung**, zwei Zeilen unter den Spalten Min und Max, kein Diagramm. Die Werte werden aus den aufgezeichneten Messwerten gerechnet (keine neue Aufzeichnung, auch ältere Fahrten, soweit sie den Wert aufzeichneten; fehlt er, steht „–“). Das Kühlmittel zählt ungefiltert (das Minimum ist die Starttemperatur), die **Spannung nur bei laufendem Motor, ab 15 s nach dem Start** — sonst wäre das Minimum fast immer der Anlasser-Einbruch; ein Hinweis im Dialog nennt die Regel. Bei imperialen Einheiten steht das Kühlmittel in °F. Ein Lesefehler wird als solcher gemeldet, nicht als „keine Werte“. Am Fahrzeug nicht gesehen; die Spannung steht erst seit 1.36.0 auch ohne Spannungs-Kachel in der Fahrt.
 - **Alarme unterwegs** *(seit 1.36.0)* — drei Alarme, alle rein lesend: **Spannung** (Steuergerätespannung `0142`, bei eingeschaltetem Alarm alle 4 Zyklen zusätzlich abgefragt und dann auch in der Fahrt aufgezeichnet), **Kühlmittel** und **neuer Fehlercode unterwegs** (die App liest Modus 03/07 alle 60 s nach, ein neuer Code zählt erst in zwei aufeinanderfolgenden Auslesungen). Ein Wert allein alarmiert nie, er muss anhalten, und nur bei laufendem Motor (die Spannung 15 s nach dem Start): Spannung unter 12,2 V ≥ 10 s = Warnung (rot), unter 12,5 V ≥ 20 s = Hinweis (gelb), unter 13,0 V ≥ 3 min = Hinweis (Entladung); Kühlmittel ab 100 °C ≥ 5 s = Warnung, ab 95 °C ≥ 10 s = Hinweis; ein neuer bestätigter Fehlercode = Warnung, ein nur ausstehender = Hinweis. Anzeige: ein **Alarmband** (mindestens 72 dp, volle Breite, größere Schrift, kein Blinken), das die Kacheln am oberen Rand **überlagert** (nichts verschiebt sich; die Werte unten bleiben sichtbar), mit dem wichtigsten Alarm und „+N“ für weitere — **ein Tipp quittiert** — und eine **Systembenachrichtigung** (eigener Kanal „Alarme“, hohe Wichtigkeit: Ton und Vibration nach Systemeinstellung, auch auf anderen Seiten und bei gesperrtem Bildschirm). Einstellungen → Alarme: drei Schalter (Standard an) und je Alarm zwei wählbare Schwellen; ein Hinweis erscheint, wenn Benachrichtigungen gesperrt sind. Ein Fehler-Alarm bleibt, bis er quittiert wird — auch wenn die Sitzung endet, solange die App geöffnet bleibt (nach „Beenden“ oder Wegwischen bleibt nur die Benachrichtigung). **Nicht am Fahrzeug geprüft** (der Simulator meldet keine Fehlercodes und löst die anderen Alarme nicht aus), die Schwellen stammen aus 9 kühlen Fahrten (Heizgriffe können den Spannungshinweis auslösen), der Ton am Lenker ist ungemessen, A9 Teil 2 (Mehrframe-Antworten) bleibt offen. Im Querformat verkleinert das Band die Kachelreihe (200 → 156 dp, mit vollem Vorschau-Band weniger). Einzelheiten: `CLAUDE.md`, Abschnitt „Alarme“
 - **Datum, Uhrzeit und Außentemperatur während der Fahrt** — ist „Navigationsleiste beim Fahren ausblenden" an und das Fahrzeug in Bewegung, erscheint an Stelle des Hauptmenüs (auf jedem Screen, in exakt dessen Höhe) eine Statuszeile mit Datum/Uhrzeit und der Außentemperatur am aktuellen Standort — frei über [Open-Meteo](https://open-meteo.com/) (kein API-Key, Namensnennung UND Lizenztext CC BY 4.0 je als eigener Link unter App-Info), in °C oder °F je nach Einheiten-Einstellung. Abgefragt wird einmal pro Minute und nur, solange die Zeile sichtbar ist; ein fehlgeschlagener Abruf lässt den letzten Wert bis zu 30 Minuten stehen. Datenschutz und Berechtigung: s. [Berechtigungen](#berechtigungen)
+- **Logbuch** *(seit 1.42.0)* — ein viertes Segment unter „Fahrten“ (Fahrten · Aktuell · Historie · Logbuch): Tanken, Öl und Kühlflüssigkeit nachfüllen, Kettenpflege (klein/groß), Service (klein/groß), Reifenwechsel (mit Fabrikat) und Kettenkit-Wechsel mit **Datum und Kilometerstand**, **rein lokal**. Den Kilometerstand tippt man von Hand ein (die App kennt keinen); Prüfregeln fangen Tippfehler — Stand und Datum, die sich widersprechen, ein unplausibler Preis je Liter oder Verbrauch fragen nach („Trotzdem speichern?“). Löschen wie überall mit Rückgängig; nach einer vollen Tankung von heute fragt die App, ob die Tankanzeige auf voll gesetzt werden soll. **Export und Import als CSV** (Speichern im Dateidialog oder Teilen; der Import zeigt erst eine Vorschau, erkennt schon vorhandene Einträge und schreibt alles oder nichts — eine ergänzte Datei bringt nur die neuen Zeilen). **Der Export ist die einzige Sicherung:** die App legt kein Backup an (`allowBackup=false`), das Löschen der App-Daten oder Deinstallieren vernichtet das Logbuch. Ein einmaliges Skript (`scripts/logbook_convert.py`) wandelt ein vorhandenes Tankprotokoll und eine Öl-Liste in das Importformat um. Eine Auswertung mit Diagramm gibt es noch nicht. Am Fahrzeug ist nichts nötig und nichts geprüft (das Logbuch liest nichts vom Steuergerät); am Gerät getestet mit dem Pixel 8 Pro.
 - **Ein Menüpunkt „Fahrten“** — Fahrtenverlauf und Fehlercodes teilen sich einen Punkt im Hauptmenü (Live, Fahrten, Einstellungen, Beenden) mit einem Umschalter „Fahrten | Aktuell | Historie“; „Aktuell“ und „Historie“ sind die beiden Ansichten der Fehlercode-Seite, der Freeze Frame bleibt ihre Unterseite
 - **Fahrt-Historie** — Sessions werden in Room persistiert, mit CSV-Export (je Fahrt über das Teilen-Symbol der Zeile, oder **alle abgeschlossenen Fahrten in einer Datei** über das Export-Symbol der Kopfleiste: teilen oder mit dem Dateidialog des Systems **auf dem Gerät speichern**, z. B. in Downloads); einzeln löschbar per Papierkorb oder Swipe (ohne Rückfrage, 10 s „Rückgängig“), „Alle löschen“ mit Rückfrage; die laufende Aufzeichnung bleibt immer erhalten (lokal, die App schreibt nie ins Fahrzeug). **Fehlercodes je Fahrt:** jede neue Fahrt merkt sich die Codes, die das Fahrzeug bei ihrem Beginn meldete; die Zeile zeigt dann „N Fehler“ (rot, sobald ein bestätigter Code dabei ist, gelb bei nur ausstehenden), ein Tipp auf die Zeile öffnet die Details mit Ende, FIN und den Codes samt Beschreibung. Drei Zustände: Codes · „das Fahrzeug meldete keine“ · „nicht erfasst“ (Fahrten vor 1.33.0 und ein gescheitertes Auslesen — sie werden nicht nachträglich zugeordnet). Ein Code, der erst mitten in der Fahrt auftritt, wird nicht erfasst; „Nur Fahrten mit DTCs speichern“ ist unverändert
 - **Foreground Service** — Verbindung bleibt im Hintergrund aktiv (persistente Benachrichtigung mit „Disconnect"-Action)
@@ -141,7 +142,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (2339 Tests, < 30 Sekunden)
+# JVM Unit Tests (2552 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -150,13 +151,13 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2339 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 610 (Dashboard, Lade-/Entlade-Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
-| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 59 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, AppDatabase-Migration 1→2→3→4→5, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2552 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 682 (Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export), Lade-/Entlade-Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
-| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 91 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
+| Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 109 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
 
 ---
@@ -183,6 +184,7 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── dashboard/               # Live-Werte
 │   ├── dtc/                     # Fehlercodes: Aktuell | Historie (lokale Fehlerhistorie)
 │   ├── freezeframe/             # Snapshot-Daten
+│   ├── logbook/                 # Logbuch: Liste mit Filter, Eintragsseite, Export-/Import-Dialoge (Löschen mit Rückgängig)
 │   ├── history/                 # Fahrtenverlauf (Papierkorb/Swipe mit Undo, Alle löschen, aktive Fahrt geschützt;
 │   │                            # Fehler-Zeichen je Fahrt, Details-Dialog mit den Codes bei Fahrtbeginn)
 │   ├── settings/                # gruppierte Einstellungsseite (Verbindung · Dashboard & Anzeige · Alarme · Aufzeichnung · Fahrzeug · Info),
@@ -192,10 +194,11 @@ app/src/main/java/de/adv990de/obd2/
 │   ├── licenses/                # Open-Source-Lizenzen (Katalog + Volltexte aus den Assets)
 │   ├── permission/              # Runtime-Permissions Gate
 │   ├── navigation/              # Compose-Navigation
-│   ├── trips/                   # Menüpunkt „Fahrten“: Umschalter Fahrten | Aktuell | Historie über Verlauf und DTC-Seite
+│   ├── trips/                   # Menüpunkt „Fahrten“: Umschalter Fahrten | Aktuell | Historie | Logbuch über Verlauf, DTC-Seite und Logbuch
 │   ├── theme/                   # Material 3 Theme, Statusleisten-Symbole (SystemBars), System-Splash-Themes (SplashTheme)
 │   └── weather/                 # WeatherViewModel (Polling nur bei sichtbarer Zeile) +
 │                                # 30-Minuten-Halte-Logik (OutsideTemperatureHold)
+├── logbook/                     # Logbuch: reine Logik (Arten, Prüfregeln, Formular, Filter, CSV lesen und schreiben, Importplan)
 ├── terrain/                     # Gelände-Kachel: Höhe, Steigung, Peilung (reine Schätzer, Drucksensor, Eingaben aus GPS-Fix + Druck)
 ├── alarm/                       # Alarme: reine Regeln (SustainedRule, EngineGate, AlarmTracker, FaultCodeWatcher), AlarmController,
 │                                # AlarmNotifier (Schnittstelle) + AndroidAlarmNotifier (Kanal „Alarme“), alarmMessage
@@ -375,8 +378,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (2339) |
-| `app/src/androidTest/` | Instrumented Tests (610, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (2552) |
+| `app/src/androidTest/` | Instrumented Tests (682, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
 | `docs/superpowers/archive/` | Pläne und Spezifikationen umgesetzter Funktionen (Dokumentation, nicht Build-Input) |

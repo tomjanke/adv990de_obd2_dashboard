@@ -1,5 +1,34 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.42.0 (versionCode 134)
+
+Neu: ein **Logbuch** für Tanken, Öl, Kühlflüssigkeit und Wartung, mit Export und Import.
+
+### Was sich ändert
+
+- **Viertes Segment „Logbuch“** unter „Fahrten“ (Fahrten · Aktuell · Historie · Logbuch). Neun Arten von Einträgen: **Tanken** (Liter, „voll getankt“, optional die Kosten), **Öl nachfüllen** und **Kühlflüssigkeit nachfüllen** (Menge in ml), **Kettenpflege** und **Service** (je klein oder groß), **Reifenwechsel** (mit Fabrikat) und **Kettenkit-Wechsel**. Jeder Eintrag hat ein **Datum** und den **Kilometerstand**, den du vom Tacho eintippst (die App kennt keinen), dazu eine Notiz.
+- **Liste und Eintrag.** Die neuesten Einträge stehen oben; ein Filter trennt Tanken, Öl, Kühlflüssigkeit und Wartung. Ein Tipp auf die Zeile öffnet den Eintrag, der Knopf „Eintrag“ legt einen neuen an, **Löschen** geht wie im Fahrtenverlauf mit Papierkorb oder Wischen und „Rückgängig“. Die Eintragsseite ist eine eigene Seite (kein Dialog), im Querformat verdeckt die Tastatur so nichts.
+- **Fehler sind sichtbar.** Tippst du auf „Speichern“ und ein Feld stimmt nicht, springt die Seite zum obersten Feld mit Fehler — im Querformat steht der Knopf unten und der Fehler oben, ohne das sähe „Speichern“ nach nichts aus.
+- **Prüfregeln gegen Tippfehler.** Unmögliche Werte (Stand, Menge, Datum in der Zukunft, Kosten, Fabrikat beim Reifenwechsel) sperren das Speichern. Auffälliges fragt nach („Trotzdem speichern?“): ein Stand, der zum Datum nicht passt, ein Preis je Liter außerhalb 0,50 bis 5,00 € oder ein Verbrauch unter 2 oder über 20 l/100 km.
+- **Tankanzeige.** Speicherst du eine neue **volle** Tankung mit dem Datum von heute und hast eine Tankanzeige eingerichtet, fragt die App, ob sie auf voll gesetzt werden soll. Beim Bearbeiten, bei einem anderen Datum und beim Import fragt sie nie.
+- **Export und Import als CSV.** Das Download-Symbol speichert das Logbuch im Dateidialog oder teilt es, das Upload-Symbol liest eine Datei wieder ein: erst eine **Vorschau** (neue Einträge, schon vorhandene, abgelehnte Zeilen mit Grund, Hinweise), dann nach „Importieren“ **alles oder nichts**. Schon vorhandene Einträge (gleiche Art, Datum, Stand, Menge, Fabrikat) werden übersprungen — ein erneuter Import ändert nichts, und eine **ergänzte** Datei bringt nur die neuen Zeilen.
+- **Ein Konverter für Altbestand:** `scripts/logbook_convert.py` wandelt ein Tankprotokoll (CSV) und eine Öl-Liste (Text) in das Importformat um; unplausible Kosten (ein fehlendes Komma) korrigiert er und meldet es, eine Zeile ohne Datum bricht ab, bis du ein Datum dafür angibst.
+- **Unverändert:** das Fahrzeug bleibt rein lesend (das Logbuch liest nichts vom Steuergerät), die Berechtigungen, alle übrigen Bereiche. Die Datenbank wird **v6** (eine neue Tabelle; Fahrten, Messwerte, Fehlerhistorie und Logs bleiben unberührt; die automatische Aufbewahrung fasst das Logbuch nie an).
+
+### Meine Auslegung
+
+- Reifenwechsel und Kettenkit-Wechsel haben **keine Kosten**, und „vorne/hinten“ steht im Fabrikat oder in der Notiz (kein eigenes Feld); das Fabrikat ist beim Reifenwechsel Pflicht. Der Filter „Wartung“ fasst Kettenpflege, Service, Reifen und Kettenkit zusammen. Eingabe und Anzeige sind in km und Litern auch bei „imperial“, die Währung ist fest €.
+- Liter nimmt die App mit bis zu drei Nachkommastellen (Komma oder Punkt), Kosten in Euro mit bis zu zwei; gespeichert wird in ganzen ml und Cent, ohne Fließkomma.
+
+### Grenzen
+
+- **Der Export ist die einzige Sicherung.** Die App legt kein Backup an (`allowBackup` ist aus): wer die App-Daten löscht oder die App deinstalliert, verliert das Logbuch. Sichere die Datei an einem Ort außerhalb des Telefons.
+- **Eine Auswertung** (Verbrauch, Diagramm, „km seit der letzten Kettenpflege“) und **Erinnerungen** gibt es noch nicht.
+- Beim Import gilt als gleich: Art, Datum, Stand, Menge und Fabrikat. Änderst du in einer Quelldatei die Menge, den Stand oder das Datum einer alten Zeile, kommt sie als **zweiter** Eintrag; geänderte Kosten oder eine geänderte Notiz werden ignoriert (der alte Eintrag bleibt).
+- Am Gerät durchgespielt (Pixel 8 Pro, Debug-App, echter Dateidialog): Import von 102 Einträgen, erneuter Import, ein ergänzter Import (2 neue), Export, Löschen der App-Daten und Import der Exportdatei (104). **Nicht gestartet:** „Teilen“ und der Abbruch im Dateidialog.
+- Bei 360 dp Breite und einer Systemschrift ab etwa 115 % brechen die vier Segmente in zwei Zeilen um.
+- Der Kilometerstand ist Handeingabe: die App prüft ihn nur gegen die anderen Einträge.
+
 ## Version 1.41.1 (versionCode 133)
 
 Die App sagt jetzt laut, wenn keine Fahrzeugwerte ankommen, und führt die GPS-Geschwindigkeit dann weiter.
