@@ -1,5 +1,24 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.1 (versionCode 139)
+
+Die Zahl in der Tankzeile ist größer, und **Symbol, Zahl und „km“ stehen auf einer Grundlinie**.
+
+### Was sich ändert
+
+- **Eine Grundlinie.** In 1.44.0 war die Zahl in der Zeile zentriert: ihre Ziffern standen rund 2,2 dp höher als „km“ und der Fuß des Tankstellen-Symbols. Jetzt stehen die Unterkanten von Symbol, Zahl und Einheit auf einer Höhe (11 dp über dem Zeilenrand); der Balken bleibt in der Mitte der Zeile. Gemessen am gerenderten Bild (Unterkante der Tinte, Pixel 8 Pro, Schriftskala 1,0): Symbol 66 px, „km“ 66 px, Ziffern 67 px (ein Pixel Überschwingen der runden Ziffern); vorher 66 / 66 / 61.
+- **Die Zahl ist größer:** 1,25-mal so groß wie vorher. Drei Ziffern und „km“ passen weiter in die 64-dp-Box, ohne zu schrumpfen; vier Ziffern oder eine große Systemschrift verkleinern die Zahl wie bisher, statt sie abzuschneiden.
+- **Unverändert:** die Zeile ist 40 dp hoch, der Balken beginnt bei 116 dp, die Datenbank bleibt **v6**, keine neue Berechtigung, das Fahrzeug bleibt rein lesend.
+
+### Meine Auslegung
+
+- „Die Zahl könnte etwas höher werden“ habe ich als **größer** gelesen und dir zwei Vorabbilder gezeigt (A: Ziffern nur nach unten auf die Grundlinie, B: zusätzlich 25 % größer); du hast **B** gewählt. Die Vorabbilder waren aus dem alten Bild zusammengesetzt, nicht gerendert; erst die Umsetzung ist am Gerät gerendert.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft.** Gesehen habe ich nur die gerenderten Vorschauen (Schriftskala 1,0), nicht das echte Dashboard und nicht das Querformat; die Ablesbarkeit der größeren Zahl während der Fahrt prüfst du.
+- **Tests:** 2901 JVM-Tests, 787 Gerätetests (drei mehr: gemeinsame Grundlinie bei Schriftskala 1,0 und 1,3 aus den Bildpunkten, Zahlengröße); 7 Mutationen am Layout, sechs erkannt — die siebte (Zeilenhöhe der Zahl) änderte nichts und wurde entfernt.
+
 ## Version 1.44.0 (versionCode 138)
 
 Neu in der Tankanzeige: die **Restreichweite als Zahl**, eine **Reserve-Marke**, die **Reichweite aus dem Logbuch** und die Rückfrage **„Tankanzeige anheben?“** nach einer Teiltankung.
