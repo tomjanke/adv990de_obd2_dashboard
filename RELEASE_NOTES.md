@@ -1,5 +1,26 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.6 (versionCode 144)
+
+Die **einmalige Diagnose** beim Auslesen der Fehlercodes ist **wieder entfernt**. Sie hat ihre Frage beantwortet und würde jetzt nur bei jedem Start Befehle kosten.
+
+### Was sich ändert
+
+- **Keine Diagnose-Zeile mehr im App-Log** und keine zusätzlichen Befehle beim ersten Verbinden nach dem Start. Code und Tests stehen wieder auf dem Stand von 1.44.3; sonst ändert sich nichts. Die Datenbank bleibt **v6**, keine neue Berechtigung, das Fahrzeug bleibt rein lesend.
+
+### Was die beiden Runden ergaben (App-Logs vom 26.10., Zündung an, Motor aus)
+
+- **Der Adapter** antwortet auf Befehle, die er nicht kennt, mit „OK“ (`ATDP`, `ATDPN`, `AT@1`, `ATRV`, `ATIGN`), `ATI` meldet „ELM327 v1.0“. Protokoll, Adapterspannung und Zündungspegel sind damit nicht abfragbar; Kopfzeilen und ein längeres Zeitlimit hatten keine erkennbare Wirkung.
+- **Das Steuergerät** antwortet über diesen Adapter nur auf Modus 01: `0100` und `0105` (Kühlmittel) kommen, `0101`, `0900`, `07` und `0A` geben NO DATA, und `03` bleibt **leer** — mit normalem Zeitlimit, mit langem und mit Kopfzeilen gleich.
+- **Folge:** Fehlercodes sind mit diesem Adapter an diesem Motorrad über die Standard-Modi nicht lesbar. Fahrten tragen weiter „nicht erfasst“, und der Fehler-Alarm unterwegs bleibt ohne Wirkung. Mit dem Schalter „Fehler unterwegs melden“ aus sparst du die Abfrage jede Minute.
+
+### Grenzen
+
+- **Nicht belegt:** ob ein anderer Adapter (der Protokoll und rohe Antworten zeigt) daran etwas ändert und ob Adapter oder Steuergerät die Ursache sind. Dass beide nicht voll standardkonform sind, ist deine Vermutung; die Daten widersprechen ihr nicht, belegen aber nicht, welcher von beiden. Ein anderer Adapter ist nicht bestellt.
+- **Nebenbefund:** Die Adapterspannung (`ATRV`) in der Diagnose bei eingefrorenen Werten (seit 1.40.0) liefert an diesem Adapter nur „OK“.
+- **Am Fahrzeug nichts Neues geprüft.**
+- **Tests:** 2901 JVM-Tests (wie vor 1.44.4), Lint 0 Fehler. Geräte-Tests nicht gelaufen: die Quelltexte der Diagnose stehen wieder exakt auf dem Stand von 1.44.3, für den der letzte volle Geräte-Lauf (788 Tests) lief; die Tests der Diagnose entfallen mit ihr.
+
 ## Version 1.44.5 (versionCode 143)
 
 Die einmalige **Diagnose beim Auslesen der Fehlercodes** hat eine **zweite Runde**, weil die erste an deinem Motorrad zeigte, dass Adapter oder Steuergerät nicht voll standardkonform antworten.
