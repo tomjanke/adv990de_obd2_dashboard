@@ -107,9 +107,13 @@ internal val FUEL_READOUT_WIDTH = 64.dp
 private val FuelIconToReadoutGap = 8.dp
 private val FuelReadoutToBarGap = 12.dp
 
-/** Breite der Reserve-Marke und ihre Hoehe: 2 dp breit, 24 dp hoch — 4 dp ueber und unter dem 16-dp-Balken, innerhalb der 12 dp Luft der 40-dp-Zeile. */
-private val FuelReserveMarkWidth = 2.dp
-private val FuelReserveMarkHeight = 24.dp
+/**
+ * Die Reserve-Marke (Nutzerwunsch 2026-10-26, nach Vorabbild bestaetigt): ein **roter** Strich, **4 dp** breit — so breit wie der Streifen am linken Rand jeder Dashboard-Kachel (am echten
+ * Dashboard gemessen: 9 px bei 2,25 px/dp; die 1-dp-Trennlinie daneben ist es nicht) — und **so hoch wie der Balken** ([FuelBarHeight], 16 dp), er ragt also nicht ueber die Segmente. Vorher:
+ * 2 dp breit, 24 dp hoch, in `onSurface`. Die Farbe ist `StatusColors.Critical`, dieselbe wie die der roten Stufe: **auf einem roten Segment** (hoechstens zwei leuchten und die Marke steht auf
+ * einem davon) ist der Strich nicht zu sehen; auf gruen, gelb und unbeleuchtet schon.
+ */
+private val FuelReserveMarkWidth = 4.dp
 
 /** Kleinste Schriftgroesse der Zahl: schrumpft bei grosser Systemschrift statt abgeschnitten zu werden (Prinzip "nie ein still abgeschnittener Wert"); bei Schriftskala 1,3 braucht eine vierstellige Zahl in 64 dp weniger als 12 sp (gemessen am Geraet: 12 sp reichten nicht). */
 private val FuelReadoutMinFontSize = 10.sp
@@ -161,7 +165,6 @@ fun FuelGaugeRow(
     val fillColor = fuelBarColor(level).let { if (blinkOn) it else it.copy(alpha = FUEL_BLINK_OFF_ALPHA).compositeOver(unlitColor) }
     val litSegments = state.litSegments
     val reserveMarkFraction = state.reserveFraction
-    val markColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -211,12 +214,11 @@ fun FuelGaugeRow(
                     // Die Reserve-Marke: ein Strich ueber den Segmenten an der Stelle reserve / Reichweite von links (`null` = keine Marke).
                     reserveMarkFraction?.let { fraction ->
                         val markWidth = FuelReserveMarkWidth.toPx()
-                        val markHeight = FuelReserveMarkHeight.toPx()
                         val center = (fraction * size.width).coerceIn(markWidth / 2f, size.width - markWidth / 2f)
                         drawRect(
-                            color = markColor,
-                            topLeft = Offset(center - markWidth / 2f, (size.height - markHeight) / 2f),
-                            size = Size(markWidth, markHeight),
+                            color = StatusColors.Critical,
+                            topLeft = Offset(center - markWidth / 2f, 0f),
+                            size = Size(markWidth, size.height),
                         )
                     }
                 }

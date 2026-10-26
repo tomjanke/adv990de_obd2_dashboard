@@ -542,16 +542,17 @@ class FuelGaugeRowDeviceTest {
         assertEquals("die Box ist 64 dp breit", 64 * composeRule.activity.resources.displayMetrics.density, readout.width, 1.5f)
     }
 
-    // Die Marke steht im Balken an der Stelle `reserve / Reichweite` von links: ein 2 dp breiter Strich in `onSurface`, im Bild als Punkte der Mittelzeile gelesen.
+    // Die Marke steht im Balken an der Stelle `reserve / Reichweite` von links: ein roter Strich (`StatusColors.Critical`), 4 dp breit wie der Streifen zwischen den Dashboard-Kacheln und
+    // 16 dp hoch wie der Balken (Nutzerwunsch 2026-10-26, nach Vorabbild bestaetigt), im Bild als Punkte der Mittelzeile gelesen. Vorher: 2 dp breit, 24 dp hoch, `onSurface`.
 
     private data class Mark(val firstPx: Int, val lastPx: Int, val widthPx: Int) {
         val centerPx: Float get() = (firstPx + lastPx + 1) / 2f
     }
 
-    /** Die Punkte der Mittelzeile der Spur in genau der Farbe `onSurface` (die Marke); `null` ohne solche Punkte. */
+    /** Die Punkte der Mittelzeile der Spur in genau der Farbe der Marke, `StatusColors.Critical` (die Marke); `null` ohne solche Punkte. In diesen Tests leuchten die Segmente gruen — auf einem roten Segment gaebe es keinen Unterschied. */
     private fun markOnTrack(): Mark? {
         val image = trackImage()
-        val ink = scheme.onSurface.toArgb()
+        val ink = StatusColors.Critical.toArgb()
         val y = image.height / 2
         val xs = (0 until image.width).filter { image.getPixel(it, y) == ink }
         return if (xs.isEmpty()) null else Mark(xs.first(), xs.last(), xs.size)
@@ -570,14 +571,14 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theReserveMarkIsAbout2DpWide() {
+    fun theReserveMarkIsAbout4DpWide() {
         show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
         val density = composeRule.activity.resources.displayMetrics.density
 
         val mark = markOnTrack()!!
 
         // Kantenglaettung nimmt bis zu zwei Punkte weg (nur Punkte in genau der Farbe zaehlen).
-        assertTrue("Breite ${mark.widthPx} px, erwartet etwa ${2 * density} px", mark.widthPx >= 2 * density - 2f && mark.widthPx <= 2 * density + 0.5f)
+        assertTrue("Breite ${mark.widthPx} px, erwartet etwa ${4 * density} px", mark.widthPx >= 4 * density - 2f && mark.widthPx <= 4 * density + 0.5f)
     }
 
     @Test
@@ -609,20 +610,33 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theReserveMarkIsTallerThanTheBar_withinTheRow() {
-        // 24 dp Strich: 4 dp ueber und unter dem 16-dp-Balken, innerhalb der 12 dp Luft der 40-dp-Zeile.
+    fun theReserveMarkIsExactlyAsTallAsTheBar() {
+        // 16 dp Strich, so hoch wie der Balken: er ragt weder oben noch unten ueber die Segmente (Nutzerwunsch 2026-10-26; vorher 24 dp, 4 dp ueber und unter dem Balken).
         show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
         val density = composeRule.activity.resources.displayMetrics.density
         val row = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).captureToImage().asAndroidBitmap()
-        val trackLeft = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot.left -
-            composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.left
+        val rowTop = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.top
+        val track = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val trackLeft = track.left - composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.left
         val x = (trackLeft + markOnTrack()!!.centerPx).toInt()
-        val ink = scheme.onSurface.toArgb()
+        val ink = StatusColors.Critical.toArgb()
 
         val ys = (0 until row.height).filter { row.getPixel(x, it) == ink }
 
-        assertTrue("Hoehe ${ys.size} px, erwartet etwa ${24 * density} px", ys.size >= 24 * density - 3f && ys.size <= 24 * density + 0.5f)
-        assertTrue("der Strich bleibt in der Zeile (${ys.first()} bis ${ys.last()} von ${row.height})", ys.first() >= 0 && ys.last() < row.height)
+        assertTrue("Hoehe ${ys.size} px, erwartet etwa ${16 * density} px", ys.size >= 16 * density - 2f && ys.size <= 16 * density + 0.5f)
+        val trackTopInRow = (track.top - rowTop).toInt()
+        val trackBottomInRow = (track.bottom - rowTop).toInt()
+        assertTrue("der Strich (${ys.first()} bis ${ys.last()}) ragt ueber den Balken ($trackTopInRow bis $trackBottomInRow)", ys.first() >= trackTopInRow - 1 && ys.last() <= trackBottomInRow)
+    }
+
+    @Test
+    fun theReserveMarkIsRed() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
+        val image = trackImage()
+        val mark = markOnTrack()!!
+
+        assertEquals("Farbe in der Mitte der Marke", StatusColors.Critical.toArgb(), image.getPixel((mark.centerPx).toInt(), image.height / 2))
+        assertTrue("die Marke ist nicht die Farbe des Textes", StatusColors.Critical.toArgb() != scheme.onSurface.toArgb())
     }
 
     @Test
