@@ -95,7 +95,7 @@ data class FuelGaugeState(val rangeFullKm: Int, val kmSinceFill: Float, val rese
     /** Wie viele der [FUEL_SEGMENT_COUNT] Segmente leuchten (s. [fuelLitSegments]); die Farbe kommt weiter aus [level], nicht aus der Segmentzahl. */
     val litSegments: Int get() = fuelLitSegments(fraction)
 
-    /** Die Restreichweite als Zahl der Tankzeile: auf 5 km abgerundet ([displayRangeKm]). */
+    /** Die Restreichweite als Zahl der Tankzeile: auf ganze Kilometer abgerundet ([displayRangeKm]). */
     val displayKm: Int get() = displayRangeKm(remainingKm)
 
     /** Wo die Reserve-Marke im Balken steht (Anteil von links), `null` = keine Marke ([reserveFraction]). */

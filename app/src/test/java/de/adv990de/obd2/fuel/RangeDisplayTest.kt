@@ -7,25 +7,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Die Zahl in der Tankzeile ist eine Schaetzung (der Zaehler zaehlt nur GPS-Kilometer, die Reichweite ist von Hand oder aus dem Logbuch): sie wird auf 5 km
- * **abgerundet** (zur sicheren Seite, keine falsche Genauigkeit). Die Reserve ist eine Marke in km Restreichweite (Entwurf `2026-10-25-range-design.md`, D2/D3).
+ * Die Zahl in der Tankzeile ist eine Schaetzung (der Zaehler zaehlt nur GPS-Kilometer, die Reichweite ist von Hand oder aus dem Logbuch): sie wird auf ganze Kilometer
+ * **abgerundet** (zur sicheren Seite; bis 1.44.1 auf 5 km, auf Wunsch des Nutzers seit 1.44.2 auf 1 km, damit man die Anzeige mitzaehlen sieht). Die Reserve ist eine Marke in
+ * km Restreichweite (Entwurf `2026-10-25-range-design.md`, D2/D3).
  */
 class RangeDisplayTest {
 
     @Test
-    fun `the number is rounded down to five kilometers`() {
-        assertEquals(185, displayRangeKm(187f))
-        assertEquals(185, displayRangeKm(185f))
-        assertEquals(180, displayRangeKm(184.9f))
+    fun `the number is rounded down to whole kilometers`() {
+        assertEquals(187, displayRangeKm(187.9f))
+        assertEquals(187, displayRangeKm(187f))
+        assertEquals(184, displayRangeKm(184.9f))
+        assertEquals(186, displayRangeKm(186.99f))
         assertEquals(1000, displayRangeKm(1000f))
     }
 
     @Test
-    fun `below five kilometers the number is zero`() {
-        assertEquals(0, displayRangeKm(4.9f))
+    fun `below one kilometer the number is zero`() {
+        assertEquals(0, displayRangeKm(0.9f))
+        assertEquals(1, displayRangeKm(1f))
+        assertEquals(1, displayRangeKm(1.9f))
+        assertEquals(4, displayRangeKm(4.9f))
         assertEquals(5, displayRangeKm(5f))
-        assertEquals(5, displayRangeKm(9.9f))
-        assertEquals(10, displayRangeKm(10f))
         assertEquals(0, displayRangeKm(0f))
     }
 

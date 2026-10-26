@@ -8,12 +8,12 @@ object FuelReserveLimits {
     const val MAX_KM = 500
 }
 
-/** Die Zahl in der Tankzeile wird auf so viele Kilometer abgerundet: die Restreichweite ist eine Schaetzung, kein Messwert. */
-private const val DISPLAY_STEP_KM = 5f
+/** Die Zahl in der Tankzeile wird auf so viele Kilometer abgerundet: die Restreichweite ist eine Schaetzung, kein Messwert. Bis 1.44.1 waren es 5 km, seit 1.44.2 (Nutzerwunsch 2026-10-26) ist es 1 km. */
+private const val DISPLAY_STEP_KM = 1f
 
 /**
- * Die Restreichweite, wie die Tankzeile sie als Zahl zeigt: **auf 5 km abgerundet** ("187" wird "185") — der Zaehler zaehlt nur GPS-Kilometer und die Reichweite ist eine Schaetzung
- * (aus dem Logbuch auf etwa +-20 %), und abwaerts rundet zur sicheren Seite. Unter 5 km, negativ, NaN und unendlich ergeben 0: nie eine negative oder erfundene Zahl.
+ * Die Restreichweite, wie die Tankzeile sie als Zahl zeigt: **auf ganze Kilometer abgerundet** ("187,9" wird "187") — die Reichweite ist eine Schaetzung (aus dem Logbuch auf etwa +-20 %),
+ * und abwaerts rundet zur sicheren Seite; die Schrittweite ist [DISPLAY_STEP_KM]. Unter einem Kilometer, negativ, NaN und unendlich ergeben 0: nie eine negative oder erfundene Zahl.
  * Reine Funktion ohne Android-Bezug, JVM-getestet (Entwurf `2026-10-25-range-design.md`, D2).
  */
 fun displayRangeKm(remainingKm: Float): Int {

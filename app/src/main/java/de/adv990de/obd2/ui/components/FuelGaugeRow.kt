@@ -226,7 +226,7 @@ fun FuelGaugeRow(
 }
 
 /**
- * Die Restreichweite als Zahl in der Tankzeile (F5): die Zahl in Plex Mono mit `tnum` (auf 5 km abgerundet, [FuelGaugeState.displayKm], 1,25-mal so gross wie `titleMedium`) und ihre Einheit, in einer festen Box
+ * Die Restreichweite als Zahl in der Tankzeile (F5): die Zahl in Plex Mono mit `tnum` (auf ganze Kilometer abgerundet, [FuelGaugeState.displayKm], 1,25-mal so gross wie `titleMedium`) und ihre Einheit, in einer festen Box
  * ([FUEL_READOUT_WIDTH]). **Zahl und Einheit stehen auf einer Grundlinie** (`paddingFromBaseline`, [FuelBaselineFromBottom] ueber dem Zeilenrand) — der Fuss des Tankstellen-Symbols steht auf derselben Hoehe. Die Zahl schrumpft bei grosser Systemschrift bis [FuelReadoutMinFontSize] (10 sp), die Einheit behaelt ihren Platz (wie die Kachel). Normal in `onSurface`;
  * hat der Rest die Reserve erreicht, in `StatusColors.criticalOn` — der Rest gegen die Reserve ist eine Aussage ueber die Strecke, kein zweites Alarmsignal neben den Segmenten.
  * Die Box traegt keine eigene Semantik: die Beschreibung der Zeile ([fuelGaugeDescription]) nennt die Zahl schon, TalkBack soll sie nicht doppelt ansagen.

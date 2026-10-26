@@ -474,10 +474,10 @@ class FuelGaugeRowDeviceTest {
     }
 
     @Test
-    fun theNumberIsRoundedDownToFiveKilometers() {
-        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 133f)) // 187 km -> 185
+    fun theNumberIsRoundedDownToWholeKilometers() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 132.6f)) // 187,4 km -> 187
 
-        numberText().assertTextEquals("185")
+        numberText().assertTextEquals("187")
     }
 
     @Test
@@ -638,10 +638,10 @@ class FuelGaugeRowDeviceTest {
 
     @Test
     fun theDescriptionSpeaksTheDisplayedNumber() {
-        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 133f)) // 187 km, angezeigt 185, 58 %
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 132.6f)) // 187,4 km, angezeigt 187, 58,6 % -> 59 %
 
         composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG)
-            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.fuel_gauge_desc, 185, 58))
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.fuel_gauge_desc, 187, 59))
     }
 
     @Test
