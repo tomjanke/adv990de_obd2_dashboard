@@ -1,5 +1,32 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.0 (versionCode 138)
+
+Neu in der Tankanzeige: die **Restreichweite als Zahl**, eine **Reserve-Marke**, die **Reichweite aus dem Logbuch** und die Rückfrage **„Tankanzeige anheben?“** nach einer Teiltankung.
+
+### Was sich ändert
+
+- **Die Zahl.** Links neben dem Balken der Tankzeile steht jetzt die Restreichweite in Kilometern, **auf 5 km abgerundet** („187“ wird „185“): sie ist eine Schätzung, und abwärts rundet zur sicheren Seite. Bei sehr großer Systemschrift wird die Zahl kleiner statt abgeschnitten. Die Zeile bleibt 40 dp hoch, das Tankstellen-Symbol steht unverändert am linken Rand.
+- **Die Reserve.** Neue Einstellung **Einstellungen → Fahrzeug → „Reserve“** (5 bis 500 km Restreichweite, leer = aus). Sie erscheint als **Marke im Balken**; steht der Rest bei oder unter der Reserve, wird die **Zahl rot**. Die Segmente, ihre Farbstufen und das Blinken bleiben, wie du sie am 15.10. festgelegt hast. Es gibt **keinen Alarm und keinen Ton**.
+- **Reichweite aus dem Logbuch.** Neue Einstellung **„Tankinhalt“** (3,0 bis 60,0 Liter, leer = nicht festgelegt). Mit Tankinhalt und **mindestens drei Voll-zu-Voll-Intervallen** im Logbuch berechnet die App die Reichweite bei vollem Tank selbst: **Tankinhalt ÷ Verbrauch × 100**, der Verbrauch ist Summe der Liter durch Summe der Kilometer der **letzten zehn Intervalle**. Sonst gilt wie bisher die eingegebene Reichweite — einen Schalter gibt es nicht, wer die eigene Zahl will, löscht den Tankinhalt. Die Zeile „Reichweite bei vollem Tank“ nennt in der Zusammenfassung die berechnete Reichweite samt Durchschnittsverbrauch und die eingegebene als Rückfall. Das Logbuch wird dafür nur gelesen, solange ein Tankinhalt hinterlegt ist.
+- **Teilbetankung.** Speicherst du im Logbuch eine **neue Teiltankung von heute** und kennt die App deinen Verbrauch (drei Intervalle), fragt sie: **„Tankanzeige anheben?“** — mit den getankten Litern und der Strecke, die sie bei deinem Verbrauch ergeben. „Ja“ hebt die Anzeige um diese Strecke an (höchstens bis „voll“), „Nein“ lässt sie. Eine volle Tankung behält ihre Rückfrage „auf voll setzen“.
+- **Der Balken ist schmaler.** Die Zahl braucht Platz: im Hochformat (448 dp) ist der Balken statt 392 dp jetzt 320 dp breit, jedes der zehn Segmente rund 30,7 statt 37,9 dp.
+- **Unverändert:** das Fahrzeug bleibt rein lesend, die Datenbank bleibt **v6**, keine neue Berechtigung. Neue Einstellungen im DataStore: `fuel_reserve_km`, `fuel_tank_capacity_dl`, `fuel_range_learned_km` (nur ein Cache fürs erste Bild, nie ein Eingang der Rechnung).
+
+### Meine Auslegung
+
+- Das **Fenster von zehn Intervallen** folgt deinen Daten: ein kürzeres Fenster sagt das nächste Intervall nicht besser voraus, schwankt aber deutlich mehr.
+- Die Reserve gilt in **km Restreichweite** (nicht in Litern): sie funktioniert auch ohne Tankinhalt und ohne Logbuch.
+- Die **Gutschrift** der Teilbetankung wird auf ganze Kilometer gerundet; unter einem Kilometer fragt die App nicht.
+
+### Grenzen
+
+- **Die berechnete Reichweite ist auf etwa ±20 % genau** (in deinen Daten: mittlerer Fehler 17 bis 20 %, unabhängig von der Fenstergröße). Die abgerundete Zahl ist ein Anhaltspunkt, die Reservelampe des Motorrads bleibt maßgeblich.
+- Der Zähler zählt weiter **nur bei verbundener Sitzung mit eingeschalteter „Geschwindigkeit per GPS“**: fährst du ohne die App, steht der Rest zu hoch.
+- Der **Tankinhalt ist ein Wert, den nur du kennst** (kein Fahrzeug liefert ihn): ein falscher Wert macht die Reichweite um denselben Faktor falsch.
+- Alle Tankungen im **Altbestand gelten als „voll“**; ob du Teilbetankungen machst, lässt sich aus den Daten nicht ablesen.
+- **Am Fahrzeug nichts geprüft.** Die Ablesbarkeit der Zahl und der Marke während der Fahrt (Querformat, Sonne) prüfst du.
+
 ## Version 1.43.0 (versionCode 137)
 
 Neu im Logbuch: eine **Auswertung** (Verbrauch mit Diagramm, Wartungsabstände) und **Erinnerungen** („fällig in N km“) für Wartungsintervalle, die du selbst festlegst.
