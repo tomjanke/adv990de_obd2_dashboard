@@ -12,11 +12,28 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * Die Befehle der einmaligen Diagnose nach einem fehlgeschlagenen Auslesen von Modus 03, in dieser Reihenfolge ([DiagnosticReads.diagnoseFaultRead]): zwei Abfragen an den Adapter
- * (gewaehltes Protokoll als Text und als Nummer) und Lesemodi des Fahrzeugs (`0101` Status der Ueberwachungen samt Motorkontrollleuchte und Zahl der Codes, `0100` unterstuetzte PIDs,
- * `03` und `07` Codes, `0A` dauerhafte Codes). **Nur Lesen** — die Liste enthaelt nie Modus 04 oder einen anderen Schreibzugriff (Test `DiagnosticReadsTest`).
+ * Die Befehle der einmaligen Diagnose nach einem fehlgeschlagenen Auslesen von Modus 03, in dieser Reihenfolge ([DiagnosticReads.diagnoseFaultRead]). **Zweite Runde** (2026-10-26):
+ * die erste (`ATDP`, `ATDPN`, `0101`, `0100`, `03`, `07`, `0A`) zeigte am Motorrad, dass der Adapter auf `ATDP`/`ATDPN` nur „OK“ sagt, das Steuergeraet `0100` beantwortet, aber
+ * `0101`, `07` und `0A` mit NO DATA und `03` mit einem leeren Text — Adapter oder Steuergeraet sind nicht voll standardkonform. Diese Runde fragt:
+ *  - den **Adapter** (`ATI` Version, `AT@1` Beschreibung, `ATRV` Spannung am Adapter, `ATIGN` Zuendungspegel);
+ *  - eine **Kontrolle** mit normalem Zeitlimit (`0100`, `0105` Kuehlmittel, `0101`, `03`, `0900` unterstuetzte Infotypen von Modus 09);
+ *  - dieselben Modi mit **langem Zeitlimit** (`ATSTFF`, rund 1 s statt 0,2 s: antwortet das Steuergeraet nur langsam?);
+ *  - mit **eingeschalteten Kopfzeilen** (`ATH1`: die rohen Frames zeigen das Protokoll und ob auf `03` ueberhaupt etwas kommt).
+ * **Nur Lesen** — die Liste enthaelt nie Modus 04 oder einen anderen Schreibzugriff (Test `DiagnosticReadsTest`); `ATSTFF` und `ATH1` aendern nur Einstellungen des Adapters und werden
+ * ueber [FAULT_READ_DIAGNOSTIC_RESTORES] in der Liste selbst und bei jedem vorzeitigen Ende zurueckgesetzt.
  */
-internal val FAULT_READ_DIAGNOSTIC_COMMANDS = listOf("ATDP", "ATDPN", "0101", "0100", "03", "07", "0A")
+internal val FAULT_READ_DIAGNOSTIC_COMMANDS = listOf(
+    "ATI", "AT@1", "ATRV", "ATIGN",
+    "0100", "0105", "0101", "03", "0900",
+    "ATSTFF", "0101", "03", "07", "ATST32",
+    "ATH1", "0100", "03", "ATH0",
+)
+
+/**
+ * Die Einstellungen des Adapters, die die Diagnose aendert (Schluessel), und der Befehl, der sie auf den Stand nach der Initialisierung zurueckstellt (Wert): Standardzeitlimit
+ * (`ATST32` = 50 x 4 ms) und Kopfzeilen aus (`ATH0`; die Initialisierung setzt kein `ATH1`, mit Kopfzeilen kaeme vor jede Antwort eine Kennung und kein Parser koennte sie lesen).
+ */
+internal val FAULT_READ_DIAGNOSTIC_RESTORES = mapOf("ATSTFF" to "ATST32", "ATH1" to "ATH0")
 
 /** Laenger als das wird eine einzelne Antwort in der Diagnose gekuerzt. */
 internal const val DIAGNOSTIC_ANSWER_MAX_CHARS = 200
@@ -97,14 +114,18 @@ internal class DiagnosticReads(
     }
 
     /**
-     * Die einmalige Diagnose nach einem Auslesen von Modus 03 ohne Antwort (Backlog 2, 2026-10-26): der Adapter und das Steuergeraet bekommen die Befehle aus
-     * [FAULT_READ_DIAGNOSTIC_COMMANDS] gestellt und die **rohen Antworten** kommen als eine Zeile zurueck (`ATDP='…' ATDPN='…' 0101='…' …`) — fuer das App-Log. Anlass: bei
-     * jeder Verbindung zum Motorrad lieferte Modus 03 einen leeren Text, das Log nannte weder das Protokoll noch, ob Modus 07, `0A` oder ein Mode-01-Befehl antwortet. Eine
-     * leere Antwort steht als zwei Anfuehrungszeichen da, eine Antwort ueber [DIAGNOSTIC_ANSWER_MAX_CHARS] Zeichen wird gekuerzt (`...`), damit nichts das Log flutet.
+     * Die einmalige Diagnose nach einem Auslesen von Modus 03 ohne Antwort (Backlog 2, 2026-10-26; zweite Runde nach dem ersten Befund am Motorrad): der Adapter und das Steuergeraet
+     * bekommen die Befehle aus [FAULT_READ_DIAGNOSTIC_COMMANDS] gestellt und die **rohen Antworten** kommen als eine Zeile zurueck (`ATI='…' AT@1='…' 0100='…' …`) — fuer das App-Log.
+     * Eine leere Antwort steht als zwei Anfuehrungszeichen da, eine Antwort ueber [DIAGNOSTIC_ANSWER_MAX_CHARS] Zeichen wird gekuerzt (`...`), damit nichts das Log flutet.
      *
-     * **Rein lesend:** die ersten beiden Befehle fragen nur den Adapter (`ATDP`, `ATDPN`: welches Protokoll er gewaehlt hat), die uebrigen sind Lesemodi des Fahrzeugs — 01 (Status der
-     * Ueberwachungen mit Zustand der Motorkontrollleuchte und Zahl der Codes, unterstuetzte PIDs), 03 und 07 (Codes) und 0A (dauerhafte Codes). Nie Modus 04 (Fehlerspeicher loeschen)
-     * oder ein Schreibzugriff — das Fahrzeug bleibt strikt lesend.
+     * **Rein lesend:** Befehle an den Adapter (Version, Beschreibung, Spannung, Zuendungspegel) und Lesemodi des Fahrzeugs — 01 (unterstuetzte PIDs, Status der Ueberwachungen, Kuehlmittel),
+     * 03 und 07 (Codes), 09 (unterstuetzte Infotypen). Nie Modus 04 (Fehlerspeicher loeschen) oder ein Schreibzugriff — das Fahrzeug bleibt strikt lesend.
+     *
+     * **Adapter-Einstellungen werden zurueckgestellt:** `ATSTFF` (langes Zeitlimit) und `ATH1` (Kopfzeilen an) veraendern den Adapter fuer alle folgenden Befehle, auch die der Sitzung.
+     * Jeder Wechsel wird vor dem Senden als ausstehend gemerkt und mit dem Rueckstellbefehl aus [FAULT_READ_DIAGNOSTIC_RESTORES] aufgeloest — in der Liste selbst, sonst bei **jedem** Ende
+     * (Zeitlimit, Fehler, Abbruch, dann unter `NonCancellable`: ein Slot-Wechsel bricht die Sitzung ab, die Verbindung bleibt). Nur eine verlorene Verbindung stellt nichts zurueck (die
+     * Verbindung ist tot, der Neuaufbau initialisiert den Adapter). **Gelingt das Rueckstellen nicht**, steht der Adapter in einem unbekannten Zustand: dann wird getrennt
+     * ([onLinkBroken]) und `ConnectionLost` geworfen, der Neuaufbau initialisiert den Adapter neu.
      *
      * **Weich, die vierte Form der Zeitlimit-Richtlinie** (s. KDoc an [ObdRepository]): ein Zeitlimit beendet die Diagnose (`<timeout>`, die uebrigen Befehle entfallen) und trennt
      * **nicht** — es ist nur eine Zusatzauskunft nach einem Fehler, und die verspaetete Antwort verwirft der naechste Befehl als Altbyte. Ein anderer Protokollfehler
@@ -112,21 +133,46 @@ internal class DiagnosticReads(
      */
     suspend fun diagnoseFaultRead(controller: ElmController): String {
         val parts = mutableListOf<String>()
-        for (command in FAULT_READ_DIAGNOSTIC_COMMANDS) {
-            val answer = try {
-                "'${controller.sendCommand(command).limitedForLog()}'"
-            } catch (_: ObdException.Timeout) {
-                parts += "$command=<timeout>"
-                break
-            } catch (e: ObdException.ConnectionLost) {
-                withContext(NonCancellable) { onLinkBroken(controller) }
-                throw e
-            } catch (e: ObdException) {
-                "<${e.javaClass.simpleName}>"
+        val toRestore = linkedSetOf<String>()
+        var linkLost = false
+        try {
+            for (command in FAULT_READ_DIAGNOSTIC_COMMANDS) {
+                // Vor dem Senden gemerkt: scheitert der Befehl mit einem Zeitlimit, kann der Adapter ihn trotzdem schon befolgt haben.
+                FAULT_READ_DIAGNOSTIC_RESTORES[command]?.let { toRestore += it }
+                val answer = try {
+                    "'${controller.sendCommand(command).limitedForLog()}'"
+                } catch (_: ObdException.Timeout) {
+                    parts += "$command=<timeout>"
+                    break
+                } catch (e: ObdException.ConnectionLost) {
+                    linkLost = true
+                    withContext(NonCancellable) { onLinkBroken(controller) }
+                    throw e
+                } catch (e: ObdException) {
+                    "<${e.javaClass.simpleName}>"
+                }
+                parts += "$command=$answer"
+                toRestore -= command
             }
-            parts += "$command=$answer"
+        } finally {
+            if (!linkLost && toRestore.isNotEmpty()) withContext(NonCancellable) { restoreAdapter(controller, toRestore, parts) }
         }
         return parts.joinToString(" ")
+    }
+
+    /**
+     * Stellt die Adapter-Einstellungen zurueck, die die Diagnose geaendert hat ([FAULT_READ_DIAGNOSTIC_RESTORES]); jede Antwort kommt in [parts]. Scheitert ein Rueckstellbefehl —
+     * auch mit einem Zeitlimit —, ist der Zustand des Adapters unbekannt: trennen und `ConnectionLost` werfen.
+     */
+    private suspend fun restoreAdapter(controller: ElmController, pending: Set<String>, parts: MutableList<String>) {
+        for (command in pending) {
+            try {
+                parts += "$command='${controller.sendCommand(command).limitedForLog()}'"
+            } catch (e: ObdException) {
+                onLinkBroken(controller)
+                throw e as? ObdException.ConnectionLost ?: ObdException.ConnectionLost("diagnostics could not restore the adapter settings ($command: ${e.javaClass.simpleName})")
+            }
+        }
     }
 
     /** Eine Zeile, hoechstens [DIAGNOSTIC_ANSWER_MAX_CHARS] Zeichen (sonst gekuerzt und mit `...` markiert). */

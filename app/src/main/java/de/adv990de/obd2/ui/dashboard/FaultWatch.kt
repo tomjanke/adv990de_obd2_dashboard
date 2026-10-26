@@ -114,7 +114,7 @@ internal class FaultWatch(
 
     /**
      * Die einmalige Diagnose nach einem Auslesen von Modus 03 ohne Antwort (Backlog 2, 2026-10-26): [ObdRepository.diagnoseFaultRead] liefert die rohen Antworten des Adapters und
-     * des Steuergeraets (Protokoll, Modus 01, 03, 07, 0A — rein lesend) als eine Zeile, die hier ins App-Log geht (INFO). **Einmal je Lebensdauer dieser Wache** (die der Pipeline des
+     * des Steuergeraets (Adapter-Kennung, Modus 01, 03, 07, 09, mit langem Zeitlimit und mit Kopfzeilen — rein lesend, die geaenderten Adapter-Einstellungen werden zurueckgestellt) als eine Zeile, die hier ins App-Log geht (INFO). **Einmal je Lebensdauer dieser Wache** (die der Pipeline des
      * Dashboards, also einmal je App-Start): sie soll Material fuer die Auswertung liefern, nicht jedes Verbinden um ein paar Befehle verlaengern; der Versuch zaehlt auch, wenn er scheitert.
      * Ein unerwarteter Fehler steht nur im Log (WARN) — die Diagnose ist Zusatzauskunft und beendet nie die Sitzung. Riss dabei der Link, ist das Ergebnis [ConnectRead.LinkLost]
      * (Reconnect wie beim Auslesen); sonst `null`.

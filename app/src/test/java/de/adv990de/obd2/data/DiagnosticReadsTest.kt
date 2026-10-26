@@ -8,6 +8,11 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -164,20 +169,43 @@ class DiagnosticReadsTest {
         assertEquals(listOf(elm), brokenLinks)
     }
 
-    // --- Die einmalige Diagnose nach einem fehlgeschlagenen Auslesen von Modus 03 (Backlog 2, 2026-10-26) ---
+    // --- Die einmalige Diagnose nach einem fehlgeschlagenen Auslesen von Modus 03 (Backlog 2, 2026-10-26; zweite Runde 2026-10-26 nach dem ersten Befund am Motorrad) ---
 
-    /** Ein Controller, der auf jeden Befehl der Diagnose antwortet; [answers] ueberschreibt einzelne Antworten. */
-    private fun diagnosticController(answers: Map<String, String> = emptyMap()): ElmController = mockk {
-        val defaults = mapOf(
-            "ATDP" to "AUTO, ISO 15765-4 (CAN 11/500)",
-            "ATDPN" to "A6",
-            "0101" to "41 01 00 07 E5 00",
-            "0100" to "41 00 BE 3F A8 13",
-            "03" to "",
-            "07" to "NO DATA",
-            "0A" to "NO DATA",
-        )
-        (defaults + answers).forEach { (command, answer) -> coEvery { sendCommand(command) } returns answer }
+    /** Die Befehle, die der Controller der Diagnose in dieser Reihenfolge bekommen hat. */
+    private val sent = mutableListOf<String>()
+
+    private val defaultAnswers = mapOf(
+        "ATI" to "ELM327 v1.5",
+        "AT@1" to "OBDII to RS232 Interpreter",
+        "ATRV" to "12.4V",
+        "ATIGN" to "ON",
+        "0100" to "41 00 BE 3F A8 13",
+        "0105" to "41 05 5A",
+        "0101" to "41 01 00 07 E5 00",
+        "03" to "",
+        "0900" to "NO DATA",
+        "ATSTFF" to "OK",
+        "07" to "NO DATA",
+        "ATST32" to "OK",
+        "ATH1" to "OK",
+        "ATH0" to "OK",
+    )
+
+    /**
+     * Ein Controller, der auf jeden Befehl der Diagnose antwortet; [answers] ueberschreibt einzelne Antworten (fuer jedes Vorkommen), [failure] liefert fuer das n-te Vorkommen
+     * (ab 1) eines Befehls eine Ausnahme — einige Befehle stehen mehrmals in der Liste (`0100`, `0101`, `03`).
+     */
+    private fun diagnosticController(
+        answers: Map<String, String> = emptyMap(),
+        failure: (command: String, occurrence: Int) -> Throwable? = { _, _ -> null },
+    ): ElmController = mockk {
+        val table = defaultAnswers + answers
+        coEvery { sendCommand(any()) } answers {
+            val command = firstArg<String>()
+            sent += command
+            failure(command, sent.count { it == command })?.let { throw it }
+            table.getValue(command)
+        }
     }
 
     @Test
@@ -185,9 +213,12 @@ class DiagnosticReadsTest {
         val text = reads.diagnoseFaultRead(diagnosticController())
 
         assertEquals(
-            "ATDP='AUTO, ISO 15765-4 (CAN 11/500)' ATDPN='A6' 0101='41 01 00 07 E5 00' 0100='41 00 BE 3F A8 13' 03='' 07='NO DATA' 0A='NO DATA'",
+            "ATI='ELM327 v1.5' AT@1='OBDII to RS232 Interpreter' ATRV='12.4V' ATIGN='ON' 0100='41 00 BE 3F A8 13' 0105='41 05 5A' " +
+                "0101='41 01 00 07 E5 00' 03='' 0900='NO DATA' ATSTFF='OK' 0101='41 01 00 07 E5 00' 03='' 07='NO DATA' ATST32='OK' " +
+                "ATH1='OK' 0100='41 00 BE 3F A8 13' 03='' ATH0='OK'",
             text,
         )
+        assertEquals("die Befehle gehen in der Reihenfolge der Liste raus", FAULT_READ_DIAGNOSTIC_COMMANDS, sent)
         assertTrue("eine Zeile", '\n' !in text)
         assertTrue("ein Erfolg trennt nie", brokenLinks.isEmpty())
     }
@@ -200,59 +231,180 @@ class DiagnosticReadsTest {
     }
 
     @Test
-    fun `a timeout ends the diagnosis, is marked, and never disconnects`() = runTest {
-        val elm = diagnosticController()
-        coEvery { elm.sendCommand("0100") } throws ObdException.Timeout("0100")
+    fun `a timeout before any setting was changed ends the diagnosis, is marked, sends no restore and never disconnects`() = runTest {
+        val elm = diagnosticController(failure = { command, _ -> if (command == "0105") ObdException.Timeout(command) else null })
 
         val text = reads.diagnoseFaultRead(elm)
 
-        assertTrue(text, "0100=<timeout>" in text)
-        assertTrue("danach wird nichts mehr gefragt: $text", "03=" !in text && "07=" !in text && "0A=" !in text)
+        assertTrue(text, "0105=<timeout>" in text)
+        assertTrue("danach wird nichts mehr gefragt: $text", "0101=" !in text && "ATH1" !in text && "ATSTFF" !in text)
+        assertEquals("nichts war veraendert, nichts wird zurueckgesetzt", listOf("ATI", "AT@1", "ATRV", "ATIGN", "0100", "0105"), sent)
         assertTrue("die weiche Form trennt bei einem Zeitlimit nie", brokenLinks.isEmpty())
-        coVerify(exactly = 0) { elm.sendCommand("03") }
-        coVerify(exactly = 0) { elm.sendCommand("0A") }
     }
 
     @Test
-    fun `a lost link is reported to the repository and passed on`() = runTest {
-        val elm = diagnosticController()
-        coEvery { elm.sendCommand("0101") } throws ObdException.ConnectionLost()
+    fun `a timeout with the long wait still set ends the diagnosis and puts the wait back first`() = runTest {
+        // Das zweite 0101 steht hinter ATSTFF: scheitert es, bleibt das lange Zeitlimit im Adapter, bis die Diagnose es zuruecksetzt.
+        val elm = diagnosticController(failure = { command, n -> if (command == "0101" && n == 2) ObdException.Timeout(command) else null })
+
+        val text = reads.diagnoseFaultRead(elm)
+
+        assertTrue(text, "0101=<timeout>" in text)
+        assertEquals("ATST32", sent.last())
+        assertTrue("die Kopfzeilen wurden nie angeschaltet: $sent", "ATH1" !in sent)
+        assertTrue("die Rueckstellung steht im Log: $text", text.endsWith("ATST32='OK'"))
+        assertTrue(brokenLinks.isEmpty())
+    }
+
+    @Test
+    fun `a timeout with the headers on still ends the diagnosis and turns the headers off again`() = runTest {
+        // Das dritte 03 steht hinter ATH1. Bliebe ATH1 stehen, kaemen Kopfzeilen vor jede Antwort und kein Parser koennte sie mehr lesen.
+        val elm = diagnosticController(failure = { command, n -> if (command == "03" && n == 3) ObdException.Timeout(command) else null })
+
+        val text = reads.diagnoseFaultRead(elm)
+
+        assertTrue(text, "03=<timeout>" in text)
+        assertEquals("ATH0", sent.last())
+        assertEquals("genau eine Rueckstellung", 1, sent.count { it == "ATH0" })
+        assertTrue(text, text.endsWith("ATH0='OK'"))
+        assertTrue(brokenLinks.isEmpty())
+    }
+
+    @Test
+    fun `a timeout of the setting command itself is restored too - the adapter may have obeyed it`() = runTest {
+        // Das Zeitlimit sagt nur, dass die Antwort fehlt, nicht, dass ATH1 nicht gewirkt hat.
+        val elm = diagnosticController(failure = { command, _ -> if (command == "ATH1") ObdException.Timeout(command) else null })
+
+        val text = reads.diagnoseFaultRead(elm)
+
+        assertTrue(text, "ATH1=<timeout>" in text)
+        assertEquals("ATH0", sent.last())
+        assertTrue(text, text.endsWith("ATH0='OK'"))
+        assertTrue(brokenLinks.isEmpty())
+    }
+
+    @Test
+    fun `the restore survives a real cancellation of the caller`() = runTest {
+        // Die Attrappe haelt beim dritten 03 (Kopfzeilen an) an und hat an jedem Befehl einen abbrechbaren Suspendierungspunkt wie das echte sendCommand.
+        val completed = mutableListOf<String>()
+        val elm = mockk<ElmController> {
+            coEvery { sendCommand(any()) } coAnswers {
+                val command = firstArg<String>()
+                sent += command
+                if (command == "03" && sent.count { it == "03" } == 3) awaitCancellation()
+                delay(1)
+                completed += command
+                "OK"
+            }
+        }
+
+        val job = launch { reads.diagnoseFaultRead(elm) }
+        advanceUntilIdle()
+        job.cancelAndJoin()
+
+        assertTrue("der Rueckstellbefehl lief trotz des Abbruchs zu Ende: $completed", "ATH0" in completed)
+        assertTrue(brokenLinks.isEmpty())
+    }
+
+    @Test
+    fun `a restore that cannot be sent disconnects so that the reconnect initialises the adapter again`() = runTest {
+        val elm = diagnosticController(failure = { command, n ->
+            when {
+                command == "03" && n == 3 -> ObdException.Timeout(command)
+                command == "ATH0" -> ObdException.Timeout(command)
+                else -> null
+            }
+        })
+
+        val failure = runCatching { reads.diagnoseFaultRead(elm) }.exceptionOrNull()
+
+        assertTrue("ConnectionLost erwartet, war: $failure", failure is ObdException.ConnectionLost)
+        assertEquals("der Adapter steht in einem unbekannten Zustand: trennen", listOf(elm), brokenLinks)
+    }
+
+    @Test
+    fun `a failed restore is also a lost link when it happens after the whole list ran`() = runTest {
+        // Die Rueckstellung ATH0 steht am Ende der Liste selbst: scheitert sie dort mit einem Zeitlimit, bleibt sie ausstehend und die Diagnose versucht es noch einmal — auch das scheitert.
+        val elm = diagnosticController(failure = { command, _ -> if (command == "ATH0") ObdException.Timeout(command) else null })
 
         val failure = runCatching { reads.diagnoseFaultRead(elm) }.exceptionOrNull()
 
         assertTrue("ConnectionLost erwartet, war: $failure", failure is ObdException.ConnectionLost)
         assertEquals(listOf(elm), brokenLinks)
+        assertEquals("ein zweiter Versuch, dann trennen", 2, sent.count { it == "ATH0" })
+    }
+
+    @Test
+    fun `a lost link is reported to the repository and passed on, without a restore attempt on the dead link`() = runTest {
+        val elm = diagnosticController(failure = { command, n -> if (command == "0100" && n == 2) ObdException.ConnectionLost() else null })
+
+        val failure = runCatching { reads.diagnoseFaultRead(elm) }.exceptionOrNull()
+
+        assertTrue("ConnectionLost erwartet, war: $failure", failure is ObdException.ConnectionLost)
+        assertEquals(listOf(elm), brokenLinks)
+        assertTrue("auf der toten Verbindung wird nichts mehr gesendet: $sent", sent.last() == "0100" && "ATH0" !in sent)
+    }
+
+    @Test
+    fun `a cancelled caller still puts the adapter settings back`() = runTest {
+        // Ein Slot-Wechsel bricht die Sitzung ab, die Verbindung bleibt: mit ATH1 im Adapter wuerde die naechste Sitzung nichts mehr verstehen.
+        val elm = diagnosticController(failure = { command, n -> if (command == "03" && n == 3) CancellationException("cancelled") else null })
+
+        val thrown = runCatching { reads.diagnoseFaultRead(elm) }.exceptionOrNull()
+
+        assertTrue("CancellationException erwartet, war: $thrown", thrown is CancellationException)
+        assertEquals("ATH0", sent.last())
+        assertTrue(brokenLinks.isEmpty())
     }
 
     @Test
     fun `any other protocol error is noted for that command and the diagnosis goes on`() = runTest {
-        val elm = diagnosticController()
-        coEvery { elm.sendCommand("ATDPN") } throws ObdException.UnknownResponse("?")
+        val elm = diagnosticController(failure = { command, _ -> if (command == "AT@1") ObdException.UnknownResponse("?") else null })
 
         val text = reads.diagnoseFaultRead(elm)
 
-        assertTrue(text, "ATDPN=<UnknownResponse>" in text)
-        assertTrue("die folgenden Befehle laufen weiter: $text", "0A='NO DATA'" in text)
+        assertTrue(text, "AT@1=<UnknownResponse>" in text)
+        assertTrue("die folgenden Befehle laufen weiter: $text", text.endsWith("ATH0='OK'"))
         assertTrue(brokenLinks.isEmpty())
     }
 
     @Test
     fun `a very long answer is cut so that one answer cannot flood the log`() = runTest {
-        val text = reads.diagnoseFaultRead(diagnosticController(mapOf("0100" to "41 ".repeat(200))))
+        val text = reads.diagnoseFaultRead(diagnosticController(mapOf("0900" to "49 ".repeat(200))))
 
-        val answer = Regex("0100='([^']*)'").find(text)!!.groupValues[1]
+        val answer = Regex("0900='([^']*)'").find(text)!!.groupValues[1]
         assertTrue("Antwort ${answer.length} Zeichen", answer.length <= 200 + 3)
         assertTrue("gekuerzt markiert: $answer", answer.endsWith("..."))
     }
 
     @Test
-    fun `the diagnosis only reads - adapter queries and modes 01, 03, 07 and 0A, never a clear or a write`() {
-        val allowedModes = setOf("01", "03", "07", "0A")
+    fun `the diagnosis only reads - adapter commands and modes 01, 03, 07 and 09, never a clear or a write`() {
+        val allowedModes = setOf("01", "03", "07", "09")
+        // Befehle an den Adapter, die nur etwas abfragen oder eine Einstellung der Antwort aendern (die zurueckgesetzt wird): nie ein Reset (ATZ), nie ein Protokollwechsel (ATSP).
+        val allowedAdapterCommands = setOf("ATI", "AT@1", "ATRV", "ATIGN", "ATSTFF", "ATST32", "ATH1", "ATH0")
         FAULT_READ_DIAGNOSTIC_COMMANDS.forEach { command ->
-            val isAdapterQuery = command == "ATDP" || command == "ATDPN"
-            assertTrue("Befehl $command ist weder Adapter-Abfrage noch ein Lesemodus", isAdapterQuery || command.take(2) in allowedModes)
+            val isAdapterCommand = command.startsWith("AT")
+            assertTrue(
+                "Befehl $command ist weder erlaubter Adapter-Befehl noch ein Lesemodus",
+                if (isAdapterCommand) command in allowedAdapterCommands else command.take(2) in allowedModes,
+            )
         }
         assertTrue("Modus 04 (Fehlerspeicher loeschen) darf nie dabei sein", FAULT_READ_DIAGNOSTIC_COMMANDS.none { it.startsWith("04") })
-        assertEquals(listOf("ATDP", "ATDPN", "0101", "0100", "03", "07", "0A"), FAULT_READ_DIAGNOSTIC_COMMANDS)
+        assertEquals(
+            listOf("ATI", "AT@1", "ATRV", "ATIGN", "0100", "0105", "0101", "03", "0900", "ATSTFF", "0101", "03", "07", "ATST32", "ATH1", "0100", "03", "ATH0"),
+            FAULT_READ_DIAGNOSTIC_COMMANDS,
+        )
+    }
+
+    @Test
+    fun `every adapter setting the diagnosis changes is put back in the list itself, to the state of the initialisation`() {
+        // Nach dem Init gelten Standardzeitlimit (ATST32, 200 ms) und Kopfzeilen aus (ATH0).
+        assertEquals(mapOf("ATSTFF" to "ATST32", "ATH1" to "ATH0"), FAULT_READ_DIAGNOSTIC_RESTORES)
+        FAULT_READ_DIAGNOSTIC_RESTORES.forEach { (change, restore) ->
+            val changeAt = FAULT_READ_DIAGNOSTIC_COMMANDS.indexOf(change)
+            val restoreAt = FAULT_READ_DIAGNOSTIC_COMMANDS.indexOf(restore)
+            assertTrue("$change muss in der Liste stehen", changeAt >= 0)
+            assertTrue("$restore muss hinter $change stehen", restoreAt > changeAt)
+        }
     }
 }
