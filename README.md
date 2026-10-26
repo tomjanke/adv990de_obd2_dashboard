@@ -142,7 +142,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (2901 Tests, < 30 Sekunden)
+# JVM Unit Tests (2912 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -151,7 +151,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2901 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2912 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 788 (Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -159,6 +159,15 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 | Test-Infrastruktur | `HiltAndroidRule` | 2 (eigener DataStore je Test) |
 | Vorschauen | `runAndroidComposeUiTest` | 1 (jede der 109 `@Preview`-Funktionen wird auf dem Gerät komponiert und muss etwas zeichnen) |
 | Geräte-Test der Wetter-Uhr | `AndroidJUnit4` | 2 (`elapsedRealtimeSource` gegen `SystemClock.elapsedRealtimeNanos()`) |
+
+**Testabdeckung:** die gemessene Zeilenabdeckung je Paket steht in [`docs/qa/coverage.md`](docs/qa/coverage.md) (mit Datum und Version der Messung). Sie wird **auf Abruf** neu gemessen, nicht bei jedem Build oder Release:
+
+```bash
+scripts/coverage.sh              # JVM- und Geräte-Tests (rund 17 Minuten, Telefon wach und entsperrt) — schreibt docs/qa/coverage.md
+scripts/coverage.sh --jvm-only   # nur JVM-Tests (wenige Minuten, nur eine Untergrenze) — schreibt dorthin nichts
+```
+
+Ohne `-PcoverageReport` ändert sich am Build nichts; die Zahl sagt, welche Zeilen ein Test durchläuft, nicht, ob er sie prüft.
 
 ---
 
@@ -378,7 +387,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (2901) |
+| `app/src/test/` | JVM-Unit-Tests (2912) |
 | `app/src/androidTest/` | Instrumented Tests (682, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

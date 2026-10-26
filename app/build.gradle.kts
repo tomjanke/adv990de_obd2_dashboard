@@ -1,9 +1,16 @@
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
+
+// Testabdeckung (nur auf Abruf, Ablauf in scripts/coverage.sh, Ergebnis in docs/qa/coverage.md): OHNE -PcoverageReport aendert sich am Build nichts —
+// kein JaCoCo-Plugin, kein Agent, keine Instrumentierung, keine zusaetzlichen Artefakte (der Gate-Lauf und die Releases bleiben, wie sie waren).
+val coverageEnabled = providers.gradleProperty("coverageReport").isPresent
 
 android {
     namespace = "de.adv990de.obd2"
@@ -52,6 +59,9 @@ android {
             buildConfigField("int", "SIM_FREEZE_AFTER_SECONDS", (prop("simFreezeAfterSeconds")?.toIntOrNull()?.coerceAtLeast(0) ?: 0).toString())
             manifestPlaceholders["sentryDsn"] = prop("SENTRY_DSN") ?: ""
             manifestPlaceholders["buildEnvironment"] = "debug"
+            // Nur mit -PcoverageReport (s. oben): Agent fuer die JVM-Tests und Instrumentierung fuer die Geraete-Tests.
+            enableUnitTestCoverage = coverageEnabled
+            enableAndroidTestCoverage = coverageEnabled
         }
         release {
             isMinifyEnabled = true
@@ -178,5 +188,42 @@ dependencies {
         // an older loaded core interface does not declare). Forcing the newer, additive-only version
         // here resolves both classpaths to 1.8.1 consistently.
         implementation(libs.kotlinx.serialization.core)
+    }
+}
+
+// Der gemeinsame Bericht aus JVM- und Geraete-Tests (nur mit -PcoverageReport, aufgerufen von scripts/coverage.sh). Gemessen wird der Debug-Build; der erzeugte Code (Hilt, Dagger,
+// Room, R, BuildConfig) bleibt aussen vor, sonst verzerrt er die Zahl. Compose-Lambdas (ComposableSingletons) bleiben DRIN: ihre Rumpfe sind echter Quelltext der Bildschirme.
+// Mit -PcoverageJvmOnly zaehlen nur die JVM-Tests (eine Untergrenze: die Oberflaeche laeuft fast nur ueber die Geraete-Tests).
+if (coverageEnabled) {
+    apply(plugin = "jacoco")
+    extensions.configure<JacocoPluginExtension> { toolVersion = android.testCoverage.jacocoVersion }
+    val jvmOnly = providers.gradleProperty("coverageJvmOnly").isPresent
+    val generatedCode = listOf(
+        "**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*",
+        "**/*_Factory.class", "**/*_Factory$*.class", "**/*_MembersInjector.class", "**/Hilt_*.class",
+        "**/*_HiltModules*", "**/*_HiltComponents*", "**/*_GeneratedInjector*", "**/*_ComponentTreeDeps*",
+        "**/Dagger*.class", "hilt_aggregated_deps/**", "dagger/**",
+        "**/*_Impl.class", "**/*_Impl$*.class",
+    )
+    tasks.register<JacocoReport>("coverageReport") {
+        group = "verification"
+        description = "Testabdeckung aus JVM- und Geraete-Tests (nur mit -PcoverageReport, s. scripts/coverage.sh)"
+        classDirectories.setFrom(
+            listOf(
+                "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+                "intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            ).map { dir -> fileTree(layout.buildDirectory.dir(dir)) { exclude(generatedCode) } },
+        )
+        sourceDirectories.setFrom(files("src/main/java"))
+        executionData.setFrom(
+            fileTree(layout.buildDirectory.dir("outputs/unit_test_code_coverage")) { include("**/*.exec") },
+            if (jvmOnly) files() else fileTree(layout.buildDirectory.dir("outputs/code_coverage")) { include("**/*.ec") },
+        )
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+            csv.required.set(false)
+        }
+        mustRunAfter("testDebugUnitTest", "connectedDebugAndroidTest")
     }
 }
