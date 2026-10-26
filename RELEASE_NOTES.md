@@ -1,5 +1,25 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.3 (versionCode 141)
+
+Die **Reserve-Marke** der Tankanzeige ist jetzt ein **roter Strich**, 4 dp breit und so hoch wie der Balken.
+
+### Was sich ändert
+
+- **Roter Strich statt weißer Marke.** Vorher war die Marke weiß, 2 dp breit und 24 dp hoch (4 dp über und unter dem Balken). Jetzt hat sie die Farbe der roten Stufe, ist **4 dp breit** und genau **16 dp hoch wie der Balken**: sie ragt nicht mehr über die Segmente.
+- **Breite wie der Streifen zwischen den Kacheln.** Am echten Dashboard gemessen sind das 9 Pixel (4 dp bei 2,25 px/dp), der Streifen am linken Rand jeder Kachel. Die 1-dp-Linie zwischen den Kacheln daneben ist nicht gemeint.
+- **Unverändert:** wo die Marke steht (Reserve ÷ Reichweite von links), die Zahl, die rot wird, sobald der Rest die Reserve erreicht, Segmente und Farbstufen; die Datenbank bleibt **v6**, keine neue Berechtigung, das Fahrzeug bleibt rein lesend.
+
+### Meine Auslegung
+
+- „Breite der Kachel-Trennung“ habe ich nach dem ersten Vorabbild (1 dp) und deiner Korrektur als den **4-dp-Streifen** der Kachel gelesen; die Zeichnung hast du an einer echten Aufnahme deines Dashboards bestätigt, nicht am gerenderten Ergebnis.
+
+### Grenzen
+
+- **Auf einem roten Segment ist der Strich nicht zu sehen.** Die Marke liegt im Segment ⌊10 · Reserve ÷ Reichweite⌋ + 1 von links. Ist die Reserve kleiner als 20 % der Reichweite (z. B. 40 km bei 260 km), leuchtet dieses Segment rot, sobald nur noch zwei leuchten: dann verschwindet der Strich genau dann, wenn der Rest die Reserve unterschreitet, und taucht wieder auf, wenn das Segment ausgeht. Bei einer Reserve ab 20 % der Reichweite (bei dir etwa 23 %) ist er nie verdeckt. Abhilfe, falls es stört: ein schmaler Rand in der Hintergrundfarbe oder eine andere Farbe (nicht gebaut).
+- **Am Fahrzeug nichts geprüft.** Gerendert gesehen auf dem Pixel 8 Pro (Debug-App, Querformat).
+- **Tests:** 2901 JVM-Tests, 788 Gerätetests (einer mehr: Farbe der Marke); Breite, Höhe, Farbe und Lage der Marke werden als Bildpunkte gelesen; 6 Mutationen, alle erkannt.
+
 ## Version 1.44.2 (versionCode 140)
 
 Die Restreichweite in der Tankzeile ändert sich jetzt **in Schritten von 1 km** statt von 5 km.
