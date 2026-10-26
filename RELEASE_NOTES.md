@@ -1,5 +1,30 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.4 (versionCode 142)
+
+Die App schreibt **einmal je App-Start** die rohen Antworten von Adapter und Steuergerät ins App-Log, wenn das **Auslesen der Fehlercodes beim Verbinden ohne Antwort bleibt**. Es ist Material für die Auswertung, kein Fix: an deinem Motorrad liefert Modus 03 bisher bei jeder Verbindung einen leeren Text, und das Log sagte nicht, warum.
+
+### Was sich ändert
+
+- **Eine neue Zeile im App-Log** (Stufe INFO), nur nach einem fehlgeschlagenen Auslesen und nur beim ersten Verbinden nach dem App-Start: `Fault-code diagnostics: ATDP='…' ATDPN='…' 0101='…' 0100='…' 03='…' 07='…' 0A='…'`.
+  - `ATDP` und `ATDPN` nennen das Protokoll, das der Adapter gewählt hat.
+  - `0100` zeigt, ob das Steuergerät überhaupt auf Modus 01 antwortet.
+  - `0101` nennt nach meiner Lesart des Standards (am Gerät ungeprüft), ob die Motorkontrollleuchte an ist und wie viele Codes gespeichert sind.
+  - `03`, `07` und `0A` zeigen, was auf die Fehlercode-Abfragen tatsächlich zurückkommt. Eine leere Antwort steht als `''`, Antworten über 200 Zeichen sind gekürzt.
+- **Rein lesend.** Zwei Befehle gehen nur an den Adapter, die übrigen sind Lesemodi; nie Modus 04 (Fehlerspeicher löschen). Das Fahrzeug bleibt strikt lesend, die Datenbank bleibt **v6**, keine neue Berechtigung.
+- **Sie kann die Sitzung nie beenden.** Ein Zeitlimit beendet die Diagnose und trennt nicht; nur ein gerissener Link löst den Neuaufbau aus, wie beim Auslesen selbst. Ein unerwarteter Fehler der Diagnose steht als WARN im Log.
+
+### So wertest du es aus
+
+App starten, mit dem Motorrad verbinden (Zündung an), danach unter App-Logs → Export die Datei speichern, **bevor das Log gelöscht wird**. Die Zeile „Fault-code diagnostics“ ist die Auswertungsgrundlage.
+
+### Grenzen
+
+- **Nicht belegt, was das Steuergerät antwortet** — das zeigt erst die Zeile; die Diagnose behebt nichts. Dass Modus 03 am Motorrad leer bleibt, weil das Steuergerät ihn nicht kennt, ist weiter nur eine Vermutung.
+- **Preis:** ein paar Befehle mehr beim ersten Verbinden nach dem Start, nur wenn das Auslesen ohnehin fehlschlägt (bei deinem Motorrad bisher jedes Mal).
+- **Am Fahrzeug nichts geprüft.**
+- **Tests:** 2917 JVM-Tests (16 neue), Lint 0 Fehler, 13 Mutationen, alle erkannt. Geräte-Tests nicht gelaufen: es gibt keine Änderung an Oberfläche, Ressourcen, Datenbank oder Hilt.
+
 ## Version 1.44.3 (versionCode 141)
 
 Die **Reserve-Marke** der Tankanzeige ist jetzt ein **roter Strich**, 4 dp breit und so hoch wie der Balken.

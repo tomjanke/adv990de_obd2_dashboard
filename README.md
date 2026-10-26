@@ -2,7 +2,7 @@
 
 Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
-> Aktuelle Version: **1.44.3** (versionCode 141) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
+> Aktuelle Version: **1.44.4** (versionCode 142) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
 ---
 
