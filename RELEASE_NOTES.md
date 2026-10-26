@@ -1,5 +1,25 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.2 (versionCode 140)
+
+Die Restreichweite in der Tankzeile ändert sich jetzt **in Schritten von 1 km** statt von 5 km.
+
+### Was sich ändert
+
+- **Schrittweite 1 km.** Die Zahl wird auf ganze Kilometer **abgerundet** („187,9“ wird „187“), vorher auf 5 km („187“ wurde „185“). Bei 80 km/h ändert sie sich damit etwa alle 45 Sekunden statt alle 3,5 Minuten, und du siehst, dass die App mitzählt. Unter 1 km zeigt sie 0, wie bisher nie eine negative oder erfundene Zahl.
+- **Unverändert:** die Zeile, die Grundlinie, die Größe der Zahl, die Reserve-Marke und die Segmente; das Fahrzeug bleibt rein lesend, die Datenbank bleibt **v6**, keine neue Berechtigung.
+
+### Meine Auslegung
+
+- Es bleibt beim **Abrunden** (zur sicheren Seite); gerundet wird nicht.
+- Die Schrittweite ist fest eingebaut, keine Einstellung.
+
+### Grenzen
+
+- **Die feinere Zahl ist nicht genauer.** Die Reichweite bleibt eine Schätzung (aus dem Logbuch auf etwa ±20 %); gezählt werden nur per GPS gefahrene Kilometer bei verbundener Sitzung und eingeschalteter „Geschwindigkeit per GPS“. Fehlen GPS-Meldungen, steht die Zahl zu hoch — das ändert die Schrittweite nicht.
+- **Am Fahrzeug nichts geprüft.**
+- **Tests:** 2901 JVM-Tests, 787 Gerätetests; 6 Mutationen an der Rundung, alle erkannt.
+
 ## Version 1.44.1 (versionCode 139)
 
 Die Zahl in der Tankzeile ist größer, und **Symbol, Zahl und „km“ stehen auf einer Grundlinie**.
