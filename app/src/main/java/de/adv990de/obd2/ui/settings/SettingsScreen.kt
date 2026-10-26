@@ -60,6 +60,9 @@ fun SettingsScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
     val fuelRangeFullKm by fuelVm.rangeFullKm.collectAsStateWithLifecycle()
+    val fuelLearned by fuelVm.learned.collectAsStateWithLifecycle()
+    val fuelCapacityDl by fuelVm.tankCapacityDl.collectAsStateWithLifecycle()
+    val fuelReserveKm by fuelVm.reserveKm.collectAsStateWithLifecycle()
     val alarmSettings by alarmVm.settings.collectAsStateWithLifecycle()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
@@ -384,7 +387,13 @@ fun SettingsScreen(
                 onCoolantWarningChange = alarmVm::setCoolantWarningC,
             )
             recordingSection(logOnlyDtc, recordingVm)
-            vehicleSection(navController, fuelRangeFullKm, fuelVm::setRangeFullKm)
+            vehicleSection(
+                navController,
+                FuelSettingsUi(fuelRangeFullKm, fuelLearned, fuelCapacityDl, fuelReserveKm),
+                fuelVm::setRangeFullKm,
+                fuelVm::setTankCapacityDl,
+                fuelVm::setReserveKm,
+            )
             infoSection(navController, crashVm)
         }
     }

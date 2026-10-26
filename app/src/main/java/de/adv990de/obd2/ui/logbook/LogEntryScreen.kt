@@ -70,6 +70,8 @@ internal const val LOGBOOK_WARNING_CONFIRM_TEST_TAG = "logbook_warning_confirm"
 internal const val LOGBOOK_WARNING_CHECK_TEST_TAG = "logbook_warning_check"
 internal const val LOGBOOK_GAUGE_YES_TEST_TAG = "logbook_gauge_yes"
 internal const val LOGBOOK_GAUGE_NO_TEST_TAG = "logbook_gauge_no"
+internal const val LOGBOOK_GAUGE_CREDIT_YES_TEST_TAG = "logbook_gauge_credit_yes"
+internal const val LOGBOOK_GAUGE_CREDIT_NO_TEST_TAG = "logbook_gauge_credit_no"
 internal const val LOGBOOK_DATE_OK_TEST_TAG = "logbook_date_ok"
 
 /** Alles, was die Eintragsseite zeigt (ohne ViewModel, damit Vorschauen und Tests sie direkt komponieren). */
@@ -133,6 +135,7 @@ internal fun LogEntryScreen(navController: NavController, vm: LogEntryViewModel 
 
     if (warnings.isNotEmpty()) WarningsDialog(warnings, onConfirm = vm::confirmWarnings, onCheck = vm::dismissWarnings)
     if (outcome == SaveOutcome.AskFuelGaugeReset) GaugeDialog(onYes = vm::resetFuelGauge, onNo = vm::declineFuelGaugeReset)
+    (outcome as? SaveOutcome.AskFuelGaugeCredit)?.let { GaugeCreditDialog(amountMl = it.amountMl, km = it.km, onYes = vm::creditFuelGauge, onNo = vm::declineFuelGaugeCredit) }
 
     Scaffold(
         topBar = {

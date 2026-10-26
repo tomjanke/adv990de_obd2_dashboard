@@ -39,6 +39,9 @@ internal fun fakeAppPreferences(
     reconnectBaseDelaySeconds: Int = AppPreferences.DEFAULT_RECONNECT_BASE_DELAY_SECONDS,
     fuelRangeFullKm: Int = 0,
     fuelKmSinceFill: Float = 0f,
+    fuelReserveKm: Int = 0,
+    fuelTankCapacityDl: Int = 0,
+    fuelRangeLearnedKm: Int = 0,
     alarmSettings: AlarmSettings = AlarmSettings(),
     maintenanceIntervals: Map<LogType, Int> = emptyMap(),
     gpsOdometer: GpsOdometer? = null,
@@ -64,6 +67,9 @@ internal fun fakeAppPreferences(
     every { this@mockk.reconnectBaseDelaySeconds } returns flowOf(reconnectBaseDelaySeconds)
     every { this@mockk.fuelRangeFullKm } returns flowOf(fuelRangeFullKm)
     every { this@mockk.fuelKmSinceFill } returns flowOf(fuelKmSinceFill)
+    every { this@mockk.fuelReserveKm } returns flowOf(fuelReserveKm)
+    every { this@mockk.fuelTankCapacityDl } returns flowOf(fuelTankCapacityDl)
+    every { this@mockk.fuelRangeLearnedKm } returns flowOf(fuelRangeLearnedKm)
     every { this@mockk.alarmSettings } returns flowOf(alarmSettings)
     every { this@mockk.maintenanceIntervals } returns flowOf(maintenanceIntervals)
     every { this@mockk.gpsOdometer } returns flowOf(gpsOdometer)

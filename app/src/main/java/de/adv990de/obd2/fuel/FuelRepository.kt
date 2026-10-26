@@ -58,10 +58,13 @@ interface FuelDistanceSink {
  *   fehl (haengende Platte), bleibt der Zaehler `nicht geladen`, bis der Speicher antwortet, Kilometer davor werden aufaddiert, und solange
  *   ist [state] `null` (Leiste ausgeblendet) und nichts wird geschrieben. Ein Zuruecksetzen des Nutzers gewinnt gegen ein spaetes Laden.
  * - [state] ist `null`, wenn keine Reichweite hinterlegt ist (die Tankzeile bleibt dann ausgeblendet) oder der Zaehler noch nicht geladen ist.
+ * - **Die Reichweite kommt aus der [FuelRangeSource]** (von Hand oder aus dem Logbuch berechnet, seit F5); die berechnete wird als Cache fuer das erste Bild gespeichert
+ *   (`fuel_range_learned_km`, nur bei Aenderung; ein Schreibfehler ist best effort).
  */
 @Singleton
 class FuelRepository @Inject constructor(
     private val appPreferences: AppPreferences,
+    private val rangeSource: FuelRangeSource,
     @ApplicationScope private val scope: CoroutineScope,
 ) : FuelDistanceSink {
 
@@ -77,13 +80,21 @@ class FuelRepository @Inject constructor(
     private val writeQueue = Channel<Float>(Channel.CONFLATED)
 
     /** Reichweite bei voller Tankfuellung zusammen mit dem Zaehler; `null` = Tankzeile ausblenden. */
-    val state: StateFlow<FuelGaugeState?> = combine(appPreferences.fuelRangeFullKm, odometer) { range, odo ->
-        gaugeOf(range, odo)
+    val state: StateFlow<FuelGaugeState?> = combine(rangeSource.range, appPreferences.fuelReserveKm, odometer) { range, reserve, odo ->
+        gaugeOf(range.km, reserve, odo)
     }.stateIn(
         scope,
         SharingStarted.Eagerly,
-        gaugeOf(seedBlocking(0, source = appPreferences.fuelRangeFullKm), odometer.value),
+        gaugeOf(
+            rangeSource.seedRangeKm(),
+            seedBlocking(0, source = appPreferences.fuelReserveKm),
+            odometer.value,
+        ),
     )
+
+    /** Die zuletzt als Cache fuer das erste Bild gespeicherte gelernte Reichweite (0 = keine) — nur fuer die Entscheidung, ob geschrieben werden muss. */
+    @Volatile
+    private var cachedLearnedKm: Int = seedBlocking(0, source = appPreferences.fuelRangeLearnedKm)
 
     init {
         scope.launch {
@@ -92,6 +103,20 @@ class FuelRepository @Inject constructor(
                     appPreferences.setFuelKmSinceFill(km)
                 } catch (_: IOException) {
                     // Best effort: der Zaehler bleibt im Speicher, der naechste Schritt oder flush() versucht es erneut.
+                }
+            }
+        }
+        scope.launch {
+            // Der Cache fuer das erste Bild: die zuletzt berechnete Reichweite, nur bei Aenderung geschrieben. Er ist kein Eingang der Rechnung (sonst wuerde das Schreiben eine zweite Rechnung ausloesen).
+            rangeSource.learned.collect { learned ->
+                val km = learned?.km ?: 0
+                if (km != cachedLearnedKm) {
+                    try {
+                        appPreferences.setFuelRangeLearnedKm(km)
+                        cachedLearnedKm = km
+                    } catch (_: IOException) {
+                        // Best effort: ein verpasster Cache kostet nur einen Sprung beim naechsten Start.
+                    }
                 }
             }
         }
@@ -121,6 +146,17 @@ class FuelRepository @Inject constructor(
         persist(0f)
     }
 
+    /**
+     * Hebt die Anzeige nach einer **Teilbetankung** an: zieht [km] vom Zaehler ab (nie unter 0 — voller als voll gibt es nicht) und schreibt sofort, wie [reset]. Eine unbrauchbare Strecke
+     * (<= 0, NaN, unendlich) aendert nichts. Ein **noch nicht gelesener** Zaehler bleibt unberuehrt: von dem, was der Speicher noch liefert, wuesste die Rechnung nichts (die Rueckfrage im
+     * Logbuch gibt es nur bei vorhandener Tankanzeige, also bei geladenem Zaehler).
+     */
+    fun credit(km: Float) {
+        if (!km.isFinite() || km <= 0f) return
+        val after = odometer.updateAndGet { if (it.loaded) it.copy(km = (it.km - km).coerceAtLeast(0f)) else it }
+        if (after.loaded) persist(after.km)
+    }
+
     private fun persist(km: Float) {
         persistedKm = km
         writeQueue.trySend(km)
@@ -131,8 +167,8 @@ class FuelRepository @Inject constructor(
         return if (seeded >= 0f) Odometer(loaded = true, km = seeded) else Odometer(loaded = false, km = 0f)
     }
 
-    private fun gaugeOf(range: Int, odo: Odometer): FuelGaugeState? =
-        if (range > 0 && odo.loaded) FuelGaugeState(range, odo.km) else null
+    private fun gaugeOf(range: Int, reserve: Int, odo: Odometer): FuelGaugeState? =
+        if (range > 0 && odo.loaded) FuelGaugeState(range, odo.km, reserve) else null
 
     internal companion object {
         /** So weit muss der Zaehler seit dem letzten Schreiben gewachsen sein, bevor er wieder geschrieben wird (~9 s bei 80 km/h). */

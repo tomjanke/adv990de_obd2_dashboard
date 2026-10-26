@@ -428,6 +428,69 @@ class LogEntryScreenDeviceTest {
         assertEquals(120f, fuelRepository.state.value!!.kmSinceFill, 0.001f)
     }
 
+    // --- Teilbetankung: die Tankanzeige anheben (F5, Phase C) ---
+
+    /** Eine erste volle Tankung und drei Intervalle zu je 100 km und 7,7 l (erfundene Zahlen): ein bekannter Verbrauch von 7,7 l/100 km. */
+    private fun saveSteadyHistory() {
+        val today = LocalDate.now()
+        save(
+            entry(LogType.FUEL, today.minusDays(20), 1_000, 15_000, true),
+            entry(LogType.FUEL, today.minusDays(19), 1_100, 7_700, true),
+            entry(LogType.FUEL, today.minusDays(18), 1_200, 7_700, true),
+            entry(LogType.FUEL, today.minusDays(17), 1_300, 7_700, true),
+        )
+    }
+
+    private fun savePartFill() {
+        launch()
+        fillFuel(odometer = "1400", liters = "6,2", cost = "")
+        composeRule.onNodeWithTag(LOGBOOK_FULL_TANK_TEST_TAG).performScrollTo().performClick()
+        tapSave()
+    }
+
+    @Test
+    fun aNewPartFillOfToday_asksToRaiseTheFuelGauge_yesRaisesItByTheShownKilometers() {
+        awaitGauge()
+        fuelRepository.addDistance(120f)
+        saveSteadyHistory()
+
+        savePartFill()
+        composeRule.onNodeWithText(string(R.string.logbook_gauge_credit_title)).assertIsDisplayed()
+        assertEquals("die Zeile ist schon gespeichert", 5, inDatabase().size)
+        composeRule.onNodeWithTag(LOGBOOK_GAUGE_CREDIT_YES_TEST_TAG).assertHeightIsAtLeast(56.dp).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(LIST_MARKER).assertIsDisplayed()
+        // 6,2 l bei 7,7 l/100 km = 81 km: 120 - 81 = 39
+        assertEquals(39f, fuelRepository.state.value!!.kmSinceFill, 0.01f)
+    }
+
+    @Test
+    fun theFuelGaugeStays_whenThePartFillQuestionIsAnsweredNo() {
+        awaitGauge()
+        fuelRepository.addDistance(120f)
+        saveSteadyHistory()
+
+        savePartFill()
+        composeRule.onNodeWithTag(LOGBOOK_GAUGE_CREDIT_NO_TEST_TAG).assertHeightIsAtLeast(56.dp).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(LIST_MARKER).assertIsDisplayed()
+        assertEquals(120f, fuelRepository.state.value!!.kmSinceFill, 0.001f)
+    }
+
+    @Test
+    fun noPartFillQuestionWithoutAKnownConsumption() {
+        awaitGauge()
+        fuelRepository.addDistance(120f)
+
+        savePartFill()
+
+        composeRule.onAllNodesWithText(string(R.string.logbook_gauge_credit_title)).assertCountEquals(0)
+        composeRule.onNodeWithText(LIST_MARKER).assertIsDisplayed()
+        assertEquals(120f, fuelRepository.state.value!!.kmSinceFill, 0.001f)
+    }
+
     @Test
     fun noQuestionWithoutAFuelGauge() {
         // keine Reichweite hinterlegt: es gibt keine Tankanzeige, die zurueckzusetzen waere

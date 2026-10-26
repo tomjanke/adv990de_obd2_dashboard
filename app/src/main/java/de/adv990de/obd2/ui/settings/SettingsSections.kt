@@ -37,14 +37,26 @@ internal fun LazyListScope.recordingSection(
 
 internal fun LazyListScope.vehicleSection(
     navController: NavController,
-    fuelRangeFullKm: Int,
+    fuel: FuelSettingsUi,
     onFuelRangeChange: (Int) -> Unit,
+    onFuelCapacityChange: (Int) -> Unit,
+    onFuelReserveChange: (Int) -> Unit,
 ) {
     // ═══ Fahrzeug ════════════════════════════════════════════════
     item { SettingsGroupHeader(stringResource(R.string.settings_group_vehicle)) }
-    // Reichweite bei vollem Tank: Grundlage der virtuellen Tankanzeige (ohne Wert bleibt die Anzeige ausgeblendet).
+    // Reichweite bei vollem Tank: Grundlage der virtuellen Tankanzeige (ohne Wert bleibt die Anzeige ausgeblendet); mit Tankinhalt aus dem Logbuch berechnet.
     item {
-        FuelRangeSettingRow(rangeFullKm = fuelRangeFullKm, onRangeChange = onFuelRangeChange)
+        FuelRangeSettingRow(rangeFullKm = fuel.rangeFullKm, onRangeChange = onFuelRangeChange, learned = fuel.learned)
+        HorizontalDivider()
+    }
+    // Tankinhalt: macht aus dem Verbrauch des Logbuchs die Reichweite (nur der Nutzer kennt ihn, die App fragt kein Fahrzeug).
+    item {
+        FuelCapacitySettingRow(capacityDl = fuel.tankCapacityDl, onCapacityChange = onFuelCapacityChange)
+        HorizontalDivider()
+    }
+    // Reserve der Tankanzeige: eine Marke im Balken, unter der die Zahl rot wird (kein Alarm).
+    item {
+        FuelReserveSettingRow(reserveKm = fuel.reserveKm, onReserveChange = onFuelReserveChange)
         HorizontalDivider()
     }
     // Wartungsintervalle des Logbuchs (Phase 3): ohne Vorgabe, der Nutzer nennt die Werte.

@@ -2,16 +2,25 @@ package de.adv990de.obd2.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.center
 import androidx.compose.ui.test.click
@@ -443,7 +452,204 @@ class FuelGaugeRowDeviceTest {
         val row = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot
         val track = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot
         assertEquals("rechter Rand ${row.right - track.right} px", 12 * density, row.right - track.right, 1.5f)
-        // Symbol (24 dp) + 12 dp Abstand vor dem Balken: er beginnt bei 8 + 24 + 12 = 44 dp.
-        assertEquals("Balken beginnt ${track.left - row.left} px vom Zeilenanfang", 44 * density, track.left - row.left, 1.5f)
+        // Symbol (24 dp), 8 dp Abstand, die Zahl (64 dp, seit F5) und 12 dp Abstand vor dem Balken: er beginnt bei 8 + 24 + 8 + 64 + 12 = 116 dp.
+        assertEquals("Balken beginnt ${track.left - row.left} px vom Zeilenanfang", 116 * density, track.left - row.left, 1.5f)
+    }
+
+    // --- F5: die Zahl und die Reserve-Marke (Entwurf 2026-10-25-range-design.md) ---
+
+    private fun numberText() = inner(FUEL_GAUGE_RANGE_TEST_TAG)
+
+    private fun textLayout(tag: String): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        inner(tag).fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.single()
+    }
+
+    @Test
+    fun theRowShowsTheRemainingRangeAsANumber() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f)) // 220 km
+
+        numberText().assertTextEquals("220")
+    }
+
+    @Test
+    fun theNumberIsRoundedDownToFiveKilometers() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 133f)) // 187 km -> 185
+
+        numberText().assertTextEquals("185")
+    }
+
+    @Test
+    fun anEmptyTankShowsZero() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 400f))
+
+        numberText().assertTextEquals("0")
+    }
+
+    @Test
+    fun theNumberFollowsTheGauge() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 0f))
+        numberText().assertTextEquals("320")
+
+        update(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f))
+        numberText().assertTextEquals("220")
+    }
+
+    @Test
+    fun theNumberIsNormalTextInTheNormalState_andRedInTheReserve() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 100f, reserveKm = 40)) // 160 km, nicht in der Reserve
+        assertEquals(scheme.onSurface, textLayout(FUEL_GAUGE_RANGE_TEST_TAG).layoutInput.style.color)
+
+        update(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 225f, reserveKm = 40)) // 35 km, in der Reserve
+        assertEquals(StatusColors.criticalOn(scheme.surface), textLayout(FUEL_GAUGE_RANGE_TEST_TAG).layoutInput.style.color)
+    }
+
+    @Test
+    fun withoutAReserveTheNumberIsNeverRed_notEvenOnAnEmptyTank() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 255f)) // 5 km, Reserve 0
+
+        assertEquals(scheme.onSurface, textLayout(FUEL_GAUGE_RANGE_TEST_TAG).layoutInput.style.color)
+    }
+
+    @Test
+    fun theNumberAndItsUnitFitTheirBox_evenWithFourDigitsAtLargeSystemFont() {
+        // Nie ein still abgeschnittener Wert: 4 Ziffern bei Schriftskala 1,3 passen nicht in 64 dp, die Zahl schrumpft (LiveValueText minFontSize).
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.3f)) {
+                MaterialTheme(colorScheme = scheme, typography = AppTypography) {
+                    Box(Modifier.width(360.dp)) {
+                        FuelGaugeRow(state = FuelGaugeState(rangeFullKm = 1000, kmSinceFill = 0f), onResetRequested = {})
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        val number = textLayout(FUEL_GAUGE_RANGE_TEST_TAG)
+        val readout = inner(FUEL_GAUGE_READOUT_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val numberBox = inner(FUEL_GAUGE_RANGE_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val unitBox = inner(FUEL_GAUGE_UNIT_TEST_TAG).fetchSemanticsNode().boundsInRoot
+
+        assertEquals("eine Zeile", 1, number.lineCount)
+        // Ein Text ohne Zeilenumbruch wird nicht umgebrochen, sondern an der Breite seines Platzes abgeschnitten — und meldet das nicht (`didOverflowWidth` bleibt false, `lineRight`
+        // und `size` zeigen nur den sichtbaren Teil: am Geraet gemessen fuer "1000" ohne Verkleinern 2 von 4 Ziffern). Gemessen wird deshalb, was die Zahl BRAUCHT: Plex Mono hat fuer
+        // jede Ziffer dieselbe Breite, das Kaestchen der ersten Ziffer mal die Zahl der Ziffern.
+        val needed = number.getBoundingBox(0).width * number.layoutInput.text.length
+        assertTrue("die Zahl braucht $needed px, ihr Knoten hat ${numberBox.width} px — abgeschnitten", needed <= numberBox.width + 0.5f)
+        assertTrue("Zahl ${numberBox} und Einheit ${unitBox} ueberlappen", numberBox.right <= unitBox.left + 0.5f)
+        assertTrue("die Einheit ragt aus der Box ($unitBox gegen $readout)", unitBox.right <= readout.right + 0.5f)
+        assertEquals("die Box ist 64 dp breit", 64 * composeRule.activity.resources.displayMetrics.density, readout.width, 1.5f)
+    }
+
+    // Die Marke steht im Balken an der Stelle `reserve / Reichweite` von links: ein 2 dp breiter Strich in `onSurface`, im Bild als Punkte der Mittelzeile gelesen.
+
+    private data class Mark(val firstPx: Int, val lastPx: Int, val widthPx: Int) {
+        val centerPx: Float get() = (firstPx + lastPx + 1) / 2f
+    }
+
+    /** Die Punkte der Mittelzeile der Spur in genau der Farbe `onSurface` (die Marke); `null` ohne solche Punkte. */
+    private fun markOnTrack(): Mark? {
+        val image = trackImage()
+        val ink = scheme.onSurface.toArgb()
+        val y = image.height / 2
+        val xs = (0 until image.width).filter { image.getPixel(it, y) == ink }
+        return if (xs.isEmpty()) null else Mark(xs.first(), xs.last(), xs.size)
+    }
+
+    @Test
+    fun theReserveMarkSitsAtReserveDividedByRange() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
+        val image = trackImage()
+        val expectedCenter = image.width * (40f / 260f)
+
+        val mark = markOnTrack()
+
+        assertTrue("die Marke fehlt", mark != null)
+        assertEquals("Mitte der Marke ${mark!!.centerPx} px, erwartet $expectedCenter px", expectedCenter, mark.centerPx, 2f)
+    }
+
+    @Test
+    fun theReserveMarkIsAbout2DpWide() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
+        val density = composeRule.activity.resources.displayMetrics.density
+
+        val mark = markOnTrack()!!
+
+        // Kantenglaettung nimmt bis zu zwei Punkte weg (nur Punkte in genau der Farbe zaehlen).
+        assertTrue("Breite ${mark.widthPx} px, erwartet etwa ${2 * density} px", mark.widthPx >= 2 * density - 2f && mark.widthPx <= 2 * density + 0.5f)
+    }
+
+    @Test
+    fun theReserveMarkMovesWithTheReserve() {
+        show(FuelGaugeState(rangeFullKm = 200, kmSinceFill = 0f, reserveKm = 20))
+        val low = markOnTrack()!!.centerPx
+
+        update(FuelGaugeState(rangeFullKm = 200, kmSinceFill = 0f, reserveKm = 100))
+        val high = markOnTrack()!!.centerPx
+
+        assertTrue("20 km bei 200 km Reichweite stehen links von 100 km: $low gegen $high", low < high)
+        assertEquals("100 von 200 km = Mitte", trackImage().width / 2f, high, 2f)
+    }
+
+    @Test
+    fun withoutAReserveThereIsNoMark() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f))
+
+        assertEquals(null, markOnTrack())
+    }
+
+    @Test
+    fun aReserveAsLargeAsTheRangeHasNoMark() {
+        show(FuelGaugeState(rangeFullKm = 100, kmSinceFill = 0f, reserveKm = 100))
+        assertEquals(null, markOnTrack())
+
+        update(FuelGaugeState(rangeFullKm = 100, kmSinceFill = 0f, reserveKm = 250))
+        assertEquals(null, markOnTrack())
+    }
+
+    @Test
+    fun theReserveMarkIsTallerThanTheBar_withinTheRow() {
+        // 24 dp Strich: 4 dp ueber und unter dem 16-dp-Balken, innerhalb der 12 dp Luft der 40-dp-Zeile.
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 0f, reserveKm = 40))
+        val density = composeRule.activity.resources.displayMetrics.density
+        val row = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).captureToImage().asAndroidBitmap()
+        val trackLeft = inner(FUEL_GAUGE_TRACK_TEST_TAG).fetchSemanticsNode().boundsInRoot.left -
+            composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot.left
+        val x = (trackLeft + markOnTrack()!!.centerPx).toInt()
+        val ink = scheme.onSurface.toArgb()
+
+        val ys = (0 until row.height).filter { row.getPixel(x, it) == ink }
+
+        assertTrue("Hoehe ${ys.size} px, erwartet etwa ${24 * density} px", ys.size >= 24 * density - 3f && ys.size <= 24 * density + 0.5f)
+        assertTrue("der Strich bleibt in der Zeile (${ys.first()} bis ${ys.last()} von ${row.height})", ys.first() >= 0 && ys.last() < row.height)
+    }
+
+    @Test
+    fun theDescriptionNamesTheReserve_andSaysWhenTheRangeIsInIt() {
+        show(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 100f, reserveKm = 40)) // 160 km
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG)
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.fuel_gauge_desc_reserve, 160, 62, 40))
+
+        update(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 225f, reserveKm = 40)) // 35 km, 13 %
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG)
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.fuel_gauge_desc_in_reserve, 35, 13))
+    }
+
+    @Test
+    fun theDescriptionSpeaksTheDisplayedNumber() {
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 133f)) // 187 km, angezeigt 185, 58 %
+
+        composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG)
+            .assertContentDescriptionEquals(composeRule.activity.getString(R.string.fuel_gauge_desc, 185, 58))
+    }
+
+    @Test
+    fun theNumberIsNotAnnouncedTwice() {
+        // Die Beschreibung der Zeile traegt schon die Restreichweite: die Zahl darf TalkBack nicht zusaetzlich ansagen.
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f))
+
+        val text = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)
+        assertTrue("Text im zusammengefuehrten Knoten: $text", text.isNullOrEmpty())
     }
 }

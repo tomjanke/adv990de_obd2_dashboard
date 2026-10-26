@@ -164,6 +164,30 @@ internal fun GaugeDialog(onYes: () -> Unit, onNo: () -> Unit) {
     )
 }
 
+/**
+ * "Tankanzeige anheben?" nach einer neuen **Teiltankung** von heute (F5): die getankten Liter und die Strecke, die sie bei dem Verbrauch der letzten Voll-zu-Voll-Intervalle ergeben. Ja hebt die
+ * Anzeige um diese Strecke an (nie ueber voll), Nein laesst sie.
+ */
+@Composable
+internal fun GaugeCreditDialog(amountMl: Int, km: Int, onYes: () -> Unit, onNo: () -> Unit) {
+    val locale = LocalLocale.current.platformLocale
+    AlertDialog(
+        onDismissRequest = onNo,
+        title = { Text(stringResource(R.string.logbook_gauge_credit_title)) },
+        text = { Text(stringResource(R.string.logbook_gauge_credit_message, formatLiters(amountMl, locale), km)) },
+        confirmButton = {
+            ProvideMinTouchTarget {
+                TextButton(onClick = onYes, modifier = Modifier.heightIn(min = TouchMinHeight).testTag(LOGBOOK_GAUGE_CREDIT_YES_TEST_TAG)) { Text(stringResource(R.string.logbook_yes)) }
+            }
+        },
+        dismissButton = {
+            ProvideMinTouchTarget {
+                TextButton(onClick = onNo, modifier = Modifier.heightIn(min = TouchMinHeight).testTag(LOGBOOK_GAUGE_CREDIT_NO_TEST_TAG)) { Text(stringResource(R.string.logbook_no)) }
+            }
+        },
+    )
+}
+
 // region — Previews
 
 private val PREVIEW_OTHER_ENTRY = LogEntry(1, LogType.FUEL, LocalDate.of(2026, 10, 2), 40_362, 14_370, true, 2_743, null, null)
@@ -184,6 +208,18 @@ private fun PreviewLogbookWarningsDialogLight() {
 @Composable
 private fun PreviewLogbookGaugeDialogDark() {
     PreviewTheme(dark = true) { GaugeDialog(onYes = {}, onNo = {}) }
+}
+
+@Preview(name = "Fuel gauge credit dialog (dark)", showBackground = true)
+@Composable
+private fun PreviewLogbookGaugeCreditDialogDark() {
+    PreviewTheme(dark = true) { GaugeCreditDialog(amountMl = 6_200, km = 81, onYes = {}, onNo = {}) }
+}
+
+@Preview(name = "Fuel gauge credit dialog (light)", showBackground = true)
+@Composable
+private fun PreviewLogbookGaugeCreditDialogLight() {
+    PreviewTheme(dark = false) { GaugeCreditDialog(amountMl = 6_200, km = 81, onYes = {}, onNo = {}) }
 }
 
 // endregion

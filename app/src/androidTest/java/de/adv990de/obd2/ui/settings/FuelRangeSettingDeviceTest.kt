@@ -234,4 +234,39 @@ class FuelRangeSettingDeviceTest {
         composeRule.onNodeWithText(str(R.string.settings_fuel_range_summary, 320)).assertIsDisplayed()
         composeRule.onNodeWithText(str(R.string.settings_fuel_range_save)).assertDoesNotExist()
     }
+
+    // --- F5: die Zusammenfassung nennt die aus dem Logbuch berechnete Reichweite ---
+
+    private fun showLearnedRow(manualKm: Int, learned: de.adv990de.obd2.fuel.LearnedRange) {
+        composeRule.setContent {
+            MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+                FuelRangeSettingRow(rangeFullKm = manualKm, onRangeChange = { saved += it }, learned = learned)
+            }
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun aLearnedRangeIsNamedWithItsConsumptionAndTheManualOneAsFallback() {
+        showLearnedRow(manualKm = 320, learned = de.adv990de.obd2.fuel.LearnedRange(km = 260, litersPer100Km = 7.7))
+
+        val consumption = formatConsumption(7.7, composeRule.activity.resources.configuration.locales[0])
+        composeRule.onNodeWithText(str(R.string.settings_fuel_range_summary_learned, 260, consumption, 320)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aLearnedRangeWithoutAManualOneIsNamedAlone() {
+        showLearnedRow(manualKm = 0, learned = de.adv990de.obd2.fuel.LearnedRange(km = 260, litersPer100Km = 7.7))
+
+        val consumption = formatConsumption(7.7, composeRule.activity.resources.configuration.locales[0])
+        composeRule.onNodeWithText(str(R.string.settings_fuel_range_summary_learned_only, 260, consumption)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theDialogStillEditsTheManualRangeWhenOneIsLearned() {
+        showLearnedRow(manualKm = 320, learned = de.adv990de.obd2.fuel.LearnedRange(km = 260, litersPer100Km = 7.7))
+        openDialog()
+
+        composeRule.onNodeWithTag(FUEL_RANGE_FIELD_TEST_TAG).assert(hasText("320"))
+    }
 }

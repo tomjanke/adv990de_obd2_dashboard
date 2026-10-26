@@ -424,6 +424,9 @@
 
     <!-- Fuel gauge (virtual: counts GPS kilometres since the last fill-up) -->
     <string name="fuel_gauge_desc">Fuel gauge: about %1$d km left (%2$d %%)</string>
+    <string name="fuel_gauge_desc_reserve">Fuel gauge: about %1$d km left (%2$d %%), reserve from %3$d km</string>
+    <string name="fuel_gauge_desc_in_reserve">Fuel gauge: about %1$d km left (%2$d %%), in the reserve</string>
+    <string name="fuel_gauge_unit_km">km</string>
     <string name="fuel_gauge_reset_action">Reset fuel gauge</string>
     <string name="fuel_reset_title">Reset fuel gauge?</string>
     <string name="fuel_reset_message">After filling up: the gauge jumps back to the full range of %1$d km.</string>
@@ -435,6 +438,20 @@
     <string name="settings_fuel_range_help">50 to 1000 km. Empty hides the fuel gauge. The distance is counted from the GPS speed (setting “Speed from GPS”) while the app is connected.</string>
     <string name="settings_fuel_range_error">Enter a whole number from 50 to 1000.</string>
     <string name="settings_fuel_range_save">Save</string>
+    <string name="settings_fuel_range_summary_learned">Calculated from the logbook: %1$d km (avg. %2$s l/100 km) – manual: %3$d km</string>
+    <string name="settings_fuel_range_summary_learned_only">Calculated from the logbook: %1$d km (avg. %2$s l/100 km)</string>
+    <string name="settings_fuel_capacity_title">Tank capacity</string>
+    <string name="settings_fuel_capacity_summary">%1$s l</string>
+    <string name="settings_fuel_capacity_not_set">Not set – the range counts as entered</string>
+    <string name="settings_fuel_capacity_label">Tank capacity (l)</string>
+    <string name="settings_fuel_capacity_help">3.0 to 60.0 litres. With a capacity set, the range is calculated from the fuel consumption in the logbook (from three full-to-full intervals); empty uses the range as entered.</string>
+    <string name="settings_fuel_capacity_error">Enter litres from 3.0 to 60.0, at most one decimal place.</string>
+    <string name="settings_fuel_reserve_title">Reserve</string>
+    <string name="settings_fuel_reserve_summary">%1$d km range left</string>
+    <string name="settings_fuel_reserve_off">Off – no mark on the bar</string>
+    <string name="settings_fuel_reserve_label">Reserve (km)</string>
+    <string name="settings_fuel_reserve_help">5 to 500 km of remaining range. Empty switches the reserve off. A mark on the bar shows where it starts; below it the number turns red. No alarm, no sound.</string>
+    <string name="settings_fuel_reserve_error">Enter a whole number from 5 to 500.</string>
 
     <!-- Voltage tile: charge state next to the value (read out by screen readers; the bar itself has no text) -->
     <string name="voltage_state_charging">charging</string>
@@ -529,6 +546,8 @@
     <string name="logbook_warning_consumption">A consumption of %1$s looks implausible (usual: 2 to 20 l/100 km).</string>
     <string name="logbook_gauge_title">Reset the fuel gauge?</string>
     <string name="logbook_gauge_message">You filled up. Set the fuel gauge on the dashboard back to full?</string>
+    <string name="logbook_gauge_credit_title">Raise the fuel gauge?</string>
+    <string name="logbook_gauge_credit_message">You added %1$s l – about %2$d km at your recent fuel consumption. Raise the fuel gauge on the dashboard by that distance?</string>
     <string name="logbook_yes">Yes</string>
     <string name="logbook_no">No</string>
 

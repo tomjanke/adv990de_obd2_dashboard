@@ -82,6 +82,7 @@ class LogEntryViewModelTest {
         val fuel = mockk<FuelRepository> {
             every { state } returns gaugeFlow
             every { reset() } just Runs
+            every { credit(any()) } just Runs
         }
         val handle = SavedStateHandle(if (id == null) emptyMap() else mapOf("id" to id))
         val vm = LogEntryViewModel(handle, repo, fuel, today = { today }, decimalSeparator = separator)
@@ -487,5 +488,124 @@ class LogEntryViewModelTest {
             collect(vm); runCurrent(); vm.setNote("x"); runCurrent(); vm.save(); runCurrent()
         }
         assertEquals("beim Bearbeiten nie", SaveOutcome.Done, edit.vm.outcome.value)
+    }
+
+    // ── Teilbetankung: die Tankanzeige anheben (F5, Phase C) ──────────────────
+
+    private val fillDay = LocalDate.of(2031, 1, 1)
+
+    private fun pastFill(id: Long, km: Int, ml: Int) = LogEntry(
+        id = id, type = LogType.FUEL, date = fillDay.plusDays(id), odometerKm = km, amountMl = ml, fullTank = true,
+        costCents = null, note = null, brand = null,
+    )
+
+    /** Eine erste volle Tankung und [intervals] Intervalle zu je 100 km und 7,7 l = 7,7 l/100 km (erfundene Zahlen). */
+    private fun steadyPast(intervals: Int) = listOf(pastFill(0, 1_000, 15_000)) + List(intervals) { pastFill(it + 1L, 1_100 + it * 100, 7_700) }
+
+    @Test
+    fun `a new part fill of today with a known consumption asks whether to raise the fuel gauge`() = runTest {
+        val f = fixture(entries = steadyPast(3))
+        collect(f.vm); runCurrent()
+        f.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); f.vm.setFullTank(false); runCurrent()
+        f.vm.save(); runCurrent()
+
+        // 6,2 l bei 7,7 l/100 km = 80,5 km -> 81
+        assertEquals(SaveOutcome.AskFuelGaugeCredit(amountMl = 6_200, km = 81), f.vm.outcome.value)
+        verify(exactly = 0) { f.fuel.credit(any()) }
+        verify(exactly = 0) { f.fuel.reset() }
+    }
+
+    @Test
+    fun `yes raises the gauge by the shown kilometers and finishes - no leaves it alone and finishes`() = runTest {
+        val yes = fixture(entries = steadyPast(3))
+        collect(yes.vm); runCurrent()
+        yes.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); yes.vm.setFullTank(false); runCurrent()
+        yes.vm.save(); runCurrent()
+        yes.vm.creditFuelGauge()
+        verify(exactly = 1) { yes.fuel.credit(81f) }
+        assertEquals(SaveOutcome.Done, yes.vm.outcome.value)
+
+        val no = fixture(entries = steadyPast(3))
+        collect(no.vm); runCurrent()
+        no.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); no.vm.setFullTank(false); runCurrent()
+        no.vm.save(); runCurrent()
+        no.vm.declineFuelGaugeCredit()
+        verify(exactly = 0) { no.fuel.credit(any()) }
+        assertEquals(SaveOutcome.Done, no.vm.outcome.value)
+    }
+
+    @Test
+    fun `answering the credit question when there is none does nothing`() = runTest {
+        val f = fixture()
+        collect(f.vm); runCurrent()
+
+        f.vm.creditFuelGauge()
+        f.vm.declineFuelGaugeCredit()
+
+        verify(exactly = 0) { f.fuel.credit(any()) }
+        assertNull(f.vm.outcome.value)
+    }
+
+    @Test
+    fun `no credit question without a known consumption - fewer than three intervals`() = runTest {
+        for (intervals in 0..2) {
+            val f = fixture(entries = steadyPast(intervals))
+            collect(f.vm); runCurrent()
+            f.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); f.vm.setFullTank(false); runCurrent()
+            f.vm.save(); runCurrent()
+
+            assertEquals("$intervals Intervalle", SaveOutcome.Done, f.vm.outcome.value)
+        }
+    }
+
+    @Test
+    fun `no credit question for another day, an edit, another kind, a full tank or without a fuel gauge`() = runTest {
+        suspend fun TestScope.partial(f: Fixture, configure: LogEntryViewModel.() -> Unit = {}) {
+            collect(f.vm); runCurrent()
+            f.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); f.vm.setFullTank(false); f.vm.configure(); runCurrent()
+            f.vm.save(); runCurrent()
+        }
+
+        val otherDay = fixture(entries = steadyPast(3)); partial(otherDay) { setDate(today.minusDays(1)) }
+        assertEquals("nachgetragen", SaveOutcome.Done, otherDay.vm.outcome.value)
+
+        val noGauge = fixture(entries = steadyPast(3), gauge = null); partial(noGauge)
+        assertEquals("ohne Tankanzeige gibt es nichts anzuheben", SaveOutcome.Done, noGauge.vm.outcome.value)
+
+        val oil = fixture(entries = steadyPast(3)); partial(oil) { setType(LogType.OIL); setAmount("150") }
+        assertEquals("kein Tanken", SaveOutcome.Done, oil.vm.outcome.value)
+
+        // Eine volle Tankung im Anschluss an die Historie (7,7 l auf 100 km): keine Verbrauchswarnung, die Rueckfrage "auf voll setzen" bleibt die eigene.
+        val full = fixture(entries = steadyPast(3))
+        collect(full.vm); runCurrent()
+        full.vm.fillFuel(odometer = "1400", liters = "7,7", cost = ""); runCurrent()
+        full.vm.save(); runCurrent()
+        assertEquals("eine volle Tankung behaelt ihre eigene Rueckfrage", SaveOutcome.AskFuelGaugeReset, full.vm.outcome.value)
+
+        val edit = fixture(id = 5, entries = steadyPast(3) + entry(5, km = 40_362, date = today).copy(fullTank = false))
+        collect(edit.vm); runCurrent(); edit.vm.setNote("x"); runCurrent(); edit.vm.save(); runCurrent()
+        assertEquals("beim Bearbeiten nie", SaveOutcome.Done, edit.vm.outcome.value)
+    }
+
+    @Test
+    fun `a part fill so small that it credits less than one kilometer asks nothing`() = runTest {
+        val f = fixture(entries = steadyPast(3))
+        collect(f.vm); runCurrent()
+        f.vm.fillFuel(odometer = "40362", liters = "0,01", cost = ""); f.vm.setFullTank(false); runCurrent()
+        f.vm.save(); runCurrent()
+
+        assertEquals(SaveOutcome.Done, f.vm.outcome.value)
+    }
+
+    @Test
+    fun `the saved part fill is not counted into the consumption it is converted with`() = runTest {
+        // Die Teiltankung selbst schliesst kein Intervall: der Verbrauch kommt aus den bisherigen, nicht aus ihren eigenen 30 l.
+        val f = fixture(entries = steadyPast(3))
+        collect(f.vm); runCurrent()
+        f.vm.fillFuel(odometer = "40362", liters = "30", cost = ""); f.vm.setFullTank(false); runCurrent()
+        f.vm.save(); runCurrent()
+
+        // 30 l bei 7,7 l/100 km = 389,6 km -> 390
+        assertEquals(SaveOutcome.AskFuelGaugeCredit(amountMl = 30_000, km = 390), f.vm.outcome.value)
     }
 }

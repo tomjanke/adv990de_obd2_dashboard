@@ -424,6 +424,9 @@
 
     <!-- Tankanzeige (virtuell: zählt die GPS-Kilometer seit dem letzten Tanken) -->
     <string name="fuel_gauge_desc">Tankanzeige: noch etwa %1$d km (%2$d %%)</string>
+    <string name="fuel_gauge_desc_reserve">Tankanzeige: noch etwa %1$d km (%2$d %%), Reserve ab %3$d km</string>
+    <string name="fuel_gauge_desc_in_reserve">Tankanzeige: noch etwa %1$d km (%2$d %%), in der Reserve</string>
+    <string name="fuel_gauge_unit_km">km</string>
     <string name="fuel_gauge_reset_action">Tankanzeige zurücksetzen</string>
     <string name="fuel_reset_title">Tankanzeige zurücksetzen?</string>
     <string name="fuel_reset_message">Nach dem Tanken: Die Anzeige springt auf die volle Reichweite von %1$d km zurück.</string>
@@ -435,6 +438,20 @@
     <string name="settings_fuel_range_help">50 bis 1000 km. Leer blendet die Tankanzeige aus. Die Strecke zählt aus der GPS-Geschwindigkeit (Einstellung „Geschwindigkeit per GPS“), solange die App verbunden ist.</string>
     <string name="settings_fuel_range_error">Bitte eine ganze Zahl von 50 bis 1000 eingeben.</string>
     <string name="settings_fuel_range_save">Speichern</string>
+    <string name="settings_fuel_range_summary_learned">Aus dem Logbuch berechnet: %1$d km (Ø %2$s l/100 km) – manuell: %3$d km</string>
+    <string name="settings_fuel_range_summary_learned_only">Aus dem Logbuch berechnet: %1$d km (Ø %2$s l/100 km)</string>
+    <string name="settings_fuel_capacity_title">Tankinhalt</string>
+    <string name="settings_fuel_capacity_summary">%1$s l</string>
+    <string name="settings_fuel_capacity_not_set">Nicht festgelegt – die Reichweite gilt wie eingegeben</string>
+    <string name="settings_fuel_capacity_label">Tankinhalt (l)</string>
+    <string name="settings_fuel_capacity_help">3,0 bis 60,0 Liter. Mit Tankinhalt wird die Reichweite aus dem Verbrauch im Logbuch berechnet (ab drei Voll-zu-Voll-Intervallen); leer nimmt die Reichweite wie eingegeben.</string>
+    <string name="settings_fuel_capacity_error">Bitte Liter von 3,0 bis 60,0 eingeben, höchstens eine Nachkommastelle.</string>
+    <string name="settings_fuel_reserve_title">Reserve</string>
+    <string name="settings_fuel_reserve_summary">%1$d km Restreichweite</string>
+    <string name="settings_fuel_reserve_off">Aus – keine Marke im Balken</string>
+    <string name="settings_fuel_reserve_label">Reserve (km)</string>
+    <string name="settings_fuel_reserve_help">5 bis 500 km Restreichweite. Leer schaltet die Reserve aus. Eine Marke im Balken zeigt, wo sie beginnt; darunter wird die Zahl rot. Kein Alarm, kein Ton.</string>
+    <string name="settings_fuel_reserve_error">Bitte eine ganze Zahl von 5 bis 500 eingeben.</string>
 
     <!-- Spannungs-Kachel: Ladezustand neben dem Wert (Vorlesetext; der Balken selbst hat keinen Text) -->
     <string name="voltage_state_charging">lädt</string>
@@ -529,6 +546,8 @@
     <string name="logbook_warning_consumption">Ein Verbrauch von %1$s wirkt unplausibel (üblich: 2 bis 20 l/100 km).</string>
     <string name="logbook_gauge_title">Tankanzeige zurücksetzen?</string>
     <string name="logbook_gauge_message">Es wurde getankt. Die Tankanzeige im Dashboard wieder auf voll setzen?</string>
+    <string name="logbook_gauge_credit_title">Tankanzeige anheben?</string>
+    <string name="logbook_gauge_credit_message">Es wurden %1$s l nachgetankt – bei deinem Verbrauch der letzten Tankungen rund %2$d km. Die Tankanzeige im Dashboard um diese Strecke anheben?</string>
     <string name="logbook_yes">Ja</string>
     <string name="logbook_no">Nein</string>
 

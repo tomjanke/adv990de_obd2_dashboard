@@ -18,7 +18,9 @@ import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
+import de.adv990de.obd2.fuel.FuelCapacityLimits
 import de.adv990de.obd2.fuel.FuelRangeLimits
+import de.adv990de.obd2.fuel.FuelReserveLimits
 import de.adv990de.obd2.obd.PidRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -70,6 +72,9 @@ class AppPreferences @Inject constructor(
         // Tankanzeige: die Namen sind persistierter Zustand (DataStore) — nie umbenennen oder mit anderer Bedeutung wiederverwenden.
         private val KEY_FUEL_RANGE_FULL_KM = intPreferencesKey("fuel_range_full_km")
         private val KEY_FUEL_KM_SINCE_FILL = floatPreferencesKey("fuel_km_since_fill")
+        private val KEY_FUEL_RESERVE_KM = intPreferencesKey("fuel_reserve_km")
+        private val KEY_FUEL_TANK_CAPACITY_DL = intPreferencesKey("fuel_tank_capacity_dl")
+        private val KEY_FUEL_RANGE_LEARNED_KM = intPreferencesKey("fuel_range_learned_km")
         private val KEY_PRIMARY_RATIO   = floatPreferencesKey("primary_ratio")
         private val KEY_SECONDARY_RATIO = floatPreferencesKey("secondary_ratio")
         private val KEY_GEAR_RATIO_1 = floatPreferencesKey("gear_ratio_1")
@@ -316,6 +321,48 @@ class AppPreferences @Inject constructor(
     suspend fun setFuelKmSinceFill(km: Float) {
         require(km.isFinite() && km >= 0f) { "fuel counter must be finite and >= 0: $km" }
         dataStore.edit { it[KEY_FUEL_KM_SINCE_FILL] = km }
+    }
+
+    /**
+     * Reserve der Tankanzeige in ganzen km Restreichweite; **0 = aus** (keine Marke im Balken, die Zahl wird nie rot). Ein Wert ausserhalb von [FuelReserveLimits] im Speicher
+     * (kann nur von Hand entstehen) gilt als aus. Eine Reserve ab der Reichweite wird gespeichert, hat aber keine Marke (`reserveFraction`).
+     */
+    val fuelReserveKm: Flow<Int> = data.map { prefs ->
+        (prefs[KEY_FUEL_RESERVE_KM] ?: 0).takeIf { it in FuelReserveLimits.MIN_KM..FuelReserveLimits.MAX_KM } ?: 0
+    }.distinctUntilChanged()
+
+    /** [km] = 0 schaltet die Reserve aus; sonst muss der Wert in [FuelReserveLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
+    suspend fun setFuelReserveKm(km: Int) {
+        require(km == 0 || km in FuelReserveLimits.MIN_KM..FuelReserveLimits.MAX_KM) { "fuel reserve out of bounds: $km" }
+        dataStore.edit { it[KEY_FUEL_RESERVE_KM] = km }
+    }
+
+    /**
+     * Tankinhalt in Zehntelliter (200 = 20,0 l); **0 = nicht festgelegt**. Mit Tankinhalt und mindestens drei Voll-zu-Voll-Intervallen im Logbuch berechnet die Tankanzeige ihre Reichweite
+     * selbst (sonst gilt [fuelRangeFullKm]). Ein Wert ausserhalb von [FuelCapacityLimits] im Speicher (kann nur von Hand entstehen) gilt als nicht festgelegt.
+     */
+    val fuelTankCapacityDl: Flow<Int> = data.map { prefs ->
+        (prefs[KEY_FUEL_TANK_CAPACITY_DL] ?: 0).takeIf { it in FuelCapacityLimits.MIN_DL..FuelCapacityLimits.MAX_DL } ?: 0
+    }.distinctUntilChanged()
+
+    /** [dl] = 0 loescht den Tankinhalt; sonst muss der Wert in [FuelCapacityLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
+    suspend fun setFuelTankCapacityDl(dl: Int) {
+        require(dl == 0 || dl in FuelCapacityLimits.MIN_DL..FuelCapacityLimits.MAX_DL) { "fuel tank capacity out of bounds: $dl" }
+        dataStore.edit { it[KEY_FUEL_TANK_CAPACITY_DL] = dl }
+    }
+
+    /**
+     * Die zuletzt aus dem Logbuch berechnete Reichweite in km, **nur ein Cache fuer das erste Bild** (die Tankzeile soll beim Start nicht springen, bis die Logbuch-Abfrage antwortet); die
+     * Quelle der Wahrheit ist die Rechnung (`FuelRangeSource`), diese Zahl ist nie ein Eingang. 0 = keiner. Ein Wert ausserhalb von [FuelRangeLimits] im Speicher gilt als keiner.
+     */
+    val fuelRangeLearnedKm: Flow<Int> = data.map { prefs ->
+        (prefs[KEY_FUEL_RANGE_LEARNED_KM] ?: 0).takeIf { it in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM } ?: 0
+    }.distinctUntilChanged()
+
+    /** [km] = 0 loescht den Cache; sonst muss der Wert in [FuelRangeLimits] liegen. */
+    suspend fun setFuelRangeLearnedKm(km: Int) {
+        require(km == 0 || km in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM) { "fuel learned range out of bounds: $km" }
+        dataStore.edit { it[KEY_FUEL_RANGE_LEARNED_KM] = km }
     }
 
     val primaryRatio: Flow<Float> = data.map { prefs ->

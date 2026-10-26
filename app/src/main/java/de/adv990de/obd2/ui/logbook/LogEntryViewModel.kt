@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.VehicleLogRepository
 import de.adv990de.obd2.fuel.FuelRepository
+import de.adv990de.obd2.fuel.creditKm
+import de.adv990de.obd2.fuel.recentLitersPer100Km
 import de.adv990de.obd2.logbook.FormCheck
 import de.adv990de.obd2.logbook.FormError
 import de.adv990de.obd2.logbook.FormField
@@ -13,6 +15,7 @@ import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogForm
 import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.logbook.fuelReport
 import de.adv990de.obd2.logbook.checkForm
 import de.adv990de.obd2.logbook.firstFieldWithError
 import de.adv990de.obd2.logbook.formFromEntry
@@ -30,9 +33,17 @@ import kotlinx.coroutines.launch
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
-/** Wie das Speichern ausging: fertig ([Done]) oder fertig, aber die Oberflaeche fragt noch, ob die Tankanzeige auf voll soll ([AskFuelGaugeReset]). */
-enum class SaveOutcome { Done, AskFuelGaugeReset }
+/**
+ * Wie das Speichern ausging: fertig ([Done]) oder fertig, aber die Oberflaeche fragt noch nach der Tankanzeige — ob sie nach einer vollen Tankung auf voll soll ([AskFuelGaugeReset])
+ * oder nach einer **Teiltankung** um die getankte Strecke angehoben werden soll ([AskFuelGaugeCredit]: [amountMl] getankt, das sind bei dem Verbrauch der letzten Tankungen [km]).
+ */
+sealed interface SaveOutcome {
+    data object Done : SaveOutcome
+    data object AskFuelGaugeReset : SaveOutcome
+    data class AskFuelGaugeCredit(val amountMl: Int, val km: Int) : SaveOutcome
+}
 
 /** Die Seite soll zu [field] scrollen; [attempt] zaehlt die Speichern-Versuche mit Fehlern, damit derselbe Fehler beim naechsten Versuch wieder eine neue Anfrage ist. */
 data class ScrollToError(val field: FormField, val attempt: Int)
@@ -43,7 +54,7 @@ const val LOG_ENTRY_ID_ARG = "id"
 /**
  * Das Formular eines Logbuch-Eintrags (neu oder bearbeiten). Die Texte stehen in [form]; was daraus wird, entscheidet die reine Funktion [checkForm]. Fehler sieht der
  * Nutzer an einem Feld erst, wenn er es angefasst oder das Speichern versucht hat ([visibleErrors]); Warnungen blockieren das Speichern bis zur Bestaetigung
- * ([pendingWarnings]). Nach einer neuen vollen Tankung von heute fragt [outcome] nach der Tankanzeige ([SaveOutcome.AskFuelGaugeReset]) — nie beim Bearbeiten.
+ * ([pendingWarnings]). Nach einer neuen vollen Tankung von heute fragt [outcome] nach der Tankanzeige ([SaveOutcome.AskFuelGaugeReset]), nach einer neuen Teiltankung von heute (mit bekanntem Verbrauch) ob sie angehoben werden soll ([SaveOutcome.AskFuelGaugeCredit]) — nie beim Bearbeiten.
  *
  * Der interne Konstruktor nimmt "heute" und das Dezimaltrennzeichen als Parameter (Tests); Hilt benutzt den oeffentlichen, der das Geraet fragt.
  */
@@ -215,8 +226,12 @@ class LogEntryViewModel internal constructor(
         _isSaving.value = true
         try {
             repository.save(entry)
-            val askGauge = !isEditing && entry.type == LogType.FUEL && entry.fullTank == true && entry.date == today() && fuelRepository.state.value != null
-            _outcome.value = if (askGauge) SaveOutcome.AskFuelGaugeReset else SaveOutcome.Done
+            val freshFuelOfToday = !isEditing && entry.type == LogType.FUEL && entry.date == today() && fuelRepository.state.value != null
+            _outcome.value = when {
+                freshFuelOfToday && entry.fullTank == true -> SaveOutcome.AskFuelGaugeReset
+                freshFuelOfToday && entry.fullTank == false -> creditOffer(entry) ?: SaveOutcome.Done
+                else -> SaveOutcome.Done
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -224,6 +239,18 @@ class LogEntryViewModel internal constructor(
         } finally {
             _isSaving.value = false
         }
+    }
+
+    /**
+     * Die Rueckfrage nach einer Teiltankung (F5, Phase C): die getankten Liter als Strecke bei dem Verbrauch der letzten Voll-zu-Voll-Intervalle des Logbuchs. `null` = keine Frage:
+     * ohne bekannten Verbrauch (weniger als drei Intervalle) oder wenn weniger als ein Kilometer herauskaeme. Die frisch gelesene Historie enthaelt schon die gespeicherte Teiltankung;
+     * sie schliesst aber kein Intervall und aendert den Verbrauch der bisherigen nicht (ihre Liter zaehlen erst in das Intervall der naechsten vollen Tankung).
+     */
+    private suspend fun creditOffer(entry: LogEntry): SaveOutcome.AskFuelGaugeCredit? {
+        val ml = entry.amountMl ?: return null
+        val consumption = recentLitersPer100Km(fuelReport(repository.entries.first()))
+        val km = creditKm(ml / 1000.0, consumption)?.roundToInt() ?: return null
+        return if (km >= 1) SaveOutcome.AskFuelGaugeCredit(ml, km) else null
     }
 
     fun consumeSaveError() {
@@ -239,5 +266,17 @@ class LogEntryViewModel internal constructor(
     /** "Nein": die Tankanzeige bleibt — dann ist alles erledigt. */
     fun declineFuelGaugeReset() {
         _outcome.value = SaveOutcome.Done
+    }
+
+    /** "Ja" nach einer Teiltankung: die Tankanzeige um die gezeigte Strecke anheben — dann ist alles erledigt. Ohne offene Frage tut es nichts. */
+    fun creditFuelGauge() {
+        val question = _outcome.value as? SaveOutcome.AskFuelGaugeCredit ?: return
+        fuelRepository.credit(question.km.toFloat())
+        _outcome.value = SaveOutcome.Done
+    }
+
+    /** "Nein" nach einer Teiltankung: die Tankanzeige bleibt — dann ist alles erledigt. Ohne offene Frage tut es nichts. */
+    fun declineFuelGaugeCredit() {
+        if (_outcome.value is SaveOutcome.AskFuelGaugeCredit) _outcome.value = SaveOutcome.Done
     }
 }

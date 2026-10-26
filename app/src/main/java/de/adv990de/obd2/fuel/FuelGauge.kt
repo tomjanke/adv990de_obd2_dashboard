@@ -73,7 +73,7 @@ object FuelRangeLimits {
  * Gespeichert wird der Zaehler, nicht der Rest: aendert der Nutzer die Reichweite, folgt die Anzeige sofort. Ein negativer oder nicht
  * endlicher Zaehler gilt als "nichts gefahren"; ein Zaehler ueber der Reichweite als leer.
  */
-data class FuelGaugeState(val rangeFullKm: Int, val kmSinceFill: Float) {
+data class FuelGaugeState(val rangeFullKm: Int, val kmSinceFill: Float, val reserveKm: Int = 0) {
 
     init {
         require(rangeFullKm > 0) { "rangeFullKm must be positive, was $rangeFullKm" }
@@ -94,4 +94,13 @@ data class FuelGaugeState(val rangeFullKm: Int, val kmSinceFill: Float) {
 
     /** Wie viele der [FUEL_SEGMENT_COUNT] Segmente leuchten (s. [fuelLitSegments]); die Farbe kommt weiter aus [level], nicht aus der Segmentzahl. */
     val litSegments: Int get() = fuelLitSegments(fraction)
+
+    /** Die Restreichweite als Zahl der Tankzeile: auf 5 km abgerundet ([displayRangeKm]). */
+    val displayKm: Int get() = displayRangeKm(remainingKm)
+
+    /** Wo die Reserve-Marke im Balken steht (Anteil von links), `null` = keine Marke ([reserveFraction]). */
+    val reserveFraction: Float? get() = reserveFraction(rangeFullKm, reserveKm)
+
+    /** Der Rest hat die Reserve erreicht ([inReserve]): die Zahl der Tankzeile wird dann rot. */
+    val inReserve: Boolean get() = inReserve(remainingKm, reserveKm)
 }

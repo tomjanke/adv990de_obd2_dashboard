@@ -680,4 +680,190 @@ class AppPreferencesTest {
         }
         assertEquals(0f, prefs.fuelKmSinceFill.first(), 0f)
     }
+
+    // ── Reserve der Tankanzeige (km Restreichweite, 0 = aus) ──────────────────
+
+    @Test
+    fun `fuelReserveKm is 0 (off) when nothing is stored`() = runTest {
+        assertEquals(0, makePreferences().fuelReserveKm.first())
+    }
+
+    @Test
+    fun `setFuelReserveKm stores a valid reserve and reads it back`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelReserveKm(40)
+
+        assertEquals(40, prefs.fuelReserveKm.first())
+    }
+
+    @Test
+    fun `setFuelReserveKm stores the limits 5 and 500`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelReserveKm(5)
+        assertEquals(5, prefs.fuelReserveKm.first())
+        prefs.setFuelReserveKm(500)
+        assertEquals(500, prefs.fuelReserveKm.first())
+    }
+
+    @Test
+    fun `setFuelReserveKm with 0 switches the reserve off`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelReserveKm(40)
+
+        prefs.setFuelReserveKm(0)
+
+        assertEquals(0, prefs.fuelReserveKm.first())
+    }
+
+    @Test
+    fun `setFuelReserveKm refuses a value outside 5 to 500 and keeps the old one`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelReserveKm(40)
+
+        for (bad in listOf(-1, 1, 4, 501, 100_000)) {
+            val failure = runCatching { prefs.setFuelReserveKm(bad) }.exceptionOrNull()
+            assertTrue("$bad muss abgelehnt werden, war $failure", failure is IllegalArgumentException)
+        }
+        assertEquals(40, prefs.fuelReserveKm.first())
+    }
+
+    @Test
+    fun `an out-of-range reserve in the store reads as off`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_reserve_km")
+
+        store.edit { it[key] = 3 }
+        assertEquals(0, prefs.fuelReserveKm.first())
+        store.edit { it[key] = 9999 }
+        assertEquals(0, prefs.fuelReserveKm.first())
+    }
+
+    @Test
+    fun `the reserve is stored under the persisted key fuel_reserve_km`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+
+        prefs.setFuelReserveKm(40)
+
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_reserve_km")
+        assertEquals(40, store.data.first()[key])
+    }
+
+    // ── Tankinhalt der Tankanzeige (Zehntelliter, 0 = nicht festgelegt) ───────
+
+    @Test
+    fun `fuelTankCapacityDl is 0 (not set) when nothing is stored`() = runTest {
+        assertEquals(0, makePreferences().fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `setFuelTankCapacityDl stores a valid content and reads it back`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelTankCapacityDl(200)
+
+        assertEquals(200, prefs.fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `setFuelTankCapacityDl stores the limits 30 and 600`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelTankCapacityDl(30)
+        assertEquals(30, prefs.fuelTankCapacityDl.first())
+        prefs.setFuelTankCapacityDl(600)
+        assertEquals(600, prefs.fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `setFuelTankCapacityDl with 0 clears the content`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelTankCapacityDl(200)
+
+        prefs.setFuelTankCapacityDl(0)
+
+        assertEquals(0, prefs.fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `setFuelTankCapacityDl refuses a value outside 30 to 600 and keeps the old one`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelTankCapacityDl(200)
+
+        for (bad in listOf(-1, 1, 29, 601, 100_000)) {
+            val failure = runCatching { prefs.setFuelTankCapacityDl(bad) }.exceptionOrNull()
+            assertTrue("$bad muss abgelehnt werden, war $failure", failure is IllegalArgumentException)
+        }
+        assertEquals(200, prefs.fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `an out-of-range tank content in the store reads as not set`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_tank_capacity_dl")
+
+        store.edit { it[key] = 5 }
+        assertEquals(0, prefs.fuelTankCapacityDl.first())
+        store.edit { it[key] = 9999 }
+        assertEquals(0, prefs.fuelTankCapacityDl.first())
+    }
+
+    @Test
+    fun `the tank content is stored under the persisted key fuel_tank_capacity_dl`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+
+        prefs.setFuelTankCapacityDl(200)
+
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_tank_capacity_dl")
+        assertEquals(200, store.data.first()[key])
+    }
+
+    // ── Gelernte Reichweite (Cache fuer das erste Bild, 0 = keiner) ───────────
+
+    @Test
+    fun `fuelRangeLearnedKm is 0 (none) when nothing is stored`() = runTest {
+        assertEquals(0, makePreferences().fuelRangeLearnedKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeLearnedKm stores the cache and reads it back`() = runTest {
+        val prefs = makePreferences()
+
+        prefs.setFuelRangeLearnedKm(260)
+        assertEquals(260, prefs.fuelRangeLearnedKm.first())
+        prefs.setFuelRangeLearnedKm(0)
+        assertEquals(0, prefs.fuelRangeLearnedKm.first())
+    }
+
+    @Test
+    fun `setFuelRangeLearnedKm refuses a value outside 50 to 1000`() = runTest {
+        val prefs = makePreferences()
+        prefs.setFuelRangeLearnedKm(260)
+
+        for (bad in listOf(-1, 1, 49, 1001)) {
+            val failure = runCatching { prefs.setFuelRangeLearnedKm(bad) }.exceptionOrNull()
+            assertTrue("$bad muss abgelehnt werden, war $failure", failure is IllegalArgumentException)
+        }
+        assertEquals(260, prefs.fuelRangeLearnedKm.first())
+    }
+
+    @Test
+    fun `an out-of-range learned range in the store reads as none`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_range_learned_km")
+
+        store.edit { it[key] = 7 }
+        assertEquals(0, prefs.fuelRangeLearnedKm.first())
+    }
+
+    @Test
+    fun `the learned range is stored under the persisted key fuel_range_learned_km`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+
+        prefs.setFuelRangeLearnedKm(260)
+
+        val key = androidx.datastore.preferences.core.intPreferencesKey("fuel_range_learned_km")
+        assertEquals(260, store.data.first()[key])
+    }
 }

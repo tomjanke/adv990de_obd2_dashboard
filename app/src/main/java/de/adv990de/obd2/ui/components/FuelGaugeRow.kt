@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,24 +38,31 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.fuel.FUEL_SEGMENT_COUNT
 import de.adv990de.obd2.fuel.FuelGaugeState
 import de.adv990de.obd2.fuel.FuelLevel
 import de.adv990de.obd2.ui.theme.AppTypography
+import de.adv990de.obd2.ui.theme.asLiveValue
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 /** Test-only selectors: die ganze Zeile (Long-Press) und die Spur, auf der die zehn Segmente stehen. */
 internal const val FUEL_GAUGE_ROW_TEST_TAG = "fuel_gauge_row"
 internal const val FUEL_GAUGE_TRACK_TEST_TAG = "fuel_gauge_track"
+
+/** Test-only selectors (F5): die Box mit Zahl und Einheit, die Zahl selbst und ihre Einheit. */
+internal const val FUEL_GAUGE_READOUT_TEST_TAG = "fuel_gauge_readout"
+internal const val FUEL_GAUGE_RANGE_TEST_TAG = "fuel_gauge_range"
+internal const val FUEL_GAUGE_UNIT_TEST_TAG = "fuel_gauge_unit"
 
 /** Halbe Blinkperiode der untersten Stufe: 500 ms an, 500 ms aus. */
 internal const val FUEL_BLINK_HALF_PERIOD_MS = 500L
@@ -77,6 +85,20 @@ internal val FUEL_ROW_END_PADDING = 12.dp
 
 private val FuelBarHeight = 16.dp
 private val FuelIconSize = 24.dp
+
+/** Breite der Box mit der Restreichweite als Zahl und ihrer Einheit (F5): fest, damit der Balken beim Wechsel der Ziffernzahl (100 -> 99) nicht springt. */
+internal val FUEL_READOUT_WIDTH = 64.dp
+
+/** Abstand zwischen Tankstellen-Symbol und Zahl; hinter der Zahl bleiben 12 dp bis zum Balken (vorher 12 dp zwischen Symbol und Balken). */
+private val FuelIconToReadoutGap = 8.dp
+private val FuelReadoutToBarGap = 12.dp
+
+/** Breite der Reserve-Marke und ihre Hoehe: 2 dp breit, 24 dp hoch — 4 dp ueber und unter dem 16-dp-Balken, innerhalb der 12 dp Luft der 40-dp-Zeile. */
+private val FuelReserveMarkWidth = 2.dp
+private val FuelReserveMarkHeight = 24.dp
+
+/** Kleinste Schriftgroesse der Zahl: schrumpft bei grosser Systemschrift statt abgeschnitten zu werden (Prinzip "nie ein still abgeschnittener Wert"); bei Schriftskala 1,3 braucht eine vierstellige Zahl in 64 dp weniger als 12 sp (gemessen am Geraet: 12 sp reichten nicht). */
+private val FuelReadoutMinFontSize = 10.sp
 
 /**
  * Die Farbe der Balkenfuellung je Stufe: Ampel-Semantik (Gruen/Gelb/Rot), eine dokumentierte Ausnahme wie Bluetooth-Punkt, Oel-Balken und "N"
@@ -115,7 +137,7 @@ fun FuelGaugeRow(
 ) {
     val level = state.level
     val blinkOn = rememberFuelBlinkPhase(active = level.blinks)
-    val description = stringResource(R.string.fuel_gauge_desc, state.remainingKm.roundToInt(), state.percent)
+    val description = fuelGaugeDescription(state)
     val resetAction = stringResource(R.string.fuel_gauge_reset_action)
     val unlitColor = MaterialTheme.colorScheme.surfaceVariant
     // In der "aus"-Phase des Blinkens ist die Farbe vorab ueber das unbeleuchtete Segment gemischt (Deckkraft FUEL_BLINK_OFF_ALPHA), nicht beim Zeichnen:
@@ -124,6 +146,8 @@ fun FuelGaugeRow(
     // (40, 164, 87) mit einem Rotanteil, den keine Mischung aus Gruen und Luecke hat; Test `theSegmentEdgesAreCleanBlends…`).
     val fillColor = fuelBarColor(level).let { if (blinkOn) it else it.copy(alpha = FUEL_BLINK_OFF_ALPHA).compositeOver(unlitColor) }
     val litSegments = state.litSegments
+    val reserveMarkFraction = state.reserveFraction
+    val markColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -149,7 +173,9 @@ fun FuelGaugeRow(
                     modifier = Modifier.size(FuelIconSize),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(FuelIconToReadoutGap))
+                FuelRangeReadout(state)
+                Spacer(Modifier.width(FuelReadoutToBarGap))
                 // Zehn Segmente wie beim Drehzahlbalken: unbeleuchtete in surfaceVariant (die Skala bleibt lesbar), die Luecken zeigen den
                 // Zeilenhintergrund. Je Segment genau ein deckendes Rechteck (s. fillColor).
                 Canvas(
@@ -167,10 +193,66 @@ fun FuelGaugeRow(
                             size = Size(segmentWidth, size.height),
                         )
                     }
+                    // Die Reserve-Marke: ein Strich ueber den Segmenten an der Stelle reserve / Reichweite von links (`null` = keine Marke).
+                    reserveMarkFraction?.let { fraction ->
+                        val markWidth = FuelReserveMarkWidth.toPx()
+                        val markHeight = FuelReserveMarkHeight.toPx()
+                        val center = (fraction * size.width).coerceIn(markWidth / 2f, size.width - markWidth / 2f)
+                        drawRect(
+                            color = markColor,
+                            topLeft = Offset(center - markWidth / 2f, (size.height - markHeight) / 2f),
+                            size = Size(markWidth, markHeight),
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * Die Restreichweite als Zahl in der Tankzeile (F5): die Zahl in Plex Mono mit `tnum` (auf 5 km abgerundet, [FuelGaugeState.displayKm]) und ihre Einheit, in einer festen Box
+ * ([FUEL_READOUT_WIDTH]). Die Zahl schrumpft bei grosser Systemschrift bis [FuelReadoutMinFontSize] (10 sp), die Einheit behaelt ihren Platz (wie die Kachel). Normal in `onSurface`;
+ * hat der Rest die Reserve erreicht, in `StatusColors.criticalOn` — der Rest gegen die Reserve ist eine Aussage ueber die Strecke, kein zweites Alarmsignal neben den Segmenten.
+ * Die Box traegt keine eigene Semantik: die Beschreibung der Zeile ([fuelGaugeDescription]) nennt die Zahl schon, TalkBack soll sie nicht doppelt ansagen.
+ */
+@Composable
+private fun FuelRangeReadout(state: FuelGaugeState) {
+    val color = if (state.inReserve) StatusColors.criticalOn(MaterialTheme.colorScheme.surface) else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier = Modifier
+            .width(FUEL_READOUT_WIDTH)
+            .testTag(FUEL_GAUGE_READOUT_TEST_TAG)
+            .clearAndSetSemantics {},
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        LiveValueText(
+            value = state.displayKm.toString(),
+            modifier = Modifier.weight(1f, fill = false).testTag(FUEL_GAUGE_RANGE_TEST_TAG),
+            style = MaterialTheme.typography.titleMedium.asLiveValue(),
+            color = color,
+            minFontSize = FuelReadoutMinFontSize,
+        )
+        Text(
+            text = stringResource(R.string.fuel_gauge_unit_km),
+            modifier = Modifier.testTag(FUEL_GAUGE_UNIT_TEST_TAG),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Die Beschreibung der Zeile fuer TalkBack: die angezeigte Zahl (nicht der genaue Rest: sie soll mit dem Bild uebereinstimmen) und der Anteil; mit Reserve nennt sie, ab wo
+ * sie gilt, und im Fall "in der Reserve" sagt sie das.
+ */
+@Composable
+private fun fuelGaugeDescription(state: FuelGaugeState): String = when {
+    state.inReserve -> stringResource(R.string.fuel_gauge_desc_in_reserve, state.displayKm, state.percent)
+    state.reserveFraction != null -> stringResource(R.string.fuel_gauge_desc_reserve, state.displayKm, state.percent, state.reserveKm)
+    else -> stringResource(R.string.fuel_gauge_desc, state.displayKm, state.percent)
 }
 
 /** `true` = Fuellung sichtbar. Wechselt alle [FUEL_BLINK_HALF_PERIOD_MS], solange [active]; sonst immer `true` (und keine Schleife). */
@@ -240,6 +322,22 @@ private fun PreviewFuelGaugeRowRedDark() {
 private fun PreviewFuelGaugeRowBlinkingLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
         FuelGaugeRow(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 310f), onResetRequested = {})
+    }
+}
+
+@Preview(name = "FuelGaugeRow · green with reserve mark · dark (blue cockpit)")
+@Composable
+private fun PreviewFuelGaugeRowReserveDark() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        FuelGaugeRow(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 70f, reserveKm = 40), onResetRequested = {})
+    }
+}
+
+@Preview(name = "FuelGaugeRow · in the reserve · light (Default scheme)")
+@Composable
+private fun PreviewFuelGaugeRowInReserveLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        FuelGaugeRow(FuelGaugeState(rangeFullKm = 260, kmSinceFill = 225f, reserveKm = 40), onResetRequested = {})
     }
 }
 
