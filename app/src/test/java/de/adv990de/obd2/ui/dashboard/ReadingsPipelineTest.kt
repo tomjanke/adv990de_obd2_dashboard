@@ -79,8 +79,6 @@ class ReadingsPipelineTest {
         coEvery { readDtcs() } returns emptyList()
         // Die Fehlerwache liest erst nach 60 s; ein Test, dessen Sitzung so lange offen bleibt, braucht den Stub (die Attrappe ist streng).
         coEvery { readDtcsOrSkip() } returns null
-        // Die einmalige Diagnose nach einem fehlgeschlagenen Auslesen beim Verbinden (Backlog 2): ohne Text nichts zu loggen.
-        coEvery { diagnoseFaultRead() } returns null
     }
 
     private fun makeSessionRepo(): SessionRepository = mockk {
@@ -1438,105 +1436,6 @@ class ReadingsPipelineTest {
 
         assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
         coVerify(exactly = 0) { dtcHistory.record(any(), any()) }
-    }
-
-    // --- Backlog 2: after a mode-03 read without an answer, one diagnosis goes to the app log (once per app start) ---
-
-    @Test
-    fun `a fault-code read without an answer is followed by one diagnosis in the app log`() = runTest {
-        val repo = makeRepo(connected = true)
-        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
-        coEvery { repo.diagnoseFaultRead() } returns "ATDP='AUTO' 03=''"
-        val logRepo: AppLogRepository = mockk(relaxed = true)
-
-        makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
-
-        coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, "Fault-code diagnostics: ATDP='AUTO' 03=''") }
-    }
-
-    @Test
-    fun `the diagnosis runs once per app start, not at every connect`() = runTest {
-        val repo = makeRepo(connected = true)
-        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
-        coEvery { repo.diagnoseFaultRead() } returns "ATDP='AUTO'"
-        val pipeline = makePipeline(repo)
-
-        pipeline.sessionEvents(backgroundScope).take(1).toList()
-        pipeline.sessionEvents(backgroundScope).take(1).toList()
-
-        coVerify(exactly = 2) { repo.readDtcs() }
-        coVerify(exactly = 1) { repo.diagnoseFaultRead() }
-    }
-
-    @Test
-    fun `a fault-code read with an answer starts no diagnosis`() = runTest {
-        val repo = makeRepo(connected = true)
-        coEvery { repo.readDtcs() } returns listOf(DtcEntry("P0301", false))
-
-        makePipeline(repo).sessionEvents(backgroundScope).take(1).toList()
-
-        coVerify(exactly = 0) { repo.diagnoseFaultRead() }
-    }
-
-    @Test
-    fun `a fault-code read that dropped the link starts no diagnosis`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val isConnected = MutableStateFlow(true)
-            val repo = makeRepo(connected = true)
-            every { repo.isConnectedFlow } returns isConnected
-            coEvery { repo.readDtcs() } coAnswers {
-                isConnected.value = false
-                throw ObdException.Timeout("03")
-            }
-
-            makePipeline(repo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost() }
-
-            coVerify(exactly = 0) { repo.diagnoseFaultRead() }
-        }
-
-    @Test
-    fun `a diagnosis without a text writes nothing`() = runTest {
-        val repo = makeRepo(connected = true) // diagnoseFaultRead() liefert null
-        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
-        val logRepo: AppLogRepository = mockk(relaxed = true)
-
-        makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
-
-        coVerify(exactly = 0) { logRepo.log(any(), match { it.startsWith("Fault-code diagnostics") }) }
-    }
-
-    @Test
-    fun `a diagnosis that loses the link asks for a reconnect`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val isConnected = MutableStateFlow(true)
-            val repo = makeRepo(connected = true)
-            every { repo.isConnectedFlow } returns isConnected
-            coEvery { repo.readDtcs() } throws ObdException.NoData("03")
-            coEvery { repo.diagnoseFaultRead() } coAnswers {
-                isConnected.value = false // wie ObdRepository: der Lesepfad trennt, bevor er die Ausnahme weiterreicht
-                throw ObdException.ConnectionLost()
-            }
-            val logRepo: AppLogRepository = mockk(relaxed = true) {
-                coEvery { log(any(), any()) } coAnswers { delay(1) }
-            }
-
-            val event = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope)
-                .first { it == SessionEvent.ConnectionLost() }
-
-            assertEquals(SessionEvent.ConnectionLost(), event)
-        }
-
-    @Test
-    fun `an unexpected failure of the diagnosis is logged and does not end the session`() = runTest {
-        val repo = makeRepo(connected = true)
-        coEvery { repo.readDtcs() } throws ObdException.NoData("03")
-        coEvery { repo.diagnoseFaultRead() } throws IllegalStateException("boom")
-        val logRepo: AppLogRepository = mockk(relaxed = true)
-
-        val events = makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).take(1).toList()
-
-        assertEquals(listOf(SessionEvent.Values(listOf(rpm), gpsSpeedKmh = null)), events)
-        coVerify { logRepo.log(LogLevel.WARN, match { it.startsWith("Fault-code diagnostics failed") && it.contains("boom") }) }
     }
 
     // --- Test 15a: recording is best effort — a database failure must not end the live display ---
