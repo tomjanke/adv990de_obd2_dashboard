@@ -46,9 +46,9 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 **F8 — Strecke aufzeichnen (GPX) und Position zu Fahrten und Fehlern** (mittel). Heute speichert die App keine Positionen, nur die Geschwindigkeit. Positionen sind sensible Daten (lokal halten, nie ins Repository). Navigation selbst ist kein Ziel.
 
-**F9 — Handy-Zustand** (klein). Akku, Laden oder Entladen, Temperatur (der Pixel drosselt in praller Sonne).
+**F9 — Handy-Zustand** (klein). Akku, Laden oder Entladen, Temperatur (der Pixel drosselt in praller Sonne). **Status (2026-10-26): depriorisiert** (niedrigste Priorität, Entscheidungsprotokoll Punkt 67) — nichts gebaut, nichts geplant. Gedankenstütze: Akku, Ladezustand und Akkutemperatur liefert Android ohne Berechtigung; aussagekräftiger ist der Drossel-Status des Systems (erst ab Android 10, die App hat minSdk 26); als Kachel nach dem Muster der Gelände-Kachel oder als Eintrag der Statuszeile, optional mit Alarm.
 
-**F10 — Profile Straße und Gelände** (mittel). Andere Kachelbelegung und Schwellen per Knopf, ohne Wischgeste.
+**F10 — Profile Straße und Gelände** (mittel). Andere Kachelbelegung und Schwellen per Knopf, ohne Wischgeste. **Status (2026-10-26): depriorisiert** (niedrigste Priorität, Entscheidungsprotokoll Punkt 67) — nichts gebaut, nichts geplant. Gedankenstütze: zwei Profile mit je eigener Belegung der vier Kacheln und eigenen Schwellen, ein Knopf im Dashboard (mindestens 56 dp); die bestehenden DataStore-Schlüssel würden zu „Profil 1“ (Migration, nie umbenennen); **ein Wechsel der Belegung beendet heute die laufende Fahrt und beginnt eine neue** (Slot-Wechsel), das gälte auch für den Profilwechsel; offen: welche Schwellen zum Profil gehören, feste oder frei benennbare Profile, Ort des Knopfes.
 
 **F11 — Min/Max je Fahrt** (klein; war „nur mit ausdrücklichem Ja“). **Status (2026-10-19): umgesetzt, released als 1.38.0** — der Nutzer sagte Ja und wünschte Kühlmittel **und** Spannung jeweils Min **und** Max (Entscheidungsprotokoll Punkt 54); die Spannung zählt nur bei laufendem Motor (meine Auslegung), s. CLAUDE.md „Min/Max je Fahrt im Detail-Dialog“. Ursprüngliche Beschreibung: Kühlmittel max und Spannung min im Detail-Dialog einer Fahrt: zwei Zahlen, kein Diagramm. Zeigt, ob der Lüfter reicht und die Heizgriffe die Spannung drücken; rechenbar aus vorhandenen Messwerten, auch für ältere Fahrten, die beides aufgezeichnet haben. Messwert-Diagramme je Fahrt hat der Nutzer abgelehnt (Protokoll Punkt 46).
 
@@ -56,7 +56,7 @@ Aufwand grob: klein / mittel / groß (Schätzung, nicht gemessen).
 
 ### Denkbar, aber aufwendig oder unsicher
 
-**F13 — Neigungsanzeige** aus den Lagesensoren (Montage und Kalibrierung nötig). **F14 — Reifendruck** per Bluetooth-Sensor (Sensorprotokolle proprietär; die App kann kein BLE mehr, der Code wurde entfernt). **F15 — Sturzerkennung mit Alarm an einen Kontakt** (Fehlalarme im Gelände, heikle Berechtigungen, Haftung).
+**F13 — Neigungsanzeige** aus den Lagesensoren (Montage und Kalibrierung nötig). **Status (2026-10-26): depriorisiert** (niedrigste Priorität, Entscheidungsprotokoll Punkt 67) — nichts gebaut, nichts geplant. Gedankenstütze: zuerst klären, was gemeint ist — Hangneigung (Beschleunigungssensor, nach einer Kalibrierung, ungenau beim Beschleunigen und Bremsen) oder Schräglage in Kurven (der Beschleunigungssensor allein zeigt im Kurvenbogen fast null Grad; nötig wären Drehrate und GPS-Geschwindigkeit, Neigung ≈ atan(Geschwindigkeit · Gierrate ÷ g)); ein Telefon am Lenker dreht sich mit dem Lenkwinkel; Genauigkeit am Motorrad nicht prüfbar. **F14 — Reifendruck** per Bluetooth-Sensor (Sensorprotokolle proprietär; die App kann kein BLE mehr, der Code wurde entfernt). **F15 — Sturzerkennung mit Alarm an einen Kontakt** (Fehlalarme im Gelände, heikle Berechtigungen, Haftung). **Status (2026-10-26): depriorisiert** (niedrigste Priorität, Entscheidungsprotokoll Punkt 68) — nichts gebaut, nichts geplant.
 
 ### Entfallen oder nicht empfohlen
 
