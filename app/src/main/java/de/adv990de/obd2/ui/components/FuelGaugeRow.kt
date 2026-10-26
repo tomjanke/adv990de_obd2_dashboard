@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,6 +88,17 @@ internal val FUEL_ROW_END_PADDING = 12.dp
 
 private val FuelBarHeight = 16.dp
 private val FuelIconSize = 24.dp
+
+/**
+ * Die gemeinsame Grundlinie von Symbol, Zahl und Einheit (Nutzerwunsch 2026-10-26): ihr Abstand vom unteren Zeilenrand. Das Symbol bleibt in der Zeile zentriert
+ * (24 dp Kasten, 8 dp darunter, `FuelIconBottomPadding`); sein Fuss (die Zapfsaeule) endet im Material-Symbol 3 dp ueber dem Kasten, also **11 dp** ueber dem Zeilenrand — auf
+ * dieser Hoehe stehen die Unterkanten von Zahl und Einheit (`paddingFromBaseline`), unabhaengig von der Schriftgroesse.
+ */
+private val FuelIconBottomPadding = (FUEL_ROW_HEIGHT - FuelIconSize) / 2
+private val FuelBaselineFromBottom = FuelIconBottomPadding + 3.dp
+
+/** Die Zahl ist um diesen Faktor groesser als `titleMedium` (Nutzerwunsch 2026-10-26, Variante B: "die Zahl koennte etwas hoeher werden"); drei Ziffern und die Einheit passen so noch in die 64-dp-Box, ohne zu schrumpfen. */
+private const val FuelNumberScale = 1.25f
 
 /** Breite der Box mit der Restreichweite als Zahl und ihrer Einheit (F5): fest, damit der Balken beim Wechsel der Ziffernzahl (100 -> 99) nicht springt. */
 internal val FUEL_READOUT_WIDTH = 64.dp
@@ -165,12 +179,12 @@ fun FuelGaugeRow(
         ) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(start = FUEL_ROW_START_PADDING, end = FUEL_ROW_END_PADDING),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Icon(
                     imageVector = Icons.Default.LocalGasStation,
                     contentDescription = null,
-                    modifier = Modifier.size(FuelIconSize),
+                    modifier = Modifier.padding(bottom = FuelIconBottomPadding).size(FuelIconSize),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(FuelIconToReadoutGap))
@@ -181,6 +195,7 @@ fun FuelGaugeRow(
                 Canvas(
                     modifier = Modifier
                         .weight(1f)
+                        .align(Alignment.CenterVertically)
                         .height(FuelBarHeight)
                         .testTag(FUEL_GAUGE_TRACK_TEST_TAG),
                 ) {
@@ -211,8 +226,8 @@ fun FuelGaugeRow(
 }
 
 /**
- * Die Restreichweite als Zahl in der Tankzeile (F5): die Zahl in Plex Mono mit `tnum` (auf 5 km abgerundet, [FuelGaugeState.displayKm]) und ihre Einheit, in einer festen Box
- * ([FUEL_READOUT_WIDTH]). Die Zahl schrumpft bei grosser Systemschrift bis [FuelReadoutMinFontSize] (10 sp), die Einheit behaelt ihren Platz (wie die Kachel). Normal in `onSurface`;
+ * Die Restreichweite als Zahl in der Tankzeile (F5): die Zahl in Plex Mono mit `tnum` (auf 5 km abgerundet, [FuelGaugeState.displayKm], 1,25-mal so gross wie `titleMedium`) und ihre Einheit, in einer festen Box
+ * ([FUEL_READOUT_WIDTH]). **Zahl und Einheit stehen auf einer Grundlinie** (`paddingFromBaseline`, [FuelBaselineFromBottom] ueber dem Zeilenrand) — der Fuss des Tankstellen-Symbols steht auf derselben Hoehe. Die Zahl schrumpft bei grosser Systemschrift bis [FuelReadoutMinFontSize] (10 sp), die Einheit behaelt ihren Platz (wie die Kachel). Normal in `onSurface`;
  * hat der Rest die Reserve erreicht, in `StatusColors.criticalOn` — der Rest gegen die Reserve ist eine Aussage ueber die Strecke, kein zweites Alarmsignal neben den Segmenten.
  * Die Box traegt keine eigene Semantik: die Beschreibung der Zeile ([fuelGaugeDescription]) nennt die Zahl schon, TalkBack soll sie nicht doppelt ansagen.
  */
@@ -222,27 +237,37 @@ private fun FuelRangeReadout(state: FuelGaugeState) {
     Row(
         modifier = Modifier
             .width(FUEL_READOUT_WIDTH)
+            .fillMaxHeight()
             .testTag(FUEL_GAUGE_READOUT_TEST_TAG)
             .clearAndSetSemantics {},
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        // `paddingFromBaseline` steht vor dem Test-Tag: der Knoten bleibt der Text (seine Grenzen messen Zahl und Einheit), der Abstand liegt ausserhalb.
         LiveValueText(
             value = state.displayKm.toString(),
-            modifier = Modifier.weight(1f, fill = false).testTag(FUEL_GAUGE_RANGE_TEST_TAG),
-            style = MaterialTheme.typography.titleMedium.asLiveValue(),
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .paddingFromBaseline(bottom = FuelBaselineFromBottom)
+                .testTag(FUEL_GAUGE_RANGE_TEST_TAG),
+            style = fuelNumberStyle(MaterialTheme.typography.titleMedium.asLiveValue()),
             color = color,
             minFontSize = FuelReadoutMinFontSize,
         )
         Text(
             text = stringResource(R.string.fuel_gauge_unit_km),
-            modifier = Modifier.testTag(FUEL_GAUGE_UNIT_TEST_TAG),
+            modifier = Modifier
+                .paddingFromBaseline(bottom = FuelBaselineFromBottom)
+                .testTag(FUEL_GAUGE_UNIT_TEST_TAG),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
     }
 }
+
+/** Der Stil der Zahl: [FuelNumberScale]-mal so gross wie die Vorlage (die Zeilenhoehe bleibt die der Vorlage — die Zahl steht ueber `paddingFromBaseline` auf der Grundlinie, nicht ueber ihre Zeilenhoehe). */
+private fun fuelNumberStyle(base: TextStyle): TextStyle = base.copy(fontSize = base.fontSize * FuelNumberScale)
 
 /**
  * Die Beschreibung der Zeile fuer TalkBack: die angezeigte Zahl (nicht der genaue Rest: sie soll mit dem Bild uebereinstimmen) und der Anteil; mit Reserve nennt sie, ab wo

@@ -652,4 +652,66 @@ class FuelGaugeRowDeviceTest {
         val text = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)
         assertTrue("Text im zusammengefuehrten Knoten: $text", text.isNullOrEmpty())
     }
+
+    // --- Eine gemeinsame Grundlinie fuer Symbol, Zahl und Einheit (Nutzerwunsch 2026-10-26) ---
+
+    /** Die unterste Bildzeile, in der es im Bereich [xFrom] bis [xTo] Tinte gibt: Punkte, die sich deutlich vom Hintergrund unterscheiden (die Kantenglaettung zaehlt nicht). */
+    private fun inkBottom(image: android.graphics.Bitmap, xFrom: Int, xTo: Int, background: Int): Int {
+        fun ch(argb: Int, shift: Int) = (argb shr shift) and 0xFF
+        var bottom = -1
+        for (y in 0 until image.height) {
+            for (x in xFrom.coerceAtLeast(0) until xTo.coerceAtMost(image.width)) {
+                val p = image.getPixel(x, y)
+                if (intArrayOf(16, 8, 0).maxOf { kotlin.math.abs(ch(p, it) - ch(background, it)) } >= 100) { bottom = y; break }
+            }
+        }
+        return bottom
+    }
+
+    private fun assertOneBaseline(scale: Float) {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = scale)) {
+                MaterialTheme(colorScheme = scheme, typography = AppTypography) {
+                    Box(Modifier.fillMaxWidth()) {
+                        FuelGaugeRow(state = FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f), onResetRequested = {}) // "220 km": Ziffern und Buchstaben ohne Unterlaengen
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        val density = composeRule.activity.resources.displayMetrics.density
+        val rowBox = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val image = composeRule.onNodeWithTag(FUEL_GAUGE_ROW_TEST_TAG).captureToImage().asAndroidBitmap()
+        val background = scheme.surface.toArgb()
+        val number = inner(FUEL_GAUGE_RANGE_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val unit = inner(FUEL_GAUGE_UNIT_TEST_TAG).fetchSemanticsNode().boundsInRoot
+
+        // Das Symbol: 24 dp Kasten, 8 dp vom Zeilenrand (der Fuss der Zapfsaeule ist die unterste Tinte).
+        val symbolBottom = inkBottom(image, (8 * density).toInt(), (32 * density).toInt(), background)
+        val numberBottom = inkBottom(image, (number.left - rowBox.left).toInt(), (number.right - rowBox.left).toInt(), background)
+        val unitBottom = inkBottom(image, (unit.left - rowBox.left).toInt(), (unit.right - rowBox.left).toInt(), background)
+
+        assertTrue("Symbol $symbolBottom, Zahl $numberBottom, Einheit $unitBottom (Bildzeile der untersten Tinte)", symbolBottom > 0 && numberBottom > 0 && unitBottom > 0)
+        val tolerance = 2 // Punkte: Ueberhang der runden Ziffern und Kantenglaettung (rund 0,9 dp)
+        assertEquals("Zahl und Einheit stehen auf verschiedenen Grundlinien: $numberBottom gegen $unitBottom", numberBottom.toFloat(), unitBottom.toFloat(), tolerance.toFloat())
+        assertEquals("Symbol und Zahl stehen auf verschiedenen Grundlinien: $symbolBottom gegen $numberBottom", symbolBottom.toFloat(), numberBottom.toFloat(), tolerance.toFloat())
+    }
+
+    @Test
+    fun theSymbolTheNumberAndTheUnitShareOneBaseline() = assertOneBaseline(scale = 1f)
+
+    @Test
+    fun theSharedBaselineHoldsWithLargeSystemFont() = assertOneBaseline(scale = 1.3f)
+
+    @Test
+    fun theNumberIs25PercentLargerThanTitleMedium_andThreeDigitsKeepThatSize() {
+        // Nutzerwunsch 2026-10-26 (Variante B): die Zahl ist groesser als vorher. Plex Mono hat je Ziffer 0,6 em Breite; drei Ziffern und "km" passen in die 64-dp-Box, ohne zu schrumpfen.
+        show(FuelGaugeState(rangeFullKm = 320, kmSinceFill = 100f)) // "220"
+        val density = composeRule.activity.resources.displayMetrics.density
+
+        val digitWidth = textLayout(FUEL_GAUGE_RANGE_TEST_TAG).getBoundingBox(0).width
+
+        val expected = AppTypography.titleMedium.fontSize.value * 1.25f * 0.6f * density
+        assertEquals("Ziffernbreite $digitWidth px, erwartet $expected px", expected, digitWidth, 1f)
+    }
 }
