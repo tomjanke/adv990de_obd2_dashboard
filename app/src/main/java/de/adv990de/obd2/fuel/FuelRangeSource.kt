@@ -26,7 +26,7 @@ data class EffectiveRange(val km: Int, val origin: RangeOrigin)
 data class LearnedRange(val km: Int, val litersPer100Km: Double)
 
 /**
- * Die wirksame Reichweite der Tankanzeige (Entwurf `docs/superpowers/specs/2026-10-25-range-design.md`, D4/D5/D6): die manuelle Zahl ([AppPreferences.fuelRangeFullKm]) — oder, wenn ein
+ * Die wirksame Reichweite der Tankanzeige (Entwurf `docs/superpowers/archive/specs/2026-10-25-range-design.md`, D4/D5/D6): die manuelle Zahl ([AppPreferences.fuelRangeFullKm]) — oder, wenn ein
  * Tankinhalt hinterlegt ist **und** das Logbuch mindestens drei Voll-zu-Voll-Intervalle hat, **Tankinhalt / Verbrauch** ([learnedRangeKm], Verbrauch der letzten zehn Intervalle). Ohne
  * Schalter: wer die manuelle Zahl will, loescht den Tankinhalt.
  *
