@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Die Fehlerwache: liest die Fehlercodes waehrend der Sitzung nach und meldet jedes erfolgreiche Auslesen als [SessionEvent.FaultCodes]
@@ -47,6 +48,9 @@ internal class FaultWatch(
     @Volatile
     private var lastSet: Set<Pair<String, Boolean>>? = null
 
+    /** Ob die einmalige Diagnose nach einem fehlgeschlagenen Auslesen schon gelaufen ist (einmal je Lebensdauer der Wache, s. [diagnoseFailedRead]); `reset()` setzt sie nicht zurueck. */
+    private val diagnosed = AtomicBoolean(false)
+
     /** Eine neue Sitzung beginnt ohne Vergleichsstand. */
     fun reset() {
         lastSet = null
@@ -78,17 +82,14 @@ internal class FaultWatch(
             // kein neuer Versuch; jeder Slot-Wechsel startet diese Sitzung und damit das Auslesen neu). requestReconnect() ist nicht-suspendierend, aus demselben Grund wie beim
             // Nachlesen: der Wechsel von isConnectedFlow bricht diese Coroutine am naechsten Suspendierungspunkt ab.
             if ((e is ObdException.Timeout || e is ObdException.ConnectionLost) && !obdRepository.isConnectedFlow.value) {
-                if (wantsReconnect()) {
-                    requestReconnect()
-                    log(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting")
-                } else {
-                    log(LogLevel.INFO, "Fault-code read ended by the user's disconnect, not reconnecting")
-                }
+                reportLinkLost(wantsReconnect, "Fault-code read")
                 return ConnectRead.LinkLost
             }
             // Keine positive Antwort (NO DATA, Busfehler, Unverstaendliches — A9): kein Verbindungsverlust, die Sitzung laeuft weiter, aber die Oberflaeche behauptet keine
             // "Entwarnung" (nichts wird in der Historie vermerkt) und das App-Log haelt fest, WAS der Adapter geantwortet hat — genau das Roh-Material, das fuer A9 Teil 2 gebraucht wird.
             log(LogLevel.WARN, "Fault-code read failed: ${e.javaClass.simpleName}: ${e.message}")
+            // Dazu einmal die Diagnose (s. diagnoseFailedRead); riss dabei der Link, endet die Sitzung wie beim Auslesen selbst.
+            diagnoseFailedRead(wantsReconnect)?.let { return it }
             null
         }
         if (dtcList?.isNotEmpty() == true) {
@@ -99,6 +100,38 @@ internal class FaultWatch(
         // Die Basis: dieser Stand gilt als bekannt, ein spaeter hinzukommender Code ist neu.
         rememberBaseline(dtcList)
         return ConnectRead.Answer(dtcList)
+    }
+
+    /** Der Link ist beim Lesen gerissen: ein Reconnect, wenn der Nutzer nicht selbst getrennt hat; [what] benennt den Lesevorgang fuer das App-Log. */
+    private suspend fun reportLinkLost(wantsReconnect: () -> Boolean, what: String) {
+        if (wantsReconnect()) {
+            requestReconnect()
+            log(LogLevel.WARN, "$what lost the adapter link, reconnecting")
+        } else {
+            log(LogLevel.INFO, "$what ended by the user's disconnect, not reconnecting")
+        }
+    }
+
+    /**
+     * Die einmalige Diagnose nach einem Auslesen von Modus 03 ohne Antwort (Backlog 2, 2026-10-26): [ObdRepository.diagnoseFaultRead] liefert die rohen Antworten des Adapters und
+     * des Steuergeraets (Protokoll, Modus 01, 03, 07, 0A — rein lesend) als eine Zeile, die hier ins App-Log geht (INFO). **Einmal je Lebensdauer dieser Wache** (die der Pipeline des
+     * Dashboards, also einmal je App-Start): sie soll Material fuer die Auswertung liefern, nicht jedes Verbinden um ein paar Befehle verlaengern; der Versuch zaehlt auch, wenn er scheitert.
+     * Ein unerwarteter Fehler steht nur im Log (WARN) — die Diagnose ist Zusatzauskunft und beendet nie die Sitzung. Riss dabei der Link, ist das Ergebnis [ConnectRead.LinkLost]
+     * (Reconnect wie beim Auslesen); sonst `null`.
+     */
+    private suspend fun diagnoseFailedRead(wantsReconnect: () -> Boolean): ConnectRead.LinkLost? {
+        if (!diagnosed.compareAndSet(false, true)) return null
+        val text = try { obdRepository.diagnoseFaultRead() } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (e is ObdException.ConnectionLost && !obdRepository.isConnectedFlow.value) {
+                reportLinkLost(wantsReconnect, "Fault-code diagnostics")
+                return ConnectRead.LinkLost
+            }
+            log(LogLevel.WARN, "Fault-code diagnostics failed: ${e.javaClass.simpleName}: ${e.message}")
+            return null
+        }
+        if (text != null) log(LogLevel.INFO, "Fault-code diagnostics: $text")
+        return null
     }
 
     /**

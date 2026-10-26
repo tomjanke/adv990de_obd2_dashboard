@@ -27,4 +27,6 @@ internal fun fakeObdRepository(configure: ObdRepository.() -> Unit = {}): ObdRep
         coEvery { readDtcs() } returns emptyList()
         // Die Fehlerwache (ReadingsPipeline) liest unterwegs weich nach; "keine Antwort" ist der neutrale Standard (kein Alarm, keine Meldung).
         coEvery { readDtcsOrSkip() } returns null
+        // Die einmalige Diagnose nach einem fehlgeschlagenen Auslesen beim Verbinden: ohne Verbindung gibt es keinen Text.
+        coEvery { diagnoseFaultRead() } returns null
     }.apply(configure)

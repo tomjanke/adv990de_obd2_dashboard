@@ -652,6 +652,29 @@ class ObdRepositoryTest {
         assertTrue(result[1].isPending)
     }
 
+    @Test
+    fun `diagnoseFaultRead returns null when not connected`() = runTest {
+        val factory = mockk<ConnectionFactory>()
+        val repo = makeRepo(factory)
+
+        assertNull(repo.diagnoseFaultRead())
+        verify(exactly = 0) { factory.create(any()) }
+    }
+
+    @Test
+    fun `diagnoseFaultRead asks the adapter and the ECU read-only and returns the raw text`() = runTest {
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } returns "NO DATA"
+        coEvery { elmCtrl.sendCommand("ATDP") } returns "AUTO, ISO 14230-4 (KWP FAST)"
+        val repo = makeConnectedRepo(elmCtrl, dtcParser = DtcParser())
+
+        val text = repo.diagnoseFaultRead()
+
+        assertTrue(text, text!!.startsWith("ATDP='AUTO, ISO 14230-4 (KWP FAST)' ATDPN='NO DATA' 0101='NO DATA'"))
+        assertTrue("der Adapter bleibt verbunden", repo.isConnectedFlow.value)
+        coVerify(exactly = 0) { elmCtrl.sendCommand(match { it.startsWith("04") }) }
+    }
+
     // ── A9 (Teil 1): keine Antwort ist keine Entwarnung ───────────────────────────────────────────────────
 
     @Test

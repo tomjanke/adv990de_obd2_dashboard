@@ -12,6 +12,16 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
+ * Die Befehle der einmaligen Diagnose nach einem fehlgeschlagenen Auslesen von Modus 03, in dieser Reihenfolge ([DiagnosticReads.diagnoseFaultRead]): zwei Abfragen an den Adapter
+ * (gewaehltes Protokoll als Text und als Nummer) und Lesemodi des Fahrzeugs (`0101` Status der Ueberwachungen samt Motorkontrollleuchte und Zahl der Codes, `0100` unterstuetzte PIDs,
+ * `03` und `07` Codes, `0A` dauerhafte Codes). **Nur Lesen** — die Liste enthaelt nie Modus 04 oder einen anderen Schreibzugriff (Test `DiagnosticReadsTest`).
+ */
+internal val FAULT_READ_DIAGNOSTIC_COMMANDS = listOf("ATDP", "ATDPN", "0101", "0100", "03", "07", "0A")
+
+/** Laenger als das wird eine einzelne Antwort in der Diagnose gekuerzt. */
+internal const val DIAGNOSTIC_ANSWER_MAX_CHARS = 200
+
+/**
  * Die einmaligen Lesevorgaenge ueber eine bestehende Verbindung: Fehlercodes (Modus 03/07), Freeze-Frame (Modus 02) und FIN (Modus 09).
  * Herausgeloest aus [ObdRepository], das die Verbindung und die laufende Abfrage haelt und diese Lesepfade nur noch durchreicht.
  *
@@ -84,6 +94,45 @@ internal class DiagnosticReads(
         // Steuergeraeten doppelt gemeldet werden. Eine Zeile je Code: die DTC-Seite nutzt den Code
         // als LazyColumn-Key, ein Duplikat laesst sie abstuerzen. Bestaetigt steht zuerst und gewinnt.
         return (confirmed + pending).distinctBy { it.code }
+    }
+
+    /**
+     * Die einmalige Diagnose nach einem Auslesen von Modus 03 ohne Antwort (Backlog 2, 2026-10-26): der Adapter und das Steuergeraet bekommen die Befehle aus
+     * [FAULT_READ_DIAGNOSTIC_COMMANDS] gestellt und die **rohen Antworten** kommen als eine Zeile zurueck (`ATDP='…' ATDPN='…' 0101='…' …`) — fuer das App-Log. Anlass: bei
+     * jeder Verbindung zum Motorrad lieferte Modus 03 einen leeren Text, das Log nannte weder das Protokoll noch, ob Modus 07, `0A` oder ein Mode-01-Befehl antwortet. Eine
+     * leere Antwort steht als zwei Anfuehrungszeichen da, eine Antwort ueber [DIAGNOSTIC_ANSWER_MAX_CHARS] Zeichen wird gekuerzt (`...`), damit nichts das Log flutet.
+     *
+     * **Rein lesend:** die ersten beiden Befehle fragen nur den Adapter (`ATDP`, `ATDPN`: welches Protokoll er gewaehlt hat), die uebrigen sind Lesemodi des Fahrzeugs — 01 (Status der
+     * Ueberwachungen mit Zustand der Motorkontrollleuchte und Zahl der Codes, unterstuetzte PIDs), 03 und 07 (Codes) und 0A (dauerhafte Codes). Nie Modus 04 (Fehlerspeicher loeschen)
+     * oder ein Schreibzugriff — das Fahrzeug bleibt strikt lesend.
+     *
+     * **Weich, die vierte Form der Zeitlimit-Richtlinie** (s. KDoc an [ObdRepository]): ein Zeitlimit beendet die Diagnose (`<timeout>`, die uebrigen Befehle entfallen) und trennt
+     * **nicht** — es ist nur eine Zusatzauskunft nach einem Fehler, und die verspaetete Antwort verwirft der naechste Befehl als Altbyte. Ein anderer Protokollfehler
+     * ([ObdException]) steht als `<Klassenname>` beim Befehl, die Diagnose laeuft weiter. Nur eine verlorene Verbindung trennt ([onLinkBroken]) und wird weitergereicht.
+     */
+    suspend fun diagnoseFaultRead(controller: ElmController): String {
+        val parts = mutableListOf<String>()
+        for (command in FAULT_READ_DIAGNOSTIC_COMMANDS) {
+            val answer = try {
+                "'${controller.sendCommand(command).limitedForLog()}'"
+            } catch (_: ObdException.Timeout) {
+                parts += "$command=<timeout>"
+                break
+            } catch (e: ObdException.ConnectionLost) {
+                withContext(NonCancellable) { onLinkBroken(controller) }
+                throw e
+            } catch (e: ObdException) {
+                "<${e.javaClass.simpleName}>"
+            }
+            parts += "$command=$answer"
+        }
+        return parts.joinToString(" ")
+    }
+
+    /** Eine Zeile, hoechstens [DIAGNOSTIC_ANSWER_MAX_CHARS] Zeichen (sonst gekuerzt und mit `...` markiert). */
+    private fun String.limitedForLog(): String {
+        val oneLine = replace('\r', ' ').replace('\n', ' ')
+        return if (oneLine.length > DIAGNOSTIC_ANSWER_MAX_CHARS) oneLine.take(DIAGNOSTIC_ANSWER_MAX_CHARS) + "..." else oneLine
     }
 
     /**
