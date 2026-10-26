@@ -401,6 +401,14 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `setSecondaryRatio persists and leaves the primary ratio untouched`() = runTest {
+        val prefs = makePreferences()
+        prefs.setSecondaryRatio(2.4f)
+        assertEquals(2.4f, prefs.secondaryRatio.first(), 0.0001f)
+        assertEquals(AppPreferences.DEFAULT_PRIMARY_RATIO, prefs.primaryRatio.first(), 0.0001f)
+    }
+
+    @Test
     fun `gearRatios returns the six defaults when nothing is stored`() = runTest {
         val prefs = makePreferences()
         assertEquals(AppPreferences.DEFAULT_GEAR_RATIOS, prefs.gearRatios.first())

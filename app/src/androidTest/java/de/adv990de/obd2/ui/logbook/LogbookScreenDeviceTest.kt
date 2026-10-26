@@ -1,5 +1,8 @@
 package de.adv990de.obd2.ui.logbook
 
+import java.io.File
+import androidx.lifecycle.ViewModelProvider
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertCountEquals
@@ -736,5 +739,66 @@ class LogbookScreenDeviceTest {
     private companion object {
         const val ENTRY_MARKER = "LOGBOOK_ENTRY_PAGE_MARKER"
         const val STATS_MARKER = "LOGBOOK_STATS_PAGE_MARKER"
+    }
+
+    // ── Speichern: was der Dateidialog des Systems der Seite liefert ────────────
+    // Der Dialog selbst laesst sich im Test nicht bedienen; sein Ergebnis ist der Aufruf `saveExportTo(uri)` des ViewModels, den der Test hier selbst macht. Die Seite steht
+    // dafuer ohne NavHost (sonst gehoert das ViewModel dem NavBackStackEntry), also an der Activity. Das Ziel ist eine echte Datei (`file:`-Uri): das Schreiben ist echt.
+
+    private fun showWithoutNavHost() {
+        composeRule.setContent { LogbookScreen(rememberNavController()) }
+        composeRule.waitForIdle()
+    }
+
+    private fun saveInto(uri: Uri) {
+        val vm = ViewModelProvider(composeRule.activity)[LogbookViewModel::class.java]
+        composeRule.runOnUiThread { vm.saveExportTo(uri) }
+    }
+
+    private fun waitForSnackbar(text: String) = composeRule.waitUntil(timeoutMillis = 10_000) {
+        composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    @Test
+    fun savingTheLogbook_writesTheFileWithEveryEntry_andAnnouncesIt() {
+        save(entry(LogType.OIL, day(1), 1_000, amountMl = 250), entry(LogType.FUEL, day(2), 1_200, amountMl = 12_000, full = true))
+        val file = File(composeRule.activity.cacheDir, "logbook_save_test_${System.nanoTime()}.csv")
+        try {
+            showWithoutNavHost()
+
+            saveInto(Uri.fromFile(file))
+
+            waitForSnackbar(string(R.string.logbook_export_saved))
+            val lines = file.readLines()
+            assertEquals("Kopfzeile und zwei Eintraege", 3, lines.size)
+            assertTrue(lines.first().startsWith("date,type,odometer_km"))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun savingAnEmptyLogbook_saysThereIsNothingToExport_andWritesNoFile() {
+        val file = File(composeRule.activity.cacheDir, "logbook_save_empty_${System.nanoTime()}.csv")
+        showWithoutNavHost()
+
+        saveInto(Uri.fromFile(file))
+
+        waitForSnackbar(string(R.string.logbook_export_none))
+        assertTrue("es gibt nichts zu schreiben, also keine Datei", !file.exists())
+    }
+
+    @Test
+    fun aSaveIntoAPlaceThatCannotBeWritten_showsAnErrorSnackbar_andIsNotAnnouncedAsSaved() {
+        save(entry(LogType.OIL, day(1), 1_000, amountMl = 250))
+        showWithoutNavHost()
+
+        saveInto(Uri.fromFile(File("/nonexistent-directory-for-this-test/logbook.csv")))
+
+        val errorPrefix = string(R.string.history_export_error_prefix, "").trim()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasText(errorPrefix, substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(string(R.string.logbook_export_saved)).assertDoesNotExist()
     }
 }

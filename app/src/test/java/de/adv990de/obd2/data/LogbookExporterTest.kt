@@ -152,22 +152,55 @@ class LogbookExporterTest {
         assertTrue("no leftovers", exportedFiles().isEmpty())
     }
 
+    /** Ein Eintrag, der mit allen Feldern antwortet; [onNote] laeuft, wenn die CSV-Zeile seine Notiz liest — also WAEHREND des Schreibens. */
+    private fun entryWithHook(id: Long, onNote: () -> Unit): LogEntry = mockk {
+        every { this@mockk.id } returns id
+        every { type } returns LogType.FUEL
+        every { date } returns LocalDate.of(2026, 10, 2)
+        every { odometerKm } returns 100
+        every { amountMl } returns 14_370
+        every { fullTank } returns true
+        every { costCents } returns null
+        every { note } answers { onNote(); null }
+        every { brand } returns null
+    }
+
     @Test
     fun `a cancelled export stops while it writes and leaves no half-written file`() = runTest {
         stubEnvironment()
         lateinit var job: Job
-        // 2500 entries: the cancellation is looked at every 2000 rows. The list cancels the job at the 100th entry, i.e. AFTER the file exists:
-        // the export must stop at the 2000th row at the latest and remove what it wrote.
-        val entries = object : AbstractList<LogEntry>() {
-            override val size = 2_500
-            override fun get(index: Int): LogEntry { if (index == 100) job.cancel(); return fuel(index) }
+        var filesWhileWriting = -1
+        // 2500 entries: the cancellation is looked at every 2000 rows. The 100th entry cancels the job while its line is written, i.e. AFTER the
+        // file exists (the first version of this test cancelled while the list was filtered, before any file existed): the export must stop at the
+        // 2000th row at the latest and remove what it wrote.
+        val entries = (0 until 2_500).map { index ->
+            if (index == 100) entryWithHook(100L) { filesWhileWriting = exportedFiles().size; job.cancel() } else fuel(index)
         }
         coEvery { repository.all() } returns entries
 
         job = launch { exporter.exportToCsv() }
         job.join()
 
+        assertEquals("the file existed when the cancellation came", 1, filesWhileWriting)
         assertTrue(job.isCancelled)
+        assertTrue("no leftovers", exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `a failure while writing leaves no half-written file and is passed on`() = runTest {
+        stubEnvironment()
+        var filesWhileWriting = -1
+        // The line of this entry cannot be written (its note cannot be read): the file exists by then and must go with the error.
+        coEvery { repository.all() } returns listOf(fuel(1), entryWithHook(2L) { filesWhileWriting = exportedFiles().size; throw IllegalStateException("cannot read the note") })
+
+        try {
+            exporter.exportToCsv()
+            fail("a write error must reach the caller")
+        } catch (e: IllegalStateException) {
+            assertEquals("cannot read the note", e.message)
+        }
+
+        assertEquals("the file existed when the error came", 1, filesWhileWriting)
         assertTrue("no leftovers", exportedFiles().isEmpty())
     }
 

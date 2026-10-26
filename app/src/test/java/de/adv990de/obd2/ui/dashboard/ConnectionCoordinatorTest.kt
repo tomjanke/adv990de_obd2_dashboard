@@ -37,6 +37,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CancellationException
 
 /**
  * Tests fuer den herausgeloesten Verbindungs-Koordinator.
@@ -412,5 +414,61 @@ class ConnectionCoordinatorTest {
     fun `reconnectDelays scales every step with the configured base`() {
         assertEquals(listOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L), reconnectDelays(1))
         assertEquals(listOf(10_000L, 20_000L, 40_000L, 80_000L, 160_000L), reconnectDelays(10))
+    }
+
+    // ── Abbruch und spaete Nutzer-Trennung ─────────────────────────────────────
+
+    @Test
+    fun `a cancelled auto-connect is no connection error and starts no reconnect round`() = runTest {
+        val repo = makeRepo()
+        coEvery { repo.connectIfDisconnected(device) } throws CancellationException("gone")
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), logRepo = logRepo).start(coordinatorScope, events::add)
+        advanceUntilIdle()
+
+        assertEquals("nur die Ankuendigung des Auto-Connects, keine Schleife", listOf<ConnectionEvent>(ConnectionEvent.Attempting(0, RECONNECT_ATTEMPT_COUNT)), events)
+        coVerify(exactly = 0) { logRepo.log(LogLevel.ERROR, any()) }
+    }
+
+    @Test
+    fun `a cancelled reconnect attempt is neither a failed attempt nor the end result Failed`() = runTest {
+        val repo = makeRepo(lastConnected = device)
+        coEvery { repo.reconnect() } throws CancellationException("gone")
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), logRepo = logRepo)
+        coordinator.start(coordinatorScope, events::add)
+
+        coordinator.requestReconnect()
+        advanceUntilIdle()
+
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Attempting(1, RECONNECT_ATTEMPT_COUNT)), events)
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { "failed" in it }) }
+        coVerify(exactly = 0) { logRepo.log(LogLevel.ERROR, any()) }
+    }
+
+    @Test
+    fun `a user disconnect while the round still reads its settings aborts before the first attempt`() = runTest {
+        // Zwischen dem Beginn der Runde und dem ersten Versuch liegt das Lesen der Einstellung: trennt der Nutzer dort, darf kein Versuch angekuendigt werden.
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(lastConnected = device, userDisconnects = userDisconnects)
+        coEvery { repo.reconnect() } just Runs
+        val gate = CompletableDeferred<Unit>()
+        val prefs = fakeAppPreferences(lastDevice = null)
+        every { prefs.reconnectBaseDelaySeconds } returns flow { gate.await(); emit(3) }
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, prefs)
+        coordinator.start(coordinatorScope, events::add)
+        coordinator.requestReconnect()
+        runCurrent()                                  // die Runde wartet auf die Einstellung
+
+        userDisconnects.value = 1                     // "Trennen" genau jetzt
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Aborted), events)
+        coVerify(exactly = 0) { repo.reconnect() }
     }
 }

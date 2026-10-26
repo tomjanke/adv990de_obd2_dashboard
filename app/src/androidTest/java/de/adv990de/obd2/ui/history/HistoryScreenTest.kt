@@ -1,5 +1,8 @@
 package de.adv990de.obd2.ui.history
 
+import java.io.File
+import androidx.lifecycle.ViewModelProvider
+import android.net.Uri
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -46,6 +49,7 @@ import io.mockk.every
 import io.mockk.spyk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -638,6 +642,58 @@ class HistoryScreenTest {
         waitForTextToDisappear(exportAllMessage(2))
         // Beide Fahrten in einem Aufruf, die aeltere zuerst (die der Test selbst angelegt hat, ist die juengere).
         coVerify(exactly = 1) { sessionRepository.exportSessionsToCsv(match { it.size == 2 && it == it.sorted() }) }
+    }
+
+    // ── Speichern: was der Dateidialog des Systems der Seite liefert ────────────
+    // Der Dialog selbst laesst sich im Test nicht bedienen; sein Ergebnis ist der Aufruf `saveAllTo(uri)` des ViewModels, den der Test hier selbst macht — am ViewModel,
+    // das die Seite per `hiltViewModel()` an der Activity bekam. Das Ziel ist eine echte Datei (eine `file:`-Uri), das Schreiben also echt.
+
+    private fun saveInto(uri: Uri) {
+        val vm = ViewModelProvider(composeRule.activity)[HistoryViewModel::class.java]
+        composeRule.runOnUiThread { vm.saveAllTo(uri) }
+    }
+
+    @Test
+    fun savingTheFinishedTrips_writesTheFile_andAnnouncesHowManyWereSaved() {
+        val file = File(targetContext.cacheDir, "history_save_test_${System.nanoTime()}.csv")
+        try {
+            launchHistoryScreen()
+            waitForExportAllEnabled()
+
+            saveInto(Uri.fromFile(file))
+
+            waitForText(composeRule.activity.resources.getQuantityString(R.plurals.history_export_saved, 1, 1))
+            assertTrue("die Datei hat die Kopfzeile des Exports", file.readLines().first().startsWith("timestamp,pid,value,name,source,session"))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun savingWithNothingFinished_saysSo_andWritesNothing() {
+        runBlocking {
+            testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
+            sessionRepository.startSession("5YJSA1E26HF000337")   // nur die laufende Aufzeichnung: nichts zu exportieren
+        }
+        launchHistoryScreen()
+        waitForText("5YJSA1E26HF000337")
+
+        saveInto(Uri.parse("content://test/history.csv"))
+
+        waitForText(string(R.string.history_export_none))
+        coVerify(exactly = 0) { sessionRepository.saveSessionsCsv(any(), any()) }
+    }
+
+    @Test
+    fun aFailedSave_showsItsCause_andIsNotAnnouncedAsSaved() {
+        coEvery { sessionRepository.saveSessionsCsv(any(), any()) } throws java.io.IOException("no space left")
+        launchHistoryScreen()
+        waitForExportAllEnabled()
+
+        saveInto(Uri.parse("content://test/history.csv"))
+
+        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "no space left"))
+        composeRule.onNodeWithText(composeRule.activity.resources.getQuantityString(R.plurals.history_export_saved, 1, 1)).assertDoesNotExist()
     }
 
     // ── Min/Max je Fahrt im Detail-Dialog (F11) ───────────────────────────────

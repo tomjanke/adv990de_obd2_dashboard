@@ -1,5 +1,8 @@
 package de.adv990de.obd2.ui.components
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
@@ -201,6 +204,7 @@ class BottomNavTest {
         outsideTempC: Float? = 20f,
         useImperial: Boolean = false,
         restoration: StateRestorationTester? = null,
+        hostIsNoActivity: Boolean = false,
     ) {
         val content: @androidx.compose.runtime.Composable () -> Unit = {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
@@ -224,7 +228,12 @@ class BottomNavTest {
                 exitAppVm = exitAppVm,
             )
         }
-        if (restoration != null) restoration.setContent(content) else composeRule.setContent(content)
+        // Bestaetigt der Test das Beenden, darf `finishAffinity()` nicht die Activity der Test-Regel treffen: mit einem Kontext, der KEINE Activity ist
+        // (`context as? Activity` ist dann null), laeuft alles bis dorthin (Dialog zu, Sitzung beenden) und die Test-Activity bleibt stehen.
+        val hosted: @androidx.compose.runtime.Composable () -> Unit = if (hostIsNoActivity) {
+            { CompositionLocalProvider(LocalContext provides ContextWrapper(composeRule.activity.applicationContext)) { content() } }
+        } else content
+        if (restoration != null) restoration.setContent(hosted) else composeRule.setContent(hosted)
         composeRule.waitForIdle()
     }
 
@@ -437,15 +446,10 @@ class BottomNavTest {
 
     // --- exit button + confirmation dialog ---
     //
-    // No test here ever taps the dialog's confirm button: that path calls
-    // Activity.finishAffinity() on whatever hosts the compose tree, which in this test class is
-    // the real HiltTestActivity backing composeRule — actually finishing it mid-test would leave
-    // the test rule operating on a destroyed Activity for the remainder of the run. Same category
-    // of gap as this project's established "never drive the real MainActivity in a test" rule
-    // (s. MEMORY.md), extended here to "never call finishAffinity() in a test". ExitAppViewModelTest
-    // already covers exitApp()'s own logic (disconnect + stop service) on the JVM; what's left to
-    // verify here is purely the dialog's own show/dismiss wiring, which the cancel path exercises
-    // just as well without terminating the host Activity.
+    // The confirm path ends with Activity.finishAffinity() on whatever hosts the compose tree — in this class the real HiltTestActivity backing composeRule, and
+    // finishing it mid-test would leave the rule operating on a destroyed Activity. So the confirm test hosts BottomNav in a context that is no Activity
+    // (`hostIsNoActivity`): the dialog closes and the session ends exactly as in the app, only the final finishAffinity() has nobody to finish.
+    // ExitAppViewModelTest covers exitApp()'s own logic (disconnect + stop service) on the JVM.
 
     @Test
     fun exitButton_isDisplayed() {
@@ -473,6 +477,19 @@ class BottomNavTest {
 
         composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
         coVerify(exactly = 0) { exitAppObdRepo.disconnectByUser() }
+    }
+
+    @Test
+    fun dialogConfirm_endsTheSessionByTheUserAndClosesTheDialog() {
+        launchBottomNav(isMoving = false, hideNavOnDrive = false, hostIsNoActivity = true)
+        composeRule.onNodeWithText(label(R.string.nav_exit)).performClick()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_confirm)).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(label(R.string.exit_app_dialog_title)).assertDoesNotExist()
+        // Als Nutzer-Trennen (disconnectByUser): sonst kaeme die Verbindung von selbst zurueck
+        coVerify(exactly = 1) { exitAppObdRepo.disconnectByUser() }
     }
 
     @Test

@@ -257,6 +257,29 @@ class ObdRepositoryTest {
         assertNull(repo.supportedPidIds.value)
     }
 
+    @Test
+    fun `discovery skips a range answered with an unreadable text or a bus error and still uses the others`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.sendCommand("0100") } throws ObdException.UnknownResponse("?")
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.BusInit("BUS INIT: ERROR")
+        // Bereich 0140: Bit 30 des ersten Bytes = PID 0x42 (Steuergeraetespannung) — der einzige bekannte PID, den der letzte Bereich meldet
+        coEvery { elmCtrl.sendCommand("0140") } returns "41 40 40 00 00 00"
+        val repo = ObdRepository(factory, mockk<PidParser>(), mockk<DtcParser>())
+
+        repo.connect(device)
+
+        assertTrue("die Verbindung steht trotz der zwei Fehlantworten", repo.isConnectedFlow.value)
+        assertEquals("die Schleife lief nach beiden Fehlern weiter und nahm den letzten Bereich", setOf("0142"), repo.supportedPidIds.value)
+    }
+
     // ── B6: a connect that hangs is bounded and abortable ─────────────────────
 
     /**
@@ -926,6 +949,22 @@ class ObdRepositoryTest {
         val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
 
         assertTrue(repo.readFreezeFrame().containsKey("010C"))
+        assertEquals("der Adapter hat geantwortet: die Verbindung bleibt", true, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `readFreezeFrame skips a PID with an unreadable answer or a bus error and keeps the connection`() = runTest {
+        // Der Adapter HAT geantwortet: ein einmaliger Lesevorgang eskaliert das nicht zu ConnectionLost, die uebrigen PIDs kommen weiter durch.
+        val elmCtrl = mockk<ElmController>()
+        coEvery { elmCtrl.sendCommand(any()) } throws ObdException.NoData("XX")
+        coEvery { elmCtrl.sendCommand("02 05 00") } throws ObdException.UnknownResponse("?")
+        coEvery { elmCtrl.sendCommand("02 0D 00") } throws ObdException.BusInit("BUS INIT: ERROR")
+        coEvery { elmCtrl.sendCommand("02 0C 00") } returns "42 0C 1A F8"
+        val repo = makeConnectedRepo(elmCtrl, pidParser = PidParser())
+
+        val result = repo.readFreezeFrame()
+
+        assertEquals(setOf("010C"), result.keys)
         assertEquals("der Adapter hat geantwortet: die Verbindung bleibt", true, repo.isConnectedFlow.value)
     }
 

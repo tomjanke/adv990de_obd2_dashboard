@@ -673,4 +673,30 @@ class LogbookViewModelTest {
         assertEquals(40_000, f.vm.maintenance.value.rows.first { it.item.type == LogType.CHAIN_SMALL }.item.last!!.odometerKm)
         assertEquals(40_000, f.vm.maintenance.value.loggedKm)
     }
+
+    // ── Ein Abbruch ist kein Fehler ───────────────────────────────────────────
+
+    @Test
+    fun `a cancelled save is not shown as an error and does not claim success`() = runTest {
+        val f = fixture(entry(1))
+        collect(f.vm); runCurrent()
+        coEvery { f.exporter.saveCsv(any(), any()) } throws CancellationException("gone")
+
+        f.vm.saveExportTo(mockk<Uri>()); runCurrent()
+
+        assertNull("ein Abbruch ist kein Fehler", f.vm.exportError.value)
+        assertFalse(f.vm.saved.value)
+    }
+
+    @Test
+    fun `a cancelled confirm goes back to idle - it is neither done nor a failed write`() = runTest {
+        val f = fixture()
+        coEvery { f.importer.read(source, today) } returns plan
+        coEvery { f.importer.apply(plan) } throws CancellationException("cancelled")
+        f.vm.pickImport(source); runCurrent()
+
+        f.vm.confirmImport(); runCurrent()
+
+        assertEquals(ImportState.Idle, f.vm.importState.value)
+    }
 }

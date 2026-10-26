@@ -225,6 +225,51 @@ class TerrainTileDeviceTest {
         assertTrue(d, d.contains(a.getString(R.string.terrain_desc_heading, a.getString(R.string.terrain_compass_name_ne), "45")))
     }
 
+    /** Eine Kachel, deren Anzeige der Test von aussen aendert (eine Komposition je Test, `setContent` gilt nur einmal): gibt den Setter zurueck. */
+    private fun showChanging(initial: TerrainDisplay): (TerrainDisplay) -> Unit {
+        val state = androidx.compose.runtime.mutableStateOf(initial)
+        composeRule.setContent {
+            MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+                Box(Modifier.size(224.dp, 170.dp)) {
+                    TerrainTile(terrain = state.value, useImperial = false, modifier = Modifier.size(224.dp, 170.dp), onLongPress = null)
+                }
+            }
+        }
+        return { next -> composeRule.runOnIdle { state.value = next }; composeRule.waitForIdle() }
+    }
+
+    @Test
+    fun theDescriptionNamesEveryCompassPointWithItsDegrees() {
+        val set = showChanging(full)
+        val a = composeRule.activity
+        val points = listOf(
+            0f to R.string.terrain_compass_name_n, 45f to R.string.terrain_compass_name_ne, 90f to R.string.terrain_compass_name_e,
+            135f to R.string.terrain_compass_name_se, 180f to R.string.terrain_compass_name_s, 225f to R.string.terrain_compass_name_sw,
+            270f to R.string.terrain_compass_name_w, 315f to R.string.terrain_compass_name_nw,
+        )
+
+        for ((degrees, nameRes) in points) {
+            set(full.copy(headingDeg = degrees))
+            val d = contentDescription()
+            val expected = a.getString(R.string.terrain_desc_heading, a.getString(nameRes), degrees.toInt().toString())
+            assertTrue("bei $degrees Grad: $d", d.contains(expected))
+        }
+    }
+
+    @Test
+    fun theDescriptionNamesAGradeDownAsMinusAndAFlatGradeAsZero() {
+        val set = showChanging(full.copy(gradePercent = -6f))
+        val a = composeRule.activity
+
+        val down = contentDescription()
+        assertTrue(down, down.contains(a.getString(R.string.terrain_desc_grade_down, "6")))
+        assertFalse("kein Plus bei einem Gefaelle: $down", down.contains(a.getString(R.string.terrain_desc_grade_up, "6")))
+
+        set(full.copy(gradePercent = 0.3f))   // rundet auf 0: eben
+        val flat = contentDescription()
+        assertTrue(flat, flat.contains(a.getString(R.string.terrain_desc_grade_flat)))
+    }
+
     @Test
     fun aMissingValueIsLeftOutOfTheDescription() {
         show(TerrainDisplay(altitudeM = 100f, gradePercent = null, headingDeg = null, gradeHistory = emptyList()))

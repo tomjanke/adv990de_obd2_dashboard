@@ -553,4 +553,43 @@ class HistoryViewModelTest {
 
         assertThrows(CancellationException::class.java) { runBlocking { f.vm.loadStats(5L) } }
     }
+
+    // ── Ein Abbruch ist kein Fehler: er darf nie als Fehlermeldung beim Nutzer landen ──────────────────
+
+    @Test
+    fun `a cancelled export of one trip is not shown as an error and shares nothing`() = runTest {
+        val f = fixture(ids = listOf(1))
+        coEvery { f.repo.exportToCsv(any()) } throws CancellationException("gone")
+
+        f.vm.export(1); runCurrent()
+
+        assertNull("ein Abbruch ist kein Fehler", f.vm.exportError.value)
+        assertNull(f.vm.shareUri.value)
+    }
+
+    @Test
+    fun `a cancelled exportAll is not shown as an error and shares nothing`() = runTest {
+        val f = fixture(ids = listOf(1, 2))
+        coEvery { f.repo.exportSessionsToCsv(any()) } throws CancellationException("gone")
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.exportAll(); runCurrent()
+
+        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.shareUri.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `a cancelled save is not shown as an error and reports nothing as saved`() = runTest {
+        val f = fixture(ids = listOf(1, 2))
+        coEvery { f.repo.saveSessionsCsv(any(), any()) } throws CancellationException("gone")
+        val job = collect(f.vm); runCurrent()
+
+        f.vm.saveAllTo(mockk()); runCurrent()
+
+        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.savedCount.value)
+        job.cancel()
+    }
 }

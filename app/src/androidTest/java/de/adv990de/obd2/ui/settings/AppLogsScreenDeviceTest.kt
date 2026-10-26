@@ -1,5 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
+import androidx.lifecycle.ViewModelProvider
+import android.net.Uri
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -365,6 +367,53 @@ class AppLogsScreenDeviceTest {
         waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "boom"))
         waitUntilGone(exportMessage(1))
         coVerify(exactly = 1) { appLogExporter.exportToCsv(0L) }
+    }
+
+    /**
+     * Der Dateidialog des Systems laesst sich im Geraete-Test nicht bedienen (er erschiene vor der Test-App); das Ergebnis, das er der Seite liefert, ist der Aufruf
+     * `saveExportTo(uri)` des ViewModels — den der Test hier selbst macht. Das ViewModel ist dasselbe, das die Seite per `hiltViewModel()` an der Activity bekam.
+     */
+    private fun saveInto(uri: Uri) {
+        val vm = ViewModelProvider(composeRule.activity)[AppLogsViewModel::class.java]
+        composeRule.runOnUiThread { vm.saveExportTo(uri) }
+    }
+
+    @Test
+    fun aSavedExport_isAnnouncedAsASnackbar_andWentToTheChosenFile() {
+        insertLog(level = "INFO", message = "to be saved")
+        val target = Uri.parse("content://test/applog.csv")
+        coEvery { appLogExporter.saveCsv(any(), any()) } returns Unit
+        launchAppLogsScreen()
+        waitForText("to be saved")
+
+        saveInto(target)
+
+        waitForText(str(R.string.app_logs_export_saved))
+        coVerify(exactly = 1) { appLogExporter.saveCsv(target, 0L) }
+    }
+
+    @Test
+    fun savingWithoutAnyLog_saysThereIsNothingToExport_andWritesNothing() {
+        launchAppLogsScreen()
+        composeRule.waitForIdle()
+
+        saveInto(Uri.parse("content://test/applog.csv"))
+
+        waitForText(str(R.string.app_logs_export_none))
+        coVerify(exactly = 0) { appLogExporter.saveCsv(any(), any()) }
+    }
+
+    @Test
+    fun aFailedSave_isShownAsASnackbarWithItsCause_andIsNotAnnouncedAsSaved() {
+        insertLog(level = "INFO", message = "to be saved")
+        coEvery { appLogExporter.saveCsv(any(), any()) } throws java.io.IOException("no space left")
+        launchAppLogsScreen()
+        waitForText("to be saved")
+
+        saveInto(Uri.parse("content://test/applog.csv"))
+
+        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "no space left"))
+        composeRule.onNodeWithText(str(R.string.app_logs_export_saved)).assertDoesNotExist()
     }
 
     @Test

@@ -1,5 +1,6 @@
 package de.adv990de.obd2.weather
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -63,6 +64,20 @@ class OpenMeteoApiTest {
     fun `a network failure yields null instead of throwing`() = runTest {
         val api = fakeApi(okBody, responseCodeFailure = IOException("unexpected end of stream"))
         assertNull(api.currentTemperatureC(52.52, 13.41))
+    }
+
+    @Test
+    fun `a cancellation is passed on - it is not an unusable answer - and the connection is still closed`() = runTest {
+        val api = OpenMeteoApi(openConnection = {
+            object : FakeHttpURLConnection() {
+                override fun getResponseCode(): Int = throw CancellationException("gone")
+            }.also { openedConnections += it }
+        })
+
+        val thrown = runCatching { api.currentTemperatureC(52.52, 13.41) }.exceptionOrNull()
+
+        assertTrue("CancellationException erwartet, war: $thrown", thrown is CancellationException)
+        assertTrue(openedConnections.single().disconnected)
     }
 
     // ── Non-finite values: must never reach roundToInt() in the UI ──────────────────────────

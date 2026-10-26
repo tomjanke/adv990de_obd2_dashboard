@@ -4,12 +4,12 @@
 
 **Stand:** 2026-10-26 · **Version:** 1.44.6 (versionCode 144) · **Messweise:** JVM- und Geräte-Tests (Debug-Build, JaCoCo)
 
-**Gesamt: 95,9 % der Zeilen (10997 von 11470 Zeilen)**, 86,0 % der Zweige (4733 von 5502).
+**Gesamt: 97,3 % der Zeilen (11156 von 11470 Zeilen)**, 86,7 % der Zweige (4769 von 5502).
 
 Tests im Lauf:
 
-- JVM-Tests: 2901 (0 fehlgeschlagen, 0 übersprungen)
-- Geräte-Tests: 788 (0 fehlgeschlagen, 0 übersprungen)
+- JVM-Tests: 2925 (0 fehlgeschlagen, 0 übersprungen)
+- Geräte-Tests: 819 (0 fehlgeschlagen, 0 übersprungen)
 
 ## Je Paket
 
@@ -19,10 +19,10 @@ Tests im Lauf:
 | `de.adv990de.obd2.alarm` | 349 / 353 | 98,9 % | 90,2 % |
 | `de.adv990de.obd2.bluetooth` | 164 / 170 | 96,5 % | 85,5 % |
 | `de.adv990de.obd2.crash` | 27 / 35 | 77,1 % | 93,3 % |
-| `de.adv990de.obd2.data` | 922 / 938 | 98,3 % | 92,3 % |
+| `de.adv990de.obd2.data` | 931 / 938 | 99,3 % | 92,5 % |
 | `de.adv990de.obd2.data.db` | 25 / 25 | 100,0 % | 100,0 % |
 | `de.adv990de.obd2.data.db.entity` | 42 / 42 | 100,0 % | – |
-| `de.adv990de.obd2.di` | 2 / 23 | 8,7 % | – |
+| `de.adv990de.obd2.di` | 3 / 23 | 13,0 % | – |
 | `de.adv990de.obd2.fuel` | 167 / 168 | 99,4 % | 98,7 % |
 | `de.adv990de.obd2.location` | 118 / 125 | 94,4 % | 98,6 % |
 | `de.adv990de.obd2.logbook` | 480 / 482 | 99,6 % | 96,6 % |
@@ -31,42 +31,42 @@ Tests im Lauf:
 | `de.adv990de.obd2.terrain` | 206 / 209 | 98,6 % | 87,1 % |
 | `de.adv990de.obd2.ui` | 36 / 37 | 97,3 % | 90,0 % |
 | `de.adv990de.obd2.ui.appinfo` | 130 / 131 | 99,2 % | 47,6 % |
-| `de.adv990de.obd2.ui.components` | 1162 / 1183 | 98,2 % | 77,9 % |
-| `de.adv990de.obd2.ui.dashboard` | 2169 / 2199 | 98,6 % | 90,6 % |
+| `de.adv990de.obd2.ui.components` | 1172 / 1183 | 99,1 % | 78,8 % |
+| `de.adv990de.obd2.ui.dashboard` | 2180 / 2199 | 99,1 % | 91,1 % |
 | `de.adv990de.obd2.ui.dtc` | 262 / 263 | 99,6 % | 71,8 % |
 | `de.adv990de.obd2.ui.freezeframe` | 88 / 88 | 100,0 % | 72,2 % |
 | `de.adv990de.obd2.ui.fuel` | 5 / 5 | 100,0 % | – |
-| `de.adv990de.obd2.ui.history` | 452 / 478 | 94,6 % | 72,3 % |
+| `de.adv990de.obd2.ui.history` | 460 / 478 | 96,2 % | 73,7 % |
 | `de.adv990de.obd2.ui.licenses` | 76 / 77 | 98,7 % | 83,3 % |
-| `de.adv990de.obd2.ui.logbook` | 1452 / 1493 | 97,3 % | 80,3 % |
-| `de.adv990de.obd2.ui.navigation` | 35 / 66 | 53,0 % | 100,0 % |
+| `de.adv990de.obd2.ui.logbook` | 1463 / 1493 | 98,0 % | 81,3 % |
+| `de.adv990de.obd2.ui.navigation` | 66 / 66 | 100,0 % | 100,0 % |
 | `de.adv990de.obd2.ui.permission` | 100 / 111 | 90,1 % | 83,3 % |
-| `de.adv990de.obd2.ui.settings` | 1608 / 1751 | 91,8 % | 78,2 % |
+| `de.adv990de.obd2.ui.settings` | 1683 / 1751 | 96,1 % | 80,7 % |
 | `de.adv990de.obd2.ui.theme` | 236 / 241 | 97,9 % | 59,5 % |
 | `de.adv990de.obd2.ui.trips` | 38 / 38 | 100,0 % | 100,0 % |
 | `de.adv990de.obd2.ui.vehicleinfo` | 67 / 67 | 100,0 % | 80,6 % |
-| `de.adv990de.obd2.ui.weather` | 24 / 25 | 96,0 % | 100,0 % |
-| `de.adv990de.obd2.weather` | 60 / 62 | 96,8 % | 93,3 % |
+| `de.adv990de.obd2.ui.weather` | 25 / 25 | 100,0 % | 100,0 % |
+| `de.adv990de.obd2.weather` | 62 / 62 | 100,0 % | 93,3 % |
 
 ## Dateien mit der niedrigsten Abdeckung (ab 20 Zeilen)
 
 | Datei | Zeilen | Zeilen % |
 |---|---|---|
-| `de/adv990de/obd2/ui/navigation/AppNavHost.kt` | 0 / 31 | 0,0 % |
 | `de/adv990de/obd2/MainActivity.kt` | 13 / 44 | 29,5 % |
 | `de/adv990de/obd2/ObdForegroundService.kt` | 24 / 67 | 35,8 % |
-| `de/adv990de/obd2/ui/settings/GearSettingsScreen.kt` | 66 / 139 | 47,5 % |
 | `de/adv990de/obd2/ui/settings/SettingsScreen.kt` | 195 / 244 | 79,9 % |
 | `de/adv990de/obd2/crash/CrashReportingController.kt` | 23 / 28 | 82,1 % |
 | `de/adv990de/obd2/ui/permission/PermissionGate.kt` | 68 / 79 | 86,1 % |
-| `de/adv990de/obd2/ui/settings/AppLogsScreen.kt` | 135 / 152 | 88,8 % |
-| `de/adv990de/obd2/ui/components/BottomNav.kt` | 89 / 99 | 89,9 % |
-| `de/adv990de/obd2/ui/logbook/LogbookScreen.kt` | 211 / 234 | 90,2 % |
-| `de/adv990de/obd2/data/LogbookExporter.kt` | 28 / 31 | 90,3 % |
-| `de/adv990de/obd2/ui/history/HistoryScreen.kt` | 197 / 215 | 91,6 % |
+| `de/adv990de/obd2/ui/settings/AppLogsScreen.kt` | 137 / 152 | 90,1 % |
+| `de/adv990de/obd2/ui/logbook/LogbookScreen.kt` | 214 / 234 | 91,5 % |
 | `de/adv990de/obd2/location/AndroidCurrentLocationProvider.kt` | 36 / 39 | 92,3 % |
-| `de/adv990de/obd2/data/PidDiscovery.kt` | 24 / 26 | 92,3 % |
-| `de/adv990de/obd2/ui/dashboard/ConnectionCoordinator.kt` | 80 / 86 | 93,0 % |
+| `de/adv990de/obd2/ui/history/HistoryScreen.kt` | 199 / 215 | 92,6 % |
+| `de/adv990de/obd2/location/GpsSpeedSource.kt` | 28 / 30 | 93,3 % |
+| `de/adv990de/obd2/ui/dashboard/DashboardScreen.kt` | 144 / 154 | 93,5 % |
+| `de/adv990de/obd2/terrain/TerrainSource.kt` | 30 / 32 | 93,8 % |
+| `de/adv990de/obd2/ObdServiceController.kt` | 58 / 61 | 95,1 % |
+| `de/adv990de/obd2/location/AndroidLocationSpeedProvider.kt` | 40 / 42 | 95,2 % |
+| `de/adv990de/obd2/ui/dashboard/ValuesState.kt` | 20 / 21 | 95,2 % |
 
 ## Klassen, die nicht zugeordnet werden konnten
 
