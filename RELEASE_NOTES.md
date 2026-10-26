@@ -1,5 +1,38 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.5 (versionCode 143)
+
+Die einmalige **Diagnose beim Auslesen der Fehlercodes** hat eine **zweite Runde**, weil die erste an deinem Motorrad zeigte, dass Adapter oder Steuergerät nicht voll standardkonform antworten.
+
+### Was die erste Runde zeigte (App-Log vom 26.10.)
+
+- Der Adapter antwortet auf `ATDP` und `ATDPN` nur mit „OK“, das Protokoll bleibt damit unbekannt.
+- Das Steuergerät beantwortet `0100`, gibt aber auf `0101`, `07` und `0A` NO DATA zurück, und auf `03` kommt ein **leerer** Text.
+- Das Auslesen scheiterte in allen 21 Verbindungen vom 19. bis 26.10. gleich. Fehlercodes sind an diesem Motorrad über die Standard-Modi bisher nicht lesbar.
+
+### Was sich ändert
+
+- **Neue Befehle in der Diagnose-Zeile** (weiter eine INFO-Zeile, einmal je App-Start, nur nach einem fehlgeschlagenen Auslesen):
+  - **Adapter:** `ATI` (Version), `AT@1` (Beschreibung), `ATRV` (Spannung am Adapter), `ATIGN` (Zündungspegel).
+  - **Kontrolle:** `0100`, `0105` (Kühlmittel), `0101`, `03`, `0900` (unterstützte Infotypen von Modus 09).
+  - **Langes Zeitlimit** (`ATSTFF`, rund 1 s statt 0,2 s): `0101`, `03`, `07`. Antwortet das Steuergerät nur langsam?
+  - **Kopfzeilen an** (`ATH1`): `0100`, `03`. Die rohen Frames zeigen das Protokoll und ob auf `03` überhaupt etwas kommt.
+  - Entfallen sind `ATDP`, `ATDPN` und `0A`.
+- **Rein lesend.** Befehle an den Adapter fragen nur ab oder ändern eine Einstellung seiner Antworten; die übrigen sind Lesemodi. Nie Modus 04, nie ein Reset oder Protokollwechsel. Das Fahrzeug bleibt strikt lesend, die Datenbank bleibt **v6**, keine neue Berechtigung.
+- **Der Adapter wird aufgeräumt.** Zeitlimit und Kopfzeilen werden zurückgestellt (`ATST32`, `ATH0`) — in der Liste selbst und nach **jedem** vorzeitigen Ende (Zeitlimit, Fehler, Abbruch). Bliebe `ATH1` stehen, könnte kein Parser die Sitzung mehr lesen. Gelingt das Zurückstellen nicht, trennt die Diagnose, und der Neuaufbau initialisiert den Adapter neu. Auf einer verlorenen Verbindung wird nichts mehr gesendet.
+- **Sie kann die Sitzung nie beenden.** Ein Zeitlimit beendet die Diagnose und trennt nicht; ein unerwarteter Fehler steht als WARN im Log.
+
+### So wertest du es aus
+
+App **komplett beenden und neu starten** (die Diagnose läuft nur beim ersten Verbinden nach einem Start), mit dem Motorrad verbinden (Zündung an, Motor erst nach den ersten Werten starten), danach unter App-Logs → Export die Datei speichern, **bevor das Log gelöscht wird**. Die Zeile „Fault-code diagnostics“ ist die Auswertungsgrundlage.
+
+### Grenzen
+
+- **Preis:** Die Diagnose dauert geschätzt **4 bis 8 Sekunden** (nicht gemessen), einmal je App-Start. In dieser Zeit laufen die Live-Werte noch nicht.
+- **Nicht belegt, ob sie etwas Brauchbares liefert.** Sie behebt nichts und sammelt Material. Dass Adapter und Steuergerät nicht standardkonform sind, ist deine Vermutung und passt zum ersten Befund, bewiesen ist es nicht.
+- **Am Fahrzeug nichts geprüft.** Der Simulator antwortet auf Modus 03 wie ein gesundes Steuergerät, die Diagnose läuft dort nie.
+- **Tests:** 2925 JVM-Tests (8 neue), Lint 0 Fehler, 16 Mutationen, alle erkannt. Geräte-Tests nicht gelaufen: keine Änderung an Oberfläche, Ressourcen, Datenbank oder Hilt.
+
 ## Version 1.44.4 (versionCode 142)
 
 Die App schreibt **einmal je App-Start** die rohen Antworten von Adapter und Steuergerät ins App-Log, wenn das **Auslesen der Fehlercodes beim Verbinden ohne Antwort bleibt**. Es ist Material für die Auswertung, kein Fix: an deinem Motorrad liefert Modus 03 bisher bei jeder Verbindung einen leeren Text, und das Log sagte nicht, warum.
