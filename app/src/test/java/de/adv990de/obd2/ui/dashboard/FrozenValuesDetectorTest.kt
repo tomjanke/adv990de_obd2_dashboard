@@ -212,4 +212,130 @@ class FrozenValuesDetectorTest {
             assertTrue("Zyklus $i: $state", state != FrozenState.FROZEN)
         }
     }
+
+    // --- Die Grenze: 12 Zyklen (Fahrt vom 2026-10-28; die gesunden Fahrten bleiben bei hoechstens 8 Zyklen / 10,2 s) ---
+
+    @Test
+    fun `the default limit is 12 cycles`() {
+        assertEquals(12, FROZEN_MIN_CYCLES)
+        val d = FrozenValuesDetector(clock, 10.seconds)        // minCycles nicht angegeben: die Voreinstellung
+        assertEquals(FrozenState.UNCHANGED, feed(d, 11))       // 11 Zyklen, 15 s: Zeit genug, Zyklen noch nicht
+        clock += 1_500.milliseconds
+        assertEquals(FrozenState.FROZEN, d.update(cycle()))    // der 12. Zyklus
+    }
+
+    @Test
+    fun `the longest repeat of the healthy rides - 8 cycles, 10 seconds - is not frozen with the default limits`() {
+        // gemessen an 31 gesunden Fahrten (Stand 2026-10-28): hoechstens 8 identische Zyklen am Stueck in 10,2 s, dann eine Aenderung
+        val d = FrozenValuesDetector(clock, 10.seconds)
+        repeat(8) { i ->
+            if (i > 0) clock += 1_460.milliseconds
+            assertEquals("Zyklus ${i + 1}", FrozenState.UNCHANGED, d.update(cycle()))
+        }
+        clock += 1_460.milliseconds
+        assertEquals(FrozenState.CHANGED, d.update(cycle(rpm = 1650f)))
+    }
+
+    // --- Ein offener Fall wird in der naechsten Sitzung fortgesetzt (Fahrt vom 2026-10-28: nach dem Neuverbinden liefen 20 Zyklen mit denselben Werten durch) ---
+
+    private val frozenValues = mapOf(
+        PidRegistry.RPM.id to 1612f,
+        PidRegistry.COOLANT_TEMP.id to 79f,
+        PidRegistry.CONTROL_MODULE_VOLTAGE.id to 13.7f,
+    )
+
+    @Test
+    fun `the last value of every PID is available as a snapshot`() {
+        val d = detector()
+        d.update(cycle(rpm = 1612f, voltage = 13.7f))
+        clock += 1_500.milliseconds
+        d.update(cycle(rpm = 1700f, voltage = null))           // die Spannung fehlt in diesem Zyklus: ihr letzter Wert bleibt
+        assertEquals(
+            mapOf(PidRegistry.RPM.id to 1700f, PidRegistry.COOLANT_TEMP.id to 79f, PidRegistry.CONTROL_MODULE_VOLTAGE.id to 13.7f),
+            d.valuesSnapshot(),
+        )
+    }
+
+    @Test
+    fun `a value that is not a number never enters the snapshot`() {
+        val d = detector()
+        d.update(cycle(voltage = Float.NaN))
+        assertEquals(mapOf(PidRegistry.RPM.id to 1612f, PidRegistry.COOLANT_TEMP.id to 79f), d.valuesSnapshot())
+    }
+
+    @Test
+    fun `a snapshot is a copy - a later cycle does not change it`() {
+        val d = detector()
+        d.update(cycle())
+        val snapshot = d.valuesSnapshot()
+        clock += 1_500.milliseconds
+        d.update(cycle(rpm = 2000f))
+        assertEquals(1612f, snapshot[PidRegistry.RPM.id])
+    }
+
+    @Test
+    fun `a resumed run is frozen with the first unchanged cycle`() {
+        val d = detector()
+        d.resumeRun(frozenValues)
+        assertEquals(FrozenState.FROZEN, d.update(cycle()))
+        assertEquals("der Lauf zaehlt als schon so lang wie die Grenze", 20, d.cycles)
+        assertTrue("... und als schon so lang wie die Zeit: ${d.unchangedFor}", d.unchangedFor >= 20.seconds)
+    }
+
+    @Test
+    fun `a resumed run is frozen with the first unchanged cycle however short the limits`() {
+        val d = detector(minDuration = 60.seconds, minCycles = 40)
+        d.resumeRun(frozenValues)
+        assertEquals(FrozenState.FROZEN, d.update(cycle()))
+    }
+
+    @Test
+    fun `a resumed run ends with the first value that moved - and that cycle starts a new run`() {
+        for (moved in listOf(cycle(rpm = 1700f), cycle(coolant = 80f), cycle(voltage = 13.8f))) {
+            val d = detector()
+            d.resumeRun(frozenValues)
+            assertEquals(FrozenState.CHANGED, d.update(moved))
+            assertEquals(1, d.cycles)
+            clock += 1_500.milliseconds
+            assertEquals("der neue Lauf zaehlt von vorn", FrozenState.UNCHANGED, d.update(moved))
+        }
+    }
+
+    @Test
+    fun `a resumed run ends with a stopped engine`() {
+        val d = detector()
+        d.resumeRun(frozenValues)
+        assertEquals(FrozenState.ENGINE_OFF, d.update(cycle(rpm = 0f)))
+        assertEquals(0, d.cycles)
+        clock += 1_500.milliseconds
+        assertEquals("derselbe Wert wie vor dem Abstellen: ein neuer Lauf, keine Fortsetzung", FrozenState.UNCHANGED, d.update(cycle()))
+    }
+
+    @Test
+    fun `a resumed run ignores a cycle without a rpm value and stays as it was`() {
+        val d = detector()
+        d.resumeRun(frozenValues)
+        assertEquals(FrozenState.IGNORED, d.update(cycle(rpm = null)))
+        assertEquals(FrozenState.FROZEN, d.update(cycle()))
+    }
+
+    @Test
+    fun `a resumed run does not mind a PID that is missing or new`() {
+        val d = detector()
+        d.resumeRun(frozenValues)
+        assertEquals("die Spannung fehlt", FrozenState.FROZEN, d.update(cycle(voltage = null)))
+        assertEquals("eine PID, die der Fall nicht kannte, ist weder Aenderung noch Beweis", FrozenState.FROZEN, d.update(cycle() + v(PidRegistry.SPEED, 50f)))
+    }
+
+    @Test
+    fun `resuming replaces the run that was there`() {
+        val d = detector()
+        feed(d, 5, values = cycle(rpm = 3000f) + v(PidRegistry.SPEED, 50f))
+        d.resumeRun(frozenValues)
+        clock += 1_500.milliseconds
+        assertEquals("verglichen wird mit dem Fall, nicht mit dem alten Lauf", FrozenState.FROZEN, d.update(cycle()))
+        // die Geschwindigkeit stand nur im alten Lauf: der Fall kennt sie nicht, ein anderer Wert ist weder Aenderung noch Beweis
+        clock += 1_500.milliseconds
+        assertEquals(FrozenState.FROZEN, d.update(cycle() + v(PidRegistry.SPEED, 60f)))
+    }
 }

@@ -8,12 +8,13 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
- * Mindestzahl identischer Zyklen, bevor die Werte als eingefroren gelten. In den 15 aufgezeichneten Fahrten (Stand 2026-10-20) standen Drehzahl,
- * Kuehlmittel und Spannung bei laufendem Motor hoechstens 5 Zyklen (rund 6 s) am Stueck auf demselben Wert; die beiden eingefrorenen Fahrten
- * (52 und 60) blieben 8 bzw. 15 Minuten stehen. 20 Zyklen sind ein Abstand von rund dem Vierfachen zum Normalen — die Zeit kommt als zweite
- * Grenze aus der Einstellung des Watchdogs dazu (s. [FrozenValuesDetector]).
+ * Mindestzahl identischer Zyklen, bevor die Werte als eingefroren gelten. In den 31 gesunden Sitzungen (Stand 2026-10-28, Fahrten 45 bis 82 ohne die
+ * eingefrorenen) standen Drehzahl, Kuehlmittel und Spannung bei laufendem Motor hoechstens **8 Zyklen (10,2 s)** am Stueck auf demselben Wert; die
+ * eingefrorenen Fahrten blieben 8 bis 15 Minuten stehen. 12 Zyklen liegen vier Zyklen ueber dem gesunden Hoechstwert. Bis 1.44.6 waren es 20 (die Erkennung
+ * dauerte rund 30 s); mit dem Takt der Fahrten (1,1 bis 1,6 s) und der Zeitgrenze des Watchdogs (Standard 20 s) entscheidet jetzt meist die Zeit: rund 20 s statt 30 s.
+ * Die Zeit kommt als zweite Grenze aus der Einstellung des Watchdogs dazu (s. [FrozenValuesDetector]).
  */
-internal const val FROZEN_MIN_CYCLES = 20
+internal const val FROZEN_MIN_CYCLES = 12
 
 /** Was [FrozenValuesDetector.update] ueber einen Zyklus sagt. */
 internal enum class FrozenState {
@@ -61,6 +62,21 @@ internal class FrozenValuesDetector(
     /** Wie lange der Lauf schon dauert: Zeit seit seinem ersten Zyklus. */
     val unchangedFor: Duration get() = runStart?.elapsedNow() ?: Duration.ZERO
 
+    /** Der letzte endliche Wert je PID (Schluessel: PID-ID) — das, womit der laufende Lauf den naechsten Zyklus vergleicht. Eine Kopie. */
+    fun valuesSnapshot(): Map<String, Float> = HashMap(lastValues)
+
+    /**
+     * Setzt einen Lauf aus einer frueheren Sitzung fort (s. [FrozenValuesGuard]): [values] sind die Werte, die dort eingefroren waren. Der Lauf zaehlt als schon so lang wie
+     * beide Grenzen — der erste unveraenderte Zyklus ist damit sofort [FrozenState.FROZEN], ein veraenderter [FrozenState.CHANGED], ein stehender Motor
+     * [FrozenState.ENGINE_OFF], ein Zyklus ohne Drehzahl [FrozenState.IGNORED]. Ersetzt einen bisherigen Lauf.
+     */
+    fun resumeRun(values: Map<String, Float>) {
+        lastValues.clear()
+        lastValues.putAll(values)
+        runStart = timeSource.markNow() - minDuration
+        cycles = minCycles - 1
+    }
+
     fun update(values: List<SensorValue>): FrozenState {
         val rpm = values.firstOrNull { it.pid.id == PidRegistry.RPM.id }?.value
         if (rpm == null || !rpm.isFinite()) return FrozenState.IGNORED
@@ -101,37 +117,48 @@ internal sealed interface FrozenAction {
 
 /**
  * Die Entscheidung bei eingefrorenen Werten, ueber Sitzungen hinweg: **einmal je Fall neu verbinden** — ob ein neuer Adapter-Start hilft, ist offen (nicht am Fahrzeug
- * ausprobiert; liegt es am Steuergeraet, hilft es nicht). Ist es nach dem Neuverbinden wieder dasselbe, bleibt die Verbindung stehen und die Werte werden
- * zurueckgehalten ([FrozenAction.Hold]): Eine Schleife aus Verbinden, 30 s Warten und Verbinden legte je Durchgang eine neue Fahrt mit nutzlosen Zeilen an.
+ * ausprobiert; liegt es am Steuergeraet, hilft es nicht; **bis heute half es in keinem der vier aufgezeichneten Faelle**, auch das Trennen und Verbinden von Hand nicht).
+ * Ist es nach dem Neuverbinden wieder dasselbe, bleibt die Verbindung stehen und die Werte werden zurueckgehalten ([FrozenAction.Hold]): Eine Schleife aus Verbinden,
+ * 30 s Warten und Verbinden legte je Durchgang eine neue Fahrt mit nutzlosen Zeilen an.
+ *
+ * **Ein offener Fall geht in die naechste Sitzung ueber** (Fahrt vom 2026-10-28): der Fall merkt sich die Werte, die eingefroren waren, und die neue Sitzung setzt den Lauf damit
+ * fort ([FrozenValuesDetector.resumeRun]). Schon der erste Zyklus nach dem Neuverbinden — gleich ob die App es tat oder der Nutzer von Hand — wird damit verglichen: dieselben Werte
+ * heissen sofort [FrozenAction.Hold], ein bewegter Wert beendet den Fall. Vorher begann jede Sitzung bei null, und die ersten 20 Zyklen (rund 30 s) liefen mit den alten Werten
+ * ohne Band durch — nach dem Neuverbinden von Hand sah das aus wie „wieder aktuelle Werte“.
  *
  * Ein Fall endet, wenn sich ein Wert wieder bewegt ([FrozenState.CHANGED]) oder der Motor ausgeht ([FrozenState.ENGINE_OFF]); danach darf ein spaeteres Einfrieren wieder
- * einmal neu verbinden. Der Detektor gehoert der Sitzung ([beginSession]), die Merkmale des Falls ueberleben das Neuverbinden.
+ * einmal neu verbinden. Der Detektor gehoert der Sitzung ([beginSession]), die Werte des Falls ueberleben das Neuverbinden.
  */
 internal class FrozenValuesGuard {
     private var detector = FrozenValuesDetector(TimeSource.Monotonic, Duration.ZERO)
 
-    /** Fuer den laufenden Fall wurde schon neu verbunden und seither hat sich kein Wert bewegt. */
-    private var reconnected = false
+    /**
+     * Die Werte des eingefrorenen Zyklus, fuer den schon neu verbunden wurde, solange sich seither kein Wert bewegt hat und der Motor nicht ausging — `null`, wenn kein Fall offen
+     * ist. Gesetzt in dem Augenblick, in dem [FrozenAction.Reconnect] verlangt wird.
+     */
+    private var openEpisode: Map<String, Float>? = null
 
     /**
-     * Die Werte werden gerade zurueckgehalten: seit dem ersten [FrozenAction.Hold] dieser Sitzung, bis sich ein Wert bewegt oder der Motor ausgeht. Die Pipeline liest es nach jedem
-     * Zyklus, um das Ende der Sperre zu erkennen — ein durchgelassener Zyklus bei `holding == false` nach einem Hold ist ein bewegter Wert.
+     * Die Werte werden gerade zurueckgehalten: seit dem ersten [FrozenAction.Hold] dieser Sitzung — oder von Beginn einer Sitzung an, die einen offenen Fall fortsetzt —, bis sich ein
+     * Wert bewegt oder der Motor ausgeht. In diesem Zustand bleibt auch ein Zyklus ohne Drehzahl zurueckgehalten: er kann nicht beweisen, dass der Strom wieder lebt.
      */
     var holding = false
         private set
 
     /**
-     * Beginnt eine Sitzung: Zaehlung und Vergleichswerte von vorn, [minDuration] aus der Einstellung des Watchdogs; ob schon neu verbunden wurde, bleibt. Eine neue Sitzung beginnt nie in
-     * der Sperre: ihre ersten Zyklen laufen wieder durch, bis die Grenze erneut erreicht ist.
+     * Beginnt eine Sitzung: Zaehlung und Vergleichswerte von vorn, [minDuration] aus der Einstellung des Watchdogs. **Ist ein Fall offen, setzt die Sitzung ihn fort:** der Vergleich
+     * beginnt mit den Werten des Falls, und die Sitzung beginnt in der Sperre. Sonst beginnt sie nie in der Sperre: ihre ersten Zyklen laufen durch, bis die Grenze erreicht ist.
      */
     fun beginSession(timeSource: TimeSource, minDuration: Duration) {
         detector = FrozenValuesDetector(timeSource, minDuration)
-        holding = false
+        val episode = openEpisode
+        if (episode != null) detector.resumeRun(episode)
+        holding = episode != null
     }
 
     fun onCycle(values: List<SensorValue>): FrozenAction = when (detector.update(values)) {
         FrozenState.CHANGED, FrozenState.ENGINE_OFF -> {
-            reconnected = false
+            openEpisode = null
             holding = false
             FrozenAction.Pass
         }
@@ -139,11 +166,11 @@ internal class FrozenValuesGuard {
         FrozenState.IGNORED -> if (holding) FrozenAction.Hold else FrozenAction.Pass
         FrozenState.UNCHANGED -> FrozenAction.Pass
         FrozenState.FROZEN ->
-            if (reconnected) {
+            if (openEpisode != null) {
                 holding = true
                 FrozenAction.Hold
             } else {
-                reconnected = true
+                openEpisode = detector.valuesSnapshot()
                 FrozenAction.Reconnect(detector.cycles, detector.unchangedFor)
             }
     }

@@ -142,7 +142,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (2925 Tests, < 30 Sekunden)
+# JVM Unit Tests (2948 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -151,7 +151,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2925 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 2948 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 819 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -332,7 +332,7 @@ Persistiert via Jetpack DataStore; eine Seite, gruppiert wie in der App:
 - Die Dashboard-Slot-Belegung (welche PIDs in welche Kachel) steht ebenfalls im DataStore und wird per Long-Press auf eine Kachel geändert.
 
 Zu den beiden Zeitwerten der Verbindung:
-- **OBD-Watchdog:** nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr (Timeout) oder nur noch unverwertbar antwortet; reines NO DATA (z. B. Zündung aus) löst ihn nie aus und startet die Frist neu — Auswahl 10 / 20 / 30 / 60 / 120 s, Standard 20 s. **Dieselbe Zeit gilt für eingefrorene Werte** *(seit der Umsetzung vom 2026-10-20, noch nicht released)*: antwortet das Fahrzeug weiter, aber bei laufendem Motor seit mindestens 20 Zyklen und dieser Zeit mit genau denselben Werten, verbindet die App einmal neu (App-Log mit Rohantworten und Adapterspannung); ist es danach wieder dasselbe, zeigt sie „Werte eingefroren“ statt der Zahlen, bis sich ein Wert bewegt. *(Seit der Umsetzung vom 2026-10-24, noch nicht released: das Band ist gelb, mindestens 56 dp hoch und erscheint sofort statt erst nach 10 s; schon beim Neuverbinden steht „Werte eingefroren · verbinde neu 1/5“; die GPS-Geschwindigkeit wird in diesem Zustand weiter angezeigt und aufgezeichnet, und die Tankanzeige zählt weiter.)* Am Fahrzeug nicht geprüft, die Ursache des Einfrierens ist offen (`CLAUDE.md`, „Eingefrorene Werte erkennen“) (früher frei eingegebene Werte werden beim Lesen auf die nächste Auswahl gesetzt, z. B. 45 s → 60 s)
+- **OBD-Watchdog:** nach wie vielen Sekunden ohne erfolgreiche Messung ein Reconnect erzwungen wird, sobald der Adapter gar nicht mehr (Timeout) oder nur noch unverwertbar antwortet; reines NO DATA (z. B. Zündung aus) löst ihn nie aus und startet die Frist neu — Auswahl 10 / 20 / 30 / 60 / 120 s, Standard 20 s. **Dieselbe Zeit gilt für eingefrorene Werte** *(seit der Umsetzung vom 2026-10-20, noch nicht released)*: antwortet das Fahrzeug weiter, aber bei laufendem Motor seit mindestens 12 Zyklen *(bis 1.44.6: 20)* und dieser Zeit mit genau denselben Werten, verbindet die App einmal neu (App-Log mit Rohantworten und Adapterspannung); ist es danach wieder dasselbe — *seit 1.44.7 schon beim ersten Zyklus nach dem Neuverbinden, auch nach einem Neuverbinden von Hand* —, zeigt sie „Werte eingefroren“ statt der Zahlen, bis sich ein Wert bewegt. *(Seit der Umsetzung vom 2026-10-24, noch nicht released: das Band ist gelb, mindestens 56 dp hoch und erscheint sofort statt erst nach 10 s; schon beim Neuverbinden steht „Werte eingefroren · verbinde neu 1/5“; die GPS-Geschwindigkeit wird in diesem Zustand weiter angezeigt und aufgezeichnet, und die Tankanzeige zählt weiter.)* Am Fahrzeug nicht geprüft, die Ursache des Einfrierens ist offen (`CLAUDE.md`, „Eingefrorene Werte erkennen“) (früher frei eingegebene Werte werden beim Lesen auf die nächste Auswahl gesetzt, z. B. 45 s → 60 s)
 - **Reconnect-Basisverzögerung:** Wartezeit vor dem ersten Reconnect-Versuch, jeder weitere verdoppelt sie (5 Versuche) — Auswahl 3 / 10 / 30 s, Standard 3 s; die Einstellungen zeigen die resultierenden Wartezeiten (z. B. 3 · 6 · 12 · 24 · 48 s, insgesamt 1:33 min)
 
 Die Getriebe-Eingaben haben plausible Grenzen (z. B. Radumfang 1000–4000 mm; „2.096“ wird abgelehnt statt als 2,096 mm gespeichert); `0` bei einem Gang schaltet ihn ab, falls das Getriebe weniger Gänge hat.
@@ -387,7 +387,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (2925) |
+| `app/src/test/` | JVM-Unit-Tests (2948) |
 | `app/src/androidTest/` | Instrumented Tests (682, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |

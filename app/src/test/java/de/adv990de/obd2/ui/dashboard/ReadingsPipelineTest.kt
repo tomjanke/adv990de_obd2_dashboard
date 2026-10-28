@@ -801,11 +801,11 @@ class ReadingsPipelineTest {
         val events = collect(frozenPipeline(repo, logRepo))
         runCurrent()
 
-        assertEquals("Zyklus 1 bis 19 laufen durch, der 20. ist der eingefrorene", 19, events.count { it is SessionEvent.Values })
+        assertEquals("Zyklus 1 bis 14 laufen durch, der 15. (21 s bei 1,5 s Takt, die Zeitgrenze von 20 s) ist der eingefrorene", 14, events.count { it is SessionEvent.Values })
         assertTrue("$events", events.contains(SessionEvent.ConnectionLost(ConnectionLostCause.FROZEN_VALUES)))
         coVerify(exactly = 1) { repo.dropFrozenLink() }
         coVerify {
-            logRepo.log(LogLevel.WARN, match { it.contains("values frozen") && it.contains("20 cycles") && it.contains("28 s") && it.contains("ATRV 13.8V") })
+            logRepo.log(LogLevel.WARN, match { it.contains("values frozen") && it.contains("15 cycles") && it.contains("21 s") && it.contains("ATRV 13.8V") })
         }
     }
 
@@ -823,7 +823,7 @@ class ReadingsPipelineTest {
         runCurrent()
 
         coVerify(exactly = 1) { repo.dropFrozenLink() }
-        assertEquals("19 + 19: die gehaltenen Zyklen erreichen die Oberflaeche nicht", 38, events.count { it is SessionEvent.Values })
+        assertEquals("14 der ersten Sitzung, keiner der zweiten: schon der erste Zyklus nach dem Neuverbinden ist gehalten", 14, events.count { it is SessionEvent.Values })
         // ohne Zyklen zeigt die Oberflaeche nach der Frist "Keine aktuellen Werte"
         advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
         assertTrue("$events", events.contains(SessionEvent.Stale))
@@ -846,7 +846,7 @@ class ReadingsPipelineTest {
         runCurrent()
 
         val values = events.filterIsInstance<SessionEvent.Values>()
-        assertEquals("19 + 19 + der lebendige Zyklus", 39, values.size)
+        assertEquals("14 + der lebendige Zyklus", 15, values.size)
         assertEquals(2400f, values.last().values.first { it.pid.id == PidRegistry.RPM.id }.value)
     }
 
@@ -984,8 +984,8 @@ class ReadingsPipelineTest {
         val run = holdRun()
 
         assertEquals("ein Ereignis je Sperre, nicht je gehaltenem Zyklus", 1, run.events.count { it == SessionEvent.Frozen })
-        assertEquals("zuletzt gemeldet, direkt hinter dem letzten durchgelassenen Zyklus", SessionEvent.Frozen, run.events.last())
-        assertEquals(38, run.events.count { it is SessionEvent.Values })
+        assertEquals("zuletzt gemeldet: schon der erste Zyklus der zweiten Sitzung beginnt die Sperre", SessionEvent.Frozen, run.events.last())
+        assertEquals("nur die 14 Zyklen der ersten Sitzung", 14, run.events.count { it is SessionEvent.Values })
         assertTrue("die Anzeige muss keine 10 s warten: $run", run.events.none { it == SessionEvent.Stale })
     }
 
@@ -1037,9 +1037,9 @@ class ReadingsPipelineTest {
         val run = holdRun()
 
         val gpsRows = run.rows.gpsOnlyRows()
-        assertEquals("Zyklus 20 bis 40 der zweiten Sitzung sind gehalten", 21, gpsRows.size)
+        assertEquals("alle 40 Zyklen der zweiten Sitzung sind gehalten", 40, gpsRows.size)
         assertTrue(gpsRows.all { it.single().value == 42f })
-        assertTrue("kein Fahrzeugwert aus einem gehaltenen Zyklus: ${run.rows.flatten().filter { it.pid.id == PidRegistry.RPM.id }.size} Drehzahlzeilen", run.rows.flatten().count { it.pid.id == PidRegistry.RPM.id } == 19 + 19)
+        assertTrue("kein Fahrzeugwert aus einem gehaltenen Zyklus: ${run.rows.flatten().filter { it.pid.id == PidRegistry.RPM.id }.size} Drehzahlzeilen", run.rows.flatten().count { it.pid.id == PidRegistry.RPM.id } == 14)
     }
 
     @Test
@@ -1072,7 +1072,7 @@ class ReadingsPipelineTest {
     @Test
     fun `when the vehicle moves again the display and the recording resume, with one log line and one marker`() = runTest {
         val second = flow {
-            repeat(25) { frozenClock += 1_500.milliseconds; emit(frozenCycle()) }        // wieder eingefroren: Sperre ab dem 20.
+            repeat(25) { frozenClock += 1_500.milliseconds; emit(frozenCycle()) }        // wieder eingefroren: gehalten, von Anfang an
             frozenClock += 1_500.milliseconds; emit(frozenCycle(rpmValue = 2400f))       // das Steuergeraet lebt wieder
             awaitCancellation()
         }
@@ -1094,6 +1094,44 @@ class ReadingsPipelineTest {
 
         coVerify(exactly = 1) { run.logRepo.log(LogLevel.INFO, match { it.contains("Session ended while values were frozen") }) }
         assertEquals("kein Marker fuer das Sitzungsende: die Fahrt endet", 1, run.rows.stateRows().size)
+    }
+
+    @Test
+    fun `the first cycle after the reconnect is held - the hold starts at once, not after 30 seconds of stale values`() = runTest {
+        val run = holdRun(secondStream = frozenStream(1))
+
+        assertEquals("kein Zyklus der zweiten Sitzung erreicht die Anzeige", 14, run.events.count { it is SessionEvent.Values })
+        assertEquals(1, run.events.count { it == SessionEvent.Frozen })
+        assertEquals("der Marker steht schon", listOf(1f), run.rows.stateRows().map { it.value })
+        coVerify(exactly = 1) { run.logRepo.log(LogLevel.WARN, match { it.contains("holding them back") && it.contains("010C=1612") }) }
+    }
+
+    @Test
+    fun `a reconnect that cures the freeze shows the values at once and never holds`() = runTest {
+        val run = holdRun(secondStream = frozenStream(5) { 2000f + it })
+
+        assertEquals("14 + die 5 lebendigen Zyklen", 19, run.events.count { it is SessionEvent.Values })
+        assertTrue("keine Sperre: ${run.events}", run.events.none { it == SessionEvent.Frozen })
+        assertEquals("kein Marker", 0, run.rows.stateRows().size)
+    }
+
+    @Test
+    fun `the user's reconnect during a hold is held again at once - the stale values do not pass as live for 30 seconds`() = runTest {
+        val connected = MutableStateFlow(true)
+        val repo = frozenRepo(connected)
+        every { repo.livePids(any()) } returnsMany listOf(frozenStream(25), frozenStream(10), frozenStream(10))
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val events = collect(frozenPipeline(repo, sessionRepo = sessionRepo))
+        runCurrent()
+        connected.value = true; runCurrent()            // das automatische Neuverbinden: wieder dasselbe, gehalten
+        connected.value = false; runCurrent()           // der Nutzer trennt ...
+        connected.value = true; runCurrent()            // ... und verbindet von Hand: wieder dieselben Werte
+
+        assertEquals("nur die 14 Zyklen der ersten Sitzung erreichen die Anzeige", 14, events.count { it is SessionEvent.Values })
+        assertEquals("eine Sperre je Sitzung, die sie erlebt", 2, events.count { it == SessionEvent.Frozen })
+        assertEquals("der Marker steht auch in der Fahrt der Hand-Sitzung", listOf(1f, 1f), rows.stateRows().map { it.value })
+        coVerify(exactly = 1) { repo.dropFrozenLink() }
     }
 
     @Test
