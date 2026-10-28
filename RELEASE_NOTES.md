@@ -1,5 +1,27 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.7 (versionCode 145)
+
+Eingefrorene Werte werden nach dem Neuverbinden **sofort** wieder zurückgehalten und **früher** erkannt. Anlass war die Fahrt vom 28.10.
+
+### Was sich ändert
+
+- **Nach dem Neuverbinden läuft nichts Altes mehr als „aktuell“ durch.** Bisher begann jede neue Sitzung ohne Sperre: Nach einem Neuverbinden — von der App oder von dir von Hand — liefen die ersten 20 Zyklen (rund 30 s) mit den eingefrorenen Werten ohne Band durch. Am 28.10. waren das 14 Zyklen mit genau 4467 U/min, 89 °C und 13,3 V bei 0 km/h, die wie „wieder aktuelle Werte“ aussahen. Jetzt merkt sich die App die eingefrorenen Werte und vergleicht schon den ersten Zyklus nach dem Neuverbinden damit: dieselben Werte → sofort „Werte eingefroren“ (Band, Log-Zeile, Marker in der Fahrt), ein bewegter Wert → die Werte erscheinen sofort wieder.
+- **Früher erkannt:** 12 statt 20 identische Zyklen. Mit der Standard-Zeitgrenze von 20 s wird das Einfrieren nach rund 20 s statt rund 30 s erkannt (die Zeit entscheidet meist; schneller ginge nur mit einer kürzeren Einstellung „Reconnect bei eingefrorenen Werten“). In den 31 gesunden Sitzungen blieben alle Werte höchstens 8 Zyklen (10,2 s) gleich.
+- **Unverändert:** einmal je Fall neu verbinden, dann zurückhalten; die Datenbank (bleibt **v6**), die Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Was die Fahrt vom 28.10. zeigte
+
+- Das Einfrieren begann 896 s nach Beginn der Sitzung beim Anfahren. Die App erkannte es nach 30 s, verband neu (3 s), und schon der erste Zyklus danach hatte dieselben Werte; die Sperre dauerte 583 s, rund 10 Minuten ohne Drehzahl, Kühlmittel und Spannung. Dein Trennen und Verbinden am Ende änderte nichts: auch die 14 Zyklen danach standen auf 4467 U/min.
+- **Das Neuverbinden half in keinem von vier Fällen** (24.10. und 28.10., je automatisch und von Hand). Damit ist Bluetooth als Ursache ausgeschlossen; der Fehler sitzt im Adapter oder im Steuergerät. Welches von beiden, kann die App nicht unterscheiden.
+
+### Grenzen
+
+- **Am Fahrzeug nichts geprüft; die Ursache bleibt offen.** Versuch beim nächsten Einfrieren, nur sicher geparkt und bei laufendem Motor: den Adapter 5 s aus der OBD-Buchse ziehen und wieder stecken. Heilt das, liegt es am Adapter, sonst am Steuergerät.
+- **Die Zyklen zwischen Einfrieren und Erkennung** (rund 20 s) stehen weiter als normale Zeilen in der Fahrt; der Marker steht erst am Beginn der Sperre.
+- **Zufall beim Heilen:** deckt sich der erste Zyklus eines wirklich geheilten Stroms in allen Werten mit den eingefrorenen, bleibt er bis zum ersten bewegten Zyklus zurückgehalten (am Leerlauf-Plateau bis rund 10 s).
+- **Tests:** 2948 JVM-Tests (23 neu), Lint 0 Fehler, 13 Mutationen, alle erkannt. Geräte-Tests nicht gelaufen: geändert ist nur Logik im Wächter, keine Oberfläche, Ressource, Datenbank oder Hilt-Bindung.
+
 ## Version 1.44.6 (versionCode 144)
 
 Die **einmalige Diagnose** beim Auslesen der Fehlercodes ist **wieder entfernt**. Sie hat ihre Frage beantwortet und würde jetzt nur bei jedem Start Befehle kosten.
