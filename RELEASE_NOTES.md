@@ -1,5 +1,29 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.9 (versionCode 147)
+
+Der **Spannungsbalken** glättet jetzt mit dem **Median** statt mit dem Mittel. Nach dem Motorstart steht er damit schneller auf der richtigen Farbe.
+
+### Was sich ändert
+
+- **Median statt Mittel im 10-s-Fenster:** Bei gerader Probenzahl ist es der Mittelwert der beiden mittleren Werte. Das Fenster, die Regel „die erste Probe nach einem Wechsel zeigt sofort etwas“, die Hysterese, die Alarme, Min/Max je Fahrt und die Aufzeichnung bleiben unverändert.
+- **Warum:** Nach dem Start hält das Steuergerät den Anlasser-Wert (6,8 bis 12,3 V) mehrere Zyklen lang, bis rund 4 s. Im Mittel zog er den Balken bis zu 15 s unter die richtige Farbe. Der Median kippt, sobald mehr als die Hälfte der Proben gut ist.
+- **Unverändert:** Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Was die Auswertung zeigte
+
+- Datenbasis: dein Fahrten-Export vom 29.10. (Fahrten 45 bis 96): **34 Starts und 22 Abstellvorgänge**, durch eine Kopie des echten Trackers gespielt.
+- **Zeit bis die Farbe dauerhaft stimmt** (Mittel / Maximum): bisher 4,2 s / 15,4 s, mit Median **2,5 s / 12,7 s**. Nach 5 s war die Farbe bisher bei 11 von 32 Starts falsch, jetzt bei 5.
+- Der Rest ist physikalisch: bei zwei Starts liegt die Rohspannung selbst 8 bis 12 s bei 12,7 bis 13,3 V.
+- **Verworfen:** die erste Probe nach dem Start weglassen (bringt Lücken ohne Gewinn) und Werte unter 9 V ignorieren (fängt die Fälle bei 10 bis 11 V nicht).
+- **Abstellen:** keine Lücken in 22 Fällen. Die „18 s nach dem Abstellen“ lassen sich mit dem heutigen Tracker nicht nachstellen.
+
+### Grenzen
+
+- **Ein Motorrad, Herbst, 32 Starts, alle mit dem Zielzustand „lädt“.** Ein Fall mit Heizgriffen oder Lüfter direkt nach dem Start fehlt. Die Wiedergabe lief ohne die echte Ereignisreihenfolge der App.
+- **Am Fahrzeug nichts geprüft.** Ob der Balken nach dem Start spürbar schneller stimmt, zeigt erst die nächste Fahrt.
+- **Tests:** 2953 JVM-Tests (2 neu), Lint (Debug und Release) 0 Fehler und 5 Hinweise auf neuere Versionen, 6 Mutationen, alle erkannt. Geräte-Tests nicht gelaufen: geändert ist nur die Rechnung im Tracker, keine Oberfläche, Ressource, Datenbank oder Hilt-Bindung.
+
 ## Version 1.44.8 (versionCode 146)
 
 Die **Reichweite aus dem Logbuch** rechnet jetzt mit den **letzten 3** statt den letzten 10 Voll-zu-Voll-Intervallen. Das war deine Entscheidung nach einer Nachrechnung an deinen Logbuch-Daten.
