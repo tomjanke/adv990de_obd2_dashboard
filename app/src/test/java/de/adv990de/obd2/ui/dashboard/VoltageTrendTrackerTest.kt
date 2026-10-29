@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Die Glättung der Spannung über die Zyklen: Mittel der letzten 10 s, ab drei Proben — nur nach dem ersten Verbinden. Nach jedem Wechsel des Motorzustands (Start, Abstellen) beginnt das Fenster neu und zeigt
+ * Die Glättung der Spannung über die Zyklen: **Median** der letzten 10 s (seit 1.44.9; vorher Mittel), ab drei Proben — nur nach dem ersten Verbinden. Nach jedem Wechsel des Motorzustands (Start, Abstellen) beginnt das Fenster neu und zeigt
  * die erste Probe sofort (Nutzerwunsch 2026-10-19: keine Lücke von rund 18 s); vor dem Start (Motor aus) mit `engineRunning = false`.
  * Der Takt der Tests ist 1 s je Zyklus (echt 1,1–1,6 s), damit die Fenstergrenzen glatte Zahlen sind.
  */
@@ -97,12 +97,12 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `after the start the mean grows from the samples since the start and the pre-start values stay out`() {
+    fun `after the start the median grows from the samples since the start and the pre-start values stay out`() {
         repeat(6) { cycle(rpm = 0f, volts = 11.9f) }
 
         assertEquals(13.0f, cycle(rpm = 1500f, volts = 13.0f)!!.volts, 1e-4f)
-        assertEquals("Mittel aus zwei Proben", 13.5f, cycle(rpm = 1500f, volts = 14.0f)!!.volts, 1e-4f)
-        assertEquals("Mittel aus drei Proben", 13.5f, cycle(rpm = 1500f, volts = 13.5f)!!.volts, 1e-4f)
+        assertEquals("Median aus zwei Proben = Mittel der beiden", 13.5f, cycle(rpm = 1500f, volts = 14.0f)!!.volts, 1e-4f)
+        assertEquals("Median aus drei Proben: der mittlere Wert", 13.5f, cycle(rpm = 1500f, volts = 13.5f)!!.volts, 1e-4f)
     }
 
     @Test
@@ -117,11 +117,11 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `after stopping the mean grows from the samples since the stop`() {
+    fun `after stopping the median grows from the samples since the stop`() {
         settledEngine(13.6f)
 
         assertEquals(12.4f, cycle(rpm = 0f, volts = 12.4f)!!.volts, 1e-4f)
-        assertEquals("Mittel aus zwei Proben", 12.3f, cycle(rpm = 0f, volts = 12.2f)!!.volts, 1e-4f)
+        assertEquals("Median aus zwei Proben = Mittel der beiden", 12.3f, cycle(rpm = 0f, volts = 12.2f)!!.volts, 1e-4f)
     }
 
     @Test
@@ -220,31 +220,62 @@ class VoltageTrendTrackerTest {
     }
 
     @Test
-    fun `the trend is the mean of the last 10 seconds, so a single outlier hardly moves it`() {
+    fun `the trend is the median of the last 10 seconds, so a single outlier does not move it at all`() {
         settledEngine(13.8f)
 
         val withOutlier = cycle(volts = 12.0f)!!
 
-        // 11 Proben im Fenster (Alter ≤ 10 s): 10 × 13,8 und 1 × 12,0.
-        assertEquals((10 * 13.8f + 12.0f) / 11f, withOutlier.volts, 1e-3f)
+        // 11 Proben im Fenster (Alter ≤ 10 s): 10 × 13,8 und 1 × 12,0 — der Median ist 13,8 (das Mittel waere 13,64).
+        assertEquals(13.8f, withOutlier.volts, 1e-4f)
         assertEquals("ein Ausreißer ändert den Zustand nicht", ChargeState.Charging, withOutlier.state)
         assertTrue("laeuft der Motor, sagt der Stand es", withOutlier.engineRunning)
     }
 
     @Test
-    fun `old samples fall out of the window`() {
+    fun `old samples fall out of the window - the median flips when the new samples are the majority`() {
         settledEngine(14.0f)
-        repeat(2) { cycle(volts = 12.0f) }
 
-        // Im Fenster: 8 × 14,0 und 3 × 12,0.
-        val mixed = cycle(volts = 12.0f)!!
-        assertEquals((8 * 14.0f + 3 * 12.0f) / 11f, mixed.volts, 1e-3f)
+        // Fenster: 11 Proben (Alter ≤ 10 s). Nach fuenf neuen Proben (5 × 12,0 gegen 6 × 14,0) ist der Median noch 14,0 (das Mittel waere schon 13,09).
+        var last: VoltageTrend? = null
+        repeat(5) { last = cycle(volts = 12.0f) }
+        assertEquals(14.0f, last!!.volts, 1e-4f)
+
+        // Mit der sechsten (6 × 12,0 gegen 5 × 14,0) kippt der Median.
+        assertEquals(12.0f, cycle(volts = 12.0f)!!.volts, 1e-4f)
 
         // Nach weiteren zwölf Zyklen steht nichts mehr von den 14 V im Fenster.
-        var last: VoltageTrend? = null
         repeat(12) { last = cycle(volts = 12.0f) }
         assertEquals(12.0f, last!!.volts, 1e-6f)
-        assertEquals(ChargeState.Discharging, last.state)
+        assertEquals(ChargeState.Discharging, last!!.state)
+    }
+
+    @Test
+    fun `an even number of samples gives the mean of the two middle ones`() {
+        assertEquals(12.0f, cycle(volts = 12.0f)!!.volts, 1e-4f)
+        assertEquals("zwei Proben: (12 + 13) / 2", 12.5f, cycle(volts = 13.0f)!!.volts, 1e-4f)
+        assertEquals("drei Proben: der mittlere", 13.0f, cycle(volts = 14.0f)!!.volts, 1e-4f)
+        assertEquals("vier Proben: (13 + 14) / 2", 13.5f, cycle(volts = 15.0f)!!.volts, 1e-4f)
+    }
+
+    @Test
+    fun `the starter value that the control module keeps for several cycles does not decide the bar once most samples are good`() {
+        // Nachgestellt nach einer aufgezeichneten Fahrt (erfundene Zahlen): Zündung an, dann haelt die Rohspannung den Anlasser-Wert (10,0 V) drei Zyklen lang, obwohl der Motor laeuft.
+        repeat(6) { cycle(rpm = 0f, volts = 12.0f) }
+        repeat(3) {
+            val dip = cycle(rpm = 2000f, volts = 10.0f)!!
+            assertEquals(10.0f, dip.volts, 1e-4f)
+            assertEquals(ChargeState.Discharging, dip.state)
+        }
+
+        // Danach 13,9 / 13,3 / 13,3 / 13,3 V. Median der Proben seit dem Start: 10,0 · 10,0 · 11,65 (zwei Mittlere 10,0 und 13,3) · 13,3.
+        assertEquals("4 Proben (10, 10, 10, 13,9)", 10.0f, cycle(rpm = 2000f, volts = 13.9f)!!.volts, 1e-4f)
+        assertEquals("5 Proben", 10.0f, cycle(rpm = 2000f, volts = 13.3f)!!.volts, 1e-4f)
+        val sixth = cycle(rpm = 2000f, volts = 13.3f)!!
+        assertEquals("6 Proben: Mittel der zwei mittleren (10,0 und 13,3)", 11.65f, sixth.volts, 1e-4f)
+        assertEquals(ChargeState.Discharging, sixth.state)
+        val seventh = cycle(rpm = 2000f, volts = 13.3f)!!
+        assertEquals("7 Proben: der Median ist schon ein guter Wert (das Mittel laege noch bei 11,97 V und rot)", 13.3f, seventh.volts, 1e-4f)
+        assertEquals(ChargeState.Charging, seventh.state)
     }
 
     @Test

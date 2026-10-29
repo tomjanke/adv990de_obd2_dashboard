@@ -31,7 +31,7 @@ internal const val DISCHARGING_BELOW_V = VOLTAGE_BAR_ZERO_V
 private const val CHARGING_LEAVE_BELOW_V = 13.2f
 private const val DISCHARGING_LEAVE_FROM_V = 12.8f
 
-/** Glättung: Mittel der Proben der letzten 10 s, frühestens ab 3 Proben (bei 1,1–1,6 s Zyklus rund 4 s nach dem Beginn). */
+/** Glättung: Median der Proben der letzten 10 s (seit 1.44.9; vorher Mittel), frühestens ab 3 Proben (bei 1,1–1,6 s Zyklus rund 4 s nach dem Beginn). */
 internal const val TREND_WINDOW_MS = 10_000L
 internal const val TREND_MIN_SAMPLES = 3
 
