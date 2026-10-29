@@ -1,5 +1,28 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.8 (versionCode 146)
+
+Die **Reichweite aus dem Logbuch** rechnet jetzt mit den **letzten 3** statt den letzten 10 Voll-zu-Voll-Intervallen. Das war deine Entscheidung nach einer Nachrechnung an deinen Logbuch-Daten.
+
+### Was sich ändert
+
+- **Fenster 3 statt 10:** Der Verbrauch ist `Σ Liter ÷ Σ km` der jüngsten drei Intervalle (Teiltankungen zählen weiter in das Intervall, das sie schließt). Mit genau drei Intervallen gehen alle drei ein; mit weniger gilt wie bisher die manuelle Reichweite.
+- **Gilt auch für die Teilbetankung:** Die Rückfrage „Tankanzeige anheben?“ rechnet die Liter mit demselben Verbrauch in Kilometer um.
+- **Die Reichweite springt nach einer Tankung stärker** (in deinen Daten im Schnitt um rund 10 % statt rund 3 %), folgt dafür dem jüngsten Verbrauch enger.
+- **Unverändert:** Tankinhalt und manuelle Reichweite, die Segmente, die Reserve, die Datenbank (bleibt **v6**), die Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Was die Nachrechnung zeigte
+
+- Datenbasis: dein Logbuch mit 73 Intervallen, je Fenster dieselben 63 Vorhersagen des nächsten Intervalls.
+- **Mittlere Abweichung** bei Fenster 1 / 3 / 5 / 10: 17,5 / 20,1 / 19,7 / 19,6 % — praktisch gleich. **Typische Abweichung (Median)** 8,9 / 12,0 / 15,5 / 17,2 %: mit kurzem Fenster kleiner. Die schlechten Fälle (75. Perzentil 23 bis 28 %) sind bei allen Fenstern gleich.
+- Die Aussage vom 25.10. („unabhängig von der Fenstergröße“) galt nur für das Mittel.
+
+### Grenzen
+
+- **Ein Motorrad, eine Datei, kein Beweis.** Die Reichweite ist weiter auf etwa ±20 % genau; die Reservelampe des Motorrads bleibt maßgeblich.
+- **Am Fahrzeug nichts geprüft.**
+- **Tests:** 2951 JVM-Tests (3 neu), Lint (Debug und Release) 0 Fehler und 5 Hinweise auf neuere Versionen (Gradle, AGP 9.5.0, DataStore, Sentry, kotlinx-serialization), 5 Mutationen, alle erkannt. Geräte-Tests nicht gelaufen: geändert ist nur Logik der Rechnung, keine Oberfläche, Ressource, Datenbank oder Hilt-Bindung.
+
 ## Version 1.44.7 (versionCode 145)
 
 Eingefrorene Werte werden nach dem Neuverbinden **sofort** wieder zurückgehalten und **früher** erkannt. Anlass war die Fahrt vom 28.10.
