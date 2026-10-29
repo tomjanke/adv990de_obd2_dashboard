@@ -51,20 +51,38 @@ class RangeLearningTest {
     }
 
     @Test
-    fun `only the newest ten intervals count - the oldest comes last in the report`() {
-        // Elf Intervalle: das aelteste (erste) mit einem ganz anderen Verbrauch darf nicht eingehen, das juengste (letzte) schon.
-        val intervals = listOf(interval(100, 20_000)) + List(9) { interval(100, 7_700) } + listOf(interval(100, 9_700))
-        val r = FuelReport(intervals, skipped = 0, summary = null)
+    fun `only the newest three intervals count - the oldest comes first in the report`() {
+        // Fuenf Intervalle, aelteste zuerst: die beiden aeltesten (20 l/100 km) duerfen nicht eingehen, das juengste (letzte) schon.
+        val r = report(interval(100, 20_000), interval(100, 20_000), interval(100, 7_700), interval(100, 8_700), interval(100, 9_700))
 
-        // Die letzten zehn: 9 x 7,7 l und 1 x 9,7 l auf 1000 km = 7,9 l/100 km.
-        assertEquals((9 * 7_700 + 9_700) / (10.0 * 1000), recentLitersPer100Km(r)!!, 1e-9)
+        // Die letzten drei: 7,7 l + 8,7 l + 9,7 l auf 300 km = 8,7 l/100 km. Mit allen fuenf waeren es (40 + 26,1) l auf 500 km = 13,2.
+        assertEquals((7_700 + 8_700 + 9_700) / (10.0 * 300), recentLitersPer100Km(r)!!, 1e-9)
     }
 
     @Test
-    fun `with exactly ten intervals all of them count`() {
-        val r = report(*Array(10) { interval(100, 7_700 + it * 100L) })
+    fun `a fourth interval pushes the oldest one out of the window`() {
+        // Vier Intervalle: das aelteste mit ganz anderem Verbrauch geht nicht mehr ein (mit einem Fenster von vier waeren es 10,775 statt 7,7).
+        val r = report(interval(100, 20_000), interval(100, 7_700), interval(100, 7_700), interval(100, 7_700))
 
-        assertEquals(Array(10) { 7_700 + it * 100L }.sum() / (10.0 * 1000), recentLitersPer100Km(r)!!, 1e-9)
+        assertEquals(7.7, recentLitersPer100Km(r)!!, 1e-9)
+    }
+
+    @Test
+    fun `with exactly three intervals all of them count`() {
+        val r = report(*Array(3) { interval(100, 7_700 + it * 100L) })
+
+        assertEquals((7_700 + 7_800 + 7_900) / (10.0 * 300), recentLitersPer100Km(r)!!, 1e-9)
+    }
+
+    @Test
+    fun `a wider window can still be given - the old window of ten`() {
+        // Elf Intervalle: das aelteste (erste) geht auch bei zehn nicht ein, das juengste (letzte) schon.
+        val intervals = listOf(interval(100, 20_000)) + List(9) { interval(100, 7_700) } + listOf(interval(100, 9_700))
+        val r = FuelReport(intervals, skipped = 0, summary = null)
+
+        // Die letzten zehn: 9 x 7,7 l und 1 x 9,7 l auf 1000 km = 7,9 l/100 km; mit dem Standardfenster waeren es (7,7 + 7,7 + 9,7) l auf 300 km.
+        assertEquals((9 * 7_700 + 9_700) / (10.0 * 1000), recentLitersPer100Km(r, window = 10)!!, 1e-9)
+        assertEquals((7_700 + 7_700 + 9_700) / (10.0 * 300), recentLitersPer100Km(r)!!, 1e-9)
     }
 
     @Test
@@ -98,8 +116,9 @@ class RangeLearningTest {
             fill(6, 1_400, 7_700),
         )
 
-        // Intervalle: 100 km/7,0 l, 100 km/(1,0 + 7,0) l, 100 km/7,7 l, 100 km/7,7 l -> (7,0 + 8,0 + 7,7 + 7,7) l auf 400 km = 7,6 l/100 km
-        assertEquals(7.6, recentLitersPer100Km(fuelReport(entries))!!, 1e-9)
+        // Intervalle: 100 km/7,0 l, 100 km/(1,0 + 7,0) l, 100 km/7,7 l, 100 km/7,7 l. Das Fenster fasst die letzten drei, das mit der Teiltankung (8,0 l) ist noch drin:
+        // (8,0 + 7,7 + 7,7) l auf 300 km = 7,8 l/100 km. Zaehlte die Teiltankung nicht, waeren es (7,0 + 7,7 + 7,7) l = 7,467.
+        assertEquals(7.8, recentLitersPer100Km(fuelReport(entries))!!, 1e-9)
     }
 
     // --- learnedRangeKm ---
@@ -166,8 +185,8 @@ class RangeLearningTest {
     }
 
     @Test
-    fun `the learning constants follow the design`() {
-        assertEquals(10, RANGE_LEARNING_WINDOW)
+    fun `the learning constants follow the decision of 2026-10-29 - window of three, minimum of three`() {
+        assertEquals(3, RANGE_LEARNING_WINDOW)
         assertEquals(3, RANGE_LEARNING_MIN_INTERVALS)
     }
 

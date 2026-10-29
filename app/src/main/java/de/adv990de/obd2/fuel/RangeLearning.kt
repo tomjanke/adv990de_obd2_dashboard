@@ -9,8 +9,14 @@ object FuelCapacityLimits {
     const val MAX_DL = 600
 }
 
-/** So viele der juengsten Voll-zu-Voll-Intervalle gehen in den gelernten Verbrauch ein: in den Daten des Nutzers sagte ein Fenster von 10 das naechste Intervall so gut voraus wie ein kuerzeres, schwankt aber am wenigsten. */
-const val RANGE_LEARNING_WINDOW = 10
+/**
+ * So viele der juengsten Voll-zu-Voll-Intervalle gehen in den gelernten Verbrauch ein. Seit 2026-10-29 **3** (Entscheidung des Nutzers; bis 1.44.7 waren es 10).
+ * Grundlage war eine Nachrechnung an den Logbuch-Daten des Nutzers (73 Intervalle, je Fenster 63 Vorhersagen des naechsten Intervalls): die **mittlere** Abweichung ist bei
+ * allen Fenstern gleich (rund 18 bis 20 %), die **typische** (Median) ist mit kurzem Fenster kleiner (Fenster 3: 12 %, Fenster 10: 17 %), dafuer springt die Reichweite nach jeder
+ * Tankung staerker (Fenster 3: im Schnitt rund 10 %, Fenster 10: rund 3 %). Ein Motorrad, eine Datei — kein Beweis; die Schlechtfaelle (75. Perzentil 23 bis 28 %) sind bei allen Fenstern gleich.
+ * Gleich [RANGE_LEARNING_MIN_INTERVALS]: mit genau drei Intervallen geht jedes ein.
+ */
+const val RANGE_LEARNING_WINDOW = 3
 
 /** Weniger Intervalle sind keine Grundlage: die Reichweite bleibt die manuelle. */
 const val RANGE_LEARNING_MIN_INTERVALS = 3

@@ -598,6 +598,23 @@ class LogEntryViewModelTest {
     }
 
     @Test
+    fun `the credit uses the consumption of the newest three intervals only`() = runTest {
+        // Das aelteste Intervall (20 l/100 km) liegt ausserhalb des Fensters von drei: die letzten drei sind 7,7 l/100 km.
+        // Mit allen vier Intervallen waeren es (20 + 3 x 7,7) l auf 400 km = 10,775 l/100 km und die Gutschrift 58 km statt 81.
+        val entries = listOf(
+            pastFill(0, 1_000, 15_000), pastFill(1, 1_100, 20_000),
+            pastFill(2, 1_200, 7_700), pastFill(3, 1_300, 7_700), pastFill(4, 1_400, 7_700),
+        )
+        val f = fixture(entries = entries)
+        collect(f.vm); runCurrent()
+        f.vm.fillFuel(odometer = "40362", liters = "6,2", cost = ""); f.vm.setFullTank(false); runCurrent()
+        f.vm.save(); runCurrent()
+
+        // 6,2 l bei 7,7 l/100 km = 80,5 km -> 81
+        assertEquals(SaveOutcome.AskFuelGaugeCredit(amountMl = 6_200, km = 81), f.vm.outcome.value)
+    }
+
+    @Test
     fun `the saved part fill is not counted into the consumption it is converted with`() = runTest {
         // Die Teiltankung selbst schliesst kein Intervall: der Verbrauch kommt aus den bisherigen, nicht aus ihren eigenen 30 l.
         val f = fixture(entries = steadyPast(3))

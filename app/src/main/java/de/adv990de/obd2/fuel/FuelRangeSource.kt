@@ -27,7 +27,7 @@ data class LearnedRange(val km: Int, val litersPer100Km: Double)
 
 /**
  * Die wirksame Reichweite der Tankanzeige (Entwurf `docs/superpowers/archive/specs/2026-10-25-range-design.md`, D4/D5/D6): die manuelle Zahl ([AppPreferences.fuelRangeFullKm]) — oder, wenn ein
- * Tankinhalt hinterlegt ist **und** das Logbuch mindestens drei Voll-zu-Voll-Intervalle hat, **Tankinhalt / Verbrauch** ([learnedRangeKm], Verbrauch der letzten zehn Intervalle). Ohne
+ * Tankinhalt hinterlegt ist **und** das Logbuch mindestens drei Voll-zu-Voll-Intervalle hat, **Tankinhalt / Verbrauch** ([learnedRangeKm], Verbrauch der letzten drei Intervalle, [RANGE_LEARNING_WINDOW]). Ohne
  * Schalter: wer die manuelle Zahl will, loescht den Tankinhalt.
  *
  * **Das Logbuch wird nur gelesen, solange ein Tankinhalt hinterlegt ist** (`flatMapLatest` auf den Tankinhalt): wer ihn nicht nutzt, bezahlt nichts — kein Abonnement der Tabelle, keine

@@ -321,11 +321,11 @@ class FuelRepositoryTest {
         val repo = repo(prefs, rangeSource(prefs, entries))
         assertEquals(160f, repo.state.value!!.remainingKm, 1e-3f) // 260 - 100
 
-        entries.value = entries.value + fill(9, 1_400, 11_700) // Verbrauch 8,7 -> 230 km
+        entries.value = entries.value + fill(9, 1_400, 11_700) // letzte drei Intervalle 7,7 + 7,7 + 11,7 l auf 300 km = 9,033 l/100 km -> 221 km
         runCurrent()
 
         assertEquals(100f, repo.state.value!!.kmSinceFill, 1e-3f)
-        assertEquals(230, repo.state.value!!.rangeFullKm)
+        assertEquals(221, repo.state.value!!.rangeFullKm)
     }
 
     @Test
@@ -351,9 +351,9 @@ class FuelRepositoryTest {
         runCurrent()
         assertEquals(listOf(260), cacheWrites)
 
-        entries.value = entries.value + fill(9, 1_400, 11_700) // 230 km
+        entries.value = entries.value + fill(9, 1_400, 11_700) // 221 km (letzte drei Intervalle, 9,033 l/100 km)
         runCurrent()
-        assertEquals(listOf(260, 230), cacheWrites)
+        assertEquals(listOf(260, 221), cacheWrites)
     }
 
     @Test
@@ -396,11 +396,11 @@ class FuelRepositoryTest {
         assertEquals("die Anzeige laeuft trotz Fehler", 260, repo.state.value!!.rangeFullKm)
         assertTrue(cacheWrites.isEmpty())
 
-        entries.value = entries.value + fill(9, 1_400, 11_700) // 230 km
+        entries.value = entries.value + fill(9, 1_400, 11_700) // 221 km (letzte drei Intervalle, 9,033 l/100 km)
         runCurrent()
 
-        assertEquals(listOf(230), cacheWrites)
-        assertEquals(230, repo.state.value!!.rangeFullKm)
+        assertEquals(listOf(221), cacheWrites)
+        assertEquals(221, repo.state.value!!.rangeFullKm)
     }
 
     @Test

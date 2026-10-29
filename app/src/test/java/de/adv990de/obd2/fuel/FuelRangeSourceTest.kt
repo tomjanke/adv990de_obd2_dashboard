@@ -118,8 +118,9 @@ class FuelRangeSourceTest {
 
         val range = source(capacityDl = 200, logbook = Logbook(fills)).current()
 
-        // 7,6 l/100 km -> 20,0 l / 7,6 * 100 = 263,2
-        assertEquals(263, range.km)
+        // Die letzten drei Intervalle: (7,0 + 1,0 Teiltankung) l, 7,7 l, 7,7 l -> (8,0 + 7,7 + 7,7) l auf 300 km = 7,8 l/100 km -> 20,0 l / 7,8 * 100 = 256,4.
+        // Zaehlte die Teiltankung nicht: 7,467 l/100 km -> 268.
+        assertEquals(256, range.km)
     }
 
     @Test
@@ -131,12 +132,12 @@ class FuelRangeSourceTest {
         runCurrent()
         assertEquals(260, seen.last())
 
-        // Ein drittes Intervall mit hohem Verbrauch: 100 km mit 11,7 l.
+        // Ein viertes Intervall mit hohem Verbrauch: 100 km mit 11,7 l.
         logbook.entries.value = logbook.entries.value + fill(9, 1_100 + 3 * 100, 11_700)
         runCurrent()
 
-        // Die letzten vier Intervalle: 3 x 7,7 l und 11,7 l auf 400 km = 8,7 l/100 km -> 20,0 l / 8,7 * 100 = 229,9
-        assertEquals(230, seen.last())
+        // Die letzten drei Intervalle (das aelteste faellt heraus): 7,7 l, 7,7 l und 11,7 l auf 300 km = 9,033 l/100 km -> 20,0 l / 9,033 * 100 = 221,4
+        assertEquals(221, seen.last())
         job.cancel()
     }
 
