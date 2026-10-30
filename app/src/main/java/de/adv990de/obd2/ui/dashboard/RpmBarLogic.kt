@@ -78,6 +78,32 @@ internal fun rpmThresholdTempScale(engineTempC: Float?): Float = when {
  */
 internal fun shouldStartRpmDemoSweep(rpmValue: Float): Boolean = rpmValue < 1f
 
+/** Schwelle der Start-Animation, wenn keine Blinkgrenze eingestellt ist (0): so zeigt der Sweep die Schaltblitz-Vorschau auch vor der ersten Einstellung. */
+internal const val RPM_DEMO_FALLBACK_THRESHOLD = 7000
+
+/**
+ * Die Blink-/Redline-Schwelle, mit der `DashboardScreen` den [RpmBar] zeichnet.
+ *
+ * - **Zeigt der Screen die Start-Animation** ([demoRpm] != null, das ist der animierte Wert): nur die eingestellte Blinkgrenze ([configuredThreshold]), bei 0 die
+ *   [RPM_DEMO_FALLBACK_THRESHOLD] — und auch nur, solange die Animation läuft ([demoRpm] > 0; davor und danach gibt es nichts zu blinken). Die dynamische
+ *   Skalierung nach Motortemperatur ([dynamicScaling]) gilt dort **nicht** (Nutzerwunsch 2026-10-30): der Sweep zeigt immer die Grenze, die der Nutzer eingestellt hat.
+ * - **Echte Drehzahl** ([demoRpm] == null): die eingestellte Grenze, mit eingeschalteter Skalierung mal [rpmThresholdTempScale]; 0 = kein Blinken.
+ *
+ * Reine Funktion ohne Compose-Bezug (vgl. [rpmThresholdTempScale]).
+ */
+internal fun rpmDisplayThreshold(
+    configuredThreshold: Int,
+    dynamicScaling: Boolean,
+    engineTempC: Float?,
+    demoRpm: Float?,
+): Int = when {
+    demoRpm != null && configuredThreshold > 0 -> configuredThreshold
+    demoRpm != null -> if (demoRpm > 0f) RPM_DEMO_FALLBACK_THRESHOLD else 0
+    configuredThreshold <= 0 -> 0
+    !dynamicScaling -> configuredThreshold
+    else -> (configuredThreshold * rpmThresholdTempScale(engineTempC)).toInt()
+}
+
 /**
  * Farbe der [OilTemperatureBarStrip]: [idleColor] (grau), solange keine Verbindung besteht oder
  * noch keine Farbe bestimmt ist; sonst eine feste Ampelfarbe je [OilBarColor] — Rot

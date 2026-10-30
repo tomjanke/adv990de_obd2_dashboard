@@ -878,6 +878,7 @@ frischen Netzwerk-Fix, und der Cache friert ein, solange keine App einen Standor
   Wegwischen und Neustart spielen ihn ab; ein Systemkill mit Wiederherstellung zählt als neuer Start — das Feld liegt bewusst **nicht** im `SavedStateHandle`. Verbindungswechsel (Idle, Verlust, Fehler) setzen es nicht zurück (Test).
 - **Verbraucht ist das Angebot mit der ersten Prüfung, nicht erst mit dem Abspielen:** lag beim Start schon eine echte Drehzahl an, wird der Sweep nicht später mitten in der Sitzung nachgeholt (Motor aus, Zündung an, Rückkehr zum Dashboard).
   Verlässt der Nutzer das Dashboard innerhalb der 400 ms, ist noch nichts geprüft; dann läuft er beim nächsten Betreten.
+- **Schwelle während des Sweeps (seit 2026-10-30, Nutzerwunsch):** `rpmDisplayThreshold` (`RpmBarLogic.kt`, reine Funktion, JVM-getestet) entscheidet, mit welcher Schwelle der Balken gezeichnet wird. Zeigt der Screen den animierten Wert (die echte Drehzahl ist < 1), gilt **nur** die eingestellte Blinkgrenze, bei 0 die 7 000 rpm (`RPM_DEMO_FALLBACK_THRESHOLD`, nur solange der Sweep läuft) — die **dynamische Skalierung nach Motortemperatur gilt dort nicht** (vorher blinkte der Sweep bei kaltem Motor mit eingeschalteter Skalierung schon ab 50 % der Grenze). Für die echte Drehzahl ist alles wie vorher: Grenze, mit eingeschalteter Skalierung mal `rpmThresholdTempScale`, 0 = kein Blinken. **Kleine Verhaltensänderung am Rand:** kommt die echte Drehzahl mitten im Sweep, gilt für sie sofort die normale Regel (vorher hing der 7 000-rpm-Fallback bei Grenze 0 noch am Animationswert und blinkte kurz auch für echte Werte). Rot und Blinken zeigt der Sweep nur, wenn der Balken „live“ ist (Verbindung steht, Zündung an, Drehzahl 0); ohne Verbindung zeichnet er nur die Füllung. Die Verdrahtung im Screen (Animatable → `demoRpm` → Balken) ist nicht per Test abgesichert (der Balken ist ein `Canvas`, s. `DashboardScreenTest`), die Entscheidung selbst schon.
 - **Folge:** Ohne gesetzte Drehzahl-Blinkgrenze (0) zeigt der Sweep die Schaltblitz-Vorschau über 7 000 rpm — die sieht man jetzt nur noch beim Start. Nicht am Gerät geprüft: die Drehung (das Testgerät wird vom Nutzer physisch gedreht).
 
 ### Fehlerhistorie: Randfälle (seit v1.24.9)
@@ -1231,7 +1232,7 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 2953 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 2962 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 819 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)

@@ -11,7 +11,8 @@ import org.junit.Test
  * JVM tests for the pure decision logic extracted out of this package's Composable bodies: from
  * [RpmBar] the blink timing ([rpmBlinkPeriodMs]) and the per-segment color choice
  * ([rpmSegmentColor]); from `DashboardScreen` the engine-temperature blink-threshold scale
- * ([rpmThresholdTempScale]) and the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]);
+ * ([rpmThresholdTempScale]), the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]) and the
+ * threshold the bar is drawn with, in the start animation and for real RPM ([rpmDisplayThreshold]);
  * from [OilTemperatureBarStrip] its color choice ([oilBarStripColor]).
  * None of these functions has a Compose or Android dependency (Projekt-Konvention, vgl.
  * [GearIndicatorTest], `StatusDotTest`), so all are covered here directly instead of through
@@ -273,6 +274,69 @@ class DashboardComponentsTest {
     @Test
     fun `a plausible real rpm value blocks the demo sweep from starting`() {
         assertEquals(false, shouldStartRpmDemoSweep(2500f))
+    }
+
+    // --- rpmDisplayThreshold ---
+    // Start-Animation (demoRpm != null): nur die eingestellte Blinkgrenze bzw. 7000 bei 0, nie die Temperaturskalierung (Nutzerwunsch 2026-10-30).
+    // Echte Drehzahl (demoRpm == null): unveraendert, mit Skalierung wenn eingeschaltet.
+
+    @Test
+    fun `the start animation uses the configured blink limit and ignores dynamic scaling`() {
+        // Kalter Motor (20 C, Faktor 0.50) und Skalierung an: die Animation blinkt trotzdem ab der eingestellten Grenze, nicht ab 4000.
+        assertEquals(8000, rpmDisplayThreshold(configuredThreshold = 8000, dynamicScaling = true, engineTempC = 20f, demoRpm = 5000f))
+        assertEquals(8000, rpmDisplayThreshold(configuredThreshold = 8000, dynamicScaling = true, engineTempC = null, demoRpm = 5000f))
+        assertEquals(8000, rpmDisplayThreshold(configuredThreshold = 8000, dynamicScaling = false, engineTempC = 20f, demoRpm = 5000f))
+    }
+
+    @Test
+    fun `the start animation uses the configured limit before the first frame and after the sweep too`() {
+        // demoRpm = 0 (vor dem Sweep oder nach ihm): die eingestellte Grenze steht, die Skalierung greift auch hier nicht.
+        assertEquals(8000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = 20f, demoRpm = 0f))
+    }
+
+    @Test
+    fun `the start animation falls back to 7000 rpm when no blink limit is set`() {
+        assertEquals(RPM_DEMO_FALLBACK_THRESHOLD, rpmDisplayThreshold(0, dynamicScaling = false, engineTempC = null, demoRpm = 4000f))
+        assertEquals(7000, rpmDisplayThreshold(0, dynamicScaling = false, engineTempC = null, demoRpm = 4000f))
+    }
+
+    @Test
+    fun `the 7000 rpm fallback of the start animation ignores dynamic scaling`() {
+        assertEquals(7000, rpmDisplayThreshold(0, dynamicScaling = true, engineTempC = 20f, demoRpm = 4000f))
+        assertEquals(7000, rpmDisplayThreshold(0, dynamicScaling = true, engineTempC = 90f, demoRpm = 10000f))
+    }
+
+    @Test
+    fun `without a blink limit there is nothing to blink before the sweep starts and after it ended`() {
+        // demoRpm = 0: die Animation laeuft nicht (oder ist vorbei) — kein Fallback, sonst blitzte ein Rest.
+        assertEquals(0, rpmDisplayThreshold(0, dynamicScaling = true, engineTempC = 20f, demoRpm = 0f))
+        assertEquals(0, rpmDisplayThreshold(0, dynamicScaling = false, engineTempC = null, demoRpm = 0f))
+    }
+
+    @Test
+    fun `real rpm without a blink limit never blinks, whatever the scaling and the temperature`() {
+        // Auch nicht mit dem 7000-Fallback der Animation: der gilt nur, solange der animierte Wert gezeigt wird.
+        assertEquals(0, rpmDisplayThreshold(0, dynamicScaling = false, engineTempC = 90f, demoRpm = null))
+        assertEquals(0, rpmDisplayThreshold(0, dynamicScaling = true, engineTempC = 90f, demoRpm = null))
+    }
+
+    @Test
+    fun `real rpm uses the configured blink limit as it is when scaling is off`() {
+        assertEquals(8000, rpmDisplayThreshold(8000, dynamicScaling = false, engineTempC = 20f, demoRpm = null))
+        assertEquals(8000, rpmDisplayThreshold(8000, dynamicScaling = false, engineTempC = null, demoRpm = null))
+    }
+
+    @Test
+    fun `real rpm scales the blink limit with the engine temperature band when scaling is on`() {
+        assertEquals(4000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = 20f, demoRpm = null)) // < 50 C: 0.50
+        assertEquals(6000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = 60f, demoRpm = null)) // < 70 C: 0.75
+        assertEquals(7200, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = 80f, demoRpm = null)) // < 85 C: 0.90
+        assertEquals(8000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = 90f, demoRpm = null)) // >= 85 C: 1.00
+    }
+
+    @Test
+    fun `real rpm without a temperature uses the most conservative scale when scaling is on`() {
+        assertEquals(4000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = null, demoRpm = null))
     }
 
     // --- oilBarStripColor ---

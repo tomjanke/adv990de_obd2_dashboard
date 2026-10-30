@@ -123,19 +123,14 @@ fun DashboardScreen(
         }
         // During demo (real rpm still 0): show animated value. Once engine delivers real
         // RPM, switch immediately to the live value regardless of demo state.
-        val displayRpm = if (state.rpmValue < 1f) rpmDemo.value else state.rpmValue
-        // Demo fallback: if no threshold is configured (=0), show blinking above 7000 during
-        // the demo so the feature is visible even before the user has set a threshold.
-        // Dynamic scaling: when enabled, reduce threshold proportionally to engine temperature —
-        // the temp-band → factor mapping is rpmThresholdTempScale() (DashboardComponents.kt),
-        // extracted as a pure function for JVM unit-test coverage (DashboardComponentsTest.kt).
+        val demoRpm: Float? = if (state.rpmValue < 1f) rpmDemo.value else null
+        val displayRpm = demoRpm ?: state.rpmValue
+        // Threshold: rpmDisplayThreshold() (RpmBarLogic.kt, pure function, JVM-tested in DashboardComponentsTest.kt).
+        // During the start animation only the configured blink limit counts (7000 as fallback when it is 0) —
+        // dynamic scaling by engine temperature applies to real RPM only (user request 2026-10-30).
         // Note: not wrapped in remember — rpmDemo.value changes every animation frame and must
-        // stay reactive; the scaling arithmetic is cheap.
-        val displayThreshold = when {
-            rpmBlinkThreshold == 0 -> if (rpmDemo.value > 0f) 7000 else 0
-            !rpmDynamicThreshold   -> rpmBlinkThreshold
-            else -> (rpmBlinkThreshold * rpmThresholdTempScale(state.engineTempC)).toInt()
-        }
+        // stay reactive; the arithmetic is cheap.
+        val displayThreshold = rpmDisplayThreshold(rpmBlinkThreshold, rpmDynamicThreshold, state.engineTempC, demoRpm)
 
         // Es gibt keinen Vollbild-Spinner mehr (B23): Er verdeckte die Kacheln, und waren alle Slots mit PIDs belegt, die das
         // Fahrzeug nicht liefert, blieb er fuer immer stehen — ohne Weg zum Slot-Picker. "Warte auf Werte" zeigt jetzt das
