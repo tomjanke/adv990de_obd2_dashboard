@@ -1,5 +1,15 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.10 (versionCode 148)
+
+Die **Start-Animation** des Drehzahlbalkens richtet sich jetzt nur noch nach deiner **Blinkgrenze**.
+
+### Was sich ändert
+
+- **Nur die eingestellte Grenze:** Der Sweep beim App-Start blinkt ab der Blinkgrenze aus den Einstellungen, ist keine gesetzt (0), ab 7 000 rpm. Die **dynamische Skalierung nach Motortemperatur gilt dort nicht mehr** (vorher blinkte der Sweep bei kaltem Motor und eingeschalteter Skalierung schon bei der Hälfte der Grenze).
+- **Echte Drehzahl unverändert:** Grenze, mit eingeschalteter Skalierung mal Temperaturfaktor, 0 = kein Blinken. Kommt die echte Drehzahl mitten im Sweep, gilt für sie sofort diese Regel (vorher hing bei Grenze 0 der 7 000-rpm-Fallback noch kurz an ihr).
+- **Unverändert:** Rot und Blinken zeigt der Sweep nur, wenn die Verbindung steht und die Drehzahl 0 ist; ohne Verbindung bleibt es die einfarbige Füllung. Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
 ## Version 1.44.9 (versionCode 147)
 
 Der **Spannungsbalken** glättet jetzt mit dem **Median** statt mit dem Mittel. Nach dem Motorstart steht er damit schneller auf der richtigen Farbe.
