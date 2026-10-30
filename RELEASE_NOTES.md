@@ -1,5 +1,16 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.11 (versionCode 149)
+
+Die **Start-Animation** des Drehzahlbalkens blinkt jetzt **in jedem Fall** rot, auch ohne Verbindung.
+
+### Was sich ändert
+
+- **Rot und Blinken ab deiner Blinkgrenze, immer:** Der Sweep beim App-Start färbt die Anzeige ab der eingestellten Blinkgrenze rot und lässt sie blinken, ist keine gesetzt (0), ab 7 000 rpm. Das gilt auch, wenn die App nicht mit dem Adapter verbunden ist (vorher blinkte der Sweep nur mit Verbindung). Die dynamische Skalierung nach Motortemperatur gilt dort nicht (seit 1.44.10).
+- **Ohne Verbindung keine falsche Drehzahl:** TalkBack sagt weiter „Drehzahl nicht verfügbar“, Gang-Box und Ölstreifen bleiben grau bzw. leer. Ein nicht verbundener Balken außerhalb der Animation färbt sich weiter nicht rot und blinkt nicht.
+- **Unverändert:** Der Sweep läuft einmal je App-Start und nur, wenn die echte Drehzahl beim Start noch 0 ist. Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+- **Nur Tests:** Ein Test der Eintragsseite im Logbuch prüft den Knopf „Speichern“ jetzt erst nach dem Scrollen; er scheiterte im Querformat.
+
 ## Version 1.44.10 (versionCode 148)
 
 Die **Start-Animation** des Drehzahlbalkens richtet sich jetzt nur noch nach deiner **Blinkgrenze**.
