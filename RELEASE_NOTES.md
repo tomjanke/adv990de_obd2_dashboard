@@ -1,5 +1,15 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.12 (versionCode 150)
+
+Das **App-Log** zeigt jetzt, **wie der Adapter beim Verbinden auf den Reset antwortet**.
+
+### Was sich ändert
+
+- **Eine Auskunft mehr beim Verbinden:** Statt „Connected to MWT_OBD2“ steht im App-Log jetzt zum Beispiel „Connected to MWT_OBD2 (ATZ: 'ELM327 v1.0', 940 ms)“: die Antwort des Adapters auf den Reset und wie lange er dafür brauchte. Das hilft bei der Suche nach der Ursache eingefrorener Werte: ob der Adapter wirklich neu startet oder den Reset nur quittiert. Es ist ein Hinweis, kein Beweis.
+- **Nichts Neues am Adapter oder am Fahrzeug:** Der Reset wird schon immer bei jedem Verbinden gesendet; es kommt kein Befehl hinzu. Das Fahrzeug bleibt rein lesend.
+- **Unverändert:** Anzeige, Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen.
+
 ## Version 1.44.11 (versionCode 149)
 
 Die **Start-Animation** des Drehzahlbalkens blinkt jetzt **in jedem Fall** rot, auch ohne Verbindung.
