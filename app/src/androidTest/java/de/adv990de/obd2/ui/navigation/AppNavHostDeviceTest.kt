@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -106,7 +107,8 @@ class AppNavHostDeviceTest {
             Screen.GearSettings -> composeRule.onNodeWithText(string(R.string.gear_settings_title)).assertIsDisplayed()
             Screen.Licenses -> composeRule.onNodeWithTag(LICENSES_LIST_TEST_TAG).assertIsDisplayed()
             Screen.MaintenanceIntervals -> composeRule.onNodeWithTag(MAINTENANCE_LIST_TEST_TAG).assertIsDisplayed()
-            Screen.LogEntry -> composeRule.onNodeWithTag(LOGBOOK_SAVE_TEST_TAG).assertIsDisplayed()
+            // Der Knopf steht am Ende des scrollbaren Formulars: im Querformat (448 dp hoch) liegt er unter dem Rand — erst hinscrollen, dann pruefen.
+            Screen.LogEntry -> composeRule.onNodeWithTag(LOGBOOK_SAVE_TEST_TAG).performScrollTo().assertIsDisplayed()
             Screen.LogbookStats -> composeRule.onNodeWithTag(LOGBOOK_STATS_LIST_TEST_TAG).assertIsDisplayed()
         }
     }

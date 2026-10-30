@@ -12,7 +12,8 @@ import org.junit.Test
  * [RpmBar] the blink timing ([rpmBlinkPeriodMs]) and the per-segment color choice
  * ([rpmSegmentColor]); from `DashboardScreen` the engine-temperature blink-threshold scale
  * ([rpmThresholdTempScale]), the one-shot RPM demo-sweep gate ([shouldStartRpmDemoSweep]) and the
- * threshold the bar is drawn with, in the start animation and for real RPM ([rpmDisplayThreshold]);
+ * threshold the bar is drawn with, in the start animation and for real RPM ([rpmDisplayThreshold]), and
+ * whether it shows red and blinks ([rpmAlertsEnabled]);
  * from [OilTemperatureBarStrip] its color choice ([oilBarStripColor]).
  * None of these functions has a Compose or Android dependency (Projekt-Konvention, vgl.
  * [GearIndicatorTest], `StatusDotTest`), so all are covered here directly instead of through
@@ -337,6 +338,27 @@ class DashboardComponentsTest {
     @Test
     fun `real rpm without a temperature uses the most conservative scale when scaling is on`() {
         assertEquals(4000, rpmDisplayThreshold(8000, dynamicScaling = true, engineTempC = null, demoRpm = null))
+    }
+
+    // --- rpmAlertsEnabled ---
+    // Rot und Blinken: live immer, ohne Verbindung nur waehrend der Start-Animation (Nutzerwunsch 2026-10-30; seit 371824c blinkte sie nur live).
+
+    @Test
+    fun `alerts are on while live, with or without the start animation`() {
+        assertEquals(true, rpmAlertsEnabled(isLive = true, demoRpm = null))
+        assertEquals(true, rpmAlertsEnabled(isLive = true, demoRpm = 4000f))
+    }
+
+    @Test
+    fun `the start animation shows alerts even without a live connection`() {
+        assertEquals(true, rpmAlertsEnabled(isLive = false, demoRpm = 4000f))
+        assertEquals(true, rpmAlertsEnabled(isLive = false, demoRpm = 0f))
+    }
+
+    @Test
+    fun `without a live connection and without the start animation there are no alerts`() {
+        // Sonst bekaeme eine echte, nicht verbundene Anzeige Alarmrot und Blinken.
+        assertEquals(false, rpmAlertsEnabled(isLive = false, demoRpm = null))
     }
 
     // --- oilBarStripColor ---

@@ -64,6 +64,9 @@ internal fun RpmBar(
     /** Ohne Verbindung zeigt der Balken nur die Demo-Bewegung: kein Alarmrot, kein Blinken
      *  und keine Zahl, die eine Drehzahl vortaeuscht, die es nicht gibt. */
     isLive: Boolean = true,
+    /** Ob der Balken ab der Schwelle rot faerbt und blinkt. Standard: wie [isLive]. Nur die Start-Animation setzt es ohne Verbindung auf `true`
+     *  (Nutzerwunsch 2026-10-30, s. [rpmAlertsEnabled]); Beschreibung fuer TalkBack, Gang-Box und Oelstreifen haengen weiter allein an [isLive]. */
+    alertsEnabled: Boolean = isLive,
     /** Simulierte Oel-Temperatur-Farbe (s. [OilTemperatureBarStrip]) — `null` zeigt die Leiste
      *  grau, genau wie `isLive = false`.
      *
@@ -81,7 +84,7 @@ internal fun RpmBar(
     isNeutral: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
-    val blinkPeriodMs: Long = rpmBlinkPeriodMs(rpm, threshold, isLive)
+    val blinkPeriodMs: Long = rpmBlinkPeriodMs(rpm, threshold, alertsEnabled)
 
     // rememberUpdatedState lets the coroutine read the latest period on each iteration
     // without restarting the effect — crucial during animated RPM sweeps where blinkPeriodMs
@@ -103,13 +106,13 @@ internal fun RpmBar(
         }
     }
 
-    val isAlert = isLive && threshold > 0 && rpm > threshold
+    val isAlert = alertsEnabled && threshold > 0 && rpm > threshold
     val litColor = if (isAlert) StatusColors.Critical else MaterialTheme.colorScheme.primary
     // Segmente oberhalb des Schwellwerts sind schon vor dem Erreichen als Grenzbereich
     // erkennbar — wie die Schaltblitz-Skala eines Cockpit-Drehzahlmessers.
     val redlineColor = StatusColors.Critical
     val idleColor = MaterialTheme.colorScheme.surfaceVariant
-    val redlineFrom = if (isLive && threshold > 0) threshold.toFloat() else Float.MAX_VALUE
+    val redlineFrom = if (alertsEnabled && threshold > 0) threshold.toFloat() else Float.MAX_VALUE
 
     Row(
         modifier = modifier

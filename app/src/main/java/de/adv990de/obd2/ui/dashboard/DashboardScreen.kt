@@ -105,7 +105,8 @@ fun DashboardScreen(
         // ── RPM demo animation ────────────────────────────────────────────
         // Runs once per app start (DashboardViewModel.consumeDemoSweepOffer), not on every visit of this
         // screen — and only if rpmValue is still 0 after the start delay (engine off / no data).
-        // Sweeps 0 → 10 000 → 0 to demonstrate bar fill and threshold blinking.
+        // Sweeps 0 → 10 000 → 0 to demonstrate bar fill and threshold blinking — in every connection state,
+        // also offline (rpmAlertsEnabled; user request 2026-10-30).
         val rpmDemo = remember { Animatable(0f) }
         val rpmValueRef = rememberUpdatedState(state.rpmValue)
         LaunchedEffect(Unit) {
@@ -156,6 +157,7 @@ fun DashboardScreen(
                 oilBarGreenInMillis = state.oilBarGreenInMillis,
                 modifier = Modifier.fillMaxWidth(),
                 isLive = isLive,
+                alertsEnabled = rpmAlertsEnabled(isLive, demoRpm),
                 trailingContent = {
                     ConnectionIndicator(
                         isConnected = state.isConnected,
