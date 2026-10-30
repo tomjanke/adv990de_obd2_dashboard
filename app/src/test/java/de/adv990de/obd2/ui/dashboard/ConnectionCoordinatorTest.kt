@@ -9,6 +9,7 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.InitResult
 import de.adv990de.obd2.fakeAppPreferences
 import de.adv990de.obd2.ui.UiText
 import io.mockk.Runs
@@ -70,10 +71,12 @@ class ConnectionCoordinatorTest {
         connected: Boolean = false,
         lastConnected: ScannedDevice? = null,
         userDisconnects: MutableStateFlow<Int> = MutableStateFlow(0),
+        adapterReset: InitResult? = null,
     ): ObdRepository = mockk {
         every { isConnectedFlow } returns MutableStateFlow(connected)
         every { lastConnectedDevice } returns MutableStateFlow(lastConnected)
         every { userDisconnectCount } returns userDisconnects
+        every { adapterInit } returns adapterReset
     }
 
     private fun makeAdapter(enabled: Boolean = true): BluetoothAdapter = mockk {
@@ -110,6 +113,33 @@ class ConnectionCoordinatorTest {
             listOf(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Connected),
             events
         )
+    }
+
+    @Test
+    fun `auto-connect logs the adapter's answer to the reset in the connected line`() = runTest {
+        val repo = makeRepo(adapterReset = InitResult("ELM327 v1.0", 940))
+        coEvery { repo.connectIfDisconnected(device) } just Runs
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), logRepo = logRepo)
+            .start(coordinatorScope, {})
+        advanceUntilIdle()
+
+        coVerify { logRepo.log(LogLevel.INFO, "Connected to TestAdapter (ATZ: 'ELM327 v1.0', 940 ms)") }
+    }
+
+    @Test
+    fun `the reconnect loop logs the adapter's answer to the reset in the connected line`() = runTest {
+        val repo = makeRepo(lastConnected = device, adapterReset = InitResult("OK", 4))
+        coEvery { repo.reconnect() } just Runs
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), logRepo = logRepo)
+        coordinator.start(coordinatorScope, {})
+
+        coordinator.requestReconnect()
+        advanceUntilIdle()
+
+        coVerify { logRepo.log(LogLevel.INFO, "Connected to TestAdapter (ATZ: 'OK', 4 ms)") }
     }
 
     // --- Test 2 ---

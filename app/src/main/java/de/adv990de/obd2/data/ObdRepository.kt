@@ -6,9 +6,10 @@ import de.adv990de.obd2.bluetooth.ObdConnection
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
+import de.adv990de.obd2.obd.InitResult
 import de.adv990de.obd2.obd.PidParser
+import de.adv990de.obd2.obd.compactForLog
 import de.adv990de.obd2.obd.PidRegistry
-import de.adv990de.obd2.obd.WHITESPACE
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
@@ -84,6 +85,13 @@ class ObdRepository @Inject constructor(
 
     @Volatile private var connection: ObdConnection? = null
     @Volatile private var elm: ElmController? = null
+
+    /**
+     * Die Antwort des Adapters auf den Reset (`ATZ`) beim Verbinden samt Dauer — gehoert zur AKTUELLEN Verbindung, `null` ohne Verbindung und nach
+     * einem gescheiterten Aufbau. Nur fuer die Zeile "Connected to ..." im App-Log ([de.adv990de.obd2.obd.connectedLogMessage]).
+     */
+    @Volatile var adapterInit: InitResult? = null
+        private set
 
     /** Die rohen Antworten des letzten Abfragezyklus je Befehl ("010C" -> "41 0C 19 31") — nur fuer die Diagnose in [dropFrozenLink]. */
     @Volatile private var lastCycleRaw: Map<String, String> = emptyMap()
@@ -183,9 +191,6 @@ class ObdRepository @Inject constructor(
         return "raw: $raw; ATRV $adapterVolts"
     }
 
-    /** Eine Adapterantwort fuer eine Log-Zeile: Zeilenumbrueche und Mehrfach-Leerzeichen werden eins, hoechstens 40 Zeichen. */
-    private fun String.compactForLog(): String = trim().replace(WHITESPACE, " ").take(40)
-
     /**
      * Trennt nur, wenn [controller] noch die aktuelle Verbindung ist (PRO-11) — fuer die LESEPFADE, deren Fehler die Verbindung
      * beendet (Link-Verlust, Watchdog, ein Zeitlimit, das den Datenstrom in unbekanntem Zustand laesst). Ein Leser, der auf einer
@@ -208,6 +213,7 @@ class ObdRepository @Inject constructor(
         connection?.close()
         connection = null
         elm = null
+        adapterInit = null
         lastCycleRaw = emptyMap()
         // _lastConnectedDevice is intentionally NOT cleared: the reconnect path in
         // DashboardViewModel calls reconnect() after a connection drop and relies on this
@@ -252,9 +258,9 @@ class ObdRepository @Inject constructor(
         val conn = connectionFactory.create(device)
         connecting = conn
         try {
-            val (controller, supported) = withConnectDeadline(conn) {
+            val (controller, supported, init) = withConnectDeadline(conn) {
                 val controller = conn.connect()
-                controller.initialize()
+                val init = controller.initialize()
                 // Best-effort: a discovery that merely fails or finds nothing must not abort the connection.
                 // Two things are NOT "merely failing" and must not be swallowed: a cancelled caller (it would
                 // otherwise come back from connect() "connected" although it was cancelled) and a dead link
@@ -266,11 +272,12 @@ class ObdRepository @Inject constructor(
                     if (e is CancellationException || e is ObdException.ConnectionLost) throw e
                     null
                 }
-                controller to supported
+                Triple(controller, supported, init)
             }
             _supportedPidIds.value = supported
             connection = conn
             elm = controller
+            adapterInit = init
             _isConnected.value = true
             _lastConnectedDevice.value = device
         } catch (e: Exception) {

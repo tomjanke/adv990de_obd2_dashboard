@@ -7,6 +7,7 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.connectedLogMessage
 import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -128,7 +129,7 @@ class ConnectionCoordinator @Inject constructor(
             // Auto-Connect darf diese Verbindung nicht ersetzen (die Entscheidung faellt im Repository
             // unter dem Lock, s. ObdRepository.connectIfDisconnected).
             obdRepository.connectIfDisconnected(savedDevice)
-            appLogRepository.log(LogLevel.INFO, "Connected to ${savedDevice.name}")
+            appLogRepository.log(LogLevel.INFO, connectedLogMessage(savedDevice.name, obdRepository.adapterInit))
             serviceController.start()
             onEvent(ConnectionEvent.Connected)
         } catch (e: CancellationException) {
@@ -204,7 +205,7 @@ class ConnectionCoordinator @Inject constructor(
                         return@collect
                     }
                     val name = inMemoryDevice?.name ?: coldLaunchDevice?.name ?: "device"
-                    appLogRepository.log(LogLevel.INFO, "Connected to $name")
+                    appLogRepository.log(LogLevel.INFO, connectedLogMessage(name, obdRepository.adapterInit))
                     serviceController.start()
                     onEvent(ConnectionEvent.Connected)
                     return@collect  // isConnectedFlow wird true → der Messwert-Strom startet neu

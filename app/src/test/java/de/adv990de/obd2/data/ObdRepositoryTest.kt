@@ -11,6 +11,7 @@ import de.adv990de.obd2.bluetooth.ObdConnection
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.ElmController
+import de.adv990de.obd2.obd.InitResult
 import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
@@ -86,7 +87,7 @@ class ObdRepositoryTest {
 
         coEvery { factory.create(device) } returns connection
         coEvery { connection.connect() } returns elm
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         every { connection.isConnected } returns true
 
         val repo = makeRepo(factory)
@@ -104,7 +105,7 @@ class ObdRepositoryTest {
 
         coEvery { factory.create(device) } returns connection
         coEvery { connection.connect() } returns elm
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         every { connection.isConnected } returns true
         every { connection.close() } just Runs
 
@@ -129,8 +130,8 @@ class ObdRepositoryTest {
         coEvery { factory.create(device2) } returns conn2
         coEvery { conn1.connect() } returns elm1
         coEvery { conn2.connect() } returns elm2
-        coEvery { elm1.initialize() } just Runs
-        coEvery { elm2.initialize() } just Runs
+        coEvery { elm1.initialize() } returns InitResult("OK", 0)
+        coEvery { elm2.initialize() } returns InitResult("OK", 0)
         every { conn1.close() } just Runs
 
         val repo = makeRepo(factory)
@@ -139,6 +140,85 @@ class ObdRepositoryTest {
 
         verifyOrder { conn1.close(); factory.create(device2) }
         assertEquals(true, repo.isConnectedFlow.value)
+    }
+
+    // --- adapterInit: die Antwort des Adapters auf ATZ gehoert zur aktuellen Verbindung ---
+
+    private fun connectionFor(init: InitResult): Pair<ObdConnection, ElmController> {
+        val elm = mockk<ElmController>()
+        coEvery { elm.initialize() } returns init
+        val conn = mockk<ObdConnection> {
+            coEvery { connect() } returns elm
+            every { close() } just Runs
+        }
+        return conn to elm
+    }
+
+    @Test
+    fun `adapterInit is empty before a connection and carries the ATZ answer after it`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (conn, _) = connectionFor(InitResult("ELM327 v1.0", 940))
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        val repo = makeRepo(factory)
+        assertNull(repo.adapterInit)
+
+        repo.connect(device)
+
+        assertEquals(InitResult("ELM327 v1.0", 940), repo.adapterInit)
+    }
+
+    @Test
+    fun `adapterInit is forgotten when the connection ends`() = runTest {
+        val device = mockk<ScannedDevice>()
+        val (conn, _) = connectionFor(InitResult("OK", 3))
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        val repo = makeRepo(factory)
+        repo.connect(device)
+
+        repo.disconnect()
+
+        assertNull(repo.adapterInit)
+    }
+
+    @Test
+    fun `adapterInit follows the adapter that replaces the connection`() = runTest {
+        val deviceA = mockk<ScannedDevice>()
+        val deviceB = mockk<ScannedDevice>()
+        val (connA, _) = connectionFor(InitResult("ELM327 v1.0", 940))
+        val (connB, _) = connectionFor(InitResult("OK", 4))
+        val factory = mockk<ConnectionFactory> {
+            coEvery { create(deviceA) } returns connA
+            coEvery { create(deviceB) } returns connB
+        }
+        val repo = makeRepo(factory)
+        repo.connect(deviceA)
+
+        repo.connect(deviceB)
+
+        assertEquals(InitResult("OK", 4), repo.adapterInit)
+    }
+
+    @Test
+    fun `a failed connect leaves no adapterInit behind, not even the one of the connection it replaced`() = runTest {
+        val deviceA = mockk<ScannedDevice>()
+        val deviceB = mockk<ScannedDevice>()
+        val (connA, _) = connectionFor(InitResult("ELM327 v1.0", 940))
+        val elmB = mockk<ElmController>()
+        coEvery { elmB.initialize() } throws Exception("init failed")
+        val connB = mockk<ObdConnection> {
+            coEvery { connect() } returns elmB
+            every { close() } just Runs
+        }
+        val factory = mockk<ConnectionFactory> {
+            coEvery { create(deviceA) } returns connA
+            coEvery { create(deviceB) } returns connB
+        }
+        val repo = makeRepo(factory)
+        repo.connect(deviceA)
+
+        try { repo.connect(deviceB) } catch (_: Exception) {}
+
+        assertNull(repo.adapterInit)
     }
 
     @Test
@@ -174,8 +254,8 @@ class ObdRepositoryTest {
         coEvery { factory.create(device) } returnsMany listOf(conn1, conn2)
         coEvery { conn1.connect() } returns elm1
         coEvery { conn2.connect() } returns elm2
-        coEvery { elm1.initialize() } just Runs
-        coEvery { elm2.initialize() } just Runs
+        coEvery { elm1.initialize() } returns InitResult("OK", 0)
+        coEvery { elm2.initialize() } returns InitResult("OK", 0)
         every { conn1.isConnected } returns true
         every { conn1.close() } just Runs
 
@@ -212,7 +292,7 @@ class ObdRepositoryTest {
         init {
             coEvery { factory.create(device) } returns conn
             coEvery { conn.connect() } returns elm
-            coEvery { elm.initialize() } just Runs
+            coEvery { elm.initialize() } returns InitResult("OK", 0)
             coEvery { elm.sendCommand(any()) } coAnswers { onDiscovery(firstArg()) }
         }
     }
@@ -267,7 +347,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         coEvery { elmCtrl.sendCommand("0100") } throws ObdException.UnknownResponse("?")
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.BusInit("BUS INIT: ERROR")
         // Bereich 0140: Bit 30 des ersten Bytes = PID 0x42 (Steuergeraetespannung) — der einzige bekannte PID, den der letzte Bereich meldet
@@ -361,7 +441,7 @@ class ObdRepositoryTest {
     @Test
     fun `a connect that finishes in time is not touched by the deadline`() = runTest {
         val elm = mockk<ElmController>()
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
         val conn = mockk<ObdConnection> {
             coEvery { connect() } returns elm
@@ -422,7 +502,7 @@ class ObdRepositoryTest {
 
     private fun stubElm(conn: ObdConnection): ElmController = mockk<ElmController>().also { elm ->
         coEvery { conn.connect() } returns elm
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
     }
 
@@ -450,7 +530,7 @@ class ObdRepositoryTest {
         val release = CompletableDeferred<Unit>()
         val elm = mockk<ElmController>()
         coEvery { conn1.connect() } coAnswers { release.await(); elm }   // the manual connect is "in progress"
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
         val repo = makeRepo(factory)
 
@@ -538,7 +618,7 @@ class ObdRepositoryTest {
         val release = CompletableDeferred<Unit>()
         val elm = mockk<ElmController>()
         coEvery { conn1.connect() } coAnswers { release.await(); elm }
-        coEvery { elm.initialize() } just Runs
+        coEvery { elm.initialize() } returns InitResult("OK", 0)
         coEvery { elm.sendCommand(any()) } throws ObdException.NoData("x")
         val repo = makeRepo(factory)
         val connecting = launch { repo.connect(device) }
@@ -578,7 +658,7 @@ class ObdRepositoryTest {
         val holdB = CompletableDeferred<Unit>()
         val elmB = mockk<ElmController>()
         coEvery { connB.connect() } coAnswers { holdB.await(); elmB }
-        coEvery { elmB.initialize() } just Runs
+        coEvery { elmB.initialize() } returns InitResult("OK", 0)
         coEvery { elmB.sendCommand(any()) } throws ObdException.NoData("x")
 
         var readerSawFailure = false
@@ -998,7 +1078,7 @@ class ObdRepositoryTest {
         }
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         // Discovery stubs: thrown NoData is caught silently → discovery returns null.
         // Registered after test-local stubs so these specific matchers win for the
         // three range commands while test's own coEvery { sendCommand(any()) } still
@@ -1623,7 +1703,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         // 0100 returns two known PIDs; 0120/0140 return NoData
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
@@ -1654,7 +1734,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         // 0x00180000: bit 20 → PID 0x0C (RPM), bit 19 → PID 0x0D (Speed)
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
@@ -1679,7 +1759,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         // Only bit 0 set → PID 0x60, which is the continuation flag and not in PidRegistry
         coEvery { elmCtrl.sendCommand("0100") } throws ObdException.NoData("0100")
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
@@ -1704,7 +1784,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         for (range in listOf("0100", "0120", "0140")) {
             coEvery { elmCtrl.sendCommand(range) } throws ObdException.NoData(range)
         }
@@ -1764,7 +1844,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         // 0100 returns RPM + Speed; 0120 times out; 0140 returns NoData
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         coEvery { elmCtrl.sendCommand("0120") } throws ObdException.Timeout("0120")
@@ -1789,7 +1869,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         // Malformed: only 3 tokens, below the "41 XX B1 B2 B3 B4" minimum of 6 — the
         // tokens.size < 6 guard must skip this range silently instead of throwing.
@@ -1820,7 +1900,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         // 6 tokens (passes the size check) but the header byte is not "41" — the
         // tokens[0] != "41" guard must skip this range silently instead of decoding garbage.
@@ -1851,7 +1931,7 @@ class ObdRepositoryTest {
         val elmCtrl = mockk<ElmController>()
         val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
         coEvery { conn.connect() } returns elmCtrl
-        coEvery { elmCtrl.initialize() } just Runs
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
         coEvery { elmCtrl.sendCommand("0100") } returns "41 00 00 18 00 00"
         // "ZZ" is not a valid hex byte — the bitmap fold's toLong(16) throws
         // NumberFormatException, which the guard must catch and skip, not propagate

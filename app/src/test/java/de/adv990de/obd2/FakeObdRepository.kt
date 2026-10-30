@@ -21,6 +21,8 @@ internal fun fakeObdRepository(configure: ObdRepository.() -> Unit = {}): ObdRep
         every { isConnectedFlow } returns MutableStateFlow(false)
         every { userDisconnectCount } returns MutableStateFlow(0)
         every { supportedPidIds } returns MutableStateFlow(null)
+        // Der Koordinator schreibt die Antwort auf ATZ in die Zeile "Connected to ..."; "keine" ist der neutrale Standard.
+        every { adapterInit } returns null
         every { setMoving(any()) } just Runs
         every { updateLatestReadings(any()) } just Runs
         coEvery { readVin() } returns null

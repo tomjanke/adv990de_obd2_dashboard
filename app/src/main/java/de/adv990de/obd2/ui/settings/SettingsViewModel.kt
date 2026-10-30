@@ -13,6 +13,7 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.obd.ObdErrorMapper
+import de.adv990de.obd2.obd.connectedLogMessage
 import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -168,7 +169,7 @@ class SettingsViewModel @Inject constructor(
                 try { appPreferences.persistDevice(device) } catch (e: Exception) {
                     Log.w(TAG, "persistDevice failed — last-device highlight and auto-reconnect will not work", e)
                 }
-                appLogRepository.log(LogLevel.INFO, "Connected to ${device.name}")
+                appLogRepository.log(LogLevel.INFO, connectedLogMessage(device.name, obdRepository.adapterInit))
                 _uiState.value = _uiState.value.copy(
                     isConnecting = false,
                     connectedDevice = device.name,

@@ -9,7 +9,9 @@ import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.obd.InitResult
 import de.adv990de.obd2.ui.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -51,6 +53,7 @@ class SettingsViewModelTest {
             every { isConnectedFlow } returns MutableStateFlow(false)
             every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
         },
         prefs: AppPreferences = mockk {
             coEvery { persistDevice(any()) } just Runs
@@ -72,6 +75,24 @@ class SettingsViewModelTest {
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined),
         ),
     )
+
+    @Test
+    fun `connect logs the adapter's answer to the reset in the connected line`() = runTest {
+        val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
+        val obdRepo = mockk<ObdRepository> {
+            every { isConnectedFlow } returns MutableStateFlow(false)
+            every { lastConnectedDevice } returns MutableStateFlow(null)
+            coEvery { connect(any()) } just Runs
+            every { adapterInit } returns InitResult("ELM327 v1.0", 940)
+        }
+        val appLog = mockk<AppLogRepository>(relaxed = true)
+        val vm = makeVm(obdRepo, appLogRepository = appLog)
+
+        vm.connect(device)
+        advanceUntilIdle()
+
+        coVerify { appLog.log(LogLevel.INFO, "Connected to ELM327 (ATZ: 'ELM327 v1.0', 940 ms)") }
+    }
 
     @Test
     fun `connect persists device on success`() = runTest {
@@ -100,6 +121,7 @@ class SettingsViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false)
             coEvery { connect(any()) } coAnswers { kotlinx.coroutines.delay(10) }
+            every { adapterInit } returns null
         }
         val vm = makeVm(obdRepo = obdRepo)
 
@@ -173,6 +195,7 @@ class SettingsViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
         }
         // Prefs must return the device so the isConnectedFlow(true) handler can read its name
         val prefs = mockk<AppPreferences> {
@@ -209,6 +232,7 @@ class SettingsViewModelTest {
                 // complete and set isConnecting=false before the collector fires.
                 kotlinx.coroutines.yield()
             }
+            every { adapterInit } returns null
         }
         // DataStore returns null — without the guard this would clear connectedDevice
         val prefs = mockk<AppPreferences> {
@@ -268,6 +292,7 @@ class SettingsViewModelTest {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
         }
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
@@ -300,6 +325,7 @@ class SettingsViewModelTest {
             every { this@mockk.isConnectedFlow } returns isConnectedFlow
             every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
         }
         val prefs = mockk<AppPreferences> {
             coEvery { persistDevice(any()) } just Runs
@@ -325,6 +351,7 @@ class SettingsViewModelTest {
             every { isConnectedFlow } returns MutableStateFlow(false)
             every { lastConnectedDevice } returns MutableStateFlow(null)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
             coEvery { disconnectByUser() } just Runs
         }
         val vm = makeVm(obdRepo = obdRepo)
@@ -393,6 +420,7 @@ class SettingsViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
         }
         val device = mockk<ScannedDevice> { every { name } returns "ELM327"; every { address } returns "AA:BB:CC:DD:EE:FF" }
         val vm = makeVm(obdRepo = obdRepo, appContext = ctx)
@@ -411,6 +439,7 @@ class SettingsViewModelTest {
         val obdRepo = mockk<ObdRepository> {
             every { isConnectedFlow } returns MutableStateFlow(false)
             coEvery { connect(any()) } just Runs
+            every { adapterInit } returns null
             coEvery { disconnectByUser() } just Runs
         }
         val vm = makeVm(obdRepo = obdRepo, appContext = ctx)

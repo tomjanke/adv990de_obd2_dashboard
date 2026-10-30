@@ -21,8 +21,14 @@ class ElmControllerTest {
      * verwirft (PRO-13), wuerde das die Antworten mit wegwerfen. [stale] steht von Anfang an im Eingang: die verspaetete Antwort auf
      * einen frueheren Befehl.
      */
-    private class ScriptedAdapter(responses: List<ByteArray>, stale: ByteArray = ByteArray(0)) {
+    private class ScriptedAdapter(
+        responses: List<ByteArray>,
+        stale: ByteArray = ByteArray(0),
+        // Wie lange der Adapter fuer die n-te Antwort braucht (echte Zeit, wie ein ELM327 nach ATZ); fehlende Eintraege = sofort.
+        private val delaysMs: List<Long> = emptyList(),
+    ) {
         private val lock = Any()
+        private var released = 0
         private val queue = ArrayDeque(responses)
         private var buffer = stale
         private var position = 0
@@ -50,7 +56,13 @@ class ElmControllerTest {
             }
         }
 
-        private fun release() = synchronized(lock) {
+        private fun release() {
+            val delay = delaysMs.getOrElse(released++) { 0L }
+            if (delay > 0) Thread.sleep(delay)
+            releaseNext()
+        }
+
+        private fun releaseNext() = synchronized(lock) {
             val next = queue.removeFirstOrNull() ?: return@synchronized
             buffer = buffer.copyOfRange(position, buffer.size) + next
             position = 0
@@ -104,6 +116,25 @@ class ElmControllerTest {
         val controller = ElmController(input, output)
         val response = controller.sendCommand("0902")
         assertEquals("49 02 01 57 41 49 02 02 5A 5A 5A", response)
+    }
+
+    @Test
+    fun `initialize returns the answer to ATZ, not the one to a later command`() = runTest {
+        val (input, output) = makeStreams(listOf("ELM327 v1.5", "OK", "OK", "OK", "OK"))
+        val result = ElmController(input, output).initialize()
+        assertEquals("ELM327 v1.5", result.resetAnswer)
+    }
+
+    @Test
+    fun `initialize measures how long the ATZ answer took, and only that`() = runTest {
+        // ATZ braucht 120 ms, die letzte Antwort (ATSP0) eine Sekunde: gemessen werden darf nur der Reset.
+        val adapter = ScriptedAdapter(
+            listOf("ELM327 v1.5", "OK", "OK", "OK", "OK").map { "$it\r>".toByteArray() },
+            delaysMs = listOf(120L, 0L, 0L, 0L, 1_000L),
+        )
+        val result = ElmController(adapter.input, adapter.output).initialize()
+        assertTrue("ATZ dauerte mindestens 120 ms, war: ${result.resetMillis}", result.resetMillis >= 120)
+        assertTrue("ohne die spaeteren Befehle, war: ${result.resetMillis}", result.resetMillis < 1_000)
     }
 
     @Test(expected = ObdException.InitializationFailed::class)

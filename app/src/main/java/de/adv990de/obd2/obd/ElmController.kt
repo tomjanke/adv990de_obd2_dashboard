@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.coroutineContext
+import kotlin.time.TimeSource
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -34,7 +35,7 @@ class ElmController(
     private var bufferEnd = 0
 
     /**
-     * Initializes the ELM327 adapter with standard AT commands.
+     * Initializes the ELM327 adapter with standard AT commands and returns what it answered to the reset (ATZ) and how long that took.
      * Must be called once after BT connection is established, before any PID queries.
      *
      * Each AT command acquires [commandMutex] individually. In principle a concurrent
@@ -44,7 +45,7 @@ class ElmController(
      * obtain a reference to [ElmController] after [connect] returns — i.e., after
      * initialization is complete.
      */
-    suspend fun initialize() {
+    suspend fun initialize(): InitResult {
         // ATZ = reset, ATE0 = echo off, ATL0 = linefeed off,
         // ATS1 = spaces ON, ATSP0 = auto-detect protocol
         //
@@ -53,8 +54,12 @@ class ElmController(
         // Stelle behaupteten das Gegenteil). ATZ stellt ohnehin die Voreinstellung "Leerzeichen an" her; das explizite
         // ATS1 haelt die Absicht fest und schuetzt vor Klonen, die Einstellungen ueber ATZ hinweg behalten.
         val initSequence = listOf("ATZ", "ATE0", "ATL0", "ATS1", "ATSP0")
+        var reset: InitResult? = null
         for (cmd in initSequence) {
+            val started = TimeSource.Monotonic.markNow()
             val response = sendCommand(cmd)
+            // Die Antwort auf ATZ und ihre Dauer gehen ins App-Log ("Connected to ..."): ob der Adapter wirklich neu startet.
+            if (cmd == "ATZ") reset = InitResult(response, started.elapsedNow().inWholeMilliseconds)
             // "STOPPED" is returned by some clone adapters after ATZ when the hardware reset
             // gets stuck; treat it as an init failure like "ERROR" and "?".
             if (response.contains("ERROR", ignoreCase = true)
@@ -63,6 +68,7 @@ class ElmController(
                 throw ObdException.InitializationFailed("$cmd returned: $response")
             }
         }
+        return checkNotNull(reset) { "the init sequence starts with ATZ" }
     }
 
     /**
