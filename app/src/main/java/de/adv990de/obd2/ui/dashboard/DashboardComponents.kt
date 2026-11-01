@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
@@ -67,6 +68,9 @@ internal fun RpmBar(
     /** Ob der Balken ab der Schwelle rot faerbt und blinkt. Standard: wie [isLive]. Nur die Start-Animation setzt es ohne Verbindung auf `true`
      *  (Nutzerwunsch 2026-10-30, s. [rpmAlertsEnabled]); Beschreibung fuer TalkBack, Gang-Box und Oelstreifen haengen weiter allein an [isLive]. */
     alertsEnabled: Boolean = isLive,
+    /** Ob die Drehzahl als Ziffern links im Balken steht (Nutzerwunsch 2026-11-01, s. [rpmDigitsEnabled]). Standard: wie [isLive]. `DashboardScreen` blendet sie waehrend der Start-Animation
+     *  aus, auch bei bestehender Verbindung: der Balken zeigt dort eine Bewegung, keine Drehzahl. */
+    digitsEnabled: Boolean = isLive,
     /** Simulierte Oel-Temperatur-Farbe (s. [OilTemperatureBarStrip]) — `null` zeigt die Leiste
      *  grau, genau wie `isLive = false`.
      *
@@ -113,6 +117,12 @@ internal fun RpmBar(
     val redlineColor = StatusColors.Critical
     val idleColor = MaterialTheme.colorScheme.surfaceVariant
     val redlineFrom = if (alertsEnabled && threshold > 0) threshold.toFloat() else Float.MAX_VALUE
+    // Die Ziffern links im Balken (Fenster, s. RpmDigits.kt): kein Text, kein Fenster.
+    val digitsText = rpmDigitsText(rpm, digitsEnabled)
+    val textMeasurer = rememberTextMeasurer()
+    val digitsStyle = rpmDigitsTextStyle(MaterialTheme.typography)
+    val digitsPlateColor = MaterialTheme.colorScheme.background
+    val digitsTextColor = MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = modifier
@@ -171,6 +181,10 @@ internal fun RpmBar(
                             topLeft = Offset(i * (segmentWidth + gap), 0f),
                             size = Size(segmentWidth, size.height),
                         )
+                    }
+                    // Zuletzt gezeichnet: das Fenster liegt ueber den ersten Segmenten und bleibt auch in der dunklen Phase des Blinkens stehen.
+                    if (digitsText != null) {
+                        drawRpmDigits(textMeasurer, digitsText, digitsStyle, digitsPlateColor, digitsTextColor)
                     }
                 }
             }

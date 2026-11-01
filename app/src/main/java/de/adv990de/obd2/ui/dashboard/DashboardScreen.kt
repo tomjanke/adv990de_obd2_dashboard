@@ -158,6 +158,7 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 isLive = isLive,
                 alertsEnabled = rpmAlertsEnabled(isLive, demoRpm),
+                digitsEnabled = rpmDigitsEnabled(isLive, demoRpm),
                 trailingContent = {
                     ConnectionIndicator(
                         isConnected = state.isConnected,
