@@ -1,5 +1,18 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.13 (versionCode 151)
+
+Die **Drehzahl steht jetzt als Zahl im Drehzahlbalken.**
+
+### Was sich ändert
+
+- **Die Drehzahl als Ziffern, links im Balken:** ganze Umdrehungen wie die Drehzahl-Kachel (zum Beispiel „2844“), in der Schrift der Statuszeile (Plex Mono, rund 26 sp), hell auf einem dunklen Fenster. So lesen sie sich in jedem Farbschema gut, auch auf dem roten Balken ab der Blinkgrenze.
+- **Was das Fenster kostet:** Es verdeckt in der Mitte die ersten Segmente (im Querformat rund vier, also bis etwa 800 Umdrehungen, im Hochformat rund zehn, bis etwa 2000); oben und unten bleibt ein Streifen des Balkens sichtbar. Beim Blinken bleibt das Fenster stehen.
+- **Keine erfundene Drehzahl:** Ohne Verbindung, bei „Keine aktuellen Werte“ und während der Start-Animation (auch mit Verbindung) steht keine Zahl da — die Animation zeigt eine Bewegung, keine Drehzahl.
+- **Unverändert:** Segmente, Farben, Blinken, Gang-Box, Ölstreifen, Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen. TalkBack sagt die Drehzahl wie bisher an (auf 100 gerundet).
+
+---
+
 ## Version 1.44.12 (versionCode 150)
 
 Das **App-Log** zeigt jetzt, **wie der Adapter beim Verbinden auf den Reset antwortet**.
