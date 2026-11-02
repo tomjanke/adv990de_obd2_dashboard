@@ -1260,6 +1260,145 @@ class ObdRepositoryTest {
         assertEquals("sonst kaeme die Verbindung nicht von selbst zurueck", before, repo.userDisconnectCount.value)
     }
 
+    // ── Eingefrorene Werte: Probe mit unbenutzten PIDs (Diagnose-Runde 3, s. FrozenProbe) ─────
+
+    /**
+     * Ein Steuergeraet, das laut Discovery 0105, 010C, 0104, 010B und 0111 meldet (`41 00 BE 3E B0 00`). [probe] beantwortet jeden Befehl, der nicht ein
+     * Zyklus-Befehl oder `ATRV` ist, mit der Nummer der Lesung dieses Befehls (1, 2, ...).
+     */
+    private suspend fun connectedWithProbePids(
+        atrv: () -> String = { "13.8V" },
+        probe: suspend (command: String, call: Int) -> String = { command, _ -> "41 ${command.drop(2)} 10" },
+    ): Pair<ObdRepository, ElmController> {
+        val device = mockk<ScannedDevice>()
+        val conn = mockk<ObdConnection> {
+            every { isConnected } returns true
+            every { close() } just Runs
+        }
+        val elmCtrl = mockk<ElmController>()
+        val calls = mutableMapOf<String, Int>()
+        coEvery { elmCtrl.sendCommand(any()) } coAnswers {
+            val command = firstArg<String>()
+            val call = calls.merge(command, 1, Int::plus)!!
+            when (command) {
+                "010C" -> "41 0C 19 31"
+                "0105" -> "41 05 77"
+                "ATRV" -> atrv()
+                else -> probe(command, call)
+            }
+        }
+        coEvery { elmCtrl.sendCommand("0100") } returns "41 00 BE 3E B0 00"
+        coEvery { elmCtrl.sendCommand("0120") } throws ObdException.NoData("0120")
+        coEvery { elmCtrl.sendCommand("0140") } throws ObdException.NoData("0140")
+        coEvery { conn.connect() } returns elmCtrl
+        coEvery { elmCtrl.initialize() } returns InitResult("OK", 0)
+        val factory = mockk<ConnectionFactory> { coEvery { create(device) } returns conn }
+        val repo = ObdRepository(factory, PidParser(), mockk<DtcParser>()).also { it.connect(device) }
+        return repo to elmCtrl
+    }
+
+    private suspend fun TestScope.pollOneCycle(repo: ObdRepository, vararg pids: de.adv990de.obd2.obd.model.PidDefinition) {
+        repo.livePids(pids.toList(), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+    }
+
+    @Test
+    fun `dropFrozenLink reads the unused PIDs twice and names whether each one moved`() = runTest {
+        val (repo, _) = connectedWithProbePids(probe = { command, call ->
+            when (command) {
+                "0104" -> if (call == 1) "41 04 2A" else "41 04 2B"
+                "0111" -> "41 11 33"
+                else -> "NO DATA"
+            }
+        })
+        pollOneCycle(repo, PidRegistry.RPM, PidRegistry.COOLANT_TEMP)
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(
+            details,
+            details.contains("probe: 0104=41 04 2A -> 41 04 2B (moved); 0111=41 11 33 -> 41 11 33 (same); 010B=NO DATA -> NO DATA (unclear)"),
+        )
+        assertTrue("die bisherige Diagnose bleibt", details.contains("raw: 010C=41 0C 19 31") && details.contains("ATRV 13.8V"))
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `dropFrozenLink does not probe a PID the cycle just read`() = runTest {
+        val (repo, elmCtrl) = connectedWithProbePids()
+        pollOneCycle(repo, PidRegistry.RPM, PidRegistry.ENGINE_LOAD)
+
+        val details = repo.dropFrozenLink()
+
+        val probe = details.substringAfter("probe: ")
+        assertFalse(details, probe.contains("0104"))
+        assertTrue(details, probe.startsWith("0111=") && probe.contains("010B="))
+        coVerify(exactly = 1) { elmCtrl.sendCommand("0104") }
+    }
+
+    @Test
+    fun `dropFrozenLink probes only what the vehicle reported and nothing without a discovery`() = runTest {
+        val elmCtrl = answeringElm()
+        val repo = makeConnectedRepo(elmCtrl, PidParser())
+        repo.livePids(listOf(PidRegistry.RPM), pollIntervalMs = 1_000L, timeSource = testTimeSource).first()
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(details, details.endsWith("probe: none"))
+        coVerify(exactly = 0) { elmCtrl.sendCommand("0104") }
+        coVerify(exactly = 0) { elmCtrl.sendCommand("0111") }
+        coVerify(exactly = 0) { elmCtrl.sendCommand("010B") }
+    }
+
+    @Test
+    fun `dropFrozenLink skips the probe when the adapter does not even answer the voltage`() = runTest {
+        val (repo, elmCtrl) = connectedWithProbePids(atrv = { throw ObdException.Timeout("ATRV") })
+        pollOneCycle(repo, PidRegistry.RPM)
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(details, details.endsWith("probe: skipped (adapter silent)"))
+        coVerify(exactly = 0) { elmCtrl.sendCommand("0104") }
+        assertEquals("der Adapter haengt, das Trennen kommt trotzdem", false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `dropFrozenLink still drops the link when every probe read fails`() = runTest {
+        val (repo, _) = connectedWithProbePids(probe = { command, _ -> throw ObdException.ConnectionLost() })
+        pollOneCycle(repo, PidRegistry.RPM)
+
+        val details = repo.dropFrozenLink()
+
+        assertTrue(details, details.contains("0104=n/a (ConnectionLost) -> n/a (ConnectionLost) (unclear)"))
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `a stuck adapter delays the reconnect by the probe budget at most`() = runTest {
+        val (repo, _) = connectedWithProbePids(probe = { _, _ ->
+            delay(60_000L)
+            "41 04 2A"
+        })
+        pollOneCycle(repo, PidRegistry.RPM)
+        val before = currentTime
+
+        val details = withContext(kotlinx.coroutines.NonCancellable) { repo.dropFrozenLink() }
+
+        assertTrue("die Probe haelt das Neuverbinden hoechstens 5 s auf: ${currentTime - before} ms", currentTime - before <= 5_000L)
+        assertTrue(details, details.contains("probe: 0104=- -> - (unclear)"))
+        assertEquals(false, repo.isConnectedFlow.value)
+    }
+
+    @Test
+    fun `dropFrozenLink with probes still does not count as a disconnect by the user`() = runTest {
+        val (repo, _) = connectedWithProbePids()
+        pollOneCycle(repo, PidRegistry.RPM)
+        val before = repo.userDisconnectCount.value
+
+        repo.dropFrozenLink()
+
+        assertEquals(before, repo.userDisconnectCount.value)
+    }
+
     // ── OBD-Watchdog (Timeout ohne Eskalation, s. obd-watchdog-bugfix-2026-09-26) ─────
     //
     // All watchdog tests pass runTest's virtual clock (`testTimeSource`) explicitly: livePids()

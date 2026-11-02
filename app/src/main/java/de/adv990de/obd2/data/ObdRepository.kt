@@ -166,6 +166,8 @@ class ObdRepository @Inject constructor(
      * und liefert vorher die Diagnose fuers App-Log: die rohen Antworten des letzten Zyklus und die Spannung, die der ADAPTER an seinem Anschluss misst (`ATRV`).
      * Sie trennt Adapter von Steuergeraet: zeigt `ATRV` eine lebendige Spannung, waehrend die Fahrzeugspannung (`0142`) feststeht, haengt das Steuergeraet oder
      * der Adapter wiederholt dessen letzte Antwort; ein Adapter ohne Antwort auf `ATRV` hing selbst. **`ATRV` ist ein Befehl an den Adapter, nichts geht ans Fahrzeug.**
+     * Dazu kommt die Probe ([probeUnusedPids], Diagnose-Runde 3): drei PIDs, die der Zyklus nie liest, zweimal gelesen — bewegen sie sich, lebt das Steuergeraet hinter ihnen,
+     * waehrend die abgefragten stehen. Das sind Modus-01-Lesungen wie jeder Zyklus, rein lesend; sie halten das Neuverbinden hoechstens [FROZEN_PROBE_BUDGET_MS] auf.
      *
      * Wie die anderen Lesepfade trennt sie nur die Verbindung, auf der gelesen wurde ([disconnectIfCurrent]), und zaehlt NICHT als Trennen des Nutzers
      * ([disconnectByUser]): die Wiederverbindung soll von selbst kommen. Ohne Verbindung gibt es nichts zu trennen.
@@ -174,13 +176,23 @@ class ObdRepository @Inject constructor(
         val controller = elm ?: return "no adapter"
         val raw = lastCycleRaw.entries.joinToString("; ") { (command, answer) -> "$command=${answer.compactForLog()}" }
         // Ein Zeitlimit oder ein Verlust hier aendert nichts am Trennen; eine echte Abbruch-Ausnahme (keine ObdException) geht durch.
+        var adapterAnswered = true
         val adapterVolts = try {
             controller.sendCommand("ATRV").compactForLog()
         } catch (e: ObdException) {
+            adapterAnswered = false
             "n/a (${e::class.simpleName})"
         }
+        // Antwortet der Adapter nicht einmal auf ATRV, haengt er selbst: weitere Lesungen kosteten nur Zeitlimits vor dem Neuverbinden.
+        val probe = if (adapterAnswered) probeUnusedPids(controller, probeCandidates()) else "skipped (adapter silent)"
         disconnectIfCurrent(controller)
-        return "raw: $raw; ATRV $adapterVolts"
+        return "raw: $raw; ATRV $adapterVolts; probe: $probe"
+    }
+
+    /** Die Probe-PIDs ([FROZEN_PROBE_PIDS]), die das Steuergeraet laut Discovery meldet und die der letzte Zyklus NICHT gelesen hat — ohne Discovery keine. */
+    private fun probeCandidates(): List<String> {
+        val supported = _supportedPidIds.value.orEmpty()
+        return FROZEN_PROBE_PIDS.filter { it in supported && it !in lastCycleRaw }
     }
 
     /**
