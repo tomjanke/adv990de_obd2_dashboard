@@ -63,7 +63,7 @@ import javax.inject.Inject
  * Covers, at the Composable level (VM-internal state transitions are already covered by
  * [HistoryViewModelTest] and are not re-tested here — only the real UI-to-VM wiring is):
  *
- * - `LaunchedEffect(exportErrorMessage)`: shows a Snackbar with the formatted error message.
+ * - [ExportFeedbackEffects] (the error branch): shows a Snackbar with the formatted error message.
  * - [SessionRow]'s own rendering: date formatting, and `vehicleVin` vs. the "unknown VIN" fallback.
  * - The shared local-delete contract: the row trash button and the swipe delete a trip WITHOUT a
  *   dialog (the trip vanishes at once, a "Rückgängig" snackbar appears, nothing is deleted yet, undo
@@ -84,7 +84,7 @@ import javax.inject.Inject
  *
  * Two documented items are intentionally NOT exercised here:
  *
- * - [ActivityNotFoundException] path and the happy path of `LaunchedEffect(shareUri)`: the share
+ * - [ActivityNotFoundException] path and the happy path of the share effect in [ExportFeedbackEffects]: the share
  *   chooser would pop up in front of the instrumentation app on a real device (no
  *   espresso-intents / UiAutomator in this project).
  * - The paging-append `LinearProgressIndicator`: its `LoadState.Loading` frame is too transient to

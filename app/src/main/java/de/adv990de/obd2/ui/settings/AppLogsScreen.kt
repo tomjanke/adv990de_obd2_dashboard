@@ -36,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -46,8 +45,8 @@ import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
-import de.adv990de.obd2.ui.components.shareCsv
 import de.adv990de.obd2.ui.formatDateTimeSeconds
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
@@ -63,11 +62,7 @@ fun AppLogsScreen(
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
     val confirmationVisible by vm.clearConfirmationVisible.collectAsStateWithLifecycle()
     val exportDialogVisible by vm.exportDialogVisible.collectAsStateWithLifecycle()
-    val shareUri by vm.shareUri.collectAsStateWithLifecycle()
-    val exportError by vm.exportError.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
-    val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
@@ -76,40 +71,16 @@ fun AppLogsScreen(
     }
 
     // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect umgeht die Recomposition bei Sprachwechsel.
-    val shareChooserTitle = stringResource(R.string.app_logs_share_chooser)
-    val shareNoAppMessage = stringResource(R.string.history_share_no_app)
-    val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
-    val savedMessage = stringResource(R.string.app_logs_export_saved)
-    val nothingToExportMessage = stringResource(R.string.app_logs_export_none)
     val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
 
-    LaunchedEffect(shareUri) {
-        shareUri?.let { uri ->
-            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
-            vm.consumeShareUri()
-        }
-    }
-
-    LaunchedEffect(saved) {
-        if (saved) {
-            snackbarHostState.showSnackbar(savedMessage)
-            vm.consumeSaved()
-        }
-    }
-
-    LaunchedEffect(nothingToExport) {
-        if (nothingToExport) {
-            snackbarHostState.showSnackbar(nothingToExportMessage)
-            vm.consumeNothingToExport()
-        }
-    }
-
-    LaunchedEffect(exportErrorMessage) {
-        exportErrorMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            vm.consumeExportError()
-        }
-    }
+    ExportFeedbackEffects(
+        feedback = vm.exportFeedback,
+        snackbarHostState = snackbarHostState,
+        shareChooserTitle = stringResource(R.string.app_logs_share_chooser),
+        nothingToExportMessage = stringResource(R.string.app_logs_export_none),
+        savedMessage = if (saved) stringResource(R.string.app_logs_export_saved) else null,
+        onSavedShown = vm::consumeSaved,
+    )
 
     // The shared local-delete contract: trash icon -> confirmation -> the entries disappear at once
     // -> "Rückgängig" snackbar for the length of the undo window -> only then really deleted.

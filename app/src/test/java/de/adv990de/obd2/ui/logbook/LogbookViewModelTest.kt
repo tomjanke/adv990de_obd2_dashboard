@@ -258,7 +258,7 @@ class LogbookViewModelTest {
         f.vm.shareExport(); runCurrent()
 
         coVerify { f.exporter.exportToCsv(emptySet()) }
-        assertSame(uri, f.vm.shareUri.value)
+        assertSame(uri, f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
@@ -283,9 +283,9 @@ class LogbookViewModelTest {
         f.vm.shareExport(); runCurrent()
 
         assertFalse(f.vm.exportDialogVisible.value)
-        assertTrue(f.vm.shareUri.value != null)
-        f.vm.consumeShareUri()
-        assertNull(f.vm.shareUri.value)
+        assertTrue(f.vm.exportFeedback.shareUri.value != null)
+        f.vm.exportFeedback.consumeShareUri()
+        assertNull(f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
@@ -295,13 +295,13 @@ class LogbookViewModelTest {
         f.vm.delete(1); runCurrent()
 
         f.vm.shareExport(); runCurrent()
-        assertTrue(f.vm.nothingToExport.value)
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
         f.vm.saveExportTo(mockk()); runCurrent()
 
         coVerify(exactly = 0) { f.exporter.exportToCsv(any()) }
         coVerify(exactly = 0) { f.exporter.saveCsv(any(), any()) }
-        f.vm.consumeNothingToExport()
-        assertFalse(f.vm.nothingToExport.value)
+        f.vm.exportFeedback.consumeNothingToExport()
+        assertFalse(f.vm.exportFeedback.nothingToExport.value)
     }
 
     @Test
@@ -339,19 +339,19 @@ class LogbookViewModelTest {
 
         coEvery { f.exporter.exportToCsv(any()) } throws IOException("disk full")
         f.vm.shareExport(); runCurrent()
-        assertEquals("disk full", f.vm.exportError.value)
+        assertEquals("disk full", f.vm.exportFeedback.error.value)
 
-        f.vm.consumeExportError()
+        f.vm.exportFeedback.consumeError()
         coEvery { f.exporter.exportToCsv(any()) } throws IllegalArgumentException()
         f.vm.shareExport(); runCurrent()
-        assertEquals("auch beim Teilen hat ein Fehler ohne Meldung einen Text", "IllegalArgumentException", f.vm.exportError.value)
+        assertEquals("auch beim Teilen hat ein Fehler ohne Meldung einen Text", "IllegalArgumentException", f.vm.exportFeedback.error.value)
 
-        f.vm.consumeExportError()
+        f.vm.exportFeedback.consumeError()
         coEvery { f.exporter.saveCsv(any(), any()) } throws IllegalStateException()
         f.vm.saveExportTo(mockk()); runCurrent()
-        assertEquals("IllegalStateException", f.vm.exportError.value)
+        assertEquals("IllegalStateException", f.vm.exportFeedback.error.value)
         assertFalse(f.vm.saved.value)
-        assertNull(f.vm.shareUri.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
@@ -364,7 +364,7 @@ class LogbookViewModelTest {
 
         f.vm.shareExport(); runCurrent()
 
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
     }
 
     @Test
@@ -375,7 +375,7 @@ class LogbookViewModelTest {
 
         f.vm.shareExport(); runCurrent()
 
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
     }
 
     @Test
@@ -684,7 +684,7 @@ class LogbookViewModelTest {
 
         f.vm.saveExportTo(mockk<Uri>()); runCurrent()
 
-        assertNull("ein Abbruch ist kein Fehler", f.vm.exportError.value)
+        assertNull("ein Abbruch ist kein Fehler", f.vm.exportFeedback.error.value)
         assertFalse(f.vm.saved.value)
     }
 

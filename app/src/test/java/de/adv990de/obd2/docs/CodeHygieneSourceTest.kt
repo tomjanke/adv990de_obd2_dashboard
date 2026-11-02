@@ -45,6 +45,7 @@ class CodeHygieneSourceTest {
     private val previewExempt: Map<String, String> = mapOf(
         "ui/UiText.kt" to "kein sichtbares Composable: loest nur Text auf (UiText.asString)",
         "ui/components/ExportChoiceDialog.kt" to "der gemeinsame Rumpf zweier Dialoge: ihre Vorschauen (ExportAllDialog.kt, AppLogExportDialog.kt) zeigen ihn in beiden Flaechen",
+        "ui/components/ExportFeedbackEffects.kt" to "Effekte ohne eigene Darstellung: sie zeigen in den Snackbar-Host des Aufrufers und oeffnen das Teilen-Menue des Systems",
         "ui/components/UndoSnackbarEffect.kt" to "ein Effekt ohne eigene Darstellung, er zeigt in den Snackbar-Host des Aufrufers",
         "ui/dashboard/DashboardScreen.kt" to "braucht hiltViewModel(); die Bausteine (RpmBar, Kacheln, Banner) haben Vorschauen in DashboardComponents.kt, OilTemperatureBarStrip.kt, ConnectionIndicator.kt, DashboardSlotGrid.kt und SlotComponents.kt",
         "ui/freezeframe/FreezeFrameScreen.kt" to "braucht hiltViewModel() und hat keinen zustandslosen Teil",

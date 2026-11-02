@@ -285,10 +285,10 @@ class AppLogsViewModelTest {
         f.vm.shareExport(); runCurrent()
 
         assertFalse(f.vm.exportDialogVisible.value)
-        assertEquals(uri, f.vm.shareUri.value)
+        assertEquals(uri, f.vm.exportFeedback.shareUri.value)
         coVerify(exactly = 1) { f.exporter.exportToCsv(0L) }
-        f.vm.consumeShareUri()
-        assertNull(f.vm.shareUri.value)
+        f.vm.exportFeedback.consumeShareUri()
+        assertNull(f.vm.exportFeedback.shareUri.value)
         job.cancel()
     }
 
@@ -317,11 +317,11 @@ class AppLogsViewModelTest {
 
         f.vm.confirmClear(); runCurrent()                                        // everything hidden, undo window open
         f.vm.shareExport(); runCurrent()
-        assertTrue(f.vm.nothingToExport.value)
-        f.vm.consumeNothingToExport()
-        assertFalse(f.vm.nothingToExport.value)
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
+        f.vm.exportFeedback.consumeNothingToExport()
+        assertFalse(f.vm.exportFeedback.nothingToExport.value)
         f.vm.saveExportTo(mockk()); runCurrent()
-        assertTrue(f.vm.nothingToExport.value)
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
 
         coVerify(exactly = 0) { f.exporter.exportToCsv(any()) }
         coVerify(exactly = 0) { f.exporter.saveCsv(any(), any()) }
@@ -335,13 +335,13 @@ class AppLogsViewModelTest {
 
         coEvery { f.exporter.exportToCsv(any()) } throws IOException("disk full")
         f.vm.shareExport(); runCurrent()
-        assertEquals("disk full", f.vm.exportError.value)
-        assertNull(f.vm.shareUri.value)
+        assertEquals("disk full", f.vm.exportFeedback.error.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
 
-        f.vm.consumeExportError()
+        f.vm.exportFeedback.consumeError()
         coEvery { f.exporter.exportToCsv(any()) } throws IllegalStateException()
         f.vm.shareExport(); runCurrent()
-        assertEquals("IllegalStateException", f.vm.exportError.value)
+        assertEquals("IllegalStateException", f.vm.exportFeedback.error.value)
         job.cancel()
     }
 
@@ -356,7 +356,7 @@ class AppLogsViewModelTest {
 
         coVerify(exactly = 1) { f.exporter.saveCsv(target, 0L) }
         assertTrue(f.vm.saved.value)
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
         f.vm.consumeSaved()
         assertFalse(f.vm.saved.value)
         job.cancel()
@@ -370,7 +370,7 @@ class AppLogsViewModelTest {
 
         f.vm.saveExportTo(mockk()); runCurrent()
 
-        assertEquals("The chosen file could not be opened for writing", f.vm.exportError.value)
+        assertEquals("The chosen file could not be opened for writing", f.vm.exportFeedback.error.value)
         assertFalse(f.vm.saved.value)
         job.cancel()
     }
@@ -383,14 +383,14 @@ class AppLogsViewModelTest {
         coEvery { f.exporter.saveCsv(any(), any()) } throws IOException("no space") andThen Unit
 
         f.vm.shareExport(); runCurrent()
-        assertEquals("disk full", f.vm.exportError.value)
+        assertEquals("disk full", f.vm.exportFeedback.error.value)
         f.vm.shareExport(); runCurrent()                       // the error was not consumed, the retry works
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
 
         f.vm.saveExportTo(mockk()); runCurrent()
-        assertEquals("no space", f.vm.exportError.value)
+        assertEquals("no space", f.vm.exportFeedback.error.value)
         f.vm.saveExportTo(mockk()); runCurrent()
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
         assertTrue(f.vm.saved.value)
         job.cancel()
     }
@@ -405,7 +405,7 @@ class AppLogsViewModelTest {
         f.vm.shareExport(); runCurrent()
         f.vm.saveExportTo(mockk()); runCurrent()
 
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
         assertFalse(f.vm.saved.value)
         job.cancel()
     }

@@ -41,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,10 +65,10 @@ import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
-import de.adv990de.obd2.ui.components.shareCsv
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import kotlinx.coroutines.launch
@@ -119,10 +118,7 @@ internal fun LogbookScreen(
     val filter by vm.filter.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
     val exportDialogVisible by vm.exportDialogVisible.collectAsStateWithLifecycle()
-    val shareUri by vm.shareUri.collectAsStateWithLifecycle()
-    val exportError by vm.exportError.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
-    val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -136,37 +132,16 @@ internal fun LogbookScreen(
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.pickImport(uri) }
 
     // Strings auf Composable-Ebene aufloesen (context.getString() in einem Effekt umgeht die Recomposition bei Sprachwechsel).
-    val shareChooserTitle = stringResource(R.string.logbook_export_title)
-    val shareNoAppMessage = stringResource(R.string.history_share_no_app)
-    val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
-    val savedMessage = stringResource(R.string.logbook_export_saved)
-    val nothingToExportMessage = stringResource(R.string.logbook_export_none)
     val dialogUnavailableMessage = stringResource(R.string.history_save_unavailable)
 
-    LaunchedEffect(shareUri) {
-        shareUri?.let { uri ->
-            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
-            vm.consumeShareUri()
-        }
-    }
-    LaunchedEffect(saved) {
-        if (saved) {
-            snackbarHostState.showSnackbar(savedMessage)
-            vm.consumeSaved()
-        }
-    }
-    LaunchedEffect(nothingToExport) {
-        if (nothingToExport) {
-            snackbarHostState.showSnackbar(nothingToExportMessage)
-            vm.consumeNothingToExport()
-        }
-    }
-    LaunchedEffect(exportErrorMessage) {
-        exportErrorMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            vm.consumeExportError()
-        }
-    }
+    ExportFeedbackEffects(
+        feedback = vm.exportFeedback,
+        snackbarHostState = snackbarHostState,
+        shareChooserTitle = stringResource(R.string.logbook_export_title),
+        nothingToExportMessage = stringResource(R.string.logbook_export_none),
+        savedMessage = if (saved) stringResource(R.string.logbook_export_saved) else null,
+        onSavedShown = vm::consumeSaved,
+    )
 
     // Der Loesch-Vertrag: Papierkorb oder Wischen -> der Eintrag verschwindet sofort -> "Rueckgaengig" so lange wie das Fenster -> erst dann wirklich geloescht.
     UndoSnackbarEffect(

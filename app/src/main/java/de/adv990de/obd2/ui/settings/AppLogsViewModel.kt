@@ -9,8 +9,8 @@ import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.appLogExportFileName
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.ui.components.ExportFeedback
 import de.adv990de.obd2.ui.components.UndoableDeletion
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -76,23 +75,13 @@ class AppLogsViewModel @Inject constructor(
     /** The dialog "Log exportieren" (share or save); lives here so a rotation keeps it open. */
     val exportDialogVisible: StateFlow<Boolean> = _exportDialogVisible.asStateFlow()
 
-    private val _shareUri = MutableStateFlow<Uri?>(null)
-
-    /** Non-null once "Teilen" wrote the file: the screen hands it to the share chooser and calls [consumeShareUri]. */
-    val shareUri: StateFlow<Uri?> = _shareUri.asStateFlow()
-
-    private val _exportError = MutableStateFlow<String?>(null)
-    val exportError: StateFlow<String?> = _exportError.asStateFlow()
+    /** The share chooser, the error and "nothing to export" of the export; the screen shows them with `ExportFeedbackEffects`. */
+    val exportFeedback = ExportFeedback()
 
     private val _saved = MutableStateFlow(false)
 
     /** True after the log was written into the file the user chose (the snackbar says so). */
     val saved: StateFlow<Boolean> = _saved.asStateFlow()
-
-    private val _nothingToExport = MutableStateFlow(false)
-
-    /** True when an export was asked for but no line is visible any more (all hidden by a delete-all that can still be undone). */
-    val nothingToExport: StateFlow<Boolean> = _nothingToExport.asStateFlow()
 
     /** Top-bar export: ask how (share or save) — but only if there is something to export. */
     fun requestExport() {
@@ -113,59 +102,28 @@ class AppLogsViewModel @Inject constructor(
     fun shareExport() {
         _exportDialogVisible.value = false
         if (logs.value.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport() // no line is visible any more (all hidden by a delete-all that can still be undone)
             return
         }
         val afterId = exportAfterId()
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                _shareUri.value = appLogExporter.exportToCsv(afterId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchShare(viewModelScope) { appLogExporter.exportToCsv(afterId) }
     }
 
     /** "Speichern": the same CSV, written into the file the user chose with the system dialog ([target]). */
     fun saveExportTo(target: Uri) {
         if (logs.value.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport()
             return
         }
         val afterId = exportAfterId()
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                appLogExporter.saveCsv(target, afterId)
-                _saved.value = true
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchSave(viewModelScope, onSaved = { _saved.value = true }) { appLogExporter.saveCsv(target, afterId) }
     }
 
     /** The name the system file dialog proposes: `applog_<UTC time>.csv`. */
     fun exportFileName(): String = appLogExportFileName(System.currentTimeMillis())
 
-    fun consumeShareUri() {
-        _shareUri.value = null
-    }
-
-    fun consumeExportError() {
-        _exportError.value = null
-    }
-
     fun consumeSaved() {
         _saved.value = false
-    }
-
-    fun consumeNothingToExport() {
-        _nothingToExport.value = false
     }
 
     /** The undo snackbar goes away with the screen, so the delete becomes final right now. */

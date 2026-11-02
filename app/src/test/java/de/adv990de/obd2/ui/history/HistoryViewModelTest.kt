@@ -91,7 +91,7 @@ class HistoryViewModelTest {
     // ── export (unchanged behaviour) ──────────────────────────────────────────
 
     @Test
-    fun `export sets shareUri on success`() = runTest {
+    fun `export sets the share uri on success`() = runTest {
         val uri = mockk<Uri>()
         val f = fixture()
         coEvery { f.repo.exportToCsv(42L) } returns uri
@@ -99,46 +99,46 @@ class HistoryViewModelTest {
         f.vm.export(42L)
         advanceUntilIdle()
 
-        assertEquals(uri, f.vm.shareUri.value)
-        assertNull(f.vm.exportError.value)
+        assertEquals(uri, f.vm.exportFeedback.shareUri.value)
+        assertNull(f.vm.exportFeedback.error.value)
     }
 
     @Test
-    fun `export sets exportError on failure`() = runTest {
+    fun `export sets the export error on failure`() = runTest {
         val f = fixture()
         coEvery { f.repo.exportToCsv(any()) } throws Exception("write failed")
 
         f.vm.export(1L)
         advanceUntilIdle()
 
-        assertEquals("write failed", f.vm.exportError.value)
-        assertNull(f.vm.shareUri.value)
+        assertEquals("write failed", f.vm.exportFeedback.error.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
-    fun `consumeShareUri clears shareUri`() = runTest {
+    fun `consumeShareUri clears the share uri`() = runTest {
         val f = fixture()
         coEvery { f.repo.exportToCsv(any()) } returns mockk<Uri>()
         f.vm.export(1L)
         advanceUntilIdle()
-        assertNotNull(f.vm.shareUri.value)
+        assertNotNull(f.vm.exportFeedback.shareUri.value)
 
-        f.vm.consumeShareUri()
+        f.vm.exportFeedback.consumeShareUri()
 
-        assertNull(f.vm.shareUri.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
-    fun `consumeExportError clears exportError`() = runTest {
+    fun `consumeError clears the export error`() = runTest {
         val f = fixture()
         coEvery { f.repo.exportToCsv(any()) } throws Exception("some error")
         f.vm.export(1L)
         advanceUntilIdle()
-        assertNotNull(f.vm.exportError.value)
+        assertNotNull(f.vm.exportFeedback.error.value)
 
-        f.vm.consumeExportError()
+        f.vm.exportFeedback.consumeError()
 
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
     }
 
     @Test
@@ -395,9 +395,9 @@ class HistoryViewModelTest {
         runCurrent()
 
         coVerify(exactly = 1) { f.repo.exportSessionsToCsv(listOf(1L, 2L)) }
-        assertEquals(uri, f.vm.shareUri.value)
+        assertEquals(uri, f.vm.exportFeedback.shareUri.value)
         assertFalse(f.vm.exportAllDialogVisible.value)
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
         job.cancel()
     }
 
@@ -437,11 +437,11 @@ class HistoryViewModelTest {
         f.vm.exportAll()
         runCurrent()
 
-        assertTrue(f.vm.nothingToExport.value)
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
         coVerify(exactly = 0) { f.repo.exportSessionsToCsv(any()) }
-        assertNull(f.vm.shareUri.value)
-        f.vm.consumeNothingToExport()
-        assertFalse(f.vm.nothingToExport.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
+        f.vm.exportFeedback.consumeNothingToExport()
+        assertFalse(f.vm.exportFeedback.nothingToExport.value)
         job.cancel()
     }
 
@@ -454,8 +454,8 @@ class HistoryViewModelTest {
         f.vm.exportAll()
         runCurrent()
 
-        assertEquals("write failed", f.vm.exportError.value)
-        assertNull(f.vm.shareUri.value)
+        assertEquals("write failed", f.vm.exportFeedback.error.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
         job.cancel()
     }
 
@@ -470,7 +470,7 @@ class HistoryViewModelTest {
 
         coVerify(exactly = 1) { f.repo.saveSessionsCsv(listOf(1L, 2L), target) }
         assertEquals(2, f.vm.savedCount.value)
-        assertNull(f.vm.shareUri.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
         f.vm.consumeSaved()
         assertNull(f.vm.savedCount.value)
         job.cancel()
@@ -485,7 +485,7 @@ class HistoryViewModelTest {
         f.vm.saveAllTo(mockk())
         runCurrent()
 
-        assertEquals("no space left", f.vm.exportError.value)
+        assertEquals("no space left", f.vm.exportFeedback.error.value)
         assertNull(f.vm.savedCount.value)
         job.cancel()
     }
@@ -498,7 +498,7 @@ class HistoryViewModelTest {
         f.vm.saveAllTo(mockk())
         runCurrent()
 
-        assertTrue(f.vm.nothingToExport.value)
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
         coVerify(exactly = 0) { f.repo.saveSessionsCsv(any(), any()) }
         job.cancel()
     }
@@ -563,8 +563,8 @@ class HistoryViewModelTest {
 
         f.vm.export(1); runCurrent()
 
-        assertNull("ein Abbruch ist kein Fehler", f.vm.exportError.value)
-        assertNull(f.vm.shareUri.value)
+        assertNull("ein Abbruch ist kein Fehler", f.vm.exportFeedback.error.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
     }
 
     @Test
@@ -575,8 +575,8 @@ class HistoryViewModelTest {
 
         f.vm.exportAll(); runCurrent()
 
-        assertNull(f.vm.exportError.value)
-        assertNull(f.vm.shareUri.value)
+        assertNull(f.vm.exportFeedback.error.value)
+        assertNull(f.vm.exportFeedback.shareUri.value)
         job.cancel()
     }
 
@@ -588,7 +588,7 @@ class HistoryViewModelTest {
 
         f.vm.saveAllTo(mockk()); runCurrent()
 
-        assertNull(f.vm.exportError.value)
+        assertNull(f.vm.exportFeedback.error.value)
         assertNull(f.vm.savedCount.value)
         job.cancel()
     }

@@ -26,6 +26,7 @@ import de.adv990de.obd2.logbook.maintenanceRows
 import de.adv990de.obd2.logbook.logbookFileName
 import de.adv990de.obd2.logbook.logbookInsights
 import de.adv990de.obd2.ui.UiText
+import de.adv990de.obd2.ui.components.ExportFeedback
 import de.adv990de.obd2.ui.components.UndoableDeletion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -143,23 +144,13 @@ class LogbookViewModel @Inject constructor(
     /** Der Dialog "Logbuch exportieren" (Teilen oder Speichern); liegt hier, damit eine Drehung ihn offen laesst. */
     val exportDialogVisible: StateFlow<Boolean> = _exportDialogVisible.asStateFlow()
 
-    private val _shareUri = MutableStateFlow<Uri?>(null)
-
-    /** Nicht null, sobald "Teilen" die Datei geschrieben hat: die Oberflaeche reicht sie dem Teilen-Menue und ruft [consumeShareUri]. */
-    val shareUri: StateFlow<Uri?> = _shareUri.asStateFlow()
-
-    private val _exportError = MutableStateFlow<String?>(null)
-    val exportError: StateFlow<String?> = _exportError.asStateFlow()
+    /** Teilen-Menue, Fehler und „nichts zu exportieren“ des Exports; die Oberflaeche zeigt sie mit `ExportFeedbackEffects`. */
+    val exportFeedback = ExportFeedback()
 
     private val _saved = MutableStateFlow(false)
 
     /** Wahr, nachdem das Logbuch in die vom Nutzer gewaehlte Datei geschrieben wurde (die Snackbar sagt es). */
     val saved: StateFlow<Boolean> = _saved.asStateFlow()
-
-    private val _nothingToExport = MutableStateFlow(false)
-
-    /** Wahr, wenn exportiert werden sollte, aber nichts mehr sichtbar ist (alles im Rueckgaengig-Fenster ausgeblendet). */
-    val nothingToExport: StateFlow<Boolean> = _nothingToExport.asStateFlow()
 
     /** Export-Symbol der Kopfleiste: erst fragen, wie — aber nur, wenn es etwas zu exportieren gibt. */
     fun requestExport() {
@@ -174,59 +165,28 @@ class LogbookViewModel @Inject constructor(
     fun shareExport() {
         _exportDialogVisible.value = false
         if (visible.value.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport() // nichts mehr sichtbar (alles im Rueckgaengig-Fenster ausgeblendet)
             return
         }
         val hidden = deletion.pending.value
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                _shareUri.value = exporter.exportToCsv(hidden)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchShare(viewModelScope) { exporter.exportToCsv(hidden) }
     }
 
     /** "Speichern": dieselbe CSV, in die Datei geschrieben, die der Nutzer mit dem Dateidialog gewaehlt hat ([target]). */
     fun saveExportTo(target: Uri) {
         if (visible.value.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport()
             return
         }
         val hidden = deletion.pending.value
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                exporter.saveCsv(target, hidden)
-                _saved.value = true
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchSave(viewModelScope, onSaved = { _saved.value = true }) { exporter.saveCsv(target, hidden) }
     }
 
     /** Der Name, den der Dateidialog des Systems vorschlaegt: `logbook_<UTC-Zeit>.csv`. */
     fun exportFileName(): String = logbookFileName(System.currentTimeMillis())
 
-    fun consumeShareUri() {
-        _shareUri.value = null
-    }
-
-    fun consumeExportError() {
-        _exportError.value = null
-    }
-
     fun consumeSaved() {
         _saved.value = false
-    }
-
-    fun consumeNothingToExport() {
-        _nothingToExport.value = false
     }
 
     // ── Import ──

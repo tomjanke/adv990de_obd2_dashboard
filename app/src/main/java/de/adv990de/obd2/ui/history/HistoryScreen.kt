@@ -46,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -63,9 +62,9 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.VinDecoder
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
-import de.adv990de.obd2.ui.components.shareCsv
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import androidx.compose.ui.tooling.preview.Preview
@@ -80,8 +79,6 @@ fun HistoryScreen(
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
 ) {
     val sessions = vm.sessions.collectAsLazyPagingItems()
-    val shareUri by vm.shareUri.collectAsStateWithLifecycle()
-    val exportError by vm.exportError.collectAsStateWithLifecycle()
     val activeSessionId by vm.activeSessionId.collectAsStateWithLifecycle()
     val canDeleteAll by vm.canDeleteAll.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
@@ -92,8 +89,6 @@ fun HistoryScreen(
     val finishedTripCount by vm.finishedTripCount.collectAsStateWithLifecycle()
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val savedCount by vm.savedCount.collectAsStateWithLifecycle()
-    val nothingToExport by vm.nothingToExport.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
@@ -106,40 +101,16 @@ fun HistoryScreen(
 
     // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect
     // umgeht die Recomposition bei Sprach- oder Konfigurationswechsel.
-    val shareChooserTitle = stringResource(R.string.history_share_chooser)
-    val shareNoAppMessage = stringResource(R.string.history_share_no_app)
-    val exportErrorMessage = exportError?.let { stringResource(R.string.history_export_error_prefix, it) }
-    val savedMessage = savedCount?.let { pluralStringResource(R.plurals.history_export_saved, it, it) }
-    val nothingToExportMessage = stringResource(R.string.history_export_none)
     val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
 
-    LaunchedEffect(shareUri) {
-        shareUri?.let { uri ->
-            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
-            vm.consumeShareUri()
-        }
-    }
-
-    LaunchedEffect(savedMessage) {
-        savedMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            vm.consumeSaved()
-        }
-    }
-
-    LaunchedEffect(nothingToExport) {
-        if (nothingToExport) {
-            snackbarHostState.showSnackbar(nothingToExportMessage)
-            vm.consumeNothingToExport()
-        }
-    }
-
-    LaunchedEffect(exportErrorMessage) {
-        exportErrorMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            vm.consumeExportError()
-        }
-    }
+    ExportFeedbackEffects(
+        feedback = vm.exportFeedback,
+        snackbarHostState = snackbarHostState,
+        shareChooserTitle = stringResource(R.string.history_share_chooser),
+        nothingToExportMessage = stringResource(R.string.history_export_none),
+        savedMessage = savedCount?.let { pluralStringResource(R.plurals.history_export_saved, it, it) },
+        onSavedShown = vm::consumeSaved,
+    )
 
     // The shared local-delete contract: row trash or swipe -> the trip disappears at once -> the
     // "Rückgängig" snackbar for the length of the undo window -> only then really deleted.

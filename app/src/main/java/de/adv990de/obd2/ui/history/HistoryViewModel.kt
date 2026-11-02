@@ -13,6 +13,7 @@ import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.exportAllFileName as sharedExportFileName
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.ui.components.ExportFeedback
 import de.adv990de.obd2.ui.components.UndoableDeletion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +25,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -88,11 +88,8 @@ class HistoryViewModel @Inject constructor(
     private val _deleteAllConfirmationVisible = MutableStateFlow(false)
     val deleteAllConfirmationVisible: StateFlow<Boolean> = _deleteAllConfirmationVisible.asStateFlow()
 
-    private val _shareUri = MutableStateFlow<Uri?>(null)
-    val shareUri: StateFlow<Uri?> = _shareUri
-
-    private val _exportError = MutableStateFlow<String?>(null)
-    val exportError: StateFlow<String?> = _exportError
+    /** Teilen-Menue, Fehler und „nichts zu exportieren“ der Exporte (ein Fahrt und alle); die Seite zeigt sie mit `ExportFeedbackEffects`. */
+    val exportFeedback = ExportFeedback()
 
     private val _exportAllDialogVisible = MutableStateFlow(false)
 
@@ -103,11 +100,6 @@ class HistoryViewModel @Inject constructor(
 
     /** Non-null after the trips were written into the file the user chose: how many (the snackbar says "n Fahrten gespeichert"). */
     val savedCount: StateFlow<Int?> = _savedCount.asStateFlow()
-
-    private val _nothingToExport = MutableStateFlow(false)
-
-    /** True when an export was asked for but no finished trip is left (they were deleted meanwhile) — the screen says so. */
-    val nothingToExport: StateFlow<Boolean> = _nothingToExport.asStateFlow()
 
     /** Row trash button or swipe: no dialog, the snackbar offers undo. The recording is refused. */
     fun deleteSession(session: SessionEntity) {
@@ -156,16 +148,7 @@ class HistoryViewModel @Inject constructor(
         }
 
     fun export(sessionId: Long) {
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                _shareUri.value = sessionRepository.exportToCsv(sessionId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchShare(viewModelScope) { sessionRepository.exportToCsv(sessionId) }
     }
 
     /** Top-bar export: ask how (share or save) — but only if there is something to export. */
@@ -191,39 +174,20 @@ class HistoryViewModel @Inject constructor(
         _exportAllDialogVisible.value = false
         val ids = exportableIds()
         if (ids.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport()
             return
         }
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                _shareUri.value = sessionRepository.exportSessionsToCsv(ids)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchShare(viewModelScope) { sessionRepository.exportSessionsToCsv(ids) }
     }
 
     /** "Speichern": the same CSV, written into the file the user chose with the system dialog ([target]). */
     fun saveAllTo(target: Uri) {
         val ids = exportableIds()
         if (ids.isEmpty()) {
-            _nothingToExport.value = true
+            exportFeedback.reportNothingToExport()
             return
         }
-        viewModelScope.launch {
-            _exportError.value = null
-            try {
-                sessionRepository.saveSessionsCsv(ids, target)
-                _savedCount.value = ids.size
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _exportError.value = e.message ?: e.javaClass.simpleName
-            }
-        }
+        exportFeedback.launchSave(viewModelScope, onSaved = { _savedCount.value = ids.size }) { sessionRepository.saveSessionsCsv(ids, target) }
     }
 
     /** The name the system file dialog proposes: the shared name of an export of several trips, with the export time in UTC. */
@@ -231,18 +195,6 @@ class HistoryViewModel @Inject constructor(
 
     fun consumeSaved() {
         _savedCount.value = null
-    }
-
-    fun consumeNothingToExport() {
-        _nothingToExport.value = false
-    }
-
-    fun consumeShareUri() {
-        _shareUri.value = null
-    }
-
-    fun consumeExportError() {
-        _exportError.value = null
     }
 
     /** The undo snackbar goes away with the screen, so an open delete becomes final right now. */
