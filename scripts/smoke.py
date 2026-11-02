@@ -37,16 +37,33 @@ def adb(*args):
     return subprocess.run(["adb", *args], capture_output=True, text=True).stdout
 
 
-def dump_nodes():
-    local = os.path.join(tempfile.gettempdir(), "obd2_smoke_ui.xml")
-    adb("shell", "uiautomator", "dump", "/sdcard/obd2_smoke_ui.xml")
-    adb("pull", "/sdcard/obd2_smoke_ui.xml", local)
+DEVICE_DUMP = "/sdcard/obd2_smoke_ui.xml"
+
+
+def nodes_from_file(path):
+    """Die Knoten aus einer uiautomator-Datei. Eine fehlende oder unlesbare Datei ist ein LEERER Baum, kein Fehler: der Aufrufer wiederholt (siehe `tap_until`)."""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return []
     nodes = []
-    for n in ET.parse(local).getroot().iter("node"):
+    for n in root.iter("node"):
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
         nodes.append(dict(t=n.get("text") or "", d=n.get("content-desc") or "",
                           x1=x1, y1=y1, x2=x2, y2=y2, cx=(x1 + x2) // 2, cy=(y1 + y2) // 2))
     return nodes
+
+
+def dump_nodes():
+    local = os.path.join(tempfile.gettempdir(), "obd2_smoke_ui.xml")
+    # `uiautomator dump` meldet einen Fehler nicht und laesst die Datei des VORIGEN Dumps liegen: ohne das Loeschen vorab wuerde ein fehlgeschlagener Dump den Stand von davor
+    # als den aktuellen ausgeben (ein Tipp landete dann auf einer Position von vorher). Jetzt gibt es ohne neuen Dump gar keine Datei, und der Baum ist leer.
+    adb("shell", "rm", "-f", DEVICE_DUMP)
+    if os.path.exists(local):
+        os.remove(local)
+    adb("shell", "uiautomator", "dump", DEVICE_DUMP)
+    adb("pull", DEVICE_DUMP, local)
+    return nodes_from_file(local)
 
 
 def texts():
@@ -206,6 +223,21 @@ def poll(fn, timeout, interval, sleep=time.sleep, now=time.monotonic):
         sleep(interval)
 
 
+def tap_until(tap, seen, attempts=3, wait=4.0, interval=0.5, sleep=time.sleep, now=time.monotonic):
+    """Tippt (`tap()` liefert, ob es etwas zum Antippen gab) und wartet, bis `seen()` wahr ist; kommt es nicht, wird erneut getippt, hoechstens `attempts` Mal.
+
+    Ein einzelner Dump kann in einen Uebergang fallen (Segmente verschieben sich beim Umschalten) oder fehlschlagen: dann stand der Text nicht im Baum oder der Tipp traf ein sich
+    bewegendes Ziel. Ohne Tipp wird nur kurz gewartet und neu versucht — nicht auf ein Ziel gewartet, das nie angetippt wurde. Gibt (gelungen, Zahl der Versuche) zurueck.
+    """
+    for attempt in range(1, attempts + 1):
+        tapped = tap()
+        if tapped and poll(seen, wait, interval, sleep, now):
+            return True, attempt
+        if not tapped:
+            sleep(interval)
+    return False, attempts
+
+
 def simulator_button(label):
     """Schaltflaeche `label` ("Verbinden"/"Trennen") in der Zeile des Simulators antippen; False, wenn die Zeile sie nicht hat."""
     spot = row_button(dump_nodes(), SIMULATOR_ROW, label)
@@ -279,19 +311,22 @@ def main():
     check("App startet, Dashboard sichtbar", alive() and "Live" in t and any("DREHZAHL" in x.upper() for x in t), f"{len(t)} Texte")
 
     for tab in ("Fahrten", "Einstellungen"):
-        ok = tap_text(tab)
+        ok, tries = tap_until(lambda: tap_text(tab), lambda: True)
         time.sleep(2.5)
-        check(f"Reiter {tab} oeffnet", ok and alive())
+        check(f"Reiter {tab} oeffnet", ok and alive(), f"{tries} Versuche" if tries > 1 else "")
         if tab == "Fahrten":
             # Seit 1.33.0 sind DTCs und Verlauf EIN Reiter mit dem Umschalter "Fahrten | Aktuell | Historie", seit 1.42.0 mit dem vierten Bereich "Logbuch".
             # Ohne Fahrzeug liest "Aktuell" nichts ("Nicht verbunden"); es zaehlt, dass jeder Bereich oeffnet und die App weiterlaeuft.
             for section in ("Aktuell", "Historie", "Logbuch", "Fahrten"):
-                ok = tap_text(section)
+                # Im Logbuch wird auf den Knopf zum Anlegen gewartet (er gehoert dazu, auch ohne Eintraege); ein Tipp, der ein sich bewegendes Segment traf, wird wiederholt.
+                expected = (lambda: logbook_add_button(texts())) if section == "Logbuch" else (lambda: True)
+                ok, tries = tap_until(lambda: tap_text(section), expected)
                 time.sleep(1.5)
-                check(f"Bereich {section} oeffnet", ok and alive())
+                check(f"Bereich {section} oeffnet", ok and alive(), f"{tries} Versuche" if tries > 1 else "")
                 if section == "Logbuch":
-                    # Der Knopf zum Anlegen gehoert zum Logbuch (auch ohne Eintraege).
-                    check("Logbuch zeigt den Knopf Eintrag", logbook_add_button(texts()))
+                    seen = texts()
+                    # Schlaegt es fehl, steht die Ursache in der Ausgabe: was auf dem Bildschirm war.
+                    check("Logbuch zeigt den Knopf Eintrag", logbook_add_button(seen), "" if logbook_add_button(seen) else "gesehen: " + ", ".join(t for t in seen if t)[:300])
     tap_text("Live")
     time.sleep(2)
     check("Reiter Live zurueck", any("DREHZAHL" in x.upper() for x in texts()))

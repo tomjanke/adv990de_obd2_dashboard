@@ -7,6 +7,7 @@ Der JVM-Test `SmokeScriptTest` fuehrt diese Datei aus. Was hier nicht steht, lae
 """
 import importlib.util
 import os
+import tempfile
 import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -228,6 +229,92 @@ class LogbookAddButtonTest(unittest.TestCase):
 
     def test_no_button_without_the_logbook(self):
         self.assertFalse(smoke.logbook_add_button(["Fahrten", "Aktuell", "Historie"]))
+
+
+class FakeClock:
+    """Eine Uhr, die nur durch sleep() vergeht — wie in PollTest."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def sleep(self, seconds):
+        self.t += seconds
+
+    def now(self):
+        return self.t
+
+
+class TapUntilTest(unittest.TestCase):
+    def run_tap_until(self, taps, seen, **kwargs):
+        """`taps` = die Antworten von tap() der Reihe nach, `seen` = Funktion von der Zeit (und der Zahl der Tipps) zur Erwartung."""
+        clock = FakeClock()
+        tapped = []
+
+        def tap():
+            tapped.append(clock.t)
+            return taps[min(len(tapped), len(taps)) - 1]
+
+        result = smoke.tap_until(tap, lambda: seen(clock.t, len(tapped)), sleep=clock.sleep, now=clock.now, **kwargs)
+        return result, tapped
+
+    def test_one_tap_is_enough_when_the_goal_shows_at_once(self):
+        result, tapped = self.run_tap_until([True], lambda t, n: True)
+        self.assertEqual((True, 1), result)
+        self.assertEqual(1, len(tapped))
+
+    def test_a_goal_that_shows_a_little_later_does_not_tap_again(self):
+        # Der Wechsel des Bereichs braucht einen Moment (Animation): innerhalb der Frist wird nur gewartet, nicht erneut getippt.
+        result, tapped = self.run_tap_until([True], lambda t, n: t >= 1.5, wait=4.0, interval=0.5)
+        self.assertEqual((True, 1), result)
+        self.assertEqual(1, len(tapped))
+
+    def test_a_goal_that_never_shows_is_tapped_again_and_then_given_up(self):
+        result, tapped = self.run_tap_until([True], lambda t, n: False, attempts=3, wait=2.0, interval=0.5)
+        self.assertEqual((False, 3), result)
+        self.assertEqual(3, len(tapped))
+
+    def test_a_second_tap_can_make_the_goal_show(self):
+        # Der erste Tipp traf ein sich bewegendes Ziel: erst nach dem zweiten steht der Bereich da.
+        result, tapped = self.run_tap_until([True], lambda t, n: n >= 2, attempts=3, wait=1.0, interval=0.5)
+        self.assertEqual((True, 2), result)
+        self.assertEqual(2, len(tapped))
+
+    def test_nothing_to_tap_is_tried_again_without_waiting_for_the_goal(self):
+        # Der Text stand beim ersten Abruf nicht im Baum (Uebergang, fehlgeschlagener Dump): erneut versuchen, nicht auf ein Ziel warten, das nie angetippt wurde.
+        result, tapped = self.run_tap_until([False, True], lambda t, n: n >= 2, attempts=3, wait=10.0, interval=0.5)
+        self.assertEqual((True, 2), result)
+        self.assertEqual([0.0, 0.5], tapped)
+
+    def test_nothing_to_tap_at_all_gives_up_after_the_attempts(self):
+        result, tapped = self.run_tap_until([False], lambda t, n: True, attempts=3, interval=0.5)
+        self.assertEqual((False, 3), result)
+        self.assertEqual(3, len(tapped))
+
+
+class NodesFromFileTest(unittest.TestCase):
+    def write(self, text):
+        handle = tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False, encoding="utf-8")
+        handle.write(text)
+        handle.close()
+        self.addCleanup(os.remove, handle.name)
+        return handle.name
+
+    def test_reads_text_description_and_bounds(self):
+        path = self.write(
+            '<?xml version="1.0" encoding="UTF-8"?><hierarchy>'
+            '<node text="Logbuch" content-desc="" bounds="[10,20][110,60]"/>'
+            '<node text="" content-desc="Eintrag hinzuf\u00fcgen" bounds="[0,100][200,300]"/></hierarchy>'
+        )
+        nodes = smoke.nodes_from_file(path)
+        self.assertEqual(["Logbuch", ""], [n["t"] for n in nodes])
+        self.assertEqual("Eintrag hinzuf\u00fcgen", nodes[1]["d"])
+        self.assertEqual((60, 40), (nodes[0]["cx"], nodes[0]["cy"]))
+
+    def test_a_missing_file_is_an_empty_tree_not_an_error(self):
+        self.assertEqual([], smoke.nodes_from_file(os.path.join(tempfile.gettempdir(), "obd2_smoke_does_not_exist.xml")))
+
+    def test_a_broken_file_is_an_empty_tree_not_an_error(self):
+        self.assertEqual([], smoke.nodes_from_file(self.write("<hierarchy><node")))
 
 
 if __name__ == "__main__":
