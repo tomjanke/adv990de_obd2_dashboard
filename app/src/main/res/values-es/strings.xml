@@ -1,0 +1,677 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name">Bike OBD2 Monitor</string>
+    <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
+    <string name="app_label">BOM</string>
+    <string name="dashboard_slot_empty">Mantén pulsado para asignar un sensor</string>
+    <string name="dashboard_slot_change_action">Cambiar sensor</string>
+    <string name="dashboard_slot_unsupported">El vehículo no lo proporciona</string>
+    <string name="dashboard_slot_waiting_gps">Esperando la señal GPS</string>
+    <string name="dashboard_slot_gps_permission">Falta el permiso de ubicación</string>
+    <string name="dashboard_slot_terrain_gps_off">Activa la velocidad por GPS en los ajustes</string>
+    <string name="dashboard_preview_banner">Vista previa · sin conexión</string>
+    <string name="dashboard_preview_banner_attempt">Vista previa · intento de conexión %1$d/%2$d</string>
+    <string name="dashboard_preview_banner_connecting">Vista previa · conectando…</string>
+    <string name="values_lost_frozen_title">Valores congelados</string>
+    <string name="values_lost_frozen_detail">Los valores del vehículo no se muestran ni se registran</string>
+    <string name="values_lost_silent_title">Sin valores actuales</string>
+    <string name="values_lost_frozen_reconnecting">Valores congelados · reconectando %1$d/%2$d</string>
+    <string name="values_lost_frozen_reconnecting_start">Valores congelados · reconectando…</string>
+    <string name="dashboard_waiting_banner">Conectado · esperando lecturas</string>
+
+    <!-- Dashboard screen — error / status messages -->
+    <string name="err_no_device">No hay ningún dispositivo conocido al que reconectar.</string>
+    <string name="err_reconnect_fail">Conexión perdida definitivamente.</string>
+    <string name="dashboard_bt_connected_desc">Bluetooth conectado</string>
+    <string name="dashboard_bt_disconnected_desc">Bluetooth desconectado</string>
+    <string name="dashboard_bt_connecting_desc">Bluetooth conectando</string>
+    <string name="dashboard_rpm_bar_desc">Régimen del motor: %1$d rpm</string>
+    <string name="dashboard_rpm_bar_unavailable_desc">Régimen del motor no disponible</string>
+    <string name="dashboard_gear_desc">Marcha %1$d</string>
+    <string name="dashboard_gear_unknown_desc">Marcha desconocida</string>
+    <string name="dashboard_gear_neutral_desc">Punto muerto</string>
+    <string name="dashboard_gear_neutral_symbol">N</string>
+
+    <!-- Simulated oil temperature bar (no visible label, accessibility only) -->
+    <string name="oil_bar_red_desc">Temperatura probable del aceite: fría</string>
+    <string name="oil_bar_yellow_desc">Temperatura probable del aceite: calentando</string>
+    <string name="oil_bar_warmup_desc">Temperatura probable del aceite: calentando, faltan %1$s para que la barra se ponga verde</string>
+    <string name="oil_bar_green_desc">Temperatura probable del aceite: a temperatura de servicio</string>
+    <string name="oil_bar_unknown_desc">Temperatura probable del aceite: desconocida</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_disconnect">Desconectar</string>
+    <string name="settings_paired_devices">Dispositivos emparejados</string>
+    <string name="bluetooth_device_unnamed">Dispositivo sin nombre</string>
+    <string name="settings_no_paired_devices">No se ha encontrado ningún dispositivo OBD2 emparejado.\nEmpareja primero el adaptador en los ajustes Bluetooth del sistema.</string>
+    <string name="settings_vehicle_info">Info del vehículo</string>
+    <string name="settings_app_info">Info de la app</string>
+    <string name="settings_group_vehicle">Vehículo</string>
+    <string name="settings_group_info">Información y mantenimiento</string>
+    <string name="settings_gear_ratios_summary">Circunferencia de la rueda y relaciones para el indicador de marcha</string>
+    <string name="settings_vehicle_info_summary">VIN y datos del vehículo de la centralita</string>
+    <string name="settings_app_logs_summary">El registro de eventos de la app</string>
+    <string name="settings_app_info_summary">Versión, licencias y créditos</string>
+    <string name="settings_last_connected_desc">Última conexión</string>
+    <string name="settings_connect">Conectar</string>
+
+    <!-- App Info screen -->
+    <string name="app_info_title">Info de la app</string>
+    <string name="app_info_name_label">App</string>
+    <string name="app_info_version_label">Versión</string>
+    <string name="app_info_build_label">Compilación</string>
+    <string name="app_info_licenses">Licencias de código abierto</string>
+    <!-- TalkBack action label for the row ("Double-tap to show licenses") -->
+    <string name="app_info_licenses_action">mostrar licencias</string>
+    <string name="licenses_title">Licencias</string>
+    <string name="licenses_intro">Esta app usa los componentes de código abierto que figuran a continuación. Debajo siguen los textos completos de las licencias.</string>
+    <string name="licenses_texts_header">Textos de las licencias</string>
+    <string name="licenses_text_unavailable">No se pudo cargar el texto de la licencia.</string>
+    <string name="licenses_detail_androidx">Compose, Material 3, Navigation, Lifecycle, Room, DataStore, Paging, navegación con Hilt</string>
+    <string name="licenses_detail_kotlin">Biblioteca estándar, corrutinas, serialización</string>
+    <string name="licenses_detail_dagger">Inyección de dependencias</string>
+    <string name="licenses_detail_okio">Biblioteca de E/S que usa DataStore</string>
+    <string name="licenses_detail_sentry">Informes de fallos: solo activos en compilaciones con DSN</string>
+    <string name="licenses_detail_plex">Tipografía para los valores en vivo</string>
+    <string name="licenses_detail_grotesk">Tipografía de la interfaz</string>
+    <string name="app_info_crash_reports_label">Informes de fallos</string>
+    <string name="app_info_crash_reports_on">Activados: se envían a Sentry (se pueden desactivar en los ajustes)</string>
+    <string name="app_info_crash_reports_off">Desactivados (desactivados en los ajustes)</string>
+    <string name="app_info_crash_reports_not_included">No incluidos en esta versión: no se envía nada</string>
+    <string name="settings_crash_reports_title">Enviar informes de fallos</string>
+    <string name="settings_crash_reports_summary">Envía a Sentry detalles técnicos del error, el modelo del dispositivo y la versión de Android cuando la app falla o se cierra de forma inesperada.</string>
+    <string name="app_info_weather_attribution">Datos meteorológicos: Open-Meteo.com (CC BY 4.0)</string>
+    <!-- TalkBack action label for the attribution row ("Double-tap to open website") -->
+    <string name="app_info_open_website">abrir sitio web</string>
+    <string name="app_info_weather_license">Licencia: CC BY 4.0</string>
+    <!-- TalkBack action label for the license row ("Double-tap to open license") -->
+    <string name="app_info_open_license">abrir licencia</string>
+
+    <!-- Dashboard config screen -->
+    <string name="nav_back_desc">Atrás</string>
+    <string name="dashboard_rpm_threshold_label">Umbral de parpadeo de RPM</string>
+    <string name="dashboard_rpm_threshold_disabled">Desactivado</string>
+    <string name="dashboard_rpm_dynamic_label">Escalado dinámico del umbral</string>
+    <string name="dashboard_rpm_dynamic_desc">Ajusta el umbral de parpadeo según la temperatura del motor</string>
+
+    <!-- DTC screen -->
+    <string name="dtc_title">Averías (DTC)</string>
+    <string name="dtc_empty">No hay códigos de avería.</string>
+    <string name="dtc_badge_pending">Pendiente</string>
+    <string name="dtc_freeze_frame_link">Ver Freeze Frame</string>
+    <string name="dtc_tab_current">Actual</string>
+    <string name="dtc_tab_history">Historial</string>
+    <string name="trips_section_trips">Viajes</string>
+    <string name="not_connected">Sin conexión</string>
+    <string name="dtc_no_answer">La centralita no ha respondido, así que no se sabe si hay códigos de avería almacenados.</string>
+    <string name="dtc_badge_active">Activo</string>
+    <string name="dtc_history_empty">Aún no se ha registrado ninguna avería</string>
+    <string name="dtc_history_dates">Visto por primera vez %1$s · Visto por última vez %2$s</string>
+    <string name="dtc_history_cd_delete">Eliminar entrada</string>
+    <string name="dtc_history_cd_delete_all">Borrar historial</string>
+    <string name="dtc_history_delete_all_title">¿Borrar el historial de averías?</string>
+    <string name="dtc_history_delete_all_message">Se eliminarán todos los códigos de avería registrados. Las averías activas en este momento volverán a aparecer en la próxima lectura. Puedes deshacerlo durante unos instantes.</string>
+    <plurals name="dtc_history_deleted">
+        <item quantity="one">%1$d entrada eliminada</item>
+        <item quantity="many">%1$d entradas eliminadas</item>
+        <item quantity="other">%1$d entradas eliminadas</item>
+    </plurals>
+
+    <!-- Fault code descriptions (SAE J2012 names; the code itself is always shown next to them). Codes outside this list show dtc_unknown. -->
+    <string name="dtc_p0100">Fallo del circuito del flujo de aire (masa o volumen)</string>
+    <string name="dtc_p0101">Circuito del flujo de aire (masa o volumen): fuera de rango o rendimiento</string>
+    <string name="dtc_p0102">Circuito del flujo de aire (masa o volumen): señal baja</string>
+    <string name="dtc_p0103">Circuito del flujo de aire (masa o volumen): señal alta</string>
+    <string name="dtc_p0110">Fallo del circuito del sensor de temperatura del aire de admisión</string>
+    <string name="dtc_p0115">Fallo del circuito del sensor de temperatura del refrigerante del motor</string>
+    <string name="dtc_p0120">Fallo del circuito A del sensor de posición del acelerador o del pedal</string>
+    <string name="dtc_p0130">Fallo del circuito del sensor de O2 (banco 1, sensor 1)</string>
+    <string name="dtc_p0171">Mezcla demasiado pobre (banco 1)</string>
+    <string name="dtc_p0172">Mezcla demasiado rica (banco 1)</string>
+    <string name="dtc_p0175">Mezcla demasiado rica (banco 2)</string>
+    <string name="dtc_p0200">Fallo del circuito del inyector</string>
+    <string name="dtc_p0300">Fallos de encendido aleatorios o en varios cilindros detectados</string>
+    <string name="dtc_p0301">Fallo de encendido detectado en el cilindro 1</string>
+    <string name="dtc_p0302">Fallo de encendido detectado en el cilindro 2</string>
+    <string name="dtc_p0303">Fallo de encendido detectado en el cilindro 3</string>
+    <string name="dtc_p0304">Fallo de encendido detectado en el cilindro 4</string>
+    <string name="dtc_p0305">Fallo de encendido detectado en el cilindro 5</string>
+    <string name="dtc_p0306">Fallo de encendido detectado en el cilindro 6</string>
+    <string name="dtc_p0325">Fallo del circuito del sensor de detonación 1 (banco 1)</string>
+    <string name="dtc_p0335">Fallo del circuito A del sensor de posición del cigüeñal</string>
+    <string name="dtc_p0340">Fallo del circuito A del sensor de posición del árbol de levas (banco 1)</string>
+    <string name="dtc_p0400">Fallo del flujo de recirculación de gases de escape (EGR)</string>
+    <string name="dtc_p0401">Flujo insuficiente de recirculación de gases de escape (EGR)</string>
+    <string name="dtc_p0420">Eficiencia del catalizador por debajo del umbral (banco 1)</string>
+    <string name="dtc_p0421">Eficiencia del catalizador en calentamiento por debajo del umbral (banco 1)</string>
+    <string name="dtc_p0430">Eficiencia del catalizador por debajo del umbral (banco 2)</string>
+    <string name="dtc_p0440">Fallo del sistema de control de emisiones evaporativas</string>
+    <string name="dtc_p0442">Fuga detectada en el sistema de emisiones evaporativas (pequeña)</string>
+    <string name="dtc_p0455">Fuga detectada en el sistema de emisiones evaporativas (grande)</string>
+    <string name="dtc_p0500">Fallo del sensor de velocidad del vehículo</string>
+    <string name="dtc_p0505">Fallo del sistema de control del ralentí</string>
+    <string name="dtc_p0600">Fallo del enlace de comunicación serie</string>
+    <string name="dtc_p0700">Fallo del sistema de control de la transmisión</string>
+    <string name="dtc_p0711">Circuito del sensor de temperatura del aceite de la transmisión: fuera de rango o rendimiento</string>
+    <string name="dtc_p0730">Relación de marcha incorrecta</string>
+    <string name="dtc_p0740">Fallo del circuito del embrague del convertidor de par</string>
+    <string name="dtc_unknown">Código de avería desconocido</string>
+
+    <!-- Freeze Frame screen -->
+    <string name="freeze_frame_title">Freeze Frame</string>
+    <string name="freeze_frame_empty">No hay datos de Freeze Frame disponibles.</string>
+    <string name="freeze_frame_error_prefix">Error: %1$s</string>
+
+    <!-- Vehicle Info screen -->
+    <string name="vehicle_info_title">Info del vehículo</string>
+    <string name="vehicle_info_label_vin">VIN</string>
+    <string name="vehicle_info_loading">Leyendo…</string>
+    <string name="vehicle_info_empty">No hay VIN disponible.</string>
+
+    <!-- OBD error messages -->
+    <string name="obd_err_connection_lost">Se ha perdido la conexión con el adaptador.</string>
+    <string name="obd_err_bus_init">No se puede acceder al bus del vehículo.</string>
+    <string name="obd_err_timeout">El adaptador no responde.</string>
+    <string name="obd_err_init_failed">Ha fallado la inicialización del adaptador.</string>
+    <string name="obd_err_no_data">La centralita no ha respondido.</string>
+    <string name="obd_err_unknown_response">Respuesta incomprensible del adaptador.</string>
+    <string name="obd_err_connection_failed">No se pudo conectar con el adaptador.</string>
+    <string name="obd_err_device_not_found">Adaptador no encontrado. ¿Está emparejado y encendido?</string>
+    <string name="obd_err_bluetooth">Error de Bluetooth.</string>
+    <string name="obd_err_bluetooth_disabled">Bluetooth desactivado.</string>
+    <string name="obd_err_bluetooth_permission">Falta el permiso de Bluetooth. Concédelo en los ajustes del sistema.</string>
+
+    <!-- PermissionGate -->
+    <string name="permission_bt_title">Se necesita el permiso de Bluetooth</string>
+    <string name="permission_bt_rationale">La app necesita acceso a Bluetooth para comunicarse con el adaptador OBD2.</string>
+    <string name="permission_grant">Conceder permiso</string>
+    <string name="permission_settings_hint">Si Android ya no muestra el cuadro de permisos, permite Bluetooth en los ajustes de la app.</string>
+    <string name="permission_open_settings">Abrir los ajustes de la app</string>
+
+    <!-- BottomNav labels -->
+    <string name="nav_live">En vivo</string>
+    <string name="nav_trips">Viajes</string>
+    <string name="nav_exit">Salir</string>
+
+    <!-- Shared actions -->
+    <string name="retry">Reintentar</string>
+
+    <!-- History screen -->
+    <string name="history_title">Viajes</string>
+    <string name="history_empty">No hay viajes guardados.</string>
+    <string name="history_vin_unknown">VIN desconocido</string>
+    <string name="history_share_chooser">Exportar viaje</string>
+    <string name="history_share_no_app">No se ha encontrado ninguna app para compartir archivos CSV</string>
+    <string name="history_export_error_prefix">Error al exportar: %1$s</string>
+    <string name="history_cd_export">Exportar CSV</string>
+    <string name="history_cd_export_all">Exportar todos los viajes</string>
+    <string name="history_export_all_title">Exportar todos los viajes</string>
+    <plurals name="history_export_all_message">
+        <item quantity="one">%1$d viaje en un solo archivo CSV. La grabación en curso no se incluye.</item>
+        <item quantity="many">%1$d viajes en un solo archivo CSV. La grabación en curso no se incluye.</item>
+        <item quantity="other">%1$d viajes en un solo archivo CSV. La grabación en curso no se incluye.</item>
+    </plurals>
+    <string name="history_export_share">Compartir</string>
+    <string name="history_export_save">Guardar</string>
+    <plurals name="history_export_saved">
+        <item quantity="one">%1$d viaje guardado</item>
+        <item quantity="many">%1$d viajes guardados</item>
+        <item quantity="other">%1$d viajes guardados</item>
+    </plurals>
+    <string name="history_export_none">No hay ningún viaje terminado que exportar.</string>
+    <string name="history_save_unavailable">No hay ningún diálogo de archivos disponible</string>
+    <string name="history_cd_delete">Eliminar viaje</string>
+    <string name="history_cd_delete_all">Eliminar todos los viajes</string>
+    <string name="history_delete_all_title">¿Eliminar todos los viajes?</string>
+    <string name="history_delete_all_message">Se eliminarán todos los viajes guardados. Una grabación en curso se conserva. Puedes deshacerlo durante unos instantes.</string>
+    <plurals name="history_deleted">
+        <item quantity="one">%1$d viaje eliminado</item>
+        <item quantity="many">%1$d viajes eliminados</item>
+        <item quantity="other">%1$d viajes eliminados</item>
+    </plurals>
+    <string name="history_recording_active">Grabando</string>
+    <plurals name="history_dtc_badge">
+        <item quantity="one">%1$d avería</item>
+        <item quantity="many">%1$d averías</item>
+        <item quantity="other">%1$d averías</item>
+    </plurals>
+    <string name="history_cd_open_details">Ver detalles del viaje y códigos de avería</string>
+    <string name="history_detail_ended_unknown">Desconocido</string>
+    <string name="history_detail_meta">Fin: %1$s · VIN: %2$s</string>
+    <string name="history_detail_meta_no_vin">Fin: %1$s · VIN desconocido</string>
+    <string name="history_detail_dtcs_heading">Códigos de avería al inicio del viaje</string>
+    <string name="history_detail_dtcs_none">El vehículo no ha informado de ningún código de avería.</string>
+    <string name="history_detail_dtcs_unknown">No registrado en este viaje.</string>
+    <string name="history_detail_stats_heading">Lecturas del viaje</string>
+    <string name="history_detail_stats_min">Mín.</string>
+    <string name="history_detail_stats_max">Máx.</string>
+    <string name="history_detail_stats_missing">–</string>
+    <string name="history_detail_stats_loading">Leyendo los valores …</string>
+    <string name="history_detail_stats_failed">No se pudieron leer las lecturas.</string>
+    <string name="history_detail_stats_row_desc">%1$s: mínimo %2$s, máximo %3$s</string>
+    <string name="history_detail_stats_row_none_desc">%1$s: no registrado</string>
+    <string name="history_detail_stats_voltage_note">Voltaje solo con el motor en marcha, desde 15 s después del arranque.</string>
+    <string name="close">Cerrar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="undo">Deshacer</string>
+
+    <!-- Exit app dialog -->
+    <string name="exit_app_dialog_title">¿Salir de la app?</string>
+    <string name="exit_app_dialog_message">Se desconectará del adaptador OBD2 y se cerrará la app.</string>
+    <string name="exit_app_confirm">Sí, salir</string>
+
+    <!-- Recording settings section -->
+    <string name="settings_recording_section">Grabación</string>
+    <string name="settings_log_only_dtc">Guardar solo los viajes con DTC</string>
+    <string name="settings_log_only_dtc_desc">Los viajes sin códigos de avería del vehículo se descartan</string>
+
+    <!-- Connection settings section (OBD watchdog) -->
+    <string name="settings_connection_section">Conexión</string>
+    <string name="settings_obd_watchdog_timeout">Reconectar con lecturas congeladas</string>
+    <string name="settings_obd_watchdog_timeout_desc">Segundos sin ninguna actualización de los sensores, o con todos los valores sin cambios, antes de forzar una reconexión</string>
+    <string name="settings_reconnect_base_delay">Retraso base de reconexión</string>
+    <string name="settings_reconnect_base_delay_desc">Segundos antes del primer intento de reconexión; cada intento siguiente lo duplica</string>
+
+    <!-- Spoken description of one choice segment (the segment itself shows just the number) -->
+    <plurals name="settings_seconds_a11y">
+        <item quantity="one">%1$d segundo</item>
+        <item quantity="many">%1$d segundos</item>
+        <item quantity="other">%1$d segundos</item>
+    </plurals>
+    <!-- %1$s = the waits between attempts, e.g. "3 · 6 · 12 · 24 · 48"; %2$s = their sum as m:ss -->
+    <string name="settings_reconnect_base_delay_series">Esperas: %1$s s (%2$s min en total)</string>
+
+    <!-- Display settings section -->
+    <string name="settings_display_section">Panel y visualización</string>
+    <string name="settings_hide_nav_on_drive">Ocultar la barra de navegación al conducir</string>
+    <string name="settings_hide_nav_on_drive_desc">Vuelve a mostrarse automáticamente al detenerse. Mientras está oculta, en su lugar aparecen la fecha, la hora y la temperatura exterior de Open-Meteo (usa tu ubicación aproximada).</string>
+    <string name="settings_weather_permission_missing">Falta el permiso de ubicación: no se puede consultar la temperatura exterior. La fecha y la hora se mantienen.</string>
+    <string name="settings_permission_open_settings">Conceder en los ajustes de la app</string>
+    <string name="settings_imperial_units">Unidades imperiales</string>
+    <string name="settings_imperial_units_desc">Velocidad en mph, temperatura en °F</string>
+    <string name="settings_theme_system">Sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Oscuro</string>
+
+    <!-- Gear ratio settings screen (virtual gear indicator) -->
+    <string name="settings_gear_ratios">Relaciones de marcha</string>
+    <string name="gear_settings_title">Relaciones de marcha</string>
+    <string name="gear_settings_wheel_circumference">Circunferencia de la rueda (mm)</string>
+    <string name="gear_settings_primary_ratio">Relación de reducción primaria</string>
+    <string name="gear_settings_secondary_ratio">Relación secundaria (transmisión final)</string>
+    <string name="gear_settings_gear_n" tools:ignore="PluralsCandidate">Relación de la marcha %1$d</string>
+    <string name="gear_settings_invalid_value">Introduce un número positivo</string>
+    <string name="gear_settings_out_of_range">Permitido: de %1$s a %2$s</string>
+    <string name="gear_settings_out_of_range_or_off">Permitido: de %1$s a %2$s, o 0 = no usar esta marcha</string>
+    <string name="gear_settings_gear_off_hint">¿Menos marchas? Introduce 0 en cada marcha que la caja de cambios no tenga.</string>
+    <string name="gear_settings_ratio_conflict" tools:ignore="PluralsCandidate">La marcha %1$d y la marcha %2$d están tan próximas que el indicador de marcha puede no distinguirlas con fiabilidad.</string>
+    <!-- App Logs screen -->
+    <string name="settings_app_logs">Registros de la app</string>
+    <string name="app_logs_title">Registros</string>
+    <string name="app_logs_empty">Aún no hay registros</string>
+    <string name="app_logs_clear">Borrar registros</string>
+    <string name="app_logs_clear_title">¿Eliminar todos los registros?</string>
+    <string name="app_logs_clear_message">Se eliminarán todas las entradas del registro. Puedes deshacerlo justo después.</string>
+    <string name="app_logs_deleted">Registros eliminados</string>
+    <string name="app_logs_export">Exportar registros</string>
+    <string name="app_logs_export_title">Exportar registros</string>
+    <plurals name="app_logs_export_message">
+        <item quantity="one">%1$d entrada del registro en un solo archivo CSV. Contiene el nombre de tu adaptador y mensajes de error: revísalo antes de compartirlo.</item>
+        <item quantity="many">%1$d entradas del registro en un solo archivo CSV. Contiene el nombre de tu adaptador y mensajes de error: revísalo antes de compartirlo.</item>
+        <item quantity="other">%1$d entradas del registro en un solo archivo CSV. Contiene el nombre de tu adaptador y mensajes de error: revísalo antes de compartirlo.</item>
+    </plurals>
+    <string name="app_logs_export_saved">Registros guardados</string>
+    <string name="app_logs_export_none">No hay entradas del registro que exportar.</string>
+    <string name="app_logs_share_chooser">Exportar registros</string>
+    <!-- Theme picker (color scheme + brightness) -->
+    <string name="settings_color_scheme">Esquema de color</string>
+    <string name="settings_brightness">Brillo</string>
+    <string name="settings_theme_default">Predeterminado</string>
+    <string name="settings_theme_blue">Azul</string>
+    <string name="settings_theme_amber">Naranja</string>
+    <string name="settings_theme_green">Verde</string>
+    <string name="settings_show_all_bt_devices">Mostrar todos los dispositivos emparejados</string>
+    <string name="settings_show_all_bt_devices_desc">Incluir dispositivos no identificados como adaptadores OBD2</string>
+
+    <!-- Foreground service notification -->
+    <string name="notif_channel_name">Conexión OBD2</string>
+    <string name="notif_obd_title">OBD2 conectado</string>
+    <string name="notif_obd_text">Se están registrando los datos del vehículo</string>
+    <string name="notif_obd_disconnect">Desconectar</string>
+
+    <!-- Alarms while riding: channel of the system notification and the texts of the banner and the notification -->
+    <string name="notif_alarm_channel_name">Alarmas</string>
+    <string name="alarm_voltage_low">Voltaje bajo: %1$s V</string>
+    <string name="alarm_coolant_hot">Refrigerante caliente: %1$s °C</string>
+    <string name="alarm_voltage_low_short">Voltaje bajo</string>
+    <string name="alarm_coolant_hot_short">Refrigerante caliente</string>
+    <plurals name="alarm_fault_new">
+        <item quantity="one">Nuevo código de avería: %1$s</item>
+        <item quantity="many">Nuevos códigos de avería: %1$s</item>
+        <item quantity="other">Nuevos códigos de avería: %1$s</item>
+    </plurals>
+    <string name="alarm_severity_notice">Aviso</string>
+    <string name="alarm_severity_warning">Advertencia</string>
+    <string name="alarm_acknowledge_action">Confirmar alarma</string>
+    <string name="alarm_more_count">+%1$d</string>
+    <string name="alarm_banner_desc">%1$s: %2$s. Toca para confirmar.</string>
+
+    <!-- Settings group "Alarms": switches, thresholds (segments), hint about blocked notifications -->
+    <string name="settings_alarms_section">Alarmas</string>
+    <string name="settings_alarm_voltage_title">Alarma de voltaje</string>
+    <string name="settings_alarm_voltage_summary">Avisa de un voltaje demasiado bajo con el motor en marcha. El voltaje se lee a partir de la próxima conexión.</string>
+    <string name="settings_alarm_coolant_title">Alarma de refrigerante</string>
+    <string name="settings_alarm_coolant_summary">Avisa de un refrigerante demasiado caliente con el motor en marcha.</string>
+    <string name="settings_alarm_faults_title">Avisar de averías durante la marcha</string>
+    <string name="settings_alarm_faults_summary">Lee los códigos de avería cada 60 segundos y avisa de los nuevos.</string>
+    <string name="settings_alarm_voltage_notice">Voltaje: aviso por debajo de</string>
+    <string name="settings_alarm_voltage_notice_desc">Voltios, amarillo, tras 20 segundos</string>
+    <string name="settings_alarm_voltage_warning">Voltaje: advertencia por debajo de</string>
+    <string name="settings_alarm_voltage_warning_desc">Voltios, rojo, tras 10 segundos</string>
+    <string name="settings_alarm_coolant_notice">Refrigerante: aviso desde</string>
+    <string name="settings_alarm_coolant_notice_desc">°C, amarillo, tras 10 segundos</string>
+    <string name="settings_alarm_coolant_warning">Refrigerante: advertencia desde</string>
+    <string name="settings_alarm_coolant_warning_desc">°C, rojo, tras 5 segundos</string>
+    <string name="settings_alarm_notifications_hint">Sin notificaciones, las alarmas solo aparecen en el panel.</string>
+    <!-- Spoken text of a threshold segment (the segment itself shows only "12.5" or "95"); %1$s = the number: volts with one decimal, or whole °C -->
+    <string name="settings_alarm_volts_a11y">%1$s voltios</string>
+    <string name="settings_alarm_celsius_a11y">%1$s grados Celsius</string>
+
+    <!-- PID-Anzeigenamen (Dashboard-Kacheln, Auswahl-Listen) -->
+    <string name="pid_rpm">RPM</string>
+    <string name="pid_speed">Velocidad</string>
+    <string name="pid_coolant_temp">Refrigerante</string>
+    <string name="pid_engine_load">Carga motor</string>
+    <string name="pid_throttle">Acelerador</string>
+    <string name="pid_intake_air_temp">Aire admisión</string>
+    <string name="pid_maf">Flujo de aire</string>
+    <string name="pid_short_term_fuel_trim">Mezcla corto</string>
+    <string name="pid_long_term_fuel_trim">Mezcla largo</string>
+    <string name="pid_intake_manifold_pressure">Pres. admisión</string>
+    <string name="pid_timing_advance">Avance encendido</string>
+    <string name="pid_fuel_tank_level">Nivel depósito</string>
+    <string name="pid_barometric_pressure">Presión atm.</string>
+    <string name="pid_catalyst_temp_b1s1">Temp. cat. B1S1</string>
+    <string name="pid_control_module_voltage">Voltaje a bordo</string>
+    <string name="pid_ambient_air_temp">Temp. exterior</string>
+    <string name="pid_accelerator_pedal_pos">Pedal acelerador</string>
+    <string name="pid_engine_oil_temp">Temp. aceite</string>
+    <string name="pid_engine_fuel_rate">Consumo</string>
+    <string name="pid_speed_gps">Vel. (GPS)</string>
+    <string name="pid_gear">Marcha</string>
+    <string name="pid_terrain">Terreno</string>
+    <string name="terrain_compass_n">N</string>
+    <string name="terrain_compass_ne">NE</string>
+    <string name="terrain_compass_e">E</string>
+    <string name="terrain_compass_se">SE</string>
+    <string name="terrain_compass_s">S</string>
+    <string name="terrain_compass_sw">SO</string>
+    <string name="terrain_compass_w">O</string>
+    <string name="terrain_compass_nw">NO</string>
+    <string name="terrain_compass_name_n">norte</string>
+    <string name="terrain_compass_name_ne">noreste</string>
+    <string name="terrain_compass_name_e">este</string>
+    <string name="terrain_compass_name_se">sureste</string>
+    <string name="terrain_compass_name_s">sur</string>
+    <string name="terrain_compass_name_sw">suroeste</string>
+    <string name="terrain_compass_name_w">oeste</string>
+    <string name="terrain_compass_name_nw">noroeste</string>
+    <string name="terrain_desc_altitude_m">Altitud %1$s metros</string>
+    <string name="terrain_desc_altitude_ft">Altitud %1$s pies</string>
+    <string name="terrain_desc_grade_up">pendiente más %1$s por ciento</string>
+    <string name="terrain_desc_grade_down">pendiente menos %1$s por ciento</string>
+    <string name="terrain_desc_grade_flat">pendiente 0 por ciento</string>
+    <string name="terrain_desc_heading">rumbo %1$s, %2$s grados</string>
+    <string name="pid_oil_bar">Barra aceite</string>
+    <string name="pid_values_state">Estado valores</string>
+    <string name="settings_gps_speed">Velocidad por GPS</string>
+    <string name="settings_gps_speed_desc">Usa el GPS del dispositivo cuando el vehículo no proporciona señal de velocidad. El mosaico “Terreno” (altitud, pendiente, rumbo) también necesita este ajuste. Requiere el permiso de ubicación; si lo permites cuando se te pregunte, también sigue funcionando en segundo plano.</string>
+    <string name="settings_gps_permission_missing">Falta el permiso de ubicación: sin ubicación precisa el GPS no puede proporcionar una velocidad.</string>
+
+    <!-- Fuel gauge (virtual: counts GPS kilometres since the last fill-up) -->
+    <string name="fuel_gauge_desc">Indicador de combustible: quedan unos %1$d km (%2$d %%)</string>
+    <string name="fuel_gauge_desc_reserve">Indicador de combustible: quedan unos %1$d km (%2$d %%), reserva desde %3$d km</string>
+    <string name="fuel_gauge_desc_in_reserve">Indicador de combustible: quedan unos %1$d km (%2$d %%), en reserva</string>
+    <string name="fuel_gauge_unit_km">km</string>
+    <string name="fuel_gauge_reset_action">Restablecer el indicador de combustible</string>
+    <string name="fuel_reset_title">¿Restablecer el indicador de combustible?</string>
+    <string name="fuel_reset_message">Tras repostar: el indicador vuelve a la autonomía completa de %1$d km.</string>
+    <string name="fuel_reset_confirm">Restablecer</string>
+    <string name="settings_fuel_range_title">Autonomía con el depósito lleno</string>
+    <string name="settings_fuel_range_summary">%1$d km</string>
+    <string name="settings_fuel_range_not_set">Sin definir: el indicador de combustible permanece oculto</string>
+    <string name="settings_fuel_range_label">Autonomía (km)</string>
+    <string name="settings_fuel_range_help">De 50 a 1000 km. Vacío oculta el indicador de combustible. La distancia se cuenta a partir de la velocidad por GPS (ajuste “Velocidad por GPS”) mientras la app está conectada.</string>
+    <string name="settings_fuel_range_error">Introduce un número entero de 50 a 1000.</string>
+    <string name="settings_fuel_range_save">Guardar</string>
+    <string name="settings_fuel_range_summary_learned">Calculada a partir de la bitácora: %1$d km (media %2$s l/100 km) – manual: %3$d km</string>
+    <string name="settings_fuel_range_summary_learned_only">Calculada a partir de la bitácora: %1$d km (media %2$s l/100 km)</string>
+    <string name="settings_fuel_capacity_title">Capacidad del depósito</string>
+    <string name="settings_fuel_capacity_summary">%1$s l</string>
+    <string name="settings_fuel_capacity_not_set">Sin definir: la autonomía cuenta tal como se introdujo</string>
+    <string name="settings_fuel_capacity_label">Capacidad del depósito (l)</string>
+    <string name="settings_fuel_capacity_help">De 3,0 a 60,0 litros. Con una capacidad definida, la autonomía se calcula a partir del consumo de combustible de la bitácora (desde tres intervalos de lleno a lleno); vacío usa la autonomía introducida.</string>
+    <string name="settings_fuel_capacity_error">Introduce litros de 3,0 a 60,0, con un decimal como máximo.</string>
+    <string name="settings_fuel_reserve_title">Reserva</string>
+    <string name="settings_fuel_reserve_summary">Quedan %1$d km de autonomía</string>
+    <string name="settings_fuel_reserve_off">Desactivada: sin marca en la barra</string>
+    <string name="settings_fuel_reserve_label">Reserva (km)</string>
+    <string name="settings_fuel_reserve_help">De 5 a 500 km de autonomía restante. Vacío desactiva la reserva. Una marca en la barra indica dónde empieza; por debajo, el número se pone en rojo. Sin alarma y sin sonido.</string>
+    <string name="settings_fuel_reserve_error">Introduce un número entero de 5 a 500.</string>
+
+    <!-- Voltage tile: charge state next to the value (read out by screen readers; the bar itself has no text) -->
+    <string name="voltage_state_charging">cargando</string>
+    <string name="voltage_state_marginal">cargando apenas</string>
+    <string name="voltage_state_discharging">descargando</string>
+
+    <!-- Logbook: reasons an import fails (the file is the app's own CSV export) -->
+    <string name="logbook_import_error_format">No es un archivo de bitácora válido. Necesita las columnas date, type y odometer_km y como máximo 20 000 filas.</string>
+    <string name="logbook_import_error_too_large">El archivo supera los 5 MB.</string>
+    <string name="logbook_import_error_unreadable">No se pudo leer el archivo.</string>
+    <string name="logbook_import_error_write">No se ha importado nada: no se pudieron guardar las entradas.</string>
+
+    <!-- Logbook: the fourth section of "Drives" -->
+    <string name="trips_section_logbook">Bitácora</string>
+    <string name="logbook_title">Bitácora</string>
+    <string name="logbook_cd_export">Exportar bitácora</string>
+    <string name="logbook_cd_import">Importar bitácora</string>
+    <string name="logbook_add">Entrada</string>
+    <string name="logbook_cd_add">Añadir una entrada</string>
+    <string name="logbook_cd_delete">Eliminar entrada</string>
+    <string name="logbook_cd_open">Ver o editar la entrada</string>
+    <string name="logbook_empty">Aún no hay entradas. “Entrada” añade la primera.</string>
+    <string name="logbook_empty_filter">No hay entradas de este tipo.</string>
+    <string name="logbook_deleted">Entrada eliminada</string>
+    <string name="logbook_filter_all">Todo</string>
+    <string name="logbook_filter_fuel">Repostaje</string>
+    <string name="logbook_filter_oil">Aceite</string>
+    <string name="logbook_filter_coolant">Refrigerante</string>
+    <string name="logbook_filter_maintenance">Mantenimiento</string>
+
+    <!-- Logbook: the nine kinds of entry -->
+    <string name="logbook_type_fuel">Repostaje</string>
+    <string name="logbook_type_oil">Rellenar aceite</string>
+    <string name="logbook_type_coolant">Rellenar refrigerante</string>
+    <string name="logbook_type_chain_small">Cuidado de la cadena (pequeño)</string>
+    <string name="logbook_type_chain_large">Cuidado de la cadena (grande)</string>
+    <string name="logbook_type_service_small">Revisión (pequeña)</string>
+    <string name="logbook_type_service_large">Revisión (grande)</string>
+    <string name="logbook_type_tire_change">Cambio de neumáticos</string>
+    <string name="logbook_type_chain_kit_change">Cambio del kit de cadena</string>
+
+    <!-- Logbook: numbers with their unit (the number is formatted for the device language) -->
+    <string name="logbook_fmt_km">%1$s km</string>
+    <string name="logbook_fmt_liters">%1$s l</string>
+    <string name="logbook_fmt_ml">%1$s ml</string>
+    <string name="logbook_fmt_euro">%1$s €</string>
+    <string name="logbook_fmt_euro_per_liter">%1$s €/l</string>
+    <string name="logbook_fmt_l100">%1$s l/100 km</string>
+    <string name="logbook_row_partial">repostaje parcial</string>
+    <string name="logbook_row_join">%1$s · %2$s</string>
+    <string name="logbook_date_ok">OK</string>
+
+    <!-- Logbook: the entry page -->
+    <string name="logbook_entry_new_title">Nueva entrada</string>
+    <string name="logbook_entry_edit_title">Editar entrada</string>
+    <string name="logbook_field_kind">Tipo</string>
+    <string name="logbook_field_date">Fecha</string>
+    <string name="logbook_field_odometer">Kilometraje (km)</string>
+    <string name="logbook_field_liters">Litros</string>
+    <string name="logbook_field_cost">Coste total (€)</string>
+    <string name="logbook_field_amount_ml">Cantidad (ml)</string>
+    <string name="logbook_field_brand">Marca y modelo</string>
+    <string name="logbook_field_note">Nota</string>
+    <string name="logbook_cd_pick_date">Elegir una fecha</string>
+    <string name="logbook_full_tank_title">Depósito lleno</string>
+    <string name="logbook_full_tank_summary">Depósito lleno hasta arriba. Necesario para calcular el consumo.</string>
+    <string name="logbook_last_reading">Última lectura: %1$s km el %2$s</string>
+    <string name="logbook_price_per_liter">= %1$s por litro</string>
+    <string name="logbook_counter">%1$d/%2$d</string>
+    <string name="logbook_save">Guardar</string>
+    <string name="logbook_save_error">No se pudo guardar: %1$s</string>
+    <string name="logbook_error_missing">Rellena este campo</string>
+    <string name="logbook_error_odometer_invalid">Solo dígitos</string>
+    <string name="logbook_error_odometer_range">De 0 a 999 999 km</string>
+    <string name="logbook_error_amount_invalid_liters">Un número con 3 decimales como máximo</string>
+    <string name="logbook_error_amount_invalid_ml">Mililitros enteros</string>
+    <string name="logbook_error_amount_range_liters">Más de 0 y como máximo 100 litros</string>
+    <string name="logbook_error_amount_range_ml">Más de 0 y como máximo 5000 ml</string>
+    <string name="logbook_error_amount_range">Cantidad fuera de rango</string>
+    <string name="logbook_error_cost_invalid">Un importe en euros con 2 decimales como máximo</string>
+    <string name="logbook_error_cost_range">De 0,01 a 999,99 €</string>
+    <string name="logbook_error_date_future">No puede ser futura</string>
+    <string name="logbook_error_note_long">Como máximo 200 caracteres</string>
+    <string name="logbook_error_brand_missing">Obligatorio en un cambio de neumáticos</string>
+    <string name="logbook_error_brand_long">Como máximo 80 caracteres</string>
+    <string name="logbook_error_brand_not_allowed">Solo en un cambio de neumáticos</string>
+    <string name="logbook_warning_title">¿Guardar de todos modos?</string>
+    <string name="logbook_warning_confirm">Guardar de todos modos</string>
+    <string name="logbook_warning_check">Revisar</string>
+    <string name="logbook_warning_out_of_order">El kilometraje y la fecha no encajan con otra entrada (%1$s, %2$s km).</string>
+    <string name="logbook_warning_price">Un precio de %1$s por litro parece poco verosímil (lo habitual: de 0,50 a 5,00 €).</string>
+    <string name="logbook_warning_consumption">Un consumo de %1$s parece poco verosímil (lo habitual: de 2 a 20 l/100 km).</string>
+    <string name="logbook_gauge_title">¿Restablecer el indicador de combustible?</string>
+    <string name="logbook_gauge_message">Has repostado. ¿Volver a poner en lleno el indicador de combustible del panel?</string>
+    <string name="logbook_gauge_credit_title">¿Subir el indicador de combustible?</string>
+    <string name="logbook_gauge_credit_message">Has añadido %1$s l, unos %2$d km con tu consumo reciente. ¿Subir el indicador de combustible del panel esa distancia?</string>
+    <string name="logbook_yes">Sí</string>
+    <string name="logbook_no">No</string>
+
+    <!-- Logbook: export and import -->
+    <string name="logbook_export_title">Exportar bitácora</string>
+    <plurals name="logbook_export_message">
+        <item quantity="one">%1$d entrada en un solo archivo CSV. La bitácora se elimina junto con los datos de la app, así que guarda el archivo en un lugar seguro.</item>
+        <item quantity="many">%1$d entradas en un solo archivo CSV. La bitácora se elimina junto con los datos de la app, así que guarda el archivo en un lugar seguro.</item>
+        <item quantity="other">%1$d entradas en un solo archivo CSV. La bitácora se elimina junto con los datos de la app, así que guarda el archivo en un lugar seguro.</item>
+    </plurals>
+    <string name="logbook_export_saved">Bitácora guardada</string>
+    <string name="logbook_export_none">No hay entradas que exportar.</string>
+    <string name="logbook_import_title">Importar bitácora</string>
+    <string name="logbook_import_working">Procesando …</string>
+    <plurals name="logbook_import_new">
+        <item quantity="one">%1$d entrada nueva</item>
+        <item quantity="many">%1$d entradas nuevas</item>
+        <item quantity="other">%1$d entradas nuevas</item>
+    </plurals>
+    <plurals name="logbook_import_duplicates">
+        <item quantity="one">%1$d ya está en la bitácora</item>
+        <item quantity="many">%1$d ya están en la bitácora</item>
+        <item quantity="other">%1$d ya están en la bitácora</item>
+    </plurals>
+    <plurals name="logbook_import_rejected">
+        <item quantity="one">%1$d fila no se puede leer</item>
+        <item quantity="many">%1$d filas no se pueden leer</item>
+        <item quantity="other">%1$d filas no se pueden leer</item>
+    </plurals>
+    <plurals name="logbook_import_warnings">
+        <item quantity="one">%1$d de las entradas nuevas tiene un aviso (lectura y fecha, precio o consumo)</item>
+        <item quantity="many">%1$d de las entradas nuevas tienen un aviso (lectura y fecha, precio o consumo)</item>
+        <item quantity="other">%1$d de las entradas nuevas tienen un aviso (lectura y fecha, precio o consumo)</item>
+    </plurals>
+    <string name="logbook_import_nothing_new">No hay nada que importar.</string>
+    <string name="logbook_import_confirm">Importar</string>
+    <string name="logbook_import_close">Cerrar</string>
+    <plurals name="logbook_import_done">
+        <item quantity="one">%1$d entrada importada</item>
+        <item quantity="many">%1$d entradas importadas</item>
+        <item quantity="other">%1$d entradas importadas</item>
+    </plurals>
+    <string name="logbook_import_row">Línea %1$d: %2$s</string>
+    <plurals name="logbook_import_more_rows">
+        <item quantity="one">… y %1$d más</item>
+        <item quantity="many">… y %1$d más</item>
+        <item quantity="other">… y %1$d más</item>
+    </plurals>
+    <string name="logbook_import_bad_value">%1$s no es válido</string>
+
+    <!-- Logbook, analysis (phase 2) -->
+    <string name="logbook_section_overview">Resumen</string>
+    <string name="logbook_section_stats">Análisis</string>
+    <string name="logbook_section_entries">Entradas</string>
+    <string name="logbook_overview_never">aún sin entradas</string>
+    <string name="logbook_overview_since">hace %1$s km</string>
+    <string name="logbook_overview_last">%1$s · a %2$s km</string>
+    <string name="logbook_overview_spacing">Intervalo medio %1$s km</string>
+    <string name="logbook_overview_basis">Contado desde la lectura más alta de la bitácora (%1$s km).</string>
+    <string name="logbook_fmt_ml_per_1000">%1$s ml/1000 km</string>
+    <string name="logbook_fmt_euro_per_100">%1$s €/100 km</string>
+    <string name="logbook_fmt_average">Ø %1$s</string>
+    <plurals name="logbook_stats_intervals">
+        <item quantity="one">%1$d intervalo</item>
+        <item quantity="many">%1$d intervalos</item>
+        <item quantity="other">%1$d intervalos</item>
+    </plurals>
+    <string name="logbook_stats_latest">último %1$s</string>
+    <string name="logbook_stats_empty_fuel">Aún no hay análisis: se necesitan al menos dos repostajes completos.</string>
+    <string name="logbook_stats_empty_fluid">Aún no hay análisis: se necesitan al menos dos entradas.</string>
+    <string name="logbook_cd_open_stats">Abrir el análisis</string>
+    <string name="logbook_stats_title_fuel">Consumo de combustible</string>
+    <string name="logbook_stats_title_oil">Consumo de aceite</string>
+    <string name="logbook_stats_title_coolant">Consumo de refrigerante</string>
+    <string name="logbook_stats_section_figures">Cifras clave</string>
+    <string name="logbook_stats_section_intervals">Intervalos</string>
+    <string name="logbook_stat_average">Media</string>
+    <string name="logbook_stat_latest">Último valor</string>
+    <string name="logbook_stat_best">Mejor valor</string>
+    <string name="logbook_stat_worst">Peor valor</string>
+    <string name="logbook_stat_total_liters">Combustible total</string>
+    <string name="logbook_stat_avg_distance">Distancia media por repostaje</string>
+    <string name="logbook_stat_avg_price">Precio medio por litro</string>
+    <string name="logbook_stat_cost_100">Coste por 100 km</string>
+    <string name="logbook_stat_total_amount">Cantidad total</string>
+    <string name="logbook_stat_total_km">Distancia total</string>
+    <string name="logbook_stat_interval_count">Intervalos</string>
+    <string name="logbook_interval_range">De %1$s a %2$s km</string>
+    <plurals name="logbook_stats_skipped">
+        <item quantity="one">%1$d intervalo omitido (misma lectura del cuentakilómetros).</item>
+        <item quantity="many">%1$d intervalos omitidos (misma lectura del cuentakilómetros).</item>
+        <item quantity="other">%1$d intervalos omitidos (misma lectura del cuentakilómetros).</item>
+    </plurals>
+    <string name="logbook_stats_hint_fuel">Solo los repostajes completos cierran un intervalo; los repostajes parciales intermedios cuentan para él. La media es la suma de los litros dividida entre la suma de los kilómetros.</string>
+    <string name="logbook_stats_hint_fluid">La app no sabe de los cambios: un intervalo que abarca un cambio sale demasiado bajo. Los valores individuales varían mucho; lo que cuenta es la media.</string>
+    <plurals name="logbook_chart_description">
+        <item quantity="one">Evolución, %1$d valor, media %2$s, último %3$s</item>
+        <item quantity="many">Evolución, %1$d valores, media %2$s, último %3$s</item>
+        <item quantity="other">Evolución, %1$d valores, media %2$s, último %3$s</item>
+    </plurals>
+
+    <!-- Logbook, reminders (phase 3) -->
+    <string name="logbook_fmt_approx">aprox. %1$s</string>
+    <string name="logbook_interval_every">cada %1$s km</string>
+    <string name="logbook_interval_set">Definir intervalo</string>
+    <string name="logbook_due_in">vence en %1$s km</string>
+    <string name="logbook_due_now">vence ahora</string>
+    <string name="logbook_due_overdue">vencido hace %1$s km</string>
+    <string name="logbook_overview_basis_approx">Contado desde aprox. %1$s km: la lectura más alta de la bitácora (%2$s km) más %3$s km por GPS.</string>
+    <string name="logbook_cd_set_interval">Definir el intervalo de mantenimiento</string>
+    <string name="logbook_interval_title">Intervalo: %1$s</string>
+    <string name="logbook_interval_label">Intervalo (km)</string>
+    <string name="logbook_interval_help">El mantenimiento vence pasados estos kilómetros desde la última entrada. Déjalo vacío para borrar el intervalo.</string>
+    <string name="logbook_interval_error">Un número entero de 50 a 100 000</string>
+    <string name="settings_maintenance_title">Mantenimiento</string>
+    <string name="settings_maintenance_summary">Cuidado de la cadena, revisión, neumáticos: cuándo toca el mantenimiento</string>
+    <string name="settings_maintenance_intro">Tras cuántos kilómetros toca un mantenimiento. Sin intervalo no hay recordatorio. La bitácora muestra “vence en N km” a partir de la última entrada de ese tipo, contado con el kilometraje estimado (la última lectura de la bitácora más los kilómetros contados por GPS).</string>
+    <string name="settings_maintenance_not_set">Sin definir</string>
+</resources>

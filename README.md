@@ -10,7 +10,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 
 - **Live-Dashboard** mit frei konfigurierbaren PID-Kacheln (Drehzahl, Geschwindigkeit, Kühlmitteltemperatur, Motorlast, Kraftstoffstand, etc.)
 - **Automatische PID-Discovery** — die App fragt das Steuergerät, welche PIDs überhaupt unterstützt werden, und filtert die Live-Abfrage entsprechend
-- **DTCs lesen** (Diagnostic Trouble Codes, nur lesend — die App schreibt nie ins Fahrzeug) mit menschenlesbaren Beschreibungen (37 häufige Codes, deutsch und englisch; jeder andere Code zeigt „Unbekannter Fehlercode“ neben dem Code) und **lokaler Fehlerhistorie** (erstmals/zuletzt gesehen, auch offline; einzeln oder komplett löschbar mit 10 s „Rückgängig“)
+- **DTCs lesen** (Diagnostic Trouble Codes, nur lesend — die App schreibt nie ins Fahrzeug) mit menschenlesbaren Beschreibungen (37 häufige Codes, deutsch, englisch und spanisch; jeder andere Code zeigt „Unbekannter Fehlercode“ neben dem Code) und **lokaler Fehlerhistorie** (erstmals/zuletzt gesehen, auch offline; einzeln oder komplett löschbar mit 10 s „Rückgängig“)
 - **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
 - **Fahrzeug-Info** — die Fahrgestellnummer (VIN, 17 Zeichen, via Mode 09 PID 02, aus CAN-, K-Line- und J1850-Antworten dekodiert; liefert das Fahrzeug keine, steht dort „Kein VIN verfügbar“). ECU-Name und Kalibrier-IDs werden nicht gelesen.
 - **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
@@ -32,7 +32,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
   - **Simulator** — synthetischer ECU für Entwicklung und UI-Tests
 - **Aufbewahrung** — einmal je App-Start löscht die App lokal Fahrten, die älter als **90 Tage** sind (die laufende Fahrt nie), App-Log-Zeilen älter als **30 Tage** und alles über den neuesten **1000** Log-Zeilen. Es gibt dafür keine Rückfrage und kein „Rückgängig“; wer Fahrten länger braucht, exportiert sie vorher als CSV. Gelöscht wird nur lokal, nie im Fahrzeug. Exportierte CSV-Dateien (Cache) räumt die App nach **24 Stunden** auf.
 - **App-Logs** — eigene Log-Persistenz (Room) mit 30-Tage-/1000-Einträge-Limit (greift beim App-Start), einsehbar im Settings-Bereich; Löschen mit Rückfrage und 10 s „Rückgängig“ (lokaler Lösch-Vertrag, nie ein Schreibzugriff aufs Fahrzeug); **Export** *(seit 1.41.0)*: ein Symbol links vom Papierkorb öffnet einen Dialog „Speichern“ (Dateidialog des Systems, z. B. Downloads) oder „Teilen“ (Teilen-Menü) — der sichtbare Log als **eine CSV-Datei** `applog_<Zeit>.csv` mit den Spalten `timestamp,level,message` (Millisekunden UTC, älteste Zeile zuerst; nach „Alle löschen“ im Rückgängig-Fenster ohne die ausgeblendeten Zeilen). Die Datei enthält den Namen des Adapters und Fehlermeldungen; der Dialog weist darauf hin
-- **Material 3** UI mit drei dark-only Cockpit-Farbschemata (Blau/Amber/Grün, s. Design-Profil) sowie einem Default-Farbschema mit Hell/Dunkel/System-Wahl, deutsch und englisch lokalisiert
+- **Material 3** UI mit drei dark-only Cockpit-Farbschemata (Blau/Amber/Grün, s. Design-Profil) sowie einem Default-Farbschema mit Hell/Dunkel/System-Wahl, deutsch, englisch und spanisch lokalisiert
 - **Crash-Reporting** über Sentry — nur in einer Version, die beim Bauen einen DSN bekommen hat; dann in den Einstellungen abschaltbar („Absturzberichte senden“)
 
 ---
@@ -352,8 +352,15 @@ Ist die Einstellungsdatei beschädigt oder nicht lesbar, startet die App mit den
 
 ## Lokalisierung
 
-- Deutsch (`values-de/`) — Default für deutsche Locale
-- Englisch (`values/`) — Fallback
+- Deutsch (`values-de/`)
+- Spanisch (`values-es/`)
+- Englisch (`values/`) — Standardsprache und Fallback für jede andere Sprache
+
+**Welche Sprache die App zeigt, bestimmt allein die Systemsprache des Geräts** (Android wählt `values-de/`, `values-es/` oder `values/`; es gibt keine Sprachauswahl in der App). Datum, Uhrzeit und Zahlen folgen ebenfalls der Gerätesprache, unabhängig von den Texten.
+
+**Bewusst nicht übersetzt:** die Meldungen im App-Log (englisch, auch im Export), die technische Meldung einer unbekannten Ausnahme (Text des Systems), die Spaltenköpfe und PID-Namen der CSV-Dateien und die Einheitenkürzel.
+
+Die spanischen Texte hat Claude übersetzt (2026-11-02); sie sind nicht von einer muttersprachlichen Person gegengelesen. `StringResourcesParityTest` hält alle Sprachen gleich vollständig: dieselben Texte und Mengenformen, dieselben Platzhalter, nichts Unübersetztes (Ausnahmen stehen in der Liste des Tests).
 
 Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die `UiText`-Sealed-Klasse, damit Texte testbar bleiben (kein direkter `Context`-Zugriff).
 
