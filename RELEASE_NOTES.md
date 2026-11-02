@@ -1,5 +1,19 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.18 (versionCode 156)
+
+Die App gibt es jetzt **auch auf Spanisch**.
+
+### Was sich ändert
+
+- **Spanisch:** Alle Texte der App sind ins Spanische übersetzt (508 Texte und 18 Mengenformen, dazu die Beschreibungen der 37 häufigen Fehlercodes). Die Übersetzung stammt von Claude und ist **nicht von einer muttersprachlichen Person gegengelesen**; Hinweise auf unpassende Wörter sind willkommen.
+- **Welche Sprache erscheint:** Wie bisher allein die Systemsprache des Geräts. Deutsch bleibt Deutsch, Spanisch wird Spanisch, jede andere Sprache zeigt Englisch. Eine Sprachauswahl in der App gibt es nicht.
+- **Nicht übersetzt, mit Absicht:** die Meldungen im App-Log (englisch, auch im Export), technische Fehlertexte des Systems und die Spaltenköpfe der CSV-Dateien.
+- **Neuer Test:** Er hält alle Sprachen gleich vollständig (dieselben Texte, dieselben Platzhalter, nichts Unübersetztes) und schlägt an, sobald eine Sprache etwas verliert oder eine neue ohne Eintrag dazukommt.
+- **Unverändert:** Funktionen, Aufzeichnung, Datenbank (bleibt **v6**), gespeicherte Einstellungen, Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.44.17 (versionCode 155)
 
 Eine **Aufräum-Version** ohne neue Funktion: Bibliotheken und Bauwerkzeuge sind auf dem neuesten stabilen Stand.
