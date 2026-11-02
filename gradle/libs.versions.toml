@@ -1,7 +1,7 @@
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.21"
-sentry = "8.60.0"
+sentry = "8.62.0"
 # Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6 (seit v1.26.0: AGP 9.4.1, Gradle 9.6.1, compileSdk 37).
 # Kotlin 2.4.21 ist offiziell bis Gradle 9.7.0 und AGP 9.3.1 freigegeben (kotlinlang.org, Abfrage 2026-10-12); AGP 9.4 ist darueber hinaus —
 # der Build laeuft, ein Kotlin-Update bringt voraussichtlich die Freigabe fuer AGP 9.4 nach.
@@ -10,13 +10,13 @@ compose-bom = "2026.09.00"
 hilt = "2.60.1"
 room = "2.8.5"
 navigation = "2.10.2"
-datastore = "1.2.1"
+datastore = "1.3.0"
 coroutines = "1.11.0"
 mockk = "1.14.11"
 lifecycle = "2.11.0"
 appcompat = "1.8.0"
 paging = "3.5.3"
-kotlinx-serialization = "1.11.0"
+kotlinx-serialization = "1.12.0"
 
 [libraries]
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
@@ -73,4 +73,4 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
-ksp = { id = "com.google.devtools.ksp", version = "2.3.11" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.13" }
