@@ -67,6 +67,20 @@ internal class FaultWatch(
     }
 
     /**
+     * Ein Auslesen hat den Adapter verloren (die Verbindung steht nicht mehr): [wantsReconnect] sagt, ob ein Reconnect folgen soll (nein, wenn der Nutzer getrennt hat); [what] benennt
+     * das Auslesen im App-Log. **Die Reihenfolge ist Absicht:** zuerst der Reconnect-Ausloeser (nicht-suspendierend), dann das suspendierende Log — der Wechsel von `isConnectedFlow` bricht
+     * die aufrufende Coroutine am naechsten Suspendierungspunkt ab, ein Log davor ginge den Ausloeser verloren (Doku an `connectionLostSignal`).
+     */
+    private suspend fun onLinkLost(what: String, wantsReconnect: Boolean) {
+        if (wantsReconnect) {
+            requestReconnect()
+            log(LogLevel.WARN, "$what lost the adapter link, reconnecting")
+        } else {
+            log(LogLevel.INFO, "$what ended by the user's disconnect, not reconnecting")
+        }
+    }
+
+    /**
      * Liest die Fehlercodes beim Verbinden: protokollieren, in die Fehlerhistorie eintragen und als Basis der Wache merken. Kein Banner in der Oberflaeche — sichtbar sind sie im
      * App-Log. [wantsReconnect] sagt, ob ein gerissener Link einen Reconnect will (nein, wenn der Nutzer getrennt hat).
      */
@@ -78,12 +92,7 @@ internal class FaultWatch(
             // kein neuer Versuch; jeder Slot-Wechsel startet diese Sitzung und damit das Auslesen neu). requestReconnect() ist nicht-suspendierend, aus demselben Grund wie beim
             // Nachlesen: der Wechsel von isConnectedFlow bricht diese Coroutine am naechsten Suspendierungspunkt ab.
             if ((e is ObdException.Timeout || e is ObdException.ConnectionLost) && !obdRepository.isConnectedFlow.value) {
-                if (wantsReconnect()) {
-                    requestReconnect()
-                    log(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting")
-                } else {
-                    log(LogLevel.INFO, "Fault-code read ended by the user's disconnect, not reconnecting")
-                }
+                onLinkLost("Fault-code read", wantsReconnect())
                 return ConnectRead.LinkLost
             }
             // Keine positive Antwort (NO DATA, Busfehler, Unverstaendliches — A9): kein Verbindungsverlust, die Sitzung laeuft weiter, aber die Oberflaeche behauptet keine
@@ -129,12 +138,7 @@ internal class FaultWatch(
                 // Wie beim Auslesen beim Verbinden: readDtcsOrSkip() hat getrennt, isConnectedFlow ist schon false, und der Wechsel bricht diese Coroutine am
                 // naechsten Suspendierungspunkt ab — deshalb zuerst der Reconnect-Ausloeser (nicht-suspendierend, s. Doku an `connectionLostSignal`), das Log danach.
                 if (!obdRepository.isConnectedFlow.value) {
-                    if (obdRepository.userDisconnectCount.value == userDisconnectsAtStart) {
-                        requestReconnect()
-                        log(LogLevel.WARN, "Periodic fault-code read lost the adapter link, reconnecting")
-                    } else {
-                        log(LogLevel.INFO, "Periodic fault-code read ended by the user's disconnect, not reconnecting")
-                    }
+                    onLinkLost("Periodic fault-code read", wantsReconnect = obdRepository.userDisconnectCount.value == userDisconnectsAtStart)
                     return@flow
                 }
                 // Die Verbindung steht noch (ersetzt: ein anderer Leser trennte die alte). Faellt die Sitzung dadurch nicht ohnehin zusammen — das

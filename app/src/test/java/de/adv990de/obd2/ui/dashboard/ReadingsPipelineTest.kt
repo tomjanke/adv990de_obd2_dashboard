@@ -1972,6 +1972,85 @@ class ReadingsPipelineTest {
         assertTrue("die Anzeige geht auf getrennt: $events", events.contains(SessionEvent.Idle))
     }
 
+    // --- Die vier Log-Zeilen der Reconnect-Entscheidung (eine Funktion in FaultWatch, zwei Aufrufer: Auslesen beim Verbinden und das Nachlesen jede Minute) ---
+
+    @Test
+    fun `a fault-code read at connect that loses the link says so in the log`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val repo = makeRepo(connected = true)
+        every { repo.isConnectedFlow } returns isConnected
+        coEvery { repo.readDtcs() } coAnswers {
+            isConnected.value = false
+            throw ObdException.Timeout("03")
+        }
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+
+        makePipeline(repo, logRepo = logRepo).sessionEvents(backgroundScope).first { it == SessionEvent.ConnectionLost() }
+        testScheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, "Fault-code read lost the adapter link, reconnecting") }
+    }
+
+    @Test
+    fun `a fault-code read at connect that ends by the users disconnect says so in the log`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(connected = true)
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.userDisconnectCount } returns userDisconnects
+        coEvery { repo.readDtcs() } coAnswers {
+            userDisconnects.value += 1
+            isConnected.value = false
+            throw ObdException.ConnectionLost()
+        }
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+        val events = mutableListOf<SessionEvent>()
+        backgroundScope.launch { makePipeline(repo, logRepo = logRepo).sessionEvents(this).toList(events) }
+
+        testScheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, "Fault-code read ended by the user's disconnect, not reconnecting") }
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("lost the adapter link") }) }
+    }
+
+    @Test
+    fun `a periodic read that loses the link says so in the log`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val repo = openSessionRepo()
+        every { repo.isConnectedFlow } returns isConnected
+        coEvery { repo.readDtcsOrSkip() } coAnswers {
+            isConnected.value = false
+            throw ObdException.ConnectionLost()
+        }
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+        collectAll(makePipeline(repo, logRepo = logRepo))
+
+        advanceTo(watchMs)
+
+        coVerify(exactly = 1) { logRepo.log(LogLevel.WARN, "Periodic fault-code read lost the adapter link, reconnecting") }
+    }
+
+    @Test
+    fun `a periodic read that ends by the users disconnect says so in the log`() = runTest(UnconfinedTestDispatcher()) {
+        val isConnected = MutableStateFlow(true)
+        val userDisconnects = MutableStateFlow(0)
+        val repo = openSessionRepo()
+        every { repo.isConnectedFlow } returns isConnected
+        every { repo.userDisconnectCount } returns userDisconnects
+        coEvery { repo.readDtcsOrSkip() } coAnswers {
+            userDisconnects.value += 1
+            isConnected.value = false
+            throw ObdException.ConnectionLost()
+        }
+        val logRepo: AppLogRepository = mockk(relaxed = true)
+        collectAll(makePipeline(repo, logRepo = logRepo))
+
+        advanceTo(watchMs)
+
+        coVerify(exactly = 1) { logRepo.log(LogLevel.INFO, "Periodic fault-code read ended by the user's disconnect, not reconnecting") }
+        coVerify(exactly = 0) { logRepo.log(LogLevel.WARN, match { it.contains("lost the adapter link") }) }
+    }
+
     @Test
     fun `a lost link on a connection that stayed up does not end the watch - no reconnect, no log line, it reads again next minute`() = runTest {
         // readDtcsOrSkip() scheitert mit ConnectionLost, doch isConnectedFlow bleibt true und der Zaehler der Nutzer-Trennungen steht:

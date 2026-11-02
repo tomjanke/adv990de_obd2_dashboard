@@ -6,10 +6,14 @@ import de.adv990de.obd2.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
@@ -79,8 +83,14 @@ class FuelRepository @Inject constructor(
 
     private val writeQueue = Channel<Float>(Channel.CONFLATED)
 
+    /**
+     * Die Reichweite, mit der die Tankanzeige rechnet — **einmal** abonniert und geteilt: der Zustand und der Cache fuer das erste Bild lesen dieselbe Quelle. Zwei Abonnements von
+     * [FuelRangeSource.range] und [FuelRangeSource.learned] fragten die Logbuch-Tabelle und die Verbrauchsrechnung bei jeder Aenderung doppelt ab.
+     */
+    private val range: SharedFlow<EffectiveRange> = rangeSource.range.shareIn(scope, SharingStarted.Eagerly, replay = 1)
+
     /** Reichweite bei voller Tankfuellung zusammen mit dem Zaehler; `null` = Tankzeile ausblenden. */
-    val state: StateFlow<FuelGaugeState?> = combine(rangeSource.range, appPreferences.fuelReserveKm, odometer) { range, reserve, odo ->
+    val state: StateFlow<FuelGaugeState?> = combine(range, appPreferences.fuelReserveKm, odometer) { range, reserve, odo ->
         gaugeOf(range.km, reserve, odo)
     }.stateIn(
         scope,
@@ -108,8 +118,8 @@ class FuelRepository @Inject constructor(
         }
         scope.launch {
             // Der Cache fuer das erste Bild: die zuletzt berechnete Reichweite, nur bei Aenderung geschrieben. Er ist kein Eingang der Rechnung (sonst wuerde das Schreiben eine zweite Rechnung ausloesen).
-            rangeSource.learned.collect { learned ->
-                val km = learned?.km ?: 0
+            // Gelernt ist die Reichweite genau dann, wenn ihre Herkunft das Logbuch ist; dann ist `km` die gelernte Zahl (`effectiveRangeKm`), sonst gibt es keine (0).
+            range.map { if (it.origin is RangeOrigin.Learned) it.km else 0 }.distinctUntilChanged().collect { km ->
                 if (km != cachedLearnedKm) {
                     try {
                         appPreferences.setFuelRangeLearnedKm(km)

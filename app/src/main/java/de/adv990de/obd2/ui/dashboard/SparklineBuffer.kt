@@ -22,6 +22,9 @@ internal class SparklineBuffer(private val window: Int = SPARKLINE_WINDOW) {
     /** Zeitstempel des letzten Sparkline-Punkts je PID. */
     private val lastTimestamp = mutableMapOf<String, Long>()
 
+    /** Der zuletzt gebaute [snapshot]; `null`, sobald sich etwas geaendert hat. Jedes GPS-Zwischenupdate fragt den Stand ab, ohne dass ein Punkt dazukommt. */
+    private var cached: Map<String, List<Float>>? = null
+
     fun append(values: List<SensorValue>) {
         values.forEach { sv ->
             if (!shouldAppendSparklineSample(lastTimestamp[sv.pid.id], sv.timestamp)) return@forEach
@@ -29,14 +32,18 @@ internal class SparklineBuffer(private val window: Int = SPARKLINE_WINDOW) {
             val deque = points.getOrPut(sv.pid.id) { ArrayDeque(window) }
             if (deque.size >= window) deque.removeFirst()
             deque.addLast(sv.value)
+            cached = null
         }
     }
 
-    /** Eine Kopie des aktuellen Standes, je PID aelteste zuerst. */
-    fun snapshot(): Map<String, List<Float>> = points.mapValues { (_, deque) -> deque.toList() }
+    /**
+     * Eine Kopie des aktuellen Standes, je PID aelteste zuerst. Ohne Aenderung seit dem letzten Aufruf dieselbe Instanz (die Kopie wird nie veraendert, nur durch eine neue ersetzt).
+     */
+    fun snapshot(): Map<String, List<Float>> = cached ?: points.mapValues { (_, deque) -> deque.toList() }.also { cached = it }
 
     fun clear() {
         points.clear()
         lastTimestamp.clear()
+        cached = null
     }
 }

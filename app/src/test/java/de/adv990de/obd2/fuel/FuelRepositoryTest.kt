@@ -418,6 +418,17 @@ class FuelRepositoryTest {
     }
 
     @Test
+    fun `the logbook is observed once - the gauge and the cache read the same range`() = runTest {
+        val prefs = learningPrefs(manual = 0, capacityDl = 200)
+        val entries = MutableStateFlow(steadyFills(3))
+
+        repo(prefs, rangeSource(prefs, entries))
+
+        // Zwei Abonnenten hiessen: die Abfrage der Tabelle und die Rechnung ueber alle Eintraege liefen bei jeder Aenderung des Logbuchs doppelt.
+        assertEquals(1, entries.subscriptionCount.value)
+    }
+
+    @Test
     fun `without a tank content nothing is read from the logbook and nothing is cached`() = runTest {
         val prefs = learningPrefs(manual = 320, capacityDl = 0, cache = 0)
 
