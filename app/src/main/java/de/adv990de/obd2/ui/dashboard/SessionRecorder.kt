@@ -58,12 +58,20 @@ internal class SessionRecorder(
         }
     }
 
-    /** Beendet die Fahrt, falls es eine gibt (einmal; danach ist sie zu). Datenbankfehler duerfen das Aufraeumen der Sitzung nicht verhindern. */
+    /**
+     * Beendet die Fahrt, falls es eine gibt (einmal; danach ist sie zu). Ein Datenbankfehler verhindert das Aufraeumen der Sitzung nicht, wird aber
+     * wie beim Schreiben gemeldet (einmal je Sitzung): eine Fahrt ohne Ende zaehlt sonst als „laeuft noch“ und waere im Verlauf nie zu erklaeren.
+     */
     suspend fun end() {
         val id = sessionId
         if (id == NO_SESSION) return
         sessionId = NO_SESSION
-        try { sessionRepository.endSession(id) } catch (_: Exception) {}
+        try {
+            sessionRepository.endSession(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reportFailure(e)
+        }
     }
 
     private suspend fun reportFailure(e: Exception) {

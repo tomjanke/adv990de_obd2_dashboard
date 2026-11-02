@@ -134,15 +134,63 @@ class SessionRecorderTest {
     }
 
     @Test
-    fun `end closes the trip once it exists and swallows a database error`() = runTest {
+    fun `end closes the trip once and does not let a database error escape`() = runTest {
         val repo = sessions(startResult = 9L)
         coEvery { repo.endSession(any()) } throws IllegalStateException("closed")
         val recorder = recorder(repo)
         recorder.start(null)
 
         recorder.end()   // wirft nicht
+        recorder.end()   // die Fahrt ist zu: kein zweiter Versuch
 
         coVerify(exactly = 1) { repo.endSession(9L) }
+    }
+
+    @Test
+    fun `a failing end is reported - a trip without an end time must not vanish silently`() = runTest {
+        val repo = sessions(startResult = 9L)
+        coEvery { repo.endSession(any()) } throws IllegalStateException("database is locked")
+        val crash = mockk<CrashReporter>(relaxed = true)
+        val recorder = recorder(repo, crash)
+        recorder.start(null)
+
+        recorder.end()
+
+        verify(exactly = 1) { crash.recordException(any()) }
+        assertEquals(1, logged.count { it.first == LogLevel.WARN && "database is locked" in it.second })
+    }
+
+    @Test
+    fun `a failing end after a failing write is not reported a second time - once per session`() = runTest {
+        val repo = sessions(startResult = 9L)
+        coEvery { repo.writeReadings(any(), any()) } throws IllegalStateException("database is locked")
+        coEvery { repo.endSession(any()) } throws IllegalStateException("database is locked")
+        val crash = mockk<CrashReporter>(relaxed = true)
+        val recorder = recorder(repo, crash)
+        recorder.start(null)
+
+        recorder.record(listOf(rpm))
+        recorder.end()
+
+        verify(exactly = 1) { crash.recordException(any()) }
+        assertEquals(1, logged.size)
+        coVerify(exactly = 1) { repo.endSession(9L) }   // gemeldet wird einmal, aufgeraeumt trotzdem
+    }
+
+    @Test
+    fun `a cancellation while ending is passed on, not reported`() = runTest {
+        val repo = sessions(startResult = 9L)
+        coEvery { repo.endSession(any()) } throws CancellationException("cancelled")
+        val crash = mockk<CrashReporter>(relaxed = true)
+        val recorder = recorder(repo, crash)
+        recorder.start(null)
+
+        var cancelled = false
+        try { recorder.end() } catch (_: CancellationException) { cancelled = true }
+
+        assertTrue(cancelled)
+        verify(exactly = 0) { crash.recordException(any()) }
+        assertTrue(logged.isEmpty())
     }
 
     @Test
