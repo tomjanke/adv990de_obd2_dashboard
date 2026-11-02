@@ -364,7 +364,7 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 | Bereich | Bibliothek / Version |
 |---|---|
 | Sprache | Kotlin 2.4.21 |
-| Build | Android Gradle Plugin 9.4.1 (built-in Kotlin) · Gradle 9.6.1 · KSP 2.3.13 |
+| Build | Android Gradle Plugin 9.5.0 (built-in Kotlin) · Gradle 9.8.2 · KSP 2.3.13 |
 | UI | Jetpack Compose (BOM 2026.09.00, Compose 1.12.x) · Material 3 (1.4.0) · Material Icons 1.7.8 (explizit) |
 | Typografie | Space Grotesk (UI-Text) · IBM Plex Mono (Live-Werte, tabular numerals) |
 | Navigation | androidx.navigation:navigation-compose 2.10.2 |

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.0"
 kotlin = "2.4.21"
 sentry = "8.62.0"
 # Compose 1.12 (BOM 2026.09.00) verlangt compileSdk 37 und damit AGP 9.4 + Gradle 9.6 (seit v1.26.0: AGP 9.4.1, Gradle 9.6.1, compileSdk 37).
