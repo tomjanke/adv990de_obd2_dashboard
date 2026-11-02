@@ -4,6 +4,7 @@ import android.net.Uri
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -18,6 +19,7 @@ import org.junit.Test
  * [ExportFeedback], die Rueckmeldung eines Exports an die Oberflaeche — der gemeinsame Teil dreier ViewModels (deren Tests pruefen dasselbe noch einmal durch ihren Export):
  * ein Abbruch ist nie ein Fehler, jeder andere Fehler hat einen sichtbaren Text, ein neuer Versuch loescht den alten Fehler, und „gespeichert“ kommt erst nach dem Export.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ExportFeedbackTest {
 
     private val feedback = ExportFeedback()

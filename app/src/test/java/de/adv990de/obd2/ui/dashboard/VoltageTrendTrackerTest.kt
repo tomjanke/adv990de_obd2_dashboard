@@ -246,7 +246,7 @@ class VoltageTrendTrackerTest {
         // Nach weiteren zwölf Zyklen steht nichts mehr von den 14 V im Fenster.
         repeat(12) { last = cycle(volts = 12.0f) }
         assertEquals(12.0f, last!!.volts, 1e-6f)
-        assertEquals(ChargeState.Discharging, last!!.state)
+        assertEquals(ChargeState.Discharging, last.state)
     }
 
     @Test
