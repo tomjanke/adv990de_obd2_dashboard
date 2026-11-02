@@ -9,7 +9,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,9 +17,6 @@ import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
-import de.adv990de.obd2.fuel.FuelCapacityLimits
-import de.adv990de.obd2.fuel.FuelRangeLimits
-import de.adv990de.obd2.fuel.FuelReserveLimits
 import de.adv990de.obd2.obd.PidRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -68,25 +64,6 @@ class AppPreferences @Inject constructor(
         private val KEY_THEME             = stringPreferencesKey("theme")
         private val KEY_RPM_BLINK_THRESHOLD = intPreferencesKey("rpm_blink_threshold")
         private val KEY_RPM_DYNAMIC_THRESHOLD = booleanPreferencesKey("rpm_dynamic_threshold")
-        private val KEY_WHEEL_CIRCUMFERENCE_MM = floatPreferencesKey("wheel_circumference_mm")
-        // Tankanzeige: die Namen sind persistierter Zustand (DataStore) — nie umbenennen oder mit anderer Bedeutung wiederverwenden.
-        private val KEY_FUEL_RANGE_FULL_KM = intPreferencesKey("fuel_range_full_km")
-        private val KEY_FUEL_KM_SINCE_FILL = floatPreferencesKey("fuel_km_since_fill")
-        private val KEY_FUEL_RESERVE_KM = intPreferencesKey("fuel_reserve_km")
-        private val KEY_FUEL_TANK_CAPACITY_DL = intPreferencesKey("fuel_tank_capacity_dl")
-        private val KEY_FUEL_RANGE_LEARNED_KM = intPreferencesKey("fuel_range_learned_km")
-        private val KEY_PRIMARY_RATIO   = floatPreferencesKey("primary_ratio")
-        private val KEY_SECONDARY_RATIO = floatPreferencesKey("secondary_ratio")
-        private val KEY_GEAR_RATIO_1 = floatPreferencesKey("gear_ratio_1")
-        private val KEY_GEAR_RATIO_2 = floatPreferencesKey("gear_ratio_2")
-        private val KEY_GEAR_RATIO_3 = floatPreferencesKey("gear_ratio_3")
-        private val KEY_GEAR_RATIO_4 = floatPreferencesKey("gear_ratio_4")
-        private val KEY_GEAR_RATIO_5 = floatPreferencesKey("gear_ratio_5")
-        private val KEY_GEAR_RATIO_6 = floatPreferencesKey("gear_ratio_6")
-        private val GEAR_RATIO_KEYS = listOf(
-            KEY_GEAR_RATIO_1, KEY_GEAR_RATIO_2, KEY_GEAR_RATIO_3,
-            KEY_GEAR_RATIO_4, KEY_GEAR_RATIO_5, KEY_GEAR_RATIO_6,
-        )
         private val KEY_OBD_WATCHDOG_TIMEOUT_SECONDS = intPreferencesKey("obd_watchdog_timeout_seconds")
         private val KEY_RECONNECT_BASE_DELAY_SECONDS = intPreferencesKey("reconnect_base_delay_seconds")
         val DEFAULT_SLOT_PIDS: List<String> = List(4) { i -> PidRegistry.defaults.getOrNull(i)?.id ?: "" }
@@ -288,110 +265,60 @@ class AppPreferences @Inject constructor(
     }
 
     // ── Getriebe-Einstellungen (virtuelle Ganganzeige) ────────────────────────
+    // Schluessel, Lesen und Schreiben stehen in [GearPreferences] (herausgeloest wie die Alarme und die Wartung); hier nur der unveraenderte oeffentliche Weg.
 
-    val wheelCircumferenceMm: Flow<Float> = data.map { prefs ->
-        prefs[KEY_WHEEL_CIRCUMFERENCE_MM] ?: DEFAULT_WHEEL_CIRCUMFERENCE_MM
-    }.distinctUntilChanged() // DataStore emits on every write; suppress value-equal emissions
+    private val gear = GearPreferences(dataStore, data)
 
-    suspend fun setWheelCircumferenceMm(value: Float) {
-        dataStore.edit { it[KEY_WHEEL_CIRCUMFERENCE_MM] = value }
-    }
+    val wheelCircumferenceMm: Flow<Float> = gear.wheelCircumferenceMm
+
+    suspend fun setWheelCircumferenceMm(value: Float) = gear.setWheelCircumferenceMm(value)
+
+    val primaryRatio: Flow<Float> = gear.primaryRatio
+
+    suspend fun setPrimaryRatio(value: Float) = gear.setPrimaryRatio(value)
+
+    val secondaryRatio: Flow<Float> = gear.secondaryRatio
+
+    suspend fun setSecondaryRatio(value: Float) = gear.setSecondaryRatio(value)
+
+    /** Gesamt-Getriebeuebersetzung je Gang (Index 0 = 1. Gang ... Index 5 = 6. Gang), ein Schluessel je Gang (s. [GearPreferences.gearRatios]). */
+    val gearRatios: Flow<List<Float>> = gear.gearRatios
+
+    suspend fun setGearRatio(index: Int, value: Float) = gear.setGearRatio(index, value)
 
     // ── Tankanzeige (virtuell, Streckenzaehler — s. de.adv990de.obd2.fuel) ─────────
+    // Schluessel, Grenzen, Lesen und Schreiben stehen in [FuelPreferences]; hier nur der unveraenderte oeffentliche Weg.
 
-    /**
-     * Reichweite bei vollem Tank in ganzen km; **0 = nicht festgelegt** (die Tankanzeige bleibt ausgeblendet). Ein Wert ausserhalb von
-     * [FuelRangeLimits] im Speicher (kann nur von Hand entstehen) gilt als nicht festgelegt.
-     */
-    val fuelRangeFullKm: Flow<Int> = data.map { prefs ->
-        (prefs[KEY_FUEL_RANGE_FULL_KM] ?: 0).takeIf { it in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM } ?: 0
-    }.distinctUntilChanged()
+    private val fuel = FuelPreferences(dataStore, data)
 
-    /** [km] = 0 loescht die Reichweite; sonst muss der Wert in [FuelRangeLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
-    suspend fun setFuelRangeFullKm(km: Int) {
-        require(km == 0 || km in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM) { "fuel range out of bounds: $km" }
-        dataStore.edit { it[KEY_FUEL_RANGE_FULL_KM] = km }
-    }
+    /** Reichweite bei vollem Tank in ganzen km; **0 = nicht festgelegt** (die Tankanzeige bleibt ausgeblendet). */
+    val fuelRangeFullKm: Flow<Int> = fuel.rangeFullKm
 
-    /** Seit dem letzten Zuruecksetzen gefahrene Kilometer (GPS). Ein negativer oder nicht endlicher Wert im Speicher liest als 0. */
-    val fuelKmSinceFill: Flow<Float> = data.map { prefs ->
-        (prefs[KEY_FUEL_KM_SINCE_FILL] ?: 0f).takeIf { it.isFinite() && it >= 0f } ?: 0f
-    }.distinctUntilChanged()
+    /** [km] = 0 loescht die Reichweite; sonst muss der Wert in `FuelRangeLimits` liegen. */
+    suspend fun setFuelRangeFullKm(km: Int) = fuel.setRangeFullKm(km)
 
-    suspend fun setFuelKmSinceFill(km: Float) {
-        require(km.isFinite() && km >= 0f) { "fuel counter must be finite and >= 0: $km" }
-        dataStore.edit { it[KEY_FUEL_KM_SINCE_FILL] = km }
-    }
+    /** Seit dem letzten Zuruecksetzen gefahrene Kilometer (GPS). */
+    val fuelKmSinceFill: Flow<Float> = fuel.kmSinceFill
 
-    /**
-     * Reserve der Tankanzeige in ganzen km Restreichweite; **0 = aus** (keine Marke im Balken, die Zahl wird nie rot). Ein Wert ausserhalb von [FuelReserveLimits] im Speicher
-     * (kann nur von Hand entstehen) gilt als aus. Eine Reserve ab der Reichweite wird gespeichert, hat aber keine Marke (`reserveFraction`).
-     */
-    val fuelReserveKm: Flow<Int> = data.map { prefs ->
-        (prefs[KEY_FUEL_RESERVE_KM] ?: 0).takeIf { it in FuelReserveLimits.MIN_KM..FuelReserveLimits.MAX_KM } ?: 0
-    }.distinctUntilChanged()
+    suspend fun setFuelKmSinceFill(km: Float) = fuel.setKmSinceFill(km)
 
-    /** [km] = 0 schaltet die Reserve aus; sonst muss der Wert in [FuelReserveLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
-    suspend fun setFuelReserveKm(km: Int) {
-        require(km == 0 || km in FuelReserveLimits.MIN_KM..FuelReserveLimits.MAX_KM) { "fuel reserve out of bounds: $km" }
-        dataStore.edit { it[KEY_FUEL_RESERVE_KM] = km }
-    }
+    /** Reserve der Tankanzeige in ganzen km Restreichweite; **0 = aus**. */
+    val fuelReserveKm: Flow<Int> = fuel.reserveKm
 
-    /**
-     * Tankinhalt in Zehntelliter (200 = 20,0 l); **0 = nicht festgelegt**. Mit Tankinhalt und mindestens drei Voll-zu-Voll-Intervallen im Logbuch berechnet die Tankanzeige ihre Reichweite
-     * selbst (sonst gilt [fuelRangeFullKm]). Ein Wert ausserhalb von [FuelCapacityLimits] im Speicher (kann nur von Hand entstehen) gilt als nicht festgelegt.
-     */
-    val fuelTankCapacityDl: Flow<Int> = data.map { prefs ->
-        (prefs[KEY_FUEL_TANK_CAPACITY_DL] ?: 0).takeIf { it in FuelCapacityLimits.MIN_DL..FuelCapacityLimits.MAX_DL } ?: 0
-    }.distinctUntilChanged()
+    /** [km] = 0 schaltet die Reserve aus; sonst muss der Wert in `FuelReserveLimits` liegen. */
+    suspend fun setFuelReserveKm(km: Int) = fuel.setReserveKm(km)
 
-    /** [dl] = 0 loescht den Tankinhalt; sonst muss der Wert in [FuelCapacityLimits] liegen (die Eingabe prueft das schon, das hier ist das Netz). */
-    suspend fun setFuelTankCapacityDl(dl: Int) {
-        require(dl == 0 || dl in FuelCapacityLimits.MIN_DL..FuelCapacityLimits.MAX_DL) { "fuel tank capacity out of bounds: $dl" }
-        dataStore.edit { it[KEY_FUEL_TANK_CAPACITY_DL] = dl }
-    }
+    /** Tankinhalt in Zehntelliter (200 = 20,0 l); **0 = nicht festgelegt** (s. [FuelPreferences.tankCapacityDl]). */
+    val fuelTankCapacityDl: Flow<Int> = fuel.tankCapacityDl
 
-    /**
-     * Die zuletzt aus dem Logbuch berechnete Reichweite in km, **nur ein Cache fuer das erste Bild** (die Tankzeile soll beim Start nicht springen, bis die Logbuch-Abfrage antwortet); die
-     * Quelle der Wahrheit ist die Rechnung (`FuelRangeSource`), diese Zahl ist nie ein Eingang. 0 = keiner. Ein Wert ausserhalb von [FuelRangeLimits] im Speicher gilt als keiner.
-     */
-    val fuelRangeLearnedKm: Flow<Int> = data.map { prefs ->
-        (prefs[KEY_FUEL_RANGE_LEARNED_KM] ?: 0).takeIf { it in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM } ?: 0
-    }.distinctUntilChanged()
+    /** [dl] = 0 loescht den Tankinhalt; sonst muss der Wert in `FuelCapacityLimits` liegen. */
+    suspend fun setFuelTankCapacityDl(dl: Int) = fuel.setTankCapacityDl(dl)
 
-    /** [km] = 0 loescht den Cache; sonst muss der Wert in [FuelRangeLimits] liegen. */
-    suspend fun setFuelRangeLearnedKm(km: Int) {
-        require(km == 0 || km in FuelRangeLimits.MIN_KM..FuelRangeLimits.MAX_KM) { "fuel learned range out of bounds: $km" }
-        dataStore.edit { it[KEY_FUEL_RANGE_LEARNED_KM] = km }
-    }
+    /** Die zuletzt aus dem Logbuch berechnete Reichweite in km, nur ein Cache fuer das erste Bild (s. [FuelPreferences.rangeLearnedKm]); 0 = keiner. */
+    val fuelRangeLearnedKm: Flow<Int> = fuel.rangeLearnedKm
 
-    val primaryRatio: Flow<Float> = data.map { prefs ->
-        prefs[KEY_PRIMARY_RATIO] ?: DEFAULT_PRIMARY_RATIO
-    }.distinctUntilChanged()
-
-    suspend fun setPrimaryRatio(value: Float) {
-        dataStore.edit { it[KEY_PRIMARY_RATIO] = value }
-    }
-
-    val secondaryRatio: Flow<Float> = data.map { prefs ->
-        prefs[KEY_SECONDARY_RATIO] ?: DEFAULT_SECONDARY_RATIO
-    }.distinctUntilChanged()
-
-    suspend fun setSecondaryRatio(value: Float) {
-        dataStore.edit { it[KEY_SECONDARY_RATIO] = value }
-    }
-
-    /** Gesamt-Getriebeuebersetzung je Gang (Index 0 = 1. Gang ... Index 5 = 6. Gang). Sechs
-     *  einzelne Keys statt einer CSV-kodierten Liste, damit jedes Settings-Eingabefeld
-     *  unabhaengig von den anderen fuenf geschrieben werden kann. */
-    val gearRatios: Flow<List<Float>> = data.map { prefs ->
-        GEAR_RATIO_KEYS.mapIndexed { i, key -> prefs[key] ?: DEFAULT_GEAR_RATIOS[i] }
-    }.distinctUntilChanged()
-
-    suspend fun setGearRatio(index: Int, value: Float) {
-        require(index in 0..5) { "index must be 0..5" }
-        dataStore.edit { it[GEAR_RATIO_KEYS[index]] = value }
-    }
+    /** [km] = 0 loescht den Cache; sonst muss der Wert in `FuelRangeLimits` liegen. */
+    suspend fun setFuelRangeLearnedKm(km: Int) = fuel.setRangeLearnedKm(km)
 
     // ── OBD-Watchdog (erzwungener Reconnect bei eingefrorenen Sensorwerten) ───
 
