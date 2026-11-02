@@ -23,10 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -53,7 +50,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -64,6 +60,7 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SectionLabel
@@ -195,7 +192,7 @@ internal fun LogbookScreen(
                 actions = {
                     // Sicherung: das ganze Logbuch als CSV. Ohne sichtbaren Eintrag gibt es nichts zu exportieren.
                     IconButton(onClick = vm::requestExport, enabled = hasEntries, modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_EXPORT_TEST_TAG)) {
-                        Icon(Icons.Default.Download, contentDescription = stringResource(R.string.logbook_cd_export))
+                        Icon(AppIcons.Download, contentDescription = stringResource(R.string.logbook_cd_export))
                     }
                     IconButton(
                         onClick = {
@@ -207,7 +204,7 @@ internal fun LogbookScreen(
                         },
                         modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_IMPORT_TEST_TAG),
                     ) {
-                        Icon(Icons.Default.Upload, contentDescription = stringResource(R.string.logbook_cd_import))
+                        Icon(AppIcons.Upload, contentDescription = stringResource(R.string.logbook_cd_import))
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -229,7 +226,7 @@ internal fun LogbookScreen(
             LogbookFilterRow(selected = filter, onSelect = vm::setFilter)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (!hasEntries) {
-                    EmptyState(icon = Icons.Default.Book, text = stringResource(R.string.logbook_empty))
+                    EmptyState(icon = AppIcons.Book, text = stringResource(R.string.logbook_empty))
                 } else {
                     val sections = insightSectionsFor(filter)
                     val locale = LocalLocale.current.platformLocale
@@ -250,7 +247,7 @@ internal fun LogbookScreen(
                         if (entries.isEmpty()) {
                             item(key = EMPTY_FILTER_KEY) {
                                 Box(Modifier.fillMaxWidth().height(EmptyFilterHeight)) {
-                                    EmptyState(icon = Icons.Default.Book, text = stringResource(R.string.logbook_empty_filter))
+                                    EmptyState(icon = AppIcons.Book, text = stringResource(R.string.logbook_empty_filter))
                                 }
                             }
                         }

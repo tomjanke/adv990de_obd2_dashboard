@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import de.adv990de.obd2.crash.CrashReportingStatus
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -167,7 +167,7 @@ private fun LinkRow(
     onClickLabel: String,
     testTag: String,
     onClick: () -> Unit,
-    icon: ImageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+    icon: ImageVector = AppIcons.OpenInNew,
 ) {
     Row(
         modifier = Modifier

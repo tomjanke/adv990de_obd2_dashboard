@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +42,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.db.entity.AppLogEntity
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.ExportFeedbackEffects
@@ -110,7 +110,7 @@ fun AppLogsScreen(
                         enabled = logs.isNotEmpty(),
                         modifier = Modifier.size(56.dp),
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = stringResource(R.string.app_logs_export))
+                        Icon(AppIcons.Download, contentDescription = stringResource(R.string.app_logs_export))
                     }
                     // 56 dp touch target (glove-friendly); disabled while there is nothing to delete —
                     // which includes the undo window, when the list is already hidden.

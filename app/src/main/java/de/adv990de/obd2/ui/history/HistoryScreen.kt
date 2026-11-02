@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +59,7 @@ import kotlinx.coroutines.launch
 import de.adv990de.obd2.data.decodeSessionDtcs
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.VinDecoder
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.ExportFeedbackEffects
@@ -171,7 +171,7 @@ fun HistoryScreen(
                         enabled = canExportAll,
                         modifier = Modifier.size(RowButtonSize),
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = stringResource(R.string.history_cd_export_all))
+                        Icon(AppIcons.Download, contentDescription = stringResource(R.string.history_cd_export_all))
                     }
                     // 56 dp touch target (glove-friendly); disabled while there is nothing to delete —
                     // which includes the undo window, when the list is already hidden, and a list

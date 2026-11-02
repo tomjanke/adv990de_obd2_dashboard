@@ -79,6 +79,16 @@ class BuildIntegrityTest {
     }
 
     @Test
+    fun `the icon collection material-icons-extended stays out - the seven icons that needed it live in AppIcons`() {
+        // Das Sammelpaket hat rund 10 700 Symbole, die App nutzt sieben; im Debug-Build steckten alle im APK. Die sieben stehen als `AppIcons` im Quelltext. Ein neues Symbol, das nur das
+        // Sammelpaket hat, kommt dorthin (Pfad aus `Icons.Filled.<Name>.root`, ein Test haelt ihn fest) und holt das Paket nicht zurueck.
+        for (file in listOf("app/build.gradle.kts", "gradle/libs.versions.toml", "gradle/verification-metadata.xml")) {
+            val text = read(file)
+            assertTrue("$file nennt das Sammelpaket material-icons-extended wieder (neues Symbol: in AppIcons ergaenzen)", !text.contains("icons-extended") && !text.contains("icons.extended"))
+        }
+    }
+
+    @Test
     fun `every direct runtime dependency has verified artifacts`() {
         val xml = read("gradle/verification-metadata.xml")
         val catalog = read("gradle/libs.versions.toml")

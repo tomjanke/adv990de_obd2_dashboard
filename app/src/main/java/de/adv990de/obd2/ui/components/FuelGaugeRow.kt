@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -185,7 +183,7 @@ fun FuelGaugeRow(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Icon(
-                    imageVector = Icons.Default.LocalGasStation,
+                    imageVector = AppIcons.LocalGasStation,
                     contentDescription = null,
                     modifier = Modifier.padding(bottom = FuelIconBottomPadding).size(FuelIconSize),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,

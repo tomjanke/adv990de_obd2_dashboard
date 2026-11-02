@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -34,6 +32,7 @@ import de.adv990de.obd2.logbook.FormField
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import java.time.Instant
@@ -56,7 +55,7 @@ internal fun DateField(date: LocalDate, today: LocalDate, error: String?, locale
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.logbook_field_date)) },
-            trailingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
+            trailingIcon = { Icon(AppIcons.CalendarToday, contentDescription = null) },
             isError = error != null,
             supportingText = error?.let { { Text(it) } },
             singleLine = true,

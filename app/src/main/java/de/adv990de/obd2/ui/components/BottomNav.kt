@@ -14,7 +14,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -182,7 +181,7 @@ fun BottomNav(
                     NavigationBarItem(
                         selected = false,
                         onClick = { showExitConfirmation = true },
-                        icon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = exitLabel) },
+                        icon = { Icon(AppIcons.PowerSettingsNew, contentDescription = exitLabel) },
                         label = { Text(exitLabel, style = navLabelStyle) },
                         alwaysShowLabel = true
                     )
