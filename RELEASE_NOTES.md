@@ -1,5 +1,18 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.16 (versionCode 154)
+
+Das **App-Log** zeigt jetzt bei eingefrorenen Werten, ob **andere Werte des Steuergeräts noch leben**.
+
+### Was sich ändert
+
+- **Eine Probe, wenn eingefrorene Werte erkannt werden:** Bevor die App neu verbindet, liest sie einmalig drei Werte, die sie sonst nie abfragt (Motorlast, Drosselklappe, Saugrohrdruck), und zwar zweimal im Abstand von einer Sekunde. Im App-Log steht danach zu jedem, ob er sich bewegt hat, zum Beispiel „probe: 0104=41 04 2A -> 41 04 2B (moved)“. Bewegt er sich, antwortet das Steuergerät hinter diesen Werten lebendig, während die angezeigten stehen — das ist ein starker Hinweis. Bleibt er gleich, ist das nur ein schwacher Hinweis. Eine Antwort wie „NO DATA“ zählt nie als „gleich“, sondern steht als „unclear“.
+- **Kaum Verzögerung:** Die Probe dauert bei gesundem Adapter rund zwei Sekunden und höchstens vier. Antwortet der Adapter nicht einmal auf die Spannungsabfrage, entfällt sie. Es sind dieselben Lesebefehle wie bei jedem Abfragezyklus; das Fahrzeug bleibt rein lesend.
+- **Nur für die Ursachensuche:** Die Zeile erscheint erst beim nächsten Einfrieren. An Anzeige und Aufzeichnung ändert sich nichts.
+- **Unverändert:** Anzeige, Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen, gespeicherte Einstellungen.
+
+---
+
 ## Version 1.44.15 (versionCode 153)
 
 Wieder eine **Aufräum-Version** ohne neue Funktion: ein schlankeres Entwicklungspaket und weniger doppelte Arbeit im Hintergrund.
