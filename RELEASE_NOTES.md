@@ -1,5 +1,17 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.14 (versionCode 152)
+
+Eine **Aufräum-Version** ohne neue Funktion: der Quelltext ist bereinigt, und ein stiller Fehler beim Beenden einer Fahrt wird jetzt gemeldet.
+
+### Was sich ändert
+
+- **Ein fehlgeschlagenes Beenden einer Fahrt steht jetzt im App-Log:** Schlug beim Schließen einer Fahrt das Schreiben in die Datenbank fehl, wurde das bisher still verschluckt, die Fahrt blieb ohne Ende. Jetzt steht einmal je Fahrt eine Warnung im App-Log (und im Absturzbericht, wenn er eingebaut und eingeschaltet ist). Anzeige und Aufzeichnung laufen wie vorher weiter.
+- **Intern aufgeräumt:** toter Code entfernt (nicht mehr benutzte Zugriffe auf Fahrten und Messwerte, ein Hilfsformat der Kacheln), die Einstellungen von Tankanzeige und Getriebe stehen in eigenen Klassen, und die drei CSV-Exporte (Fahrten, App-Log, Logbuch) nutzen einen gemeinsamen Schreibweg und eine gemeinsame Rückmeldung (Teilen, Speichern, Fehler, „nichts zu exportieren“).
+- **Unverändert:** Anzeige, Aufzeichnung, Format und Namen der CSV-Dateien, die gespeicherten Einstellungen, Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.44.13 (versionCode 151)
 
 Die **Drehzahl steht jetzt als Zahl im Drehzahlbalken.**
