@@ -1,5 +1,17 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.15 (versionCode 153)
+
+Wieder eine **Aufräum-Version** ohne neue Funktion: ein schlankeres Entwicklungspaket und weniger doppelte Arbeit im Hintergrund.
+
+### Was sich ändert
+
+- **Das große Icon-Paket ist raus:** Die App benutzte sieben von rund 10 700 Symbolen des Sammelpakets. Diese sieben (Download, Upload, Buch, Ein/Aus, Zapfsäule, Kalender, „öffnen“) stehen jetzt unverändert im Quelltext. Sie sehen genauso aus wie vorher. Das Debug-Paket schrumpft um gut ein Viertel (24,6 auf 17,9 MB); das ausgelieferte Release-Paket war schon vorher so klein (3,5 MB) und bleibt gleich.
+- **Weniger doppelte Arbeit:** Die Reichweite der Tankanzeige fragt das Logbuch nur noch einmal ab und rechnet den Verbrauch nur einmal; die kleinen Verlaufskurven der Kacheln kopieren bei GPS-Aktualisierungen nichts mehr. Das Wiederverbinden nach einem Abriss beim Auslesen der Fehlercodes steht an einer Stelle statt zwei (gleiche Meldungen im App-Log).
+- **Unverändert:** Anzeige, Aufzeichnung, Format und Namen der CSV-Dateien, die gespeicherten Einstellungen, Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.44.14 (versionCode 152)
 
 Eine **Aufräum-Version** ohne neue Funktion: der Quelltext ist bereinigt, und ein stiller Fehler beim Beenden einer Fahrt wird jetzt gemeldet.
