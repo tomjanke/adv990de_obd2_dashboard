@@ -1,5 +1,18 @@
 # Release Notes — OBD2 Monitor
 
+## Version 1.44.17 (versionCode 155)
+
+Eine **Aufräum-Version** ohne neue Funktion: Bibliotheken und Bauwerkzeuge sind auf dem neuesten stabilen Stand.
+
+### Was sich ändert
+
+- **Bauwerkzeuge:** Gradle 9.6.1 → 9.8.2 und das Android-Gradle-Plugin 9.4.1 → 9.5.0. Die Prüfsumme der Gradle-Distribution ist aus zwei Quellen bestätigt. Lint meldet keine Hinweise mehr.
+- **Bibliotheken:** DataStore (Einstellungen) 1.2.1 → 1.3.0, Sentry (Absturzberichte, in den ausgelieferten Versionen ohne eingebauten Zugang nicht aktiv) 8.60.0 → 8.62.0, kotlinx-serialization 1.11.0 → 1.12.0 und das Hilfswerkzeug KSP 2.3.11 → 2.3.13. Die Release Notes dieser Versionen enthalten nichts, was die App betrifft.
+- **Weiterhin aktuell:** Kotlin, Compose, Hilt, Room und alle übrigen Bibliotheken sind schon die neuesten stabilen Versionen.
+- **Unverändert:** Anzeige, Aufzeichnung, Datenbank (bleibt **v6**), gespeicherte Einstellungen, Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.44.16 (versionCode 154)
 
 Das **App-Log** zeigt jetzt bei eingefrorenen Werten, ob **andere Werte des Steuergeräts noch leben**.
