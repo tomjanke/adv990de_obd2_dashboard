@@ -76,8 +76,6 @@ import javax.inject.Inject
  * - isMovingFlow     — consumed by DriveStateViewModel.isNavHidden (SharingStarted.Eagerly).
  * - supportedPidIds  — consumed by DashboardViewModel.availablePids (stateIn Eagerly).
  * - lastConnectedDevice — consumed by DashboardViewModel.launchAutoConnect / launchReconnectLoop.
- * - latestReadings   — exposed as StateFlow; not directly collected by DashboardScreen but
- *   must be non-null to avoid NPE in the relaxed mock.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -100,7 +98,6 @@ class DashboardScreenTest {
     val obdRepository: ObdRepository = idleObdRepository {
         every { supportedPidIds }      returns MutableStateFlow(null)
         every { lastConnectedDevice }  returns MutableStateFlow(null)
-        every { latestReadings }       returns MutableStateFlow(emptyList())
     }
 
     /**

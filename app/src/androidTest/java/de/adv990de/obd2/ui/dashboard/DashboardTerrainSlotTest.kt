@@ -68,7 +68,6 @@ class DashboardTerrainSlotTest {
     @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository {
         every { supportedPidIds } returns MutableStateFlow(null)
         every { lastConnectedDevice } returns MutableStateFlow(null)
-        every { latestReadings } returns MutableStateFlow(emptyList())
     }
 
     /** Die Eingaben der Kachel: der Test spielt sie von Hand ein und sieht, ob jemand sammelt. */

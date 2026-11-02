@@ -24,7 +24,6 @@ internal fun fakeObdRepository(configure: ObdRepository.() -> Unit = {}): ObdRep
         // Der Koordinator schreibt die Antwort auf ATZ in die Zeile "Connected to ..."; "keine" ist der neutrale Standard.
         every { adapterInit } returns null
         every { setMoving(any()) } just Runs
-        every { updateLatestReadings(any()) } just Runs
         coEvery { readVin() } returns null
         coEvery { readDtcs() } returns emptyList()
         // Die Fehlerwache (ReadingsPipeline) liest unterwegs weich nach; "keine Antwort" ist der neutrale Standard (kein Alarm, keine Meldung).

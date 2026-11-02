@@ -434,20 +434,11 @@ class ReadingsPipeline @Inject constructor(
      * nur [record] bleibt exklusiv dem OBD-Takt vorbehalten.
      */
     private fun applyMerged(values: List<SensorValue>) {
-        obdRepository.updateLatestReadings(values)
         // Fahrterkennung aus der Geschwindigkeit — gleich ob sie vom Fahrzeug oder vom GPS kommt, mit
         // Hysterese (s. isMoving): GPS-Rauschen im Stand schaltet das Hauptmenue nicht mehr um.
         // Fehlt sie ganz, gilt "steht", damit die Navigation nie dauerhaft ausgeblendet bleibt.
         val speed = values.firstOrNull { it.pid.id == PidRegistry.SPEED.id }
         moving = isMoving(speed?.value, moving)
         obdRepository.setMoving(moving)
-    }
-
-    companion object {
-        /** Abstand der Fehlerwache (s. [FaultWatch.INTERVAL_MS]). */
-        internal const val FAULT_WATCH_INTERVAL_MS = FaultWatch.INTERVAL_MS
-
-        /** Nachpruefung nach einer Aenderung des Stands (s. [FaultWatch.RECHECK_MS]). */
-        internal const val FAULT_RECHECK_MS = FaultWatch.RECHECK_MS
     }
 }

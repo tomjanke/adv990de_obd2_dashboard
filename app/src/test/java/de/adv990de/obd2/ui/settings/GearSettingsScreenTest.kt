@@ -7,42 +7,28 @@ import org.junit.Test
 class GearSettingsScreenTest {
 
     @Test
-    fun `a positive number parses to itself`() {
-        assertEquals(2096f, parsePositiveFloat("2096")!!, 0.001f)
-        assertEquals(1.9143f, parsePositiveFloat("1.9143")!!, 0.001f)
-    }
-
-    @Test
     fun `a decimal comma parses the same as a decimal point`() {
         // German-locale keyboards (e.g. Samsung's) can offer only "," as the decimal key on a
         // KeyboardType.Decimal pad — without normalization a German-speaking user could not type
         // a fractional value like this at all.
-        assertEquals(parsePositiveFloat("1.9143"), parsePositiveFloat("1,9143"))
+        assertEquals(parseGearValue("1.9143", GearLimits.PRIMARY_RATIO), parseGearValue("1,9143", GearLimits.PRIMARY_RATIO))
+        assertEquals(1.9143f, parseGearValue("1,9143", GearLimits.PRIMARY_RATIO)!!, 0.0001f)
     }
 
     @Test
-    fun `zero is rejected`() {
-        assertNull(parsePositiveFloat("0"))
-    }
-
-    @Test
-    fun `a negative number is rejected`() {
-        assertNull(parsePositiveFloat("-5"))
-    }
-
-    @Test
-    fun `non-numeric text is rejected`() {
-        assertNull(parsePositiveFloat("abc"))
-        assertNull(parsePositiveFloat(""))
+    fun `non-numeric text and negative numbers are rejected`() {
+        assertNull(parseGearValue("abc", GearLimits.GEAR_RATIO, allowZero = true))
+        assertNull(parseGearValue("", GearLimits.GEAR_RATIO, allowZero = true))
+        assertNull(parseGearValue("-5", GearLimits.GEAR_RATIO, allowZero = true))
     }
 
     @Test
     fun `Infinity and NaN are rejected`() {
-        // Float.POSITIVE_INFINITY > 0f is true, so the original `it > 0f` check alone let
-        // "Infinity" through — a value no gear-ratio math should ever receive.
-        assertNull(parsePositiveFloat("Infinity"))
-        assertNull(parsePositiveFloat("-Infinity"))
-        assertNull(parsePositiveFloat("NaN"))
+        // Float.POSITIVE_INFINITY > 0f is true, so a plain positivity check lets "Infinity" through —
+        // a value no gear-ratio math should ever receive.
+        assertNull(parseGearValue("Infinity", GearLimits.GEAR_RATIO, allowZero = true))
+        assertNull(parseGearValue("-Infinity", GearLimits.GEAR_RATIO, allowZero = true))
+        assertNull(parseGearValue("NaN", GearLimits.GEAR_RATIO, allowZero = true))
     }
 
     // ── B22: plausible ranges, and "0" switches a gear off ─────────────────────────────────────────────

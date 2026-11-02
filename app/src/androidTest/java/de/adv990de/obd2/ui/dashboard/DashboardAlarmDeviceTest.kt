@@ -101,7 +101,6 @@ class DashboardAlarmDeviceTest {
     @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository {
         every { supportedPidIds } returns MutableStateFlow(null)
         every { lastConnectedDevice } returns MutableStateFlow(null)
-        every { latestReadings } returns MutableStateFlow(emptyList())
     }
 
     /** Zeichnet auf, was der Controller der Systembenachrichtigung sagt — in der Reihenfolge, als „show KIND SEVERITY“ bzw. „clear KIND“. */

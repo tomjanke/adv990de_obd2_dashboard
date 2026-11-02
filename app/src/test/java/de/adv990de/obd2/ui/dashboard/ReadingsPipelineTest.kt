@@ -73,7 +73,6 @@ class ReadingsPipelineTest {
         every { userDisconnectCount } returns MutableStateFlow(0)
         every { supportedPidIds } returns MutableStateFlow(supported)
         every { livePids(any()) } returns flowOf(readings)
-        every { updateLatestReadings(any()) } just Runs
         every { setMoving(any()) } just Runs
         coEvery { readVin() } returns "VIN"
         coEvery { readDtcs() } returns emptyList()
@@ -1710,8 +1709,8 @@ class ReadingsPipelineTest {
     // Das Auslesen beim Verbinden meldet die Basis (isBaseline = true, auch bei einem Fehlschlag als null); danach liest die Wache jede Minute
     // weich nach (readDtcsOrSkip: ein Zeitlimit ueberspringt, trennt nie) und meldet jeden Erfolg. Eine Aenderung wird nach 10 s nachgeprueft.
 
-    private val watchMs = ReadingsPipeline.FAULT_WATCH_INTERVAL_MS
-    private val recheckMs = ReadingsPipeline.FAULT_RECHECK_MS
+    private val watchMs = FaultWatch.INTERVAL_MS
+    private val recheckMs = FaultWatch.RECHECK_MS
     private val p0301 = DtcEntry("P0301", false)
     private val p0420 = DtcEntry("P0420", false)
 
@@ -1737,8 +1736,8 @@ class ReadingsPipelineTest {
 
     @Test
     fun `the cadence is one minute, and ten seconds after a change`() {
-        assertEquals(60_000L, ReadingsPipeline.FAULT_WATCH_INTERVAL_MS)
-        assertEquals(10_000L, ReadingsPipeline.FAULT_RECHECK_MS)
+        assertEquals(60_000L, FaultWatch.INTERVAL_MS)
+        assertEquals(10_000L, FaultWatch.RECHECK_MS)
     }
 
     @Test

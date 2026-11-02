@@ -25,18 +25,6 @@ val PlexMonoFamily = FontFamily(
 )
 
 /**
- * Display-size value style for the dominant live readout (e.g. RPM centerpiece, speed hero tile).
- * Tabular numerals enforced via `tnum` so digits do not shift width on update.
- */
-val ValueDisplayStyle = TextStyle(
-    fontFamily = PlexMonoFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = (57f * BIKE_SCALE).sp,
-    lineHeight = (64f * BIKE_SCALE).sp,
-    fontFeatureSettings = "tnum",
-)
-
-/**
  * Tile-size value style for the standard sensor-card reading (coolant temp, voltage, etc).
  * Sized to match M3 `displayMedium` so direct swap of existing displayMedium-styled values
  * preserves vertical rhythm. Same `tnum` guarantee.
@@ -66,7 +54,7 @@ val GearIndicatorStyle = ValueTileStyle
 /**
  * Adapter for any existing M3 [TextStyle] that should be promoted to a live-value style without
  * changing its size: swaps in IBM Plex Mono and enables tabular numerals. Use sparingly — prefer
- * [ValueDisplayStyle] / [ValueTileStyle] for canonical uses.
+ * [ValueTileStyle] for canonical uses.
  *
  * Example: `MaterialTheme.typography.titleSmall.asLiveValue()` for compact inline readouts where
  * the surrounding layout was built around a specific text size.

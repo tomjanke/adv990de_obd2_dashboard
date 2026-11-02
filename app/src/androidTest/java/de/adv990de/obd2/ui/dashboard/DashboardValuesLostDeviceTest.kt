@@ -67,7 +67,6 @@ class DashboardValuesLostDeviceTest {
     @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository {
         every { supportedPidIds } returns MutableStateFlow(null)
         every { lastConnectedDevice } returns MutableStateFlow(null)
-        every { latestReadings } returns MutableStateFlow(emptyList())
     }
 
     @Inject lateinit var appPreferences: AppPreferences

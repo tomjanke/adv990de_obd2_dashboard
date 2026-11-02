@@ -34,8 +34,6 @@ class SessionRepository @Inject constructor(
     private val db: AppDatabase
 ) {
 
-    val allSessions: Flow<List<SessionEntity>> = db.sessionDao().getAll()
-
     private val _activeSessionId = MutableStateFlow<Long?>(null)
 
     /**

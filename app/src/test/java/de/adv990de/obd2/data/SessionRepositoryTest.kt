@@ -34,7 +34,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runCurrent
@@ -58,11 +57,7 @@ class SessionRepositoryTest {
 
     @get:Rule val tempFolder = TemporaryFolder()
 
-    private val sessionDao = mockk<SessionDao> {
-        // SessionRepository eagerly calls sessionDao().getAll() in its property initializer,
-        // so this stub must be present before the repository is constructed.
-        every { getAll() } returns emptyFlow()
-    }
+    private val sessionDao = mockk<SessionDao>()
     private val sensorReadingDao = mockk<SensorReadingDao>()
     private val db = mockk<AppDatabase> {
         every { sessionDao() } returns sessionDao

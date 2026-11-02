@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.isSpecified
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.blueColorScheme
-import de.adv990de.obd2.ui.theme.ValueDisplayStyle
 import de.adv990de.obd2.ui.theme.ValueTileStyle
 
 /**
@@ -39,9 +38,8 @@ import de.adv990de.obd2.ui.theme.ValueTileStyle
  * Uses IBM Plex Mono with tabular numerals enforced so digits keep stable column widths across
  * updates — no horizontal jitter on the dashboard.
  *
- * Pick the style by visual hierarchy:
- *  - [ValueDisplayStyle] — dominant centerpiece (RPM hero, speed full-width)
- *  - [ValueTileStyle]   — standard tile reading (coolant, voltage, fuel)
+ * Standard style for a tile reading (coolant, voltage, fuel): [ValueTileStyle]. Compact inline readouts promote an existing
+ * style with `asLiveValue()`.
  *
  * Static or non-numeric live text (status labels, mode indicators) should NOT use this composable —
  * use [Text] with the regular [MaterialTheme.typography] instead.
@@ -150,7 +148,7 @@ private fun PreviewLiveValueTileBlue() {
     }
 }
 
-@Preview(name = "LiveValueText · display hero", showBackground = false)
+@Preview(name = "LiveValueText · tile value", showBackground = false)
 @Composable
 private fun PreviewLiveValueDisplay() {
     MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
@@ -169,7 +167,7 @@ private fun PreviewLiveValueDisplay() {
                 )
                 LiveValueText(
                     value = "2 840",
-                    style = ValueDisplayStyle,
+                    style = ValueTileStyle,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -208,7 +206,7 @@ private fun PreviewLiveValueAmber() {
                     )
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
-                    LiveValueText(value = "4 200", style = ValueDisplayStyle)
+                    LiveValueText(value = "4 200", style = ValueTileStyle)
                     Text(
                         text = " rpm",
                         style = AppTypography.labelLarge,

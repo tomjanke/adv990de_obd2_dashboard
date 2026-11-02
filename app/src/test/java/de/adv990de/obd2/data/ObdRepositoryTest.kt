@@ -16,7 +16,6 @@ import de.adv990de.obd2.obd.PidParser
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.ObdException
 import de.adv990de.obd2.obd.model.PidDefinition
-import de.adv990de.obd2.obd.model.SensorValue
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -717,13 +716,11 @@ class ObdRepositoryTest {
         val repo = makeRepo(factory)
         repo.connect(deviceA)
         repo.setMoving(true)
-        repo.updateLatestReadings(listOf(SensorValue(PidRegistry.RPM, 1f)))
 
         try { repo.connect(deviceB) } catch (_: ObdException.ConnectionLost) { }
 
         assertFalse(repo.isConnectedFlow.value)
         assertFalse("die Fahrterkennung der alten Verbindung gilt nicht weiter", repo.isMovingFlow.value)
-        assertTrue("die Werte der alten Verbindung sind weg", repo.latestReadings.value.isEmpty())
     }
 
     // ── DTC read ─────────────────────────────────────────────────────────────
@@ -2076,24 +2073,5 @@ class ObdRepositoryTest {
 
         assertFalse("isConnectedFlow should be false after disconnect", repo.isConnectedFlow.value)
         assertNull("supportedPidIds should be null after disconnect", repo.supportedPidIds.value)
-    }
-
-    // ── latestReadings ────────────────────────────────────────────────────────
-
-    @Test
-    fun `latestReadings starts empty`() = runTest {
-        val repo = makeRepo()
-        assertTrue(repo.latestReadings.value.isEmpty())
-    }
-
-    @Test
-    fun `updateLatestReadings updates the exposed latestReadings flow`() = runTest {
-        val repo = makeRepo()
-        val pid = PidRegistry.defaults.first()
-        val readings = listOf(SensorValue(pid = pid, value = 42f))
-
-        repo.updateLatestReadings(readings)
-
-        assertEquals(readings, repo.latestReadings.value)
     }
 }

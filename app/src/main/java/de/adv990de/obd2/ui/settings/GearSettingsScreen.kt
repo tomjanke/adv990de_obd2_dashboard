@@ -131,23 +131,6 @@ fun GearSettingsScreen(
 }
 
 /**
- * Parst eine Nutzereingabe als positive Gleitkommazahl, oder `null` bei ungueltiger Eingabe
- * (nicht parsebar, negativ, exakt 0, oder "Infinity"/"NaN" — `Float.POSITIVE_INFINITY > 0f` ist
- * `true`, ein reiner Positiv-Check allein liesse diese Werte sonst durch). Eigene Top-Level-Funktion
- * statt Inline-Lambda, damit
- * die Validierungsregel unabhaengig vom Composable testbar ist (s. `GearSettingsScreenTest`).
- *
- * Ersetzt `,` durch `.` vor dem Parsen: `String.toFloatOrNull()` akzeptiert ausschliesslich `.`
- * als Dezimaltrenner, aber diese App ist zweisprachig (Deutsch/Englisch) und manche
- * Android-Tastaturen bieten bei deutscher Locale auf einem `KeyboardType.Decimal`-Ziffernblock
- * nur `,` als Dezimaltaste an (bestaetigt fuer Samsungs Tastatur) — ohne Normalisierung koennte
- * ein deutschsprachiger Nutzer auf so einer Tastatur gar keinen Kommawert eintippen, obwohl jedes
- * der neun Felder auf diesem Screen einen Dezimalpunkt braucht.
- */
-internal fun parsePositiveFloat(text: String): Float? =
-    text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() && it > 0f }
-
-/**
  * Plausible Grenzen der Getriebe-Eingaben (B22). Ohne sie wurde jede positive Zahl gespeichert: "2.096" (gemeint: 2096 mm,
  * mit deutschem Tausenderpunkt) landete als 2,096 mm in den Einstellungen, und die Ganganzeige blieb fuer immer "–", ohne
  * jeden Hinweis. Weit genug gefasst fuer Motorraeder, Autos und Transporter; eng genug, dass ein Tippfehler auffaellt.
@@ -164,8 +147,12 @@ internal object GearLimits {
 /**
  * Parst eine Getriebe-Eingabe und prueft sie gegen [range]; `null` bei ungueltiger Eingabe (nicht parsebar, ausserhalb des
  * Bereichs). [allowZero] erlaubt zusaetzlich `0`: ein Gang, den das Getriebe nicht hat (5-Gang-Motorrad mit sechs
- * Eingabefeldern), laesst sich so abschalten — `determineGear` ueberspringt ihn. Komma und Punkt gelten wie bei
- * [parsePositiveFloat]; ein Wert wie "2.096" ist bei einem Radumfang bewusst UNGUELTIG statt erraten.
+ * Eingabefeldern), laesst sich so abschalten — `determineGear` ueberspringt ihn. "Infinity" und "NaN" sind ungueltig.
+ *
+ * Komma und Punkt gelten gleich: `String.toFloatOrNull()` akzeptiert nur `.`, aber diese App ist zweisprachig und manche Android-Tastaturen
+ * bieten bei deutscher Locale auf einem `KeyboardType.Decimal`-Ziffernblock nur `,` an (bestaetigt fuer Samsungs Tastatur) — ohne die Normalisierung
+ * liesse sich dort kein Kommawert eintippen, obwohl jedes der neun Felder einen Dezimalpunkt braucht. Ein Wert wie "2.096" ist bei einem
+ * Radumfang bewusst UNGUELTIG statt erraten.
  */
 internal fun parseGearValue(
     text: String,
@@ -260,7 +247,7 @@ internal fun GearRatioField(
 // Der Fehler-Zustand laesst sich ueber die oeffentliche API nicht direkt herbeifuehren (das
 // Composable nimmt einen bereits gueltigen `value: Float` entgegen, nicht rohen Text) — ein
 // nicht-positiver Startwert (hier 0f) seedet den internen Text-Puffer aber mit genau der Eingabe,
-// die auch ein Nutzer-Tippfehler erzeugen wuerde, und durchlaeuft dieselbe `parsePositiveFloat`-
+// die auch ein Nutzer-Tippfehler erzeugen wuerde, und durchlaeuft dieselbe `parseGearValue`-
 // Pruefung wie jede echte Eingabe.
 
 @Preview(name = "GearRatioField · valid value (blue)", showBackground = true)
