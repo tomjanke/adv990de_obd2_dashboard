@@ -2,16 +2,13 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.logbook.logbookCsvHeader
 import de.adv990de.obd2.logbook.logbookCsvLine
 import de.adv990de.obd2.logbook.logbookFileName
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import java.io.File
+import java.io.Writer
 import javax.inject.Inject
 
 /**
@@ -27,47 +24,27 @@ import javax.inject.Inject
  * [excluding] sind Ids, die die Oberflaeche ausblendet (Eintraege im Rueckgaengig-Fenster nach dem Loeschen): die Sicherung soll zeigen, was der Nutzer sieht.
  */
 class LogbookExporter @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @ApplicationContext context: Context,
     private val repository: VehicleLogRepository,
 ) {
+    private val files = CsvExportFiles(context)
 
     /** Writes the logbook into a new file in the cache and returns a [Uri] the share chooser can hand on (the file provider grants read access). */
-    suspend fun exportToCsv(excluding: Set<Long> = emptySet()): Uri = withContext(Dispatchers.IO) {
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", writeExportFile(excluding))
-    }
+    suspend fun exportToCsv(excluding: Set<Long> = emptySet()): Uri = files.share(::logbookFileName) { writeRows(it, excluding) }
 
     /**
      * Writes the same CSV into the file the user chose with the system file dialog ([target], from `CreateDocument`). The CSV goes to the cache
      * first and is copied only when it is complete ([copyToTarget]); the cache file is removed afterwards, whatever happened.
      */
-    suspend fun saveCsv(target: Uri, excluding: Set<Long> = emptySet()) = withContext(Dispatchers.IO) {
-        val file = writeExportFile(excluding)
-        try {
-            copyToTarget(context.contentResolver, file, target)
-        } finally {
-            file.delete()
-        }
-    }
+    suspend fun saveCsv(target: Uri, excluding: Set<Long> = emptySet()) = files.save(target, ::logbookFileName) { writeRows(it, excluding) }
 
-    private suspend fun writeExportFile(excluding: Set<Long>): File {
-        val exportDir = File(context.cacheDir, EXPORT_CACHE_DIR)
-        val now = System.currentTimeMillis()
-        deleteStaleExports(exportDir, now)
+    private suspend fun writeRows(writer: Writer, excluding: Set<Long>) {
         val entries = repository.all().filter { it.id !in excluding }
         currentCoroutineContext().ensureActive()
-        val file = createExportFile(exportDir, logbookFileName(now))
-        try {
-            file.bufferedWriter().use { writer ->
-                writer.write(logbookCsvHeader())
-                entries.forEachIndexed { index, entry ->
-                    writer.write(logbookCsvLine(entry))
-                    if ((index + 1) % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
-                }
-            }
-        } catch (e: Throwable) {
-            file.delete()
-            throw e
+        writer.write(logbookCsvHeader())
+        entries.forEachIndexed { index, entry ->
+            writer.write(logbookCsvLine(entry))
+            if ((index + 1) % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
         }
-        return file
     }
 }

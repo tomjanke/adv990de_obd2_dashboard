@@ -2,7 +2,6 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.core.content.FileProvider
 import androidx.paging.PagingSource
 import androidx.sqlite.db.SimpleSQLiteQuery
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.io.Writer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +33,7 @@ class SessionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: AppDatabase
 ) {
+    private val files = CsvExportFiles(context)
 
     private val _activeSessionId = MutableStateFlow<Long?>(null)
 
@@ -180,8 +181,9 @@ class SessionRepository @Inject constructor(
      * exports older than a day are removed first (DAT-07: they were never deleted). A failed export leaves no
      * half-written file behind.
      */
-    suspend fun exportSessionsToCsv(sessionIds: List<Long>): Uri = withContext(Dispatchers.IO) {
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", writeExportFile(sessionIds))
+    suspend fun exportSessionsToCsv(sessionIds: List<Long>): Uri {
+        requireTripsToExport(sessionIds)
+        return files.share({ exportFileNameFor(sessionIds, it) }) { writeTrips(it, sessionIds) }
     }
 
     /**
@@ -190,13 +192,9 @@ class SessionRepository @Inject constructor(
      * half-written document is left there. The cache file is removed afterwards, whatever happened. A target that cannot be opened for
      * writing is an [IOException].
      */
-    suspend fun saveSessionsCsv(sessionIds: List<Long>, target: Uri) = withContext(Dispatchers.IO) {
-        val file = writeExportFile(sessionIds)
-        try {
-            copyToTarget(context.contentResolver, file, target)
-        } finally {
-            file.delete()
-        }
+    suspend fun saveSessionsCsv(sessionIds: List<Long>, target: Uri) {
+        requireTripsToExport(sessionIds)
+        files.save(target, { exportFileNameFor(sessionIds, it) }) { writeTrips(it, sessionIds) }
     }
 
     /**
@@ -222,49 +220,37 @@ class SessionRepository @Inject constructor(
         accumulator.result()
     }
 
-    /** The one place that writes the export: the trips into a new file in the cache directory. */
-    private suspend fun writeExportFile(sessionIds: List<Long>): File {
-        require(sessionIds.isNotEmpty()) { "There is no trip to export" }
-        val exportDir = File(context.cacheDir, EXPORT_CACHE_DIR)
-        val now = System.currentTimeMillis()
-        deleteStaleExports(exportDir, now)
-        val file = createExportFile(exportDir, exportFileNameFor(sessionIds, now))
+    private fun requireTripsToExport(sessionIds: List<Long>) = require(sessionIds.isNotEmpty()) { "There is no trip to export" }
 
-        try {
-            file.bufferedWriter().use { writer ->
-                writer.write(csvRow(*EXPORT_COLUMNS))
-                var written = 0
-                for (id in sessionIds) {
-                    currentCoroutineContext().ensureActive()
-                    val tripId = id.toString()
-                    val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(id))
-                    db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
-                        val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
-                        val colPid       = cursor.getColumnIndexOrThrow("pidId")
-                        val colValue     = cursor.getColumnIndexOrThrow("value")
-                        val colSource    = cursor.getColumnIndexOrThrow("source")
-                        while (cursor.moveToNext()) {
-                            val pidId = cursor.getString(colPid).orEmpty()
-                            writer.write(
-                                csvRow(
-                                    cursor.getLong(colTimestamp).toString(),
-                                    pidId,
-                                    cursor.getFloat(colValue).toString(),
-                                    csvPidName(pidId),
-                                    cursor.getString(colSource).orEmpty(),
-                                    tripId,
-                                )
-                            )
-                            // A long export (many trips) must stop when the caller is cancelled, not run to the end.
-                            if (++written % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
-                        }
-                    }
+    /** The one place that writes the rows of the export: the trips, one after the other, into the file [CsvExportFiles] opened. */
+    private suspend fun writeTrips(writer: Writer, sessionIds: List<Long>) {
+        writer.write(csvRow(*EXPORT_COLUMNS))
+        var written = 0
+        for (id in sessionIds) {
+            currentCoroutineContext().ensureActive()
+            val tripId = id.toString()
+            val query = SimpleSQLiteQuery(EXPORT_QUERY_SQL, arrayOf(id))
+            db.sensorReadingDao().getBySessionCursor(query).use { cursor ->
+                val colTimestamp = cursor.getColumnIndexOrThrow("timestamp")
+                val colPid       = cursor.getColumnIndexOrThrow("pidId")
+                val colValue     = cursor.getColumnIndexOrThrow("value")
+                val colSource    = cursor.getColumnIndexOrThrow("source")
+                while (cursor.moveToNext()) {
+                    val pidId = cursor.getString(colPid).orEmpty()
+                    writer.write(
+                        csvRow(
+                            cursor.getLong(colTimestamp).toString(),
+                            pidId,
+                            cursor.getFloat(colValue).toString(),
+                            csvPidName(pidId),
+                            cursor.getString(colSource).orEmpty(),
+                            tripId,
+                        )
+                    )
+                    // A long export (many trips) must stop when the caller is cancelled, not run to the end.
+                    if (++written % CANCELLATION_CHECK_ROWS == 0) currentCoroutineContext().ensureActive()
                 }
             }
-        } catch (e: Throwable) {
-            file.delete()
-            throw e
         }
-        return file
     }
 }
