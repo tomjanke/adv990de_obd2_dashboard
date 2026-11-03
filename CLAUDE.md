@@ -6,6 +6,8 @@
 
 Android-App zur OBD2-Live-Diagnose. Single-Module (`app/`), Kotlin 2.4.21 (built-in Kotlin von AGP 9.5), Jetpack Compose (Material 3), Hilt, Room, minSdk 26 / targetSdk 37 / compileSdk 37. Architektur-Highlights stehen in `README.md` und im Auto-Memory.
 
+**Paketname (umbenannt am 2026-11-03, Auftrag des Nutzers für die geplante Veröffentlichung):** `de.adv990de.obd2` — Namespace, `applicationId` (Debug: `.debug`), Verzeichnisse und Room-Schemaordner (`app/schemas/de.adv990de.obd2.data.db.AppDatabase/`); vor der Veröffentlichung hieß er anders (die Git-Historie wurde dabei durchgehend angepasst, auch die alten Tags tragen den neuen Namen). Für Android ist eine ältere Installation unter dem früheren Paketnamen **eine andere App**: sie wird nicht aktualisiert, sondern bleibt mit ihren eigenen Daten daneben stehen (Fahrten, Logbuch, Einstellungen, Tankzähler gehen nicht über; das Logbuch lässt sich per CSV-Export und -Import mitnehmen, Fahrten gibt es nur als Export, nicht als Import). Die historischen Pläne unter `docs/plans/` und `docs/superpowers/archive/` nennen weiter den alten Namen — sie sind Aufzeichnungen, keine Anleitungen. Die DataStore-Schlüssel, Datenbank- und Dateinamen, Kanal-IDs und Splash-Theme-Namen hängen nicht am Paket und blieben unverändert. **Falle bei der Umbenennung:** ein Paketname als Regex mit doppeltem Backslash (so in `TestLevelsDocsTest`) wird von einer Suche nach dem Paketnamen mit einfachen Punkten nicht gefunden — nach so einer Ersetzung immer auch nach dem alten Namensbestandteil allein suchen; und Hilt braucht danach einen sauberen Build (`:app:clean`), sonst meldet `hiltJavaCompileDebug` „Could not find class file“ für den alten Namen.
+
 ---
 
 ## UI/UX Design-Profil
