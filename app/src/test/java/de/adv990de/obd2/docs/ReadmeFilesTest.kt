@@ -116,6 +116,23 @@ class ReadmeFilesTest {
     }
 
     @Test
+    fun `every README says that the code was written with the help of an AI - in the language of each part`() {
+        // Auftrag des Nutzers (2026-11-03): der KI-Hinweis gehoert in die READMEs. Er steht in beiden Sprachen der Kurzfassung und in beiden ausfuehrlichen Fassungen.
+        val short = ReadmeFiles.read(SHORT)
+        val parts = mapOf(
+            "Kurzfassung, englischer Teil" to (short.substringBefore("\n## Deutsch\n") to "Written with AI assistance"),
+            "Kurzfassung, deutscher Teil" to (short.substringAfter("\n## Deutsch\n") to "Mit KI-Hilfe entstanden"),
+            "$EN" to (ReadmeFiles.read(EN) to "Written with AI assistance"),
+            "$DE" to (ReadmeFiles.read(DE) to "Mit KI-Hilfe entstanden"),
+        )
+        for ((where, pair) in parts) {
+            val (text, heading) = pair
+            assertTrue("$where nennt '$heading' nicht", text.contains(heading))
+            assertTrue("$where nennt Claude (Anthropic) nicht", text.contains("Claude (Anthropic)"))
+        }
+    }
+
+    @Test
     fun `the short README names no version - only the detailed READMEs do`() {
         // Die Version steht in docs/README.en.md und docs/README.de.md ("Current version" / "Aktuelle Version", ReleaseDocsConsistencyTest). Eine dritte Stelle waere bei
         // jedem Release eine mehr, die man vergessen kann.
