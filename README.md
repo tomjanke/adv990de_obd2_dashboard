@@ -402,9 +402,8 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | `app/src/test/` | JVM-Unit-Tests (3072) |
 | `app/src/androidTest/` | Instrumented Tests (838, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
-| `docs/plans/` | Historische Implementierungs-Pläne (Dokumentation, nicht Build-Input) |
-| `docs/superpowers/archive/` | Pläne und Spezifikationen umgesetzter Funktionen (Dokumentation, nicht Build-Input) |
-| `docs/qa/` | QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten (Gang-Toleranzen, Batteriespannung, Batterie-Basis für F12) mit den Skripten dazu (das wiederkehrende, getestete liegt unter `scripts/battery_baseline.py`) — die CSVs selbst liegen nicht im Repo |
+| `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
+| *(nicht im Repository)* | Pläne, Spezifikationen, QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten samt Analyse-Skripten liegen in einem privaten Ordner neben dem Repository (in Verweisen `<intern>`); die Ordner `plans/` und `superpowers/` unter `docs/` stehen in der `.gitignore`, damit dort neu angelegte Pläne nicht versehentlich im Repository landen |
 | `docs/ideas/` | Funktionsideen (kein Backlog, nichts beschlossen) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
 

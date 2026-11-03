@@ -94,3 +94,8 @@ lint/tmp/
 
 # Python (Skripte in scripts/ werden von den JVM-Tests ausgeführt)
 __pycache__/
+
+# Interne Plaene und Spezifikationen liegen im privaten Ordner neben dem Repository (CLAUDE.md, "Interne Unterlagen").
+# Neu angelegte Dateien hier (z. B. von den Superpowers-Skills) sollen nicht versehentlich im oeffentlichen Repository landen.
+docs/plans/
+docs/superpowers/

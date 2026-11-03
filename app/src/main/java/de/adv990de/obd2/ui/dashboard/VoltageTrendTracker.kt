@@ -5,7 +5,7 @@ import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.SensorValue
 
 /**
- * Die geglättete Spannung (Median der letzten 10 s) und ihr Zustand über die Zyklen einer Verbindung (Lade-/Entlade-Balken, Entwurf `docs/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`).
+ * Die geglättete Spannung (Median der letzten 10 s) und ihr Zustand über die Zyklen einer Verbindung (Lade-/Entlade-Balken, Entwurf `<intern>/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`).
  * Herausgelöst aus `DashboardViewModel` nach dem Muster von `GearTracker` und `OilBarTracker`; die reine Rechnung steht in `VoltageTrend.kt`.
  *
  * - **Zwei Stände, nach dem Motor:** ob der Motor läuft, entscheidet dasselbe [EngineGate] wie bei den Alarmen (≥ 500 rpm, die letzte Drehzahl gilt 12 s).

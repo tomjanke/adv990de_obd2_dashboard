@@ -137,7 +137,7 @@ internal fun RpmBar(
     ) {
         // Column statt einzelnem Box: die RPM-Segmente (80% Hoehenanteil) und darunter die
         // Oel-Temperatur-Leiste (20%) teilen sich das `weight(1f)`-Feld links neben der
-        // unveraenderten Gang-Box (Plan: docs/superpowers/archive/plans/2026-09-27-oil-temperature-bar.md).
+        // unveraenderten Gang-Box (Plan: <intern>/superpowers/archive/plans/2026-09-27-oil-temperature-bar.md).
         // Dazwischen 2dp Luecke, in der der Hintergrund durchscheint: ohne sie verschmelzen
         // Segmente und Leiste zu einer Flaeche, sobald beide gleich gefaerbt sind — grau auf grau
         // ohne Verbindung, rot auf rot bei kaltem Motor im Schaltblitz-Bereich.

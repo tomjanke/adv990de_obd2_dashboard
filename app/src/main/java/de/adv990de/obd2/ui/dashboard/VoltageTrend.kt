@@ -1,7 +1,7 @@
 package de.adv990de.obd2.ui.dashboard
 
 /**
- * Die reine Rechnung des Lade-/Entlade-Balkens der Spannungs-Kachel (Idee F3, Entwurf `docs/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`): Zustand und Geometrie.
+ * Die reine Rechnung des Lade-/Entlade-Balkens der Spannungs-Kachel (Idee F3, Entwurf `<intern>/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`): Zustand und Geometrie.
  * Ohne Compose und Android, damit sie im JVM-Test steht (Muster `determineGear`). Die Glättung über die Zyklen steht in [VoltageTrendTracker].
  */
 

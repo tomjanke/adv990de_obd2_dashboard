@@ -26,7 +26,7 @@ import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.StatusColors
 
 /**
- * Der Lade-/Entlade-Balken der Spannungs-Kachel (Idee F3, Entwurf `docs/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`): senkrecht, Skala 11–15 V, die Nulllinie bei 12,7 V.
+ * Der Lade-/Entlade-Balken der Spannungs-Kachel (Idee F3, Entwurf `<intern>/superpowers/archive/specs/2026-10-19-voltage-gauge-design.md`): senkrecht, Skala 11–15 V, die Nulllinie bei 12,7 V.
  * Die Füllung geht von der Nulllinie bis zur geglätteten Spannung — darüber nach oben, darunter nach unten — in der Farbe des Zustands.
  *
  * - **Spur:** `surfaceVariant`, wie die unbeleuchteten Segmente der übrigen Anzeigen (Drehzahl, Tank): die Skala bleibt lesbar, auch wenn nichts gefüllt ist.

@@ -1333,7 +1333,7 @@ Der Rest des QS-Backlogs, der kein Fahrzeug braucht: zwei Funktionen (Herkunft d
 - **`@Preview`** für die zustandslosen Bausteine (Sparkline, Fehlercode-Zeilen, Fahrtzeile, Log-Zeile, Geräte-Zeile, Berechtigungsseite, Kachel/Band, Farbschema-Auswahl). Ein Test verlangt für jede Datei mit Composables eine Vorschau oder eine Ausnahme mit Begründung (ViewModel-gebundene Screens, reine Effekte).
 - **Große Dateien:** `DashboardComponents` (692 Zeilen), `SettingsScreen` (558), `SettingsComponents` (423) sind aufgeteilt (reine Verschiebungen im selben Paket, Zeile für Zeile geprüft); `SessionEvent`, `DashboardUiState` und die PID-Erkennung haben eigene Dateien. **Drei Dateien bleiben über 400 Zeilen** (`DashboardViewModel` 483, `ObdRepository` 450, `ReadingsPipeline` 445) — je eine Klasse; weiteres Teilen hieße Logik umbauen.
 - **Testklassen:** sieben Klassen hießen auf dem JVM und auf dem Gerät gleich; die Geräte-Klassen enden jetzt auf `DeviceTest`, ein Test hält die Namen auseinander.
-- **Pläne und Spezifikationen** umgesetzter Funktionen (11 + 3) liegen in `docs/superpowers/archive/` (nichts gelöscht).
+- **Pläne und Spezifikationen** umgesetzter Funktionen (11 + 3) liegen in `<intern>/superpowers/archive/` (nichts gelöscht).
 - **JDK:** Gradle lädt kein JDK mehr von selbst (`org.gradle.java.installations.auto-download=false`) — für Toolchain-Downloads gibt es keine Prüfsumme. Fehlt das JDK 21 (JetBrains), bricht der Build mit Gradles Meldung ab; das vorhandene unter `~/.gradle/jdks` wird gefunden. Dass ein fehlendes JDK wirklich abbricht, wurde nicht nachgestellt (der Gegenversuch hätte einen Download ausgelöst).
 
 ### Tests
@@ -1388,7 +1388,7 @@ Der Tacho-Sweep läuft nur noch einmal je App-Start. Dazu die Entscheidungen vom
 
 ### Entscheidungen und Doku
 
-- Neues Entscheidungsprotokoll `docs/qa/2026-10-12-decisions.md`: Navigationsübergänge bleiben beim Standard von `NavHost` (CLAUDE.md nennt ihn jetzt als Vorgabe, die 220-ms-Forderung entfällt, UID-10), die Drehzahlskala bleibt bei 10 000 (UID-21), Polling und Aufzeichnung bleiben im ViewModel, Compose-BOM 2026.09 erst nach der Testfahrt, die Seriennummer des Testgeräts wird erst vor einer Veröffentlichung des Repositorys aus der Historie getilgt, die Keystore-Zweitkopie legt der Nutzer selbst an.
+- Neues Entscheidungsprotokoll `<intern>/qa/2026-10-12-decisions.md`: Navigationsübergänge bleiben beim Standard von `NavHost` (CLAUDE.md nennt ihn jetzt als Vorgabe, die 220-ms-Forderung entfällt, UID-10), die Drehzahlskala bleibt bei 10 000 (UID-21), Polling und Aufzeichnung bleiben im ViewModel, Compose-BOM 2026.09 erst nach der Testfahrt, die Seriennummer des Testgeräts wird erst vor einer Veröffentlichung des Repositorys aus der Historie getilgt, die Keystore-Zweitkopie legt der Nutzer selbst an.
 - Die Freigabeliste der Claude-Sitzung (`.claude/settings.local.json`, git-ignoriert, nicht Teil der App) wurde verschärft: 116 → 106 Einträge, `git push` nur noch auf `origin main` und Tags, Deny-Regeln für den Keystore-Ordner und `gradle.properties`. Beschreibung und Grenzen in der CLAUDE.md.
 
 ### Tests
@@ -1501,7 +1501,7 @@ Der Splash von Android 12+ (App-Icon auf einer Fläche) entsteht vor jedem App-C
 
 ## Version 1.24.9 (versionCode 91)
 
-Aufräumen, Start, Standort, Lieferkette, Lizenzen, Farben (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: sieben C-Punkte — PRO-8/SCR-05/LIF-06, UID-12/LIF-21, SEC-5, SEC-7, DAT-12/14/16/18, SEC-10/SCR-24, Farbrollen).
+Aufräumen, Start, Standort, Lieferkette, Lizenzen, Farben (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`: sieben C-Punkte — PRO-8/SCR-05/LIF-06, UID-12/LIF-21, SEC-5, SEC-7, DAT-12/14/16/18, SEC-10/SCR-24, Farbrollen).
 
 ### Toter BLE-Code entfernt (PRO-8/SCR-05/LIF-06)
 
@@ -1556,7 +1556,7 @@ Die drei Cockpit-Schemata definierten `primaryContainer`, `tertiaryContainer`, `
 
 ## Version 1.24.8 (versionCode 90)
 
-Touch-Ziele, Barrierefreiheit, CSV-Export und Sentry (QS-Bericht `docs/qa/2026-10-04-qa-report.md`: B33 und die kleineren C-Punkte UID-11/13/14/17, SCR-17/18, DAT-06/07/09, SEC-10).
+Touch-Ziele, Barrierefreiheit, CSV-Export und Sentry (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`: B33 und die kleineren C-Punkte UID-11/13/14/17, SCR-17/18, DAT-06/07/09, SEC-10).
 
 ### Touch-Ziele mindestens 56 dp — für alle Material-Komponenten (UID-11/SCR-17)
 
@@ -1609,7 +1609,7 @@ Gemessen lagen Button, TextButton und IconButton bei **48 dp Touch-Fläche** (si
 
 ## Version 1.24.7 (versionCode 89)
 
-Sitzung und Vordergrunddienst, Release-Signatur (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B1, B4, B31).
+Sitzung und Vordergrunddienst, Release-Signatur (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B1, B4, B31).
 
 ### Die Sitzung endet, wenn nichts mehr aufzeichnet (B1)
 
@@ -1658,7 +1658,7 @@ Schutz davor, im Hintergrund beendet zu werden). Gefangen werden genau diese bei
 
 ## Version 1.24.6 (versionCode 88)
 
-Verbindungs-Robustheit, ehrliche Fehlercode-Seite und Kosmetik (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B6 (Verbindungsaufbau), B7, B9, A9 (Teil 1), B22, B26, B27, B28, B30).
+Verbindungs-Robustheit, ehrliche Fehlercode-Seite und Kosmetik (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B6 (Verbindungsaufbau), B7, B9, A9 (Teil 1), B22, B26, B27, B28, B30).
 
 ### Verbindungsaufbau: begrenzt, abbrechbar, ohne Leck (B6, B7)
 
@@ -1724,7 +1724,7 @@ Adapter ändert sich nichts Sichtbares (er lieferte ohnehin Leerzeichen).
 
 ## Version 1.24.5 (versionCode 87)
 
-Tests, Release-Ablauf und Doku aufgeräumt (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B32, B34, B35, B36, B37, B38, B39) — und zwei
+Tests, Release-Ablauf und Doku aufgeräumt (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B32, B34, B35, B36, B37, B38, B39) — und zwei
 Fehler im Verbindungs-Code, die dabei zutage kamen (B8 und eine falsche Timeout-Einstufung).
 
 ### Zwei Fehler, die die neuen Tests aufdeckten
@@ -1785,7 +1785,7 @@ zufällig nur unbekannte PIDs) und bekam ein Fixture, dessen Teilbytes sonst RPM
 
 ## Version 1.24.4 (versionCode 86)
 
-Dashboard-Zustände und sichtbare Berechtigungen (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B10, B20, B21, B23, B24).
+Dashboard-Zustände und sichtbare Berechtigungen (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B10, B20, B21, B23, B24).
 
 ### „Verbunden“ heißt verbunden — sofort (B24)
 
@@ -1839,7 +1839,7 @@ weil die Nachprüfung endlos weiterläuft.
 
 ## Version 1.24.3 (versionCode 85)
 
-Verlässlichere Anzeige im Fahrbetrieb (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B11, B12, B29).
+Verlässlichere Anzeige im Fahrbetrieb (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B11, B12, B29).
 
 ### Das Hauptmenü flackert im Stand nicht mehr (B11)
 
@@ -1887,7 +1887,7 @@ zweite Verteidigung im ViewModel unter Test.
 
 ## Version 1.24.2 (versionCode 84)
 
-Stabilität der Verbindung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B2, B3, B5).
+Stabilität der Verbindung (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B2, B3, B5).
 
 ### „Trennen“ bleibt getrennt
 
@@ -1936,7 +1936,7 @@ schließt die erste Verbindung“ (jetzt: nach einem verlorenen Link) und die Au
 
 ## Version 1.24.1 (versionCode 83)
 
-Ehrlichere Fehleranzeige und Schutz vor einer Absturzschleife (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B15, B18, B19, B25).
+Ehrlichere Fehleranzeige und Schutz vor einer Absturzschleife (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B15, B18, B19, B25).
 
 ### Keine falsche Entwarnung mehr
 
@@ -1976,7 +1976,7 @@ Einstellungsdatei testen und ist daher nur durch den Test des Handlers selbst ab
 
 ## Version 1.24.0 (versionCode 82)
 
-Robustheit der Aufzeichnung und automatische Aufbewahrung (QS-Bericht `docs/qa/2026-10-04-qa-report.md`, Befunde B13, B14, B16, B17).
+Robustheit der Aufzeichnung und automatische Aufbewahrung (QS-Bericht `<intern>/qa/2026-10-04-qa-report.md`, Befunde B13, B14, B16, B17).
 
 ### Die Live-Anzeige überlebt Datenbankfehler
 
@@ -2020,7 +2020,7 @@ Der Altersschnitt hängt an der Geräteuhr: stellt man sie weit vor, löscht der
 
 ## Version 1.23.2 (versionCode 81)
 
-Weitere Fehlerbehebungen aus der Qualitätssicherung (Bericht: `docs/qa/2026-10-04-qa-report.md`, Befunde A4–A6).
+Weitere Fehlerbehebungen aus der Qualitätssicherung (Bericht: `<intern>/qa/2026-10-04-qa-report.md`, Befunde A4–A6).
 
 ### Behoben
 
@@ -2061,7 +2061,7 @@ Anzahl-Byte der Fehlercodes auf CAN (beides braucht eine echte Antwort) — sieh
 
 ## Version 1.23.1 (versionCode 80)
 
-Fehlerbehebungen aus der Qualitätssicherung über den gesamten Code (Bericht: `docs/qa/2026-10-04-qa-report.md`).
+Fehlerbehebungen aus der Qualitätssicherung über den gesamten Code (Bericht: `<intern>/qa/2026-10-04-qa-report.md`).
 
 ### Behoben
 
@@ -3540,7 +3540,7 @@ Die als „strukturell" vermutete Altlast aus 1.7.0 bestand aus vier unabhängig
 4. Die Display-Zeitsperre kippte die Suite mitten im Lauf; `HiltTestActivity` hält den Bildschirm
    jetzt an und zeigt sich über dem Sperrbildschirm.
 
-Vollständiges Build-Protokoll: [`docs/plans/2026-09-21-toolchain-upgrade.md`](docs/plans/2026-09-21-toolchain-upgrade.md).
+Vollständiges Build-Protokoll: `<intern>/plans/2026-09-21-toolchain-upgrade.md` (nicht im öffentlichen Repository).
 
 ---
 
