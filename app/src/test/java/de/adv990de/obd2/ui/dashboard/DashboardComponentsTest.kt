@@ -341,7 +341,7 @@ class DashboardComponentsTest {
     }
 
     // --- rpmAlertsEnabled ---
-    // Rot und Blinken: live immer, ohne Verbindung nur waehrend der Start-Animation (Nutzerwunsch 2026-10-30; seit 371824c blinkte sie nur live).
+    // Rot und Blinken: live immer, ohne Verbindung nur waehrend der Start-Animation (Nutzerwunsch 2026-10-30; seit 7bcf34a blinkte sie nur live).
 
     @Test
     fun `alerts are on while live, with or without the start animation`() {

@@ -81,7 +81,7 @@ internal fun shouldStartRpmDemoSweep(rpmValue: Float): Boolean = rpmValue < 1f
 /**
  * Ob der [RpmBar] ab der Schwelle rot faerbt und blinkt: bei stehender Verbindung mit fliessenden Werten ([isLive]) **oder** solange der Screen die Start-Animation
  * zeigt ([demoRpm] != null, der animierte Wert). Die Start-Animation zeigt Rot und Blinken damit in jedem Fall, auch ohne Verbindung (Nutzerwunsch 2026-10-30;
- * seit `371824c` blinkte sie nur live). Ausserhalb der Animation bleibt es dabei: ohne Verbindung kein Alarmrot und kein Blinken. Mit Drehzahl 0 (vor und nach dem
+ * seit `7bcf34a` blinkte sie nur live). Ausserhalb der Animation bleibt es dabei: ohne Verbindung kein Alarmrot und kein Blinken. Mit Drehzahl 0 (vor und nach dem
  * Sweep) ist nichts zu sehen, auch wenn der Wert `true` ist.
  *
  * Reine Funktion ohne Compose-Bezug (vgl. [rpmDisplayThreshold]).
