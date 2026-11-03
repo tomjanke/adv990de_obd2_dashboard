@@ -1,5 +1,23 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.44.20 (versionCode 158)
+
+Fahrten lassen sich jetzt **aus einer Export-Datei importieren**, zum Beispiel beim Umzug von einer anderen Installation.
+
+### Was sich ändert
+
+- **Fahrten importieren:** In „Fahrten“ steht neben dem Export-Symbol ein Upload-Symbol (immer aktiv, auch ohne Fahrten). Es öffnet den Dateidialog des Systems. Gelesen wird die Datei, die der Export schreibt (`session_all_<Zeit>.csv`, auch der Export einer einzelnen Fahrt und die älteren Fassungen ohne die Spalten `source` oder `session`).
+- **Vorschau vor dem Schreiben:** Der Dialog nennt die neuen Fahrten, die Zahl der Messwerte und den Zeitraum, dazu schon vorhandene Fahrten, zu alte Fahrten und abgelehnte Zeilen mit Zeile und Spalte. Erst „Importieren“ schreibt, und zwar alles oder nichts in einer Transaktion.
+- **Ein zweiter Import ändert nichts:** Eine Fahrt der Datei gilt als schon vorhanden, wenn ihre Zeit die einer vorhandenen Fahrt (oder einer früheren der Datei) berührt. Eine ergänzte Datei bringt nur die neuen Fahrten.
+- **Aufbewahrung:** Fahrten, die älter als 90 Tage sind, nimmt der Import nicht an, weil die App sie beim nächsten Start wieder löschen würde; die Vorschau sagt es.
+- **Was nicht mitkommt:** Die Datei enthält weder FIN noch Fehlercodes — importierte Fahrten zeigen sie als „nicht erfasst“. Einstellungen, Tankzähler und Logbuch gehören nicht zum Fahrten-Export (das Logbuch hat seinen eigenen Export und Import).
+- **Robust gegen falsche Dateien:** Dateien über 96 MB, mit mehr als 1,5 Millionen Zeilen, mit einem unendlich langen Feld oder ohne die Spalten des Exports werden mit einem klaren Grund abgelehnt, ohne die App zu beenden. Jede Zeile wird geprüft (Zeitstempel, PID, endlicher Wert, Herkunft).
+- **Logbuch-Import:** Er nutzt jetzt denselben Leser wie der Fahrten-Import (gleiches Verhalten, dieselben Tests).
+- **Sprachen:** Alle neuen Texte gibt es in Deutsch, Englisch und Spanisch (die spanischen von Claude übersetzt, nicht muttersprachlich gegengelesen).
+- **Unverändert:** Aufzeichnung, Datenbank (bleibt **v6**), gespeicherte Einstellungen, Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.44.19 (versionCode 157)
 
 Die App heißt jetzt **OBD Dashboard**.
