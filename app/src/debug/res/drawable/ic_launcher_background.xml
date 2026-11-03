@@ -2,7 +2,7 @@
 <!--
     Debug-Variante des Launcher-Hintergrunds. Der Release-Build ist seit dem Logo-Redesign
     2026-09-29 Navy (#0B1B2E, vorher Teal #006874), der Debug-Build bleibt bei Amber — zusammen
-    mit dem Label "BOM Debug" ist damit auf einen Blick erkennbar, welche der beiden parallel
+    mit dem Label "OBD Dashboard Debug" ist damit auf einen Blick erkennbar, welche der beiden parallel
     installierten Apps gerade geoeffnet wird. Amber-Wert bewusst unveraendert: schon vorher klar
     vom Release-Hintergrund unterscheidbar, kein Grund fuer eine neue Farbe nur wegen des
     Redesigns.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Release-Ablauf fuer den OBD2 Monitor.
+# Release-Ablauf fuer das OBD Dashboard.
 #
 # Haelt fest, was bei v1.23.0 schiefging (QS-Bericht B32): Das APK wurde aus einem NOCH NICHT COMMITTETEN Versions-Bump
 # gebaut — die eingebettete Revision (239b14c) war nicht die des Tags (9e72377), und `mapping.txt` wurde nirgends

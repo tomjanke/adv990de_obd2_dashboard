@@ -1,8 +1,8 @@
-# OBD2 Monitor
+# OBD Dashboard
 
 Ausführliche Fassung auf Deutsch · [English version](README.en.md) · [Kurzfassung / Short version](../README.md)
 
-Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassisches Bluetooth). Liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
+**OBD Dashboard** ist eine Android-App, die **Fahrt- und OBD-Daten** live als Dashboard zeigt. Ich habe sie in erster Linie für meine **KTM 990 Adventure** geschrieben (daher der Repository-Name `adv990de_obd2_dashboard`). Die OBD-Daten kommen über einen OBD2-Adapter (ELM327 über klassisches Bluetooth), die Fahrtdaten (Geschwindigkeit, Höhe, Steigung, Peilung) vom GPS und Drucksensor des Handys. Sie liest Live-Sensordaten, zeigt Fehlercodes (DTCs), speichert Fahrt-Sessions lokal und visualisiert konfigurierbare Dashboards in Jetpack Compose.
 
 > Aktuelle Version: **1.44.18** (versionCode 156) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
@@ -10,13 +10,13 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 
 ## Auf einen Blick
 
-- **Was:** Live-Dashboard und Diagnose für Fahrzeuge mit OBD2-Buchse, entwickelt für ein Motorrad: Drehzahl, Geschwindigkeit, Temperaturen und Spannung als Kacheln, Fehlercodes lesen, Fahrten und ein Wartungslogbuch lokal speichern, virtuelle Gang- und Tankanzeige.
+- **Was:** Live-Dashboard für Fahrt- und OBD-Daten, entwickelt für meine **KTM 990 Adventure**: Drehzahl, Geschwindigkeit, Temperaturen und Spannung als Kacheln, Fehlercodes lesen, Fahrten und ein Wartungslogbuch lokal speichern, virtuelle Gang- und Tankanzeige.
 - **Rein lesend:** Die App liest nur (OBD2-Modi 01, 02, 03, 07, 09) und schreibt nie ins Fahrzeug — kein Löschen von Fehlern, keine Codierung.
 - **Hardware:** Android 8.0 oder neuer und ein ELM327-kompatibler Adapter mit **klassischem Bluetooth (SPP)**. Adapter, die nur BLE sprechen, funktionieren nicht.
-- **Stand:** Ein-Personen-Projekt. Entwickelt und im Betrieb erprobt an **einem** Motorrad mit **einem** Adapter (MWT_OBD2); andere Fahrzeuge und Adapter sind nicht getestet. Die Geräte-Tests laufen auf einem Pixel 8 Pro (Android 17); ältere Android-Versionen sind nicht am Gerät geprüft.
+- **Stand:** Ein-Personen-Projekt. Entwickelt und im Betrieb erprobt an **einer KTM 990 Adventure** mit **einem** Adapter (MWT_OBD2); andere Fahrzeuge und Adapter sind nicht getestet. Die Geräte-Tests laufen auf einem Pixel 8 Pro (Android 17); ältere Android-Versionen sind nicht am Gerät geprüft.
 - **Nicht während der Fahrt bedienen.** Einstellungen, Logbuch und Verlauf sind für den Stillstand gedacht; das Dashboard ist zum Ablesen gebaut, nicht zum Bedienen.
 - **Die Anzeigen sind keine Messgeräte:** Gang, Tankanzeige und Reichweite, die „Öltemperatur“-Leiste und die Wartungsfälligkeit sind Schätzungen, aus anderen Werten errechnet (Drehzahl, GPS-Strecke, Kühlmittel, Logbuch). Es gelten der Tacho, die Reservelampe und die Wartungsvorgaben des Herstellers.
-- **Keine Gewähr:** Lizenz Apache 2.0 (s. „Lizenz“), Nutzung auf eigene Verantwortung. Die App steht in keiner Verbindung zu ELM Electronics oder einem Fahrzeughersteller; „ELM327“ nennt hier nur die Art des Adapters.
+- **Keine Gewähr:** Lizenz Apache 2.0 (s. „Lizenz“), Nutzung auf eigene Verantwortung. Die App steht in keiner Verbindung zu ELM Electronics, KTM oder einem anderen Fahrzeughersteller; „ELM327“ nennt hier nur die Art des Adapters.
 - **Datenschutz:** Fahrten, Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie selbst exportieren oder teilen. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo, s. „Berechtigungen“); ohne Sentry-Schlüssel beim Bauen sendet sie keine Absturzberichte.
 
 ## Screenshots
@@ -67,7 +67,7 @@ Aufgenommen mit der Debug-App auf einem Pixel 8 Pro im Querformat (Cockpit-Schem
 ## Hardware-Voraussetzungen
 
 - Android-Gerät mit **Bluetooth Classic**, ab Android 8.0 (das Manifest verlangt die Bluetooth-Hardware: `uses-feature android.hardware.bluetooth`, `required="true"`; Standort-Hardware ist optional, `required="false"`)
-- **ELM327-kompatibler OBD2-Adapter mit klassischem Bluetooth (SPP)** — im Betrieb mit einem MWT_OBD2 am Motorrad; **BLE-only-Adapter** (z. B. Vgate iCar Pro BLE, OBDLink CX im BLE-Modus) funktionieren nicht
+- **ELM327-kompatibler OBD2-Adapter mit klassischem Bluetooth (SPP)** — im Betrieb mit einem MWT_OBD2 an der KTM 990 Adventure; **BLE-only-Adapter** (z. B. Vgate iCar Pro BLE, OBDLink CX im BLE-Modus) funktionieren nicht
 - Fahrzeug mit OBD2-Buchse (ab Bj. ~2001 in EU, ~1996 in US verpflichtend)
 
 ---
@@ -105,7 +105,7 @@ nachgeladenes JDK wäre ein ungeprüftes Programm im Build. Fehlt es, bricht der
 
 ### Debug- und Release-Build parallel
 
-Der Debug-Build trägt `applicationIdSuffix = ".debug"` und heißt im Launcher **BOM Debug**;
+Der Debug-Build trägt `applicationIdSuffix = ".debug"` und heißt im Launcher **OBD Dashboard Debug**;
 seine Version endet auf `-debug`. Beide Varianten lassen sich damit gleichzeitig installieren,
 jede mit eigenen Daten — kein Deinstallieren, kein Datenverlust beim Wechsel.
 
@@ -175,7 +175,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3104 Tests, < 30 Sekunden)
+# JVM Unit Tests (3108 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -184,7 +184,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3104 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3108 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 838 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -430,7 +430,7 @@ Der Quelltext steht unter der **Apache License 2.0** (`LICENSE`, Copyright 2026 
 
 ## Namen und Marken
 
-Die Namen Dritter stehen nur beschreibend im Text: **ELM327** ist eine Produktbezeichnung der Firma ELM Electronics und nennt hier die Art des Adapters; **OBDLink**, **Vgate** und **MWT_OBD2** sind Namen von Adaptern als Beispiele bzw. der Bluetooth-Name des Adapters, an dem die App entwickelt wurde; **Android**, **Pixel** und die **Material**-Bausteine gehören Google; **Open-Meteo** und **Sentry** sind Dienste bzw. Bibliotheken Dritter. **DMD²** (Thork Racing) war die Anregung für die Optik des Dashboards — es stammen kein Quelltext, keine Bilder und keine Schriften von dort. Die App steht in keiner Verbindung zu diesen Firmen oder Produkten.
+Die Namen Dritter stehen nur beschreibend im Text: **ELM327** ist eine Produktbezeichnung der Firma ELM Electronics und nennt hier die Art des Adapters; **OBDLink**, **Vgate** und **MWT_OBD2** sind Namen von Adaptern als Beispiele bzw. der Bluetooth-Name des Adapters, an dem die App entwickelt wurde; **KTM** und **990 Adventure** nennen den Motorradhersteller und das Motorrad, an dem die App entwickelt wurde; **Android**, **Pixel** und die **Material**-Bausteine gehören Google; **Open-Meteo** und **Sentry** sind Dienste bzw. Bibliotheken Dritter. **DMD²** (Thork Racing) war die Anregung für die Optik des Dashboards — es stammen kein Quelltext, keine Bilder und keine Schriften von dort. Die App steht in keiner Verbindung zu diesen Firmen oder Produkten.
 
 ## Release-Historie
 
@@ -444,7 +444,7 @@ Siehe [`RELEASE_NOTES.md`](../RELEASE_NOTES.md) — chronologische Änderungen s
 |---|---|
 | `README.md`, `docs/README.en.md`, `docs/README.de.md` | Die Kurzfassung (Englisch und Deutsch) und die ausführlichen Fassungen auf Englisch und Deutsch; die beiden ausführlichen haben dieselbe Gliederung (`ReadmeParityTest`), die Version steht nur dort |
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3104) |
+| `app/src/test/` | JVM-Unit-Tests (3108) |
 | `app/src/androidTest/` | Instrumented Tests (838, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |

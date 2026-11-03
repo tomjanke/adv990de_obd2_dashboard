@@ -5,5 +5,5 @@
     installierten Release-App betreiben und im Launcher davon unterscheiden.
 -->
 <resources>
-    <string name="app_label">BOM Debug</string>
+    <string name="app_label">OBD Dashboard Debug</string>
 </resources>

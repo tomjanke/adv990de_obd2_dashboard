@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Bike OBD2 Monitor</string>
+    <string name="app_name">OBD Dashboard</string>
     <!-- Launcher-Label; die Debug-Variante ueberschreibt es in src/debug -->
-    <string name="app_label">BOM</string>
+    <string name="app_label">OBD Dashboard</string>
     <string name="dashboard_slot_empty">Lang drücken, um einen Sensor zu belegen</string>
     <string name="dashboard_slot_change_action">Messwert ändern</string>
     <string name="dashboard_slot_unsupported">Vom Fahrzeug nicht unterstützt</string>
