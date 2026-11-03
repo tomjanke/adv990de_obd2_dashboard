@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import de.adv990de.obd2.data.MinMax
 import de.adv990de.obd2.data.SessionRepository
 import de.adv990de.obd2.data.SessionStats
+import de.adv990de.obd2.data.TripImporter
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.ui.components.UNDO_WINDOW_MS
 import io.mockk.coEvery
@@ -50,6 +51,7 @@ class HistoryViewModelTest {
         val ids: MutableStateFlow<List<Long>>,
         val active: MutableStateFlow<Long?>,
         val repo: SessionRepository,
+        val importer: TripImporter,
         val vm: HistoryViewModel,
     )
 
@@ -70,8 +72,9 @@ class HistoryViewModelTest {
                 idsFlow.value = idsFlow.value.filter { it !in gone }
             }
         }
+        val importer = mockk<TripImporter>()
         // The app scope shares the test scheduler, so virtual time drives the undo window.
-        return Fixture(idsFlow, activeFlow, repo, HistoryViewModel(repo, CoroutineScope(testDispatcher + Job())))
+        return Fixture(idsFlow, activeFlow, repo, importer, HistoryViewModel(repo, importer, CoroutineScope(testDispatcher + Job())))
     }
 
     /** `canDeleteAll` is `WhileSubscribed`, so something has to collect it for the upstream to run. */

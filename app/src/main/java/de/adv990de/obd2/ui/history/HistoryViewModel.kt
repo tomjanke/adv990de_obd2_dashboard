@@ -9,10 +9,15 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.filter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.adv990de.obd2.R
+import de.adv990de.obd2.data.FileTooLargeException
 import de.adv990de.obd2.data.SessionRepository
+import de.adv990de.obd2.data.TripImporter
 import de.adv990de.obd2.data.exportAllFileName as sharedExportFileName
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.tripimport.TripFileException
+import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.ExportFeedback
 import de.adv990de.obd2.ui.components.UndoableDeletion
 import kotlinx.coroutines.CancellationException
@@ -25,11 +30,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.io.IOException
 import javax.inject.Inject
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
+    private val tripImporter: TripImporter,
     @ApplicationScope appScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -195,6 +203,68 @@ class HistoryViewModel @Inject constructor(
 
     fun consumeSaved() {
         _savedCount.value = null
+    }
+
+    // ── Fahrten importieren ──
+
+    private val _tripImportState = MutableStateFlow<TripImportState>(TripImportState.Idle)
+
+    /** Der Fahrten-Import (Datei lesen, Vorschau, schreiben); lebt hier, damit eine Drehung den Dialog offen laesst. */
+    val tripImportState: StateFlow<TripImportState> = _tripImportState.asStateFlow()
+
+    /**
+     * Upload-Symbol: die gewaehlte Datei im Strom lesen und pruefen, daraus die Vorschau machen — es wird nichts geschrieben. Waehrend gearbeitet wird (Lesen **und** Schreiben),
+     * zaehlt ein zweiter Aufruf nicht.
+     */
+    fun pickTripImport(source: Uri) {
+        if (_tripImportState.value is TripImportState.Working) return
+        _tripImportState.value = TripImportState.Working
+        viewModelScope.launch {
+            try {
+                _tripImportState.value = TripImportState.Preview(tripImporter.read(source, System.currentTimeMillis()))
+            } catch (e: CancellationException) {
+                _tripImportState.value = TripImportState.Idle
+                throw e
+            } catch (e: Exception) {
+                _tripImportState.value = TripImportState.Failed(tripImportFailureText(e))
+            }
+        }
+    }
+
+    /** Bestaetigt die Vorschau: schreibt den Plan in einer Transaktion. Ohne Vorschau, oder wenn schon gearbeitet wird, passiert nichts (kein doppeltes Schreiben). */
+    fun confirmTripImport() {
+        val preview = _tripImportState.value as? TripImportState.Preview ?: return
+        _tripImportState.value = TripImportState.Working
+        viewModelScope.launch {
+            try {
+                _tripImportState.value = TripImportState.Done(tripImporter.apply(preview.plan))
+            } catch (e: CancellationException) {
+                _tripImportState.value = TripImportState.Idle
+                throw e
+            } catch (e: Exception) {
+                _tripImportState.value = TripImportState.Failed(UiText.StringResource(R.string.trip_import_error_write))
+            }
+        }
+    }
+
+    /** Schliesst Vorschau, Ergebnis oder Fehler (und gibt den Plan frei); waehrend gearbeitet wird, aendert es nichts. */
+    fun dismissTripImport() {
+        if (_tripImportState.value !is TripImportState.Working) _tripImportState.value = TripImportState.Idle
+    }
+
+    /** Ein Fehler hat immer einen sichtbaren Text: bekannte Gruende haben ihren eigenen, alles andere die Meldung oder den Klassennamen. */
+    private fun tripImportFailureText(e: Exception): UiText = when (e) {
+        is TripFileException -> UiText.StringResource(
+            when (e.kind) {
+                TripFileException.Kind.NOT_AN_EXPORT -> R.string.trip_import_error_format
+                TripFileException.Kind.TOO_MANY_ROWS -> R.string.trip_import_error_too_many_rows
+                TripFileException.Kind.SPLIT_TRIP -> R.string.trip_import_error_split
+            },
+        )
+        is IllegalArgumentException -> UiText.StringResource(R.string.trip_import_error_format)
+        is FileTooLargeException -> UiText.StringResource(R.string.trip_import_error_too_large)
+        is IOException, is SecurityException -> UiText.StringResource(R.string.trip_import_error_unreadable)
+        else -> UiText.DynamicString(e.message ?: e.javaClass.simpleName)
     }
 
     /** The undo snackbar goes away with the screen, so an open delete becomes final right now. */

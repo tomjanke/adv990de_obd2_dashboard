@@ -18,7 +18,7 @@ Debug build on a Pixel 8 Pro, landscape. **The values come from the built-in ECU
 
 - Live dashboard with configurable tiles (RPM, speed, temperatures, voltage), a virtual gear indicator and a virtual fuel gauge, next to ride data from the phone (GPS speed, altitude, gradient, heading)
 - Reads fault codes (DTCs) with descriptions and keeps a local fault history
-- Records drives on the device, with CSV export
+- Records drives on the device, with CSV export and import
 - Maintenance logbook with consumption analysis and "due in N km" reminders
 - Alarms for voltage, coolant temperature and new fault codes
 - Available in English, German and Spanish; Android 8.0 or newer
@@ -54,7 +54,7 @@ You need JDK 21 (JetBrains) and the Android SDK with platform 37 — details in 
 
 - Live-Dashboard mit frei belegbaren Kacheln (Drehzahl, Geschwindigkeit, Temperaturen, Spannung), virtueller Gang- und Tankanzeige, dazu Fahrtdaten vom Handy (GPS-Geschwindigkeit, Höhe, Steigung, Peilung)
 - Liest Fehlercodes (DTCs) mit Beschreibung und führt eine lokale Fehlerhistorie
-- Zeichnet Fahrten auf dem Gerät auf, mit CSV-Export
+- Zeichnet Fahrten auf dem Gerät auf, mit CSV-Export und -Import
 - Wartungslogbuch mit Verbrauchsauswertung und Erinnerungen „fällig in N km“
 - Alarme für Spannung, Kühlmitteltemperatur und neue Fehlercodes
 - Auf Englisch, Deutsch und Spanisch; ab Android 8.0

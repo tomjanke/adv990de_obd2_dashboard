@@ -1,5 +1,6 @@
 package de.adv990de.obd2.logbook
 
+import de.adv990de.obd2.data.parseCsv
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

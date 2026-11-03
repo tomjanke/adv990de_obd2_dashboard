@@ -3,6 +3,7 @@ package de.adv990de.obd2.data
 import android.content.Context
 import android.net.Uri
 import androidx.paging.PagingSource
+import androidx.room.withTransaction
 import androidx.sqlite.db.SimpleSQLiteQuery
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.data.db.AppDatabase
@@ -10,6 +11,8 @@ import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.tripimport.ParsedTrip
+import de.adv990de.obd2.tripimport.SessionSpan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -27,6 +30,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val DELETE_CHUNK_SIZE = 50
+
+/** Wie lange eine Fahrt aufbewahrt wird (90 Tage): [DataRetention] loescht aeltere beim App-Start, der Fahrten-Import nimmt sie deshalb gar nicht erst an. */
+internal const val SESSION_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
+
+/** So viele Messwerte schreibt der Import je Aufruf an die Datenbank (die Entitaeten entstehen erst hier, nie fuer die ganze Datei auf einmal). */
+private const val IMPORT_CHUNK_ROWS = 1_000
 
 @Singleton
 class SessionRepository @Inject constructor(
@@ -144,11 +153,47 @@ class SessionRepository @Inject constructor(
      * the trip that is being recorded is never touched.
      */
     suspend fun deleteOldSessions(
-        maxAgeMs: Long = 90L * 24 * 60 * 60 * 1000
+        maxAgeMs: Long = SESSION_RETENTION_MS
     ) = withContext(Dispatchers.IO) {
         val active = _activeSessionId.value
         val old = db.sessionDao().idsOlderThan(System.currentTimeMillis() - maxAgeMs)
         deleteRows(old.filter { it != active })
+    }
+
+    /** Beginn und Ende jeder Fahrt in der App — damit der Fahrten-Import erkennt, welche Fahrten der Datei schon da sind ([SessionDao.spans]). */
+    suspend fun sessionSpans(): List<SessionSpan> = withContext(Dispatchers.IO) { db.sessionDao().spans() }
+
+    /**
+     * Schreibt die Fahrten einer Import-Datei als **neue** Fahrten, **alles oder nichts**: eine Transaktion um alle Fahrten und alle Messwerte — ein Fehler oder der Abbruch des
+     * Aufrufers (die Pruefung zwischen den Bloecken wirft) laesst die Datenbank unveraendert. Jede Fahrt bekommt eine neue Id; Beginn und Ende sind der kleinste und der groesste
+     * Zeitstempel ihrer Zeilen, FIN und Fehlercodes bleiben `null` (nicht erfasst). Die Messwerte gehen in Bloecken zu [IMPORT_CHUNK_ROWS] an die Datenbank, in der Reihenfolge der
+     * Datei (die Reihenfolge der Aufzeichnung, die der Export wieder liest). **Preis der einen Transaktion:** die Datenbank ist waehrend des Schreibens (bei 100 000 Zeilen einige
+     * Sekunden) fuer andere Schreiber gesperrt — schreibt gerade die Aufzeichnung einer laufenden Fahrt, wartet sie so lange.
+     */
+    suspend fun importTrips(trips: List<ParsedTrip>) = withContext(Dispatchers.IO) {
+        db.withTransaction {
+            for (trip in trips) {
+                val sessionId = db.sessionDao().insert(SessionEntity(startTime = trip.startMs, endTime = trip.endMs))
+                var from = 0
+                while (from < trip.rows.size) {
+                    currentCoroutineContext().ensureActive()
+                    val to = minOf(from + IMPORT_CHUNK_ROWS, trip.rows.size)
+                    db.sensorReadingDao().insertAll(
+                        List(to - from) { k ->
+                            val i = from + k
+                            SensorReadingEntity(
+                                sessionId = sessionId,
+                                timestamp = trip.rows.timestamp(i),
+                                pidId = trip.rows.pid(i),
+                                value = trip.rows.value(i),
+                                source = trip.rows.source(i),
+                            )
+                        },
+                    )
+                    from = to
+                }
+            }
+        }
     }
 
     /**

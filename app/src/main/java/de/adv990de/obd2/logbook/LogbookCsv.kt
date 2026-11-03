@@ -1,6 +1,7 @@
 package de.adv990de.obd2.logbook
 
 import de.adv990de.obd2.data.csvRow
+import de.adv990de.obd2.data.parseCsv
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -12,7 +13,7 @@ import java.time.format.DateTimeParseException
  * Das CSV des Logbuchs (Export und Import), ohne Android-Bezug. Spalten: `date` (`yyyy-MM-dd`), `type` (Name des [LogType]), `odometer_km`,
  * `amount_ml` (ganze Milliliter), `full_tank` (`1`/`0` oder leer), `cost_eur` (Euro mit Punkt, z. B. `14.75`; der Import liest auch `14,75`), `note`, `brand` (Fabrikat, nur beim Reifenwechsel;
  * die Spalte steht hinten, damit eine aeltere Datei ohne sie weiter lesbar bleibt).
- * Geschrieben wird mit [csvRow] (RFC 4180), gelesen von [parseCsv] — das Projekt hatte bisher keinen Leser.
+ * Geschrieben wird mit [csvRow] (RFC 4180), gelesen von [parseCsv] (`data/CsvRead.kt`, derselbe Leser wie beim Fahrten-Import).
  */
 val LOGBOOK_COLUMNS = arrayOf("date", "type", "odometer_km", "amount_ml", "full_tank", "cost_eur", "note", "brand")
 
@@ -39,56 +40,6 @@ fun logbookCsvLine(entry: LogEntry): String = csvRow(
     entry.note.orEmpty(),
     entry.brand.orEmpty(),
 )
-
-/** Ein Datensatz der Datei: die Zeilennummer, in der er beginnt (ein Feld in Anfuehrungszeichen darf Zeilenumbrueche tragen), und seine Felder. */
-internal data class CsvRecord(val line: Int, val fields: List<String>)
-
-/**
- * Liest [text] als CSV nach RFC 4180: Felder in Anfuehrungszeichen (`""` ist ein Anfuehrungszeichen), Komma und Zeilenumbruch im Feld, Zeilenende
- * `\n`, `\r\n` oder `\r`, ein Bytereihenfolge-Zeichen am Anfang, ein fehlendes Zeilenende am Schluss. Eine Leerzeile ist ein Datensatz mit einem
- * leeren Feld. Ein nie geschlossenes Anfuehrungszeichen ist ein Fehler ([IllegalArgumentException]) und kein stilles Abschneiden.
- */
-internal fun parseCsv(text: String): List<CsvRecord> {
-    val s = text.removePrefix("\uFEFF")
-    val records = ArrayList<CsvRecord>()
-    var fields = ArrayList<String>()
-    val field = StringBuilder()
-    var inQuotes = false
-    var line = 1
-    var recordLine = 1
-
-    fun endRecord() {
-        fields.add(field.toString())
-        field.setLength(0)
-        records.add(CsvRecord(recordLine, fields))
-        fields = ArrayList()
-    }
-
-    var i = 0
-    while (i < s.length) {
-        val c = s[i]
-        if (inQuotes) {
-            if (c == '"') {
-                if (i + 1 < s.length && s[i + 1] == '"') { field.append('"'); i++ } else inQuotes = false
-            } else {
-                if (c == '\n') line++
-                field.append(c)
-            }
-        } else {
-            when (c) {
-                '"' -> if (field.isEmpty()) inQuotes = true else field.append(c)
-                ',' -> { fields.add(field.toString()); field.setLength(0) }
-                '\r' -> { if (i + 1 < s.length && s[i + 1] == '\n') i++; endRecord(); line++; recordLine = line }
-                '\n' -> { endRecord(); line++; recordLine = line }
-                else -> field.append(c)
-            }
-        }
-        i++
-    }
-    require(!inQuotes) { "A quoted field starting in line $recordLine is never closed" }
-    if (field.isNotEmpty() || fields.isNotEmpty()) endRecord()
-    return records
-}
 
 private val COST_PATTERN = Regex("""-?\d+([.,]\d{1,2})?""")
 

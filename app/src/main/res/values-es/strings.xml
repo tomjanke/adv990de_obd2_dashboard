@@ -206,6 +206,7 @@
     <string name="history_export_error_prefix">Error al exportar: %1$s</string>
     <string name="history_cd_export">Exportar CSV</string>
     <string name="history_cd_export_all">Exportar todos los viajes</string>
+    <string name="history_cd_import">Importar viajes</string>
     <string name="history_export_all_title">Exportar todos los viajes</string>
     <plurals name="history_export_all_message">
         <item quantity="one">%1$d viaje en un solo archivo CSV. La grabación en curso no se incluye.</item>
@@ -223,6 +224,58 @@
     <string name="history_save_unavailable">No hay ningún diálogo de archivos disponible</string>
     <string name="history_cd_delete">Eliminar viaje</string>
     <string name="history_cd_delete_all">Eliminar todos los viajes</string>
+
+    <!-- Importación de viajes (historial) -->
+    <string name="trip_import_title">Importar viajes</string>
+    <string name="trip_import_working">Procesando …</string>
+    <plurals name="trip_import_new">
+        <item quantity="one">%1$d viaje nuevo</item>
+        <item quantity="many">%1$d viajes nuevos</item>
+        <item quantity="other">%1$d viajes nuevos</item>
+    </plurals>
+    <plurals name="trip_import_readings">
+        <item quantity="one">%1$,d valor medido</item>
+        <item quantity="many">%1$,d valores medidos</item>
+        <item quantity="other">%1$,d valores medidos</item>
+    </plurals>
+    <string name="trip_import_range">Del %1$s al %2$s</string>
+    <plurals name="trip_import_duplicates">
+        <item quantity="one">%1$d viaje ya está en la app (mismo período)</item>
+        <item quantity="many">%1$d viajes ya están en la app (mismo período)</item>
+        <item quantity="other">%1$d viajes ya están en la app (mismo período)</item>
+    </plurals>
+    <plurals name="trip_import_expired">
+        <item quantity="one">%1$d viaje tiene más de 90 días y se omite: la app elimina esos viajes al iniciar</item>
+        <item quantity="many">%1$d viajes tienen más de 90 días y se omiten: la app elimina esos viajes al iniciar</item>
+        <item quantity="other">%1$d viajes tienen más de 90 días y se omiten: la app elimina esos viajes al iniciar</item>
+    </plurals>
+    <plurals name="trip_import_rejected">
+        <item quantity="one">%1$d fila no se puede leer</item>
+        <item quantity="many">%1$d filas no se pueden leer</item>
+        <item quantity="other">%1$d filas no se pueden leer</item>
+    </plurals>
+    <string name="trip_import_row">Línea %1$d: %2$s</string>
+    <plurals name="trip_import_more_rows">
+        <item quantity="one">… y %1$d más</item>
+        <item quantity="many">… y %1$d más</item>
+        <item quantity="other">… y %1$d más</item>
+    </plurals>
+    <string name="trip_import_bad_value">%1$s no es válido</string>
+    <string name="trip_import_note">El archivo no contiene ni el VIN ni códigos de avería: los viajes importados los muestran como no registrados.</string>
+    <string name="trip_import_nothing_new">No hay nada que importar.</string>
+    <string name="trip_import_confirm">Importar</string>
+    <string name="trip_import_close">Cerrar</string>
+    <plurals name="trip_import_done">
+        <item quantity="one">%1$d viaje importado</item>
+        <item quantity="many">%1$d viajes importados</item>
+        <item quantity="other">%1$d viajes importados</item>
+    </plurals>
+    <string name="trip_import_error_format">No es un archivo de viajes de esta app. Necesita las columnas timestamp, pid y value.</string>
+    <string name="trip_import_error_too_many_rows">El archivo tiene más de 1 500 000 filas.</string>
+    <string name="trip_import_error_split">Las filas de un viaje no están juntas en este archivo. La app no escribe así su exportación.</string>
+    <string name="trip_import_error_too_large">El archivo supera los 96 MB.</string>
+    <string name="trip_import_error_unreadable">No se pudo leer el archivo.</string>
+    <string name="trip_import_error_write">No se ha importado nada: no se pudieron guardar los viajes.</string>
     <string name="history_delete_all_title">¿Eliminar todos los viajes?</string>
     <string name="history_delete_all_message">Se eliminarán todos los viajes guardados. Una grabación en curso se conserva. Puedes deshacerlo durante unos instantes.</string>
     <plurals name="history_deleted">

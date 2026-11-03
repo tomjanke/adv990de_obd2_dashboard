@@ -89,11 +89,16 @@ fun HistoryScreen(
     val finishedTripCount by vm.finishedTripCount.collectAsStateWithLifecycle()
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val savedCount by vm.savedCount.collectAsStateWithLifecycle()
+    val tripImportState by vm.tripImportState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.saveAllTo(uri)
+    }
+    // "Importieren": das Dateidialog-System fragt nach der Datei (jede Art, der Name sagt nichts ueber den Inhalt); das Ergebnis ist die Uri, null bei Abbruch.
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.pickTripImport(uri)
     }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // Die Fahrt, deren Details offen sind (nur die Id: eine Drehung baut die Seite neu auf, der Dialog gehoert dazu).
@@ -138,6 +143,8 @@ fun HistoryScreen(
         )
     }
 
+    TripImportDialog(state = tripImportState, onConfirm = vm::confirmTripImport, onDismiss = vm::dismissTripImport)
+
     if (deleteAllConfirmationVisible) {
         ConfirmDeleteDialog(
             title = stringResource(R.string.history_delete_all_title),
@@ -172,6 +179,19 @@ fun HistoryScreen(
                         modifier = Modifier.size(RowButtonSize),
                     ) {
                         Icon(AppIcons.Download, contentDescription = stringResource(R.string.history_cd_export_all))
+                    }
+                    // Fahrten aus einer Export-Datei zurueckholen (z. B. aus der Vorgaenger-App): immer moeglich, auch ohne Fahrten in der Liste.
+                    IconButton(
+                        onClick = {
+                            try {
+                                importLauncher.launch(arrayOf("*/*"))
+                            } catch (_: ActivityNotFoundException) {
+                                scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
+                            }
+                        },
+                        modifier = Modifier.size(RowButtonSize).testTag(HISTORY_IMPORT_TEST_TAG),
+                    ) {
+                        Icon(AppIcons.Upload, contentDescription = stringResource(R.string.history_cd_import))
                     }
                     // 56 dp touch target (glove-friendly); disabled while there is nothing to delete —
                     // which includes the undo window, when the list is already hidden, and a list
@@ -235,6 +255,9 @@ fun HistoryScreen(
 
 /** Glove-friendly touch size of the row and top-bar buttons (CLAUDE.md design principle 4). */
 private val RowButtonSize = 56.dp
+
+/** Test tag of the import icon in the top bar. */
+internal const val HISTORY_IMPORT_TEST_TAG = "history_import"
 
 /** Test tag of one history row — the full-width swipe container the UI tests swipe. */
 internal fun historyRowTestTag(sessionId: Long) = "history_row_$sessionId"
