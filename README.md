@@ -6,6 +6,30 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 
 ---
 
+## Auf einen Blick
+
+- **Was:** Live-Dashboard und Diagnose für Fahrzeuge mit OBD2-Buchse, entwickelt für ein Motorrad: Drehzahl, Geschwindigkeit, Temperaturen und Spannung als Kacheln, Fehlercodes lesen, Fahrten und ein Wartungslogbuch lokal speichern, virtuelle Gang- und Tankanzeige.
+- **Rein lesend:** Die App liest nur (OBD2-Modi 01, 02, 03, 07, 09) und schreibt nie ins Fahrzeug — kein Löschen von Fehlern, keine Codierung.
+- **Hardware:** Android 8.0 oder neuer und ein ELM327-kompatibler Adapter mit **klassischem Bluetooth (SPP)**. Adapter, die nur BLE sprechen, funktionieren nicht.
+- **Stand:** Ein-Personen-Projekt. Entwickelt und im Betrieb erprobt an **einem** Motorrad mit **einem** Adapter (MWT_OBD2); andere Fahrzeuge und Adapter sind nicht getestet. Die Geräte-Tests laufen auf einem Pixel 8 Pro (Android 17); ältere Android-Versionen sind nicht am Gerät geprüft.
+- **Nicht während der Fahrt bedienen.** Einstellungen, Logbuch und Verlauf sind für den Stillstand gedacht; das Dashboard ist zum Ablesen gebaut, nicht zum Bedienen.
+- **Die Anzeigen sind keine Messgeräte:** Gang, Tankanzeige und Reichweite, die „Öltemperatur“-Leiste und die Wartungsfälligkeit sind Schätzungen, aus anderen Werten errechnet (Drehzahl, GPS-Strecke, Kühlmittel, Logbuch). Es gelten der Tacho, die Reservelampe und die Wartungsvorgaben des Herstellers.
+- **Keine Gewähr:** Lizenz Apache 2.0 (s. „Lizenz“), Nutzung auf eigene Verantwortung. Die App steht in keiner Verbindung zu ELM Electronics oder einem Fahrzeughersteller; „ELM327“ nennt hier nur die Art des Adapters.
+- **Datenschutz:** Fahrten, Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie selbst exportieren oder teilen. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo, s. „Berechtigungen“); ohne Sentry-Schlüssel beim Bauen sendet sie keine Absturzberichte.
+
+## At a glance (English)
+
+OBD2 Monitor is an Android app for live vehicle diagnostics through an ELM327-compatible OBD2 adapter over **classic Bluetooth (SPP)**; adapters that only speak BLE are not supported. It shows a configurable live dashboard (RPM, speed, temperatures, voltage), reads trouble codes, records drives locally, derives a virtual gear and fuel gauge, and keeps a maintenance logbook. The app is **read-only**: it never writes to the vehicle (no clearing of trouble codes, no coding).
+
+- **Status:** a one-person project, developed on **one** motorcycle with **one** adapter (MWT_OBD2). Other vehicles and adapters are untested; the on-device tests ran on a Pixel 8 Pro (Android 17) only. Requires Android 8.0 or newer.
+- **Do not operate it while riding or driving.** Gear, fuel gauge, range, the oil-temperature strip and the maintenance due-dates are estimates derived from other values, not measurements — the speedometer, the vehicle's own reserve light and the manufacturer's service schedule take precedence.
+- **No warranty:** licensed under the Apache License 2.0 (see `LICENSE`); use at your own risk. Not affiliated with ELM Electronics or any vehicle manufacturer; "ELM327" only names the adapter type.
+- **Privacy:** drives, logbook and settings stay on the device unless you export or share them. The only network use is the optional outside temperature (rounded location sent to Open-Meteo); without a Sentry key at build time the app sends no crash reports.
+- **Languages:** the app is available in English, German and Spanish (it follows the device language). The rest of this README and the developer documentation are in German.
+- **Build:** JDK 21 (JetBrains) and the Android SDK with platform 37, then `./gradlew assembleDebug` — see "Build & Run" below.
+
+---
+
 ## Funktionen
 
 - **Live-Dashboard** mit frei konfigurierbaren PID-Kacheln (Drehzahl, Geschwindigkeit, Kühlmitteltemperatur, Motorlast, Kraftstoffstand, etc.)
@@ -49,6 +73,7 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 
 ### Voraussetzungen
 - JDK **21** von JetBrains (die Daemon-JVM-Kriterien in `gradle/gradle-daemon-jvm.properties`; Android Studio bringt die JetBrains Runtime mit, auch `~/.gradle/jdks` wird gefunden). Gradle lädt **kein** JDK nach — s. „Prüfsummen“
+- **Android SDK** mit der Plattform 37 (`compileSdk 37`). Android Studio legt die Datei `local.properties` mit `sdk.dir` beim Öffnen des Projekts selbst an (sie steht in der `.gitignore`); auf der Kommandozeile stattdessen die Umgebungsvariable `ANDROID_HOME` auf das SDK setzen. Fehlt die Plattform, installiert man sie mit dem SDK Manager von Android Studio.
 - Android Studio Ladybug oder neuer (für Compose Preview / Layout Inspector)
 - Optional: ADB im `PATH` für Command-Line-Installation
 
@@ -56,8 +81,12 @@ Android-App zur Echtzeit-Diagnose über einen OBD2-Adapter (ELM327 über klassis
 ```bash
 ./gradlew assembleDebug
 ```
-Das APK liegt danach unter `app/build/outputs/apk/debug/app-debug.apk`.
+Das APK liegt danach unter `app/build/outputs/apk/debug/app-debug.apk`. Zum Ausprobieren und Entwickeln genügt der Debug-Build; `./gradlew assembleRelease` ohne eigenen Signaturschlüssel liefert ein **nicht signiertes** APK, das sich nicht installieren lässt (s. „Release-Build“).
 
+Die JVM-Tests brauchen kein Gerät:
+```bash
+./gradlew testDebugUnitTest
+```
 ### Auf Gerät installieren
 ```bash
 ./gradlew installDebug
@@ -143,7 +172,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3072 Tests, < 30 Sekunden)
+# JVM Unit Tests (3079 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -152,7 +181,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3072 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3079 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 838 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -399,7 +428,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3072) |
+| `app/src/test/` | JVM-Unit-Tests (3079) |
 | `app/src/androidTest/` | Instrumented Tests (838, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |

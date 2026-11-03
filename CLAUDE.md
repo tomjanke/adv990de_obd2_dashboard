@@ -1295,11 +1295,13 @@ committen, dann bauen** — sonst trägt das APK eine Revision, die nicht der de
 ## Build & Test (lokal)
 
 ```bash
-./gradlew :app:testDebugUnitTest          # 3072 JVM-Unit-Tests
+./gradlew :app:testDebugUnitTest          # 3079 JVM-Unit-Tests
 ./gradlew :app:connectedDebugAndroidTest  # 838 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```
+
+**Bau durch Fremde (2026-11-03, Backlog Punkt 9, Auftrag des Nutzers):** ein **frischer Klon von GitHub** (`tomjanke/adv990de_obd2_dashboard`, `main` = `d7224fe`) im Scratchpad, ohne `local.properties`, ohne `.gradle`, ohne `.claude` und ohne Build-Ordner, mit gesetztem `ANDROID_HOME` (so wie ein Außenstehender ohne Android Studio): `./gradlew assembleDebug testDebugUnitTest --continue` lief **ohne Fehler und ohne Compiler-Warnung** durch (35 s, 52 Aufgaben ausgeführt) — **3079 JVM-Tests, 0 Fehler** (frisches XML, Summe der Testzeiten 14 s), Debug-APK 17 891 870 Byte. Die einzigen Ausgaben außer dem Protokoll sind JVM-Hinweise des Start-JDK 27 des Entwicklers (`--enable-native-access`) und ein Hinweis zur Klassenfreigabe der Test-JVM. Damit ist belegt, dass der Build **nicht von Dateien abhängt, die nur der Entwickler hat** (Schlüssel, `local.properties`, `.claude`-Einstellungen) und dass die Tests aus dem Klon ohne weitere Werkzeuge laufen. **Grenzen:** auf dem Rechner des Entwicklers mit dessen **Gradle-Cache** (kein Kaltstart mit leerem Cache: das Herunterladen und Prüfen der Abhängigkeiten gegen `gradle/verification-metadata.xml` ist so nicht durchgespielt) und dessen globaler Gradle-Konfiguration; die JetBrains-JDK-21-Toolchain war vorhanden (Gradle lädt keins nach); **nur Debug-Build** — `assembleRelease` ohne eigenen Schlüssel habe ich bewusst nicht gebaut (mit der globalen Konfiguration des Entwicklers wäre er mit dem echten Schlüssel signiert worden); aus dem Gradle-Skript gelesen, nicht gebaut: ohne `KEYSTORE_FILE` und ohne `keystore.jks` entsteht ein nicht signiertes APK; weder Windows noch Linux geprüft (nur macOS). Die JVM-Tests brauchen `git`, `bash` und `python3` (Hygiene-, Release-Skript- und Skript-Tests) — das war im Klon der Fall, auf einem Rechner ohne sie sind Fehler möglich. **Die Zahl in README und hier (3079) kommt aus diesem vollen Lauf**; bis zum Release 1.44.18 stand dort 3072 (+3 Lizenz-Tests, +4 Hygiene-Tests vom 2026-11-03).
 
 ### Testabdeckung (auf Abruf, seit 2026-10-26)
 
