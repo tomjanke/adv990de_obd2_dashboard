@@ -89,6 +89,31 @@ class BuildIntegrityTest {
     }
 
     @Test
+    fun `aapt2 of the current AGP has a checksum for macOS, Linux and Windows`() {
+        // aapt2 ist die einzige Abhaengigkeit, die je Betriebssystem ein eigenes Jar hat (`-osx`, `-linux`, `-windows`); Gradle holt nur das des
+        // eigenen Systems, und `--write-verification-metadata` schreibt deshalb nur dessen Summe. Auf macOS erzeugt, fehlten Linux und Windows:
+        // der erste Lauf auf GitHub (ubuntu-latest) brach am 2026-11-03 mit "Dependency verification failed ... aapt2-9.5.0-...-linux.jar" ab,
+        // und jeder Fremde unter Linux oder Windows haette dasselbe erlebt. Beim Anheben von AGP die zwei fehlenden Summen von
+        // dl.google.com/android/maven2/com/android/tools/build/aapt2/<Version>/ (`.jar.sha256`, gegen die eigene Berechnung) nachtragen.
+        val agp = Regex("""^agp\s*=\s*"([^"]+)"""", RegexOption.MULTILINE).find(read("gradle/libs.versions.toml"))?.groupValues?.get(1)
+        assertTrue("`agp = \"…\"` fehlt in libs.versions.toml", agp != null)
+        val xml = read("gradle/verification-metadata.xml")
+        val components = Regex("""<component group="com\.android\.tools\.build" name="aapt2" version="(${Regex.escape(agp!!)}-[^"]+)">(.*?)</component>""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(xml).toList()
+        assertTrue("kein aapt2-Eintrag fuer AGP $agp in verification-metadata.xml", components.isNotEmpty())
+        for (component in components) {
+            val version = component.groupValues[1]
+            val body = component.groupValues[2]
+            for (os in listOf("osx", "linux", "windows")) {
+                assertTrue(
+                    "aapt2 $version hat keine Pruefsumme fuer das $os-Jar (Linux und Windows fehlen, wenn die Metadaten nur auf macOS geschrieben wurden)",
+                    Regex("""<artifact name="aapt2-${Regex.escape(version)}-$os\.jar">\s*<sha256 value="[0-9a-f]{64}"""").containsMatchIn(body),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `every direct runtime dependency has verified artifacts`() {
         val xml = read("gradle/verification-metadata.xml")
         val catalog = read("gradle/libs.versions.toml")
