@@ -1,0 +1,44 @@
+# JVM-Tests (ohne Gerät) bei jedem Push auf main und jedem Pull Request.
+#
+# Die Geräte-Tests (connectedDebugAndroidTest) brauchen ein Telefon und laufen hier nicht.
+#
+# Die Aktionen stehen auf festen Commit-SHAs, nicht auf Versions-Tags: ein Tag lässt sich verschieben, ein Commit nicht
+# (dasselbe Prinzip wie die Prüfsummen der Gradle-Abhängigkeiten, s. gradle/verification-metadata.xml). Dependabot schlägt
+# neue Versionen vor (.github/dependabot.yml) und ändert dabei SHA und Versionskommentar.
+#
+# Das JDK lädt Gradle nie selbst nach (org.gradle.java.installations.auto-download=false): setup-java stellt das JetBrains-JDK 21
+# bereit, das gradle/gradle-daemon-jvm.properties verlangt.
+name: JVM tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nur lesen: kein Schreibzugriff aufs Repository, keine Geheimnisse (ein Fork-PR bekommt ohnehin keine).
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jvm-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Die ganze Historie: einzelne Tests rufen git auf (git grep, git ls-files).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: jetbrains
+          java-version: "21"
+
+      - name: JVM-Tests
+        run: ./gradlew :app:testDebugUnitTest --console=plain

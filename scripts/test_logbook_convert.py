@@ -128,7 +128,7 @@ class FluidsTest(unittest.TestCase):
         self.assertEqual(([], date(2024, 5, 14)), (errors, rows[0]["date"]))
 
     def test_the_title_line_is_skipped_but_other_unreadable_lines_are_reported(self):
-        rows, errors = self.parse("Öl & Kühlflüssigkeit KTM\n1000 5.1.24 100ml Öl\nkaputt\n1100 6.1.24 100ml Öl\n")
+        rows, errors = self.parse("Öl & Kühlflüssigkeit Motorrad\n1000 5.1.24 100ml Öl\nkaputt\n1100 6.1.24 100ml Öl\n")
         self.assertEqual(2, len(rows))
         self.assertEqual(1, len(errors))
         self.assertIn("Zeile 3", errors[0])

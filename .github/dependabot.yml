@@ -1,0 +1,14 @@
+# Dependabot hält die festen Commit-SHAs der GitHub-Aktionen aktuell (.github/workflows).
+#
+# Die Gradle-Abhängigkeiten stehen hier bewusst NICHT: jede Abhängigkeit ist per SHA-256 in gradle/verification-metadata.xml
+# festgehalten, und neue Versionen brauchen dort neue Einträge (Befehl: CLAUDE.md, Abschnitt "Build-Integrität") — ein
+# automatischer Vorschlag würde den Build brechen. Die Sicherheitswarnungen von GitHub (Dependabot alerts) laufen davon unabhängig.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "ci"

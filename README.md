@@ -184,7 +184,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3079 Tests, < 30 Sekunden)
+# JVM Unit Tests (3087 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -193,7 +193,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3079 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3087 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 838 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -425,9 +425,19 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 
 ---
 
+## Mitwirken und Sicherheit
+
+Fehler melden und Ideen vorschlagen: als Issue; **Pull Requests nur nach Absprache im Issue** — Regeln in [`CONTRIBUTING.md`](CONTRIBUTING.md). Sicherheitslücken **nicht** öffentlich melden, sondern privat über GitHub („Report a vulnerability“, Reiter „Security“) — s. [`SECURITY.md`](SECURITY.md). / Bug reports and ideas as issues; pull requests only after agreement in an issue (see `CONTRIBUTING.md`); report security problems privately (see `SECURITY.md`).
+
+Die JVM-Tests laufen bei jedem Push auf `main` und jedem Pull Request in GitHub Actions (`.github/workflows/jvm-tests.yml`; die Geräte-Tests brauchen ein Telefon und laufen dort nicht).
+
 ## Lizenz
 
-Der Quelltext steht unter der **Apache License 2.0** (`LICENSE`, Copyright 2026 adv990de, `NOTICE`). Die ausgelieferten Bibliotheken, die beiden Schriften (Space Grotesk, IBM Plex Mono: SIL Open Font License 1.1) und die Wetterdaten von Open-Meteo (CC BY 4.0) behalten ihre eigenen Lizenzen; die Texte liegen in `docs/licenses/`, die App zeigt sie unter App-Info → „Open-Source-Lizenzen“. Die sieben Symbole in `AppIcons.kt` stammen aus den Material Icons (Apache License 2.0, Google).
+Der Quelltext steht unter der **Apache License 2.0** (`LICENSE`, Copyright 2026 adv990de, `NOTICE`). Die ausgelieferten Bibliotheken, die beiden Schriften (Space Grotesk, IBM Plex Mono: SIL Open Font License 1.1) und die Wetterdaten von Open-Meteo (CC BY 4.0) behalten ihre eigenen Lizenzen; die Texte liegen in `docs/licenses/`, die App zeigt sie unter App-Info → „Open-Source-Lizenzen“. Die sieben Symbole in `AppIcons.kt` stammen aus den Material Icons (Apache License 2.0, Google). Die Ölkanne (`ic_oil_can.xml`) ist selbst gezeichnet, nach dem gemeinfreien Öldruck-Symbol „Kontrollleuchte Oeldruck.svg“ (Wikimedia Commons, Urheber chris828).
+
+## Namen und Marken
+
+Die Namen Dritter stehen nur beschreibend im Text: **ELM327** ist eine Produktbezeichnung der Firma ELM Electronics und nennt hier die Art des Adapters; **OBDLink**, **Vgate** und **MWT_OBD2** sind Namen von Adaptern als Beispiele bzw. der Bluetooth-Name des Adapters, an dem die App entwickelt wurde; **Android**, **Pixel** und die **Material**-Bausteine gehören Google; **Open-Meteo** und **Sentry** sind Dienste bzw. Bibliotheken Dritter. **DMD²** (Thork Racing) war die Anregung für die Optik des Dashboards — es stammen kein Quelltext, keine Bilder und keine Schriften von dort. Die App steht in keiner Verbindung zu diesen Firmen oder Produkten. / Third-party names are used descriptively only; the app is not affiliated with any of them. DMD² was a design inspiration; no code, image or font comes from it.
 
 ## Release-Historie
 
@@ -440,13 +450,15 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3079) |
+| `app/src/test/` | JVM-Unit-Tests (3087) |
 | `app/src/androidTest/` | Instrumented Tests (838, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
 | *(nicht im Repository)* | Pläne, Spezifikationen, QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten samt Analyse-Skripten liegen in einem privaten Ordner neben dem Repository (in Verweisen `<intern>`); die Ordner `plans/` und `superpowers/` unter `docs/` stehen in der `.gitignore`, damit dort neu angelegte Pläne nicht versehentlich im Repository landen |
 | `docs/ideas/` | Funktionsideen (kein Backlog, nichts beschlossen) |
 | `docs/images/` | Die Screenshots für dieses README (Debug-App, ECU-Simulator, erfundene Logbuch-Daten, Statusleiste abgeschnitten) |
+| `.github/` | Workflow für die JVM-Tests (`workflows/jvm-tests.yml`, Aktionen auf festen Commit-SHAs) und Dependabot nur für diese Aktionen (`dependabot.yml`) |
+| `SECURITY.md`, `CONTRIBUTING.md` | Sicherheitsmeldungen und Regeln für Fehlerberichte und Pull Requests |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
 
 ---
