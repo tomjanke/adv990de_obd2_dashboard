@@ -1,0 +1,40 @@
+name: "Idea / Idee"
+description: "A new function or a change / Eine neue Funktion oder eine Änderung"
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please read first / Bitte zuerst lesen**
+
+        - The app is read-only towards the vehicle (it never writes, no mode 04) and built to be read at a glance on a motorcycle. Ideas that need a write access or a lot of operation while riding will be declined.
+          Die App ist gegenüber dem Fahrzeug rein lesend (sie schreibt nie, kein Modus 04) und darauf gebaut, am Motorrad auf einen Blick gelesen zu werden. Ideen, die einen Schreibzugriff oder viel Bedienung während der Fahrt brauchen, lehne ich ab.
+        - A pull request only after we agreed on the change here. / Ein Pull Request nur, nachdem wir die Änderung hier abgesprochen haben.
+        - Do not post personal data (VIN, Bluetooth address, locations). / Posten Sie keine persönlichen Daten (FIN, Bluetooth-Adresse, Standorte).
+  - type: textarea
+    id: what
+    attributes:
+      label: "What do you want to do? / Was möchten Sie tun?"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: "Why? Which problem does it solve? / Wozu? Welches Problem löst es?"
+    validations:
+      required: true
+  - type: textarea
+    id: situation
+    attributes:
+      label: "When would you use it? / Wann würden Sie es nutzen?"
+      description: "While riding, parked, at home? / Beim Fahren, im Stand, zu Hause?"
+    validations:
+      required: false
+  - type: checkboxes
+    id: implement
+    attributes:
+      label: "Implementation / Umsetzung"
+      options:
+        - label: "I would like to implement it myself, as a pull request after we agreed here. / Ich würde es gern selbst umsetzen, als Pull Request nach Absprache hier."
+          required: false

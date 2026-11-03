@@ -184,7 +184,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3088 Tests, < 30 Sekunden)
+# JVM Unit Tests (3094 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -193,7 +193,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3088 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3094 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 838 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 70 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -427,7 +427,7 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 
 ## Mitwirken und Sicherheit
 
-Fehler melden und Ideen vorschlagen: als Issue; **Pull Requests nur nach Absprache im Issue** — Regeln in [`CONTRIBUTING.md`](CONTRIBUTING.md). Sicherheitslücken **nicht** öffentlich melden, sondern privat über GitHub („Report a vulnerability“, Reiter „Security“) — s. [`SECURITY.md`](SECURITY.md). / Bug reports and ideas as issues; pull requests only after agreement in an issue (see `CONTRIBUTING.md`); report security problems privately (see `SECURITY.md`).
+Fehler melden und Ideen vorschlagen: als Issue (GitHub bietet je ein Formular an); **Pull Requests nur nach Absprache im Issue** — Regeln in [`CONTRIBUTING.md`](CONTRIBUTING.md), Umgangsregeln im [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Sicherheitslücken **nicht** öffentlich melden, sondern privat über GitHub („Report a vulnerability“, Reiter „Security“) — s. [`SECURITY.md`](SECURITY.md). / Bug reports and ideas as issues (GitHub offers a form for each); pull requests only after agreement in an issue (see `CONTRIBUTING.md`; conduct: `CODE_OF_CONDUCT.md`); report security problems privately (see `SECURITY.md`).
 
 Die JVM-Tests laufen bei jedem Push auf `main` und jedem Pull Request in GitHub Actions (`.github/workflows/jvm-tests.yml`; die Geräte-Tests brauchen ein Telefon und laufen dort nicht).
 
@@ -450,15 +450,15 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | Pfad | Inhalt |
 |---|---|
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3088) |
+| `app/src/test/` | JVM-Unit-Tests (3094) |
 | `app/src/androidTest/` | Instrumented Tests (838, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
 | *(nicht im Repository)* | Pläne, Spezifikationen, QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten samt Analyse-Skripten liegen in einem privaten Ordner neben dem Repository (in Verweisen `<intern>`); die Ordner `plans/` und `superpowers/` unter `docs/` stehen in der `.gitignore`, damit dort neu angelegte Pläne nicht versehentlich im Repository landen |
 | `docs/ideas/` | Funktionsideen (kein Backlog, nichts beschlossen) |
 | `docs/images/` | Die Screenshots für dieses README (Debug-App, ECU-Simulator, erfundene Logbuch-Daten, Statusleiste abgeschnitten) |
-| `.github/` | Workflow für die JVM-Tests (`workflows/jvm-tests.yml`, Aktionen auf festen Commit-SHAs) und Dependabot nur für diese Aktionen (`dependabot.yml`) |
-| `SECURITY.md`, `CONTRIBUTING.md` | Sicherheitsmeldungen und Regeln für Fehlerberichte und Pull Requests |
+| `.github/` | Workflow für die JVM-Tests (`workflows/jvm-tests.yml`, Aktionen auf festen Commit-SHAs), Dependabot nur für diese Aktionen (`dependabot.yml`), Formulare für Fehlerberichte und Ideen (`ISSUE_TEMPLATE/`) und die Vorlage für Pull Requests (`pull_request_template.md`) |
+| `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` | Sicherheitsmeldungen, Regeln für Fehlerberichte und Pull Requests, Umgangsregeln |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
 
 ---

@@ -1,0 +1,73 @@
+name: "Bug report / Fehlerbericht"
+description: "Something does not work as expected / Etwas funktioniert nicht wie erwartet"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please read first / Bitte zuerst lesen**
+
+        - A **security problem** does not belong here: use [Report a vulnerability](https://github.com/tomjanke/adv990de_obd2_dashboard/security/advisories/new) (see `SECURITY.md`).
+          Ein **Sicherheitsproblem** gehört nicht hierher: nutzen Sie „Report a vulnerability“ (siehe `SECURITY.md`).
+        - **Remove personal data** from everything you write or attach: VIN, Bluetooth address and name of your adapter, locations, files of your drives or logbook.
+          **Entfernen Sie persönliche Daten** aus allem, was Sie schreiben oder anhängen: FIN, Bluetooth-Adresse und Name Ihres Adapters, Standorte, Dateien Ihrer Fahrten oder Ihres Logbuchs.
+        - This is a one-person project: I answer when I can. / Das ist ein Ein-Personen-Projekt: Ich antworte, sobald ich kann.
+  - type: input
+    id: app_version
+    attributes:
+      label: "App version / App-Version"
+      description: "Settings → App info / Einstellungen → App-Info"
+      placeholder: "x.y.z"
+    validations:
+      required: true
+  - type: input
+    id: android_device
+    attributes:
+      label: "Android version and device / Android-Version und Gerät"
+      placeholder: "Android 17, Pixel 8 Pro"
+    validations:
+      required: true
+  - type: input
+    id: adapter
+    attributes:
+      label: "Adapter / Adapter"
+      description: "The type, for example ELM327-compatible with classic Bluetooth; the name is optional. / Die Art, zum Beispiel ELM327-kompatibel mit klassischem Bluetooth; der Name ist freiwillig."
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps / Schritte"
+      description: "What did you do? / Was haben Sie getan?"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What you expected / Was Sie erwartet haben"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: "What happened / Was passiert ist"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: "App log (optional) / App-Log (optional)"
+      description: "App logs → export symbol. Check it for personal data first. / App-Logs → Export-Symbol. Prüfen Sie es vorher auf persönliche Daten."
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: "Before you send / Vor dem Absenden"
+      options:
+        - label: "I removed personal data (VIN, Bluetooth address and name of my adapter, locations) from everything above. / Ich habe persönliche Daten (FIN, Bluetooth-Adresse und Name meines Adapters, Standorte) aus allem oben entfernt."
+          required: true
+        - label: "This is not a security problem. / Das ist kein Sicherheitsproblem."
+          required: true

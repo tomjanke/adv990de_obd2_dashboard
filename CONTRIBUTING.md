@@ -6,10 +6,11 @@ English first, deutsch darunter.
 
 This is a one-person project with strict conventions. Bug reports and ideas are welcome. **Pull requests only after we agreed on the change in an issue.**
 A pull request that nobody asked for may stay unanswered or be declined, however good it is; please talk to me first.
+Everybody who takes part is expected to follow the [`Code of Conduct`](CODE_OF_CONDUCT.md).
 
 ### Bug reports
 
-Open an issue and tell me: the app version (Settings → App info), your Android version and device, the type of your adapter (a name is optional), the steps, what you expected and what happened.
+Open an issue (GitHub offers a form with these questions) and tell me: the app version (Settings → App info), your Android version and device, the type of your adapter (a name is optional), the steps, what you expected and what happened.
 The app log can help (App logs → export symbol). **Remove personal data before you attach anything**: VIN, Bluetooth address and name of your adapter, locations, files of your drives or logbook.
 
 A security problem does **not** belong in an issue: see [`SECURITY.md`](SECURITY.md).
@@ -39,10 +40,11 @@ By submitting a contribution you agree that it is licensed under the Apache Lice
 
 Das ist ein Ein-Personen-Projekt mit strengen Konventionen. Fehlerberichte und Ideen sind willkommen. **Pull Requests nur, nachdem wir die Änderung in einem Issue abgesprochen haben.**
 Ein Pull Request, den niemand erbeten hat, kann unbeantwortet bleiben oder abgelehnt werden, so gut er ist; sprechen Sie mich bitte vorher an.
+Wer mitmacht, hält sich an den [`Verhaltenskodex`](CODE_OF_CONDUCT.md).
 
 ### Fehlerberichte
 
-Eröffnen Sie ein Issue und nennen Sie: die App-Version (Einstellungen → App-Info), Ihre Android-Version und das Gerät, die Art Ihres Adapters (der Name ist freiwillig), die Schritte, was Sie erwartet haben und was passiert ist.
+Eröffnen Sie ein Issue (GitHub bietet ein Formular mit diesen Fragen an) und nennen Sie: die App-Version (Einstellungen → App-Info), Ihre Android-Version und das Gerät, die Art Ihres Adapters (der Name ist freiwillig), die Schritte, was Sie erwartet haben und was passiert ist.
 Das App-Log kann helfen (App-Logs → Export-Symbol). **Entfernen Sie persönliche Daten, bevor Sie etwas anhängen**: FIN, Bluetooth-Adresse und Name Ihres Adapters, Standorte, Dateien Ihrer Fahrten oder Ihres Logbuchs.
 
 Ein Sicherheitsproblem gehört **nicht** in ein Issue: siehe [`SECURITY.md`](SECURITY.md).

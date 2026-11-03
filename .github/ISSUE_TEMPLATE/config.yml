@@ -1,0 +1,6 @@
+# Auswahl beim Eröffnen eines Issues. Fragen haben kein eigenes Formular: ein leeres Issue bleibt erlaubt (Diskussionen sind aus).
+blank_issues_enabled: true
+contact_links:
+  - name: "Report a security problem privately / Sicherheitsproblem privat melden"
+    url: https://github.com/tomjanke/adv990de_obd2_dashboard/security/advisories/new
+    about: "Please do not open a public issue for a vulnerability (see SECURITY.md). / Bitte kein öffentliches Issue für eine Sicherheitslücke (siehe SECURITY.md)."
