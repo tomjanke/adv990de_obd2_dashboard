@@ -42,4 +42,17 @@ class RepositoryHygieneTest {
         assumeTrue("kein Git-Repository oder kein git verfuegbar", hits != null || git("rev-parse", "--git-dir") != null)
         assertEquals("Seriennummer in getrackten Dateien: $hits", emptyList<String>(), hits.orEmpty())
     }
+
+    @Test
+    fun `no tracked file names an absolute home directory of the build machine`() {
+        // Der Pfad zum Home-Verzeichnis verraet den Benutzernamen des Rechners (macOS: /Users/<name>/, und als Ordnername
+        // des Claude-Projektspeichers -Users-<name>-). Pläne und Doku nennen stattdessen <repo-root> und <memory>.
+        // Die eigene Datei steht in der Ausnahme: sie enthaelt das Suchmuster.
+        val hits = git(
+            "grep", "-n", "-I", "-E", "/Users/[A-Za-z0-9._-]+/|-Users-[A-Za-z0-9]+-",
+            "--", ".", ":(exclude)app/src/test/java/de/adv990de/obd2/docs/RepositoryHygieneTest.kt",
+        )
+        assumeTrue("kein Git-Repository oder kein git verfuegbar", hits != null || git("rev-parse", "--git-dir") != null)
+        assertEquals("Absoluter Home-Pfad in getrackten Dateien: $hits", emptyList<String>(), hits.orEmpty())
+    }
 }
