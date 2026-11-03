@@ -28,6 +28,18 @@ OBD2 Monitor is an Android app for live vehicle diagnostics through an ELM327-co
 - **Languages:** the app is available in English, German and Spanish (it follows the device language). The rest of this README and the developer documentation are in German.
 - **Build:** JDK 21 (JetBrains) and the Android SDK with platform 37, then `./gradlew assembleDebug` — see "Build & Run" below.
 
+## Screenshots
+
+Aufgenommen mit der Debug-App auf einem Pixel 8 Pro im Querformat (Cockpit-Schema Orange). **Die Werte kommen vom eingebauten ECU-Simulator „OBD Sim“ und aus erfundenen Logbuch-Einträgen — nicht von einem Fahrzeug.** Der Gang zeigt „–“, weil der Simulator kein GPS hat. / Taken with the debug build on a Pixel 8 Pro in landscape (orange cockpit scheme). **The values come from the built-in ECU simulator and from invented logbook entries, not from a vehicle.**
+
+![Live-Dashboard: Drehzahl als Zahl und Balken, simulierte Öltemperatur-Leiste, vier Kacheln mit Verlauf, Lade-/Entlade-Balken der Bordspannung, Tankanzeige mit Reichweite](docs/images/dashboard.png)
+
+![Fahrtenverlauf mit den Bereichen Fahrten, Aktuell, Historie und Logbuch](docs/images/drives.png)
+
+![Logbuch: Übersicht der Wartung mit dem Abstand seit dem letzten Eintrag](docs/images/logbook.png)
+
+![Auswertung des Verbrauchs aus dem Logbuch: ein Balken je Tankintervall und der Durchschnitt](docs/images/fuel-consumption.png)
+
 ---
 
 ## Funktionen
@@ -434,6 +446,7 @@ Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
 | *(nicht im Repository)* | Pläne, Spezifikationen, QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten samt Analyse-Skripten liegen in einem privaten Ordner neben dem Repository (in Verweisen `<intern>`); die Ordner `plans/` und `superpowers/` unter `docs/` stehen in der `.gitignore`, damit dort neu angelegte Pläne nicht versehentlich im Repository landen |
 | `docs/ideas/` | Funktionsideen (kein Backlog, nichts beschlossen) |
+| `docs/images/` | Die Screenshots für dieses README (Debug-App, ECU-Simulator, erfundene Logbuch-Daten, Statusleiste abgeschnitten) |
 | `gradle/libs.versions.toml` | Version-Catalog (Single Source of Truth für Dependencies) |
 
 ---
