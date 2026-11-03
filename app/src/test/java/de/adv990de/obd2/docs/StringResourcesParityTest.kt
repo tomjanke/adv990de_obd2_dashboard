@@ -17,7 +17,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  *  - kein Text ist leer;
  *  - ein Text darf nur dann dem englischen gleichen, wenn er technisch ist (Formate, Einheiten, Kuerzel) oder in [SAME_AS_DEFAULT] steht — sonst ist er vermutlich unuebersetzt.
  *
- * Eine neue Sprache (`values-xx/strings.xml`) braucht: ihre Mengenkategorien in [PLURAL_QUANTITIES], eine Zeile im README (Abschnitt „Lokalisierung“) und ggf. Eintraege in [SAME_AS_DEFAULT].
+ * Eine neue Sprache (`values-xx/strings.xml`) braucht: ihre Mengenkategorien in [PLURAL_QUANTITIES], eine Zeile in beiden ausfuehrlichen READMEs (Abschnitt „Lokalisierung“ bzw. „Localization“) und ggf. Eintraege in [SAME_AS_DEFAULT].
  * Die Sprache der App folgt der Systemsprache des Geraets (s. CLAUDE.md „Sprachen“).
  */
 class StringResourcesParityTest {
@@ -175,11 +175,14 @@ class StringResourcesParityTest {
 
     @Test
     fun `the README names every language folder`() {
-        val readme = File(projectRoot, "README.md").readText()
-        for (folder in localeFolders) {
-            assertTrue("README.md nennt `$folder/` nicht (Abschnitt „Lokalisierung“)", readme.contains("$folder/"))
+        // Beide ausfuehrlichen Fassungen haben den Abschnitt "Lokalisierung" bzw. "Localization".
+        for (path in ReadmeFiles.detailed) {
+            val readme = ReadmeFiles.read(path)
+            for (folder in localeFolders) {
+                assertTrue("$path nennt `$folder/` nicht (Abschnitt „Lokalisierung“ bzw. „Localization“)", readme.contains("$folder/"))
+            }
+            assertTrue("$path nennt `values/` (Standardsprache) nicht", readme.contains("`values/`"))
         }
-        assertTrue("README.md nennt `values/` (Standardsprache) nicht", readme.contains("`values/`"))
     }
 
     private companion object {

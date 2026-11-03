@@ -16,7 +16,7 @@ This is a one-person project. I answer as soon as I can, but I cannot promise a 
 
 ### Supported versions
 
-Only the latest release (see "Aktuelle Version" in the README) and the current state of `main`. There are no backports.
+Only the latest release (see "Current version" in the [README](docs/README.en.md)) and the current state of `main`. There are no backports.
 
 ### What counts, and what does not
 
@@ -47,7 +47,7 @@ Das ist ein Ein-Personen-Projekt. Ich antworte, sobald ich kann, kann aber keine
 
 ### Unterstützte Versionen
 
-Nur die neueste Version (README, „Aktuelle Version“) und der aktuelle Stand von `main`. Es gibt keine Korrekturen für ältere Versionen.
+Nur die neueste Version ([README](docs/README.de.md), „Aktuelle Version“) und der aktuelle Stand von `main`. Es gibt keine Korrekturen für ältere Versionen.
 
 ### Was zählt und was nicht
 

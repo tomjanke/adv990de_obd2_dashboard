@@ -8,10 +8,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Version und versionCode stehen an drei Stellen: `app/build.gradle.kts` (die Quelle), `README.md` ("Aktuelle
- * Version") und der neueste Eintrag von `RELEASE_NOTES.md`. Die README nannte bis zur QS (B39) noch 1.17.7, obwohl
- * 1.23.0 ausgeliefert war — Doku-Drift, den kein Test bemerkte. Diese Pruefung haelt die drei zusammen; sie laeuft in
- * jedem `testDebugUnitTest` und scheitert, sobald ein Release die README oder die Release-Notes vergisst.
+ * Version und versionCode stehen an vier Stellen: `app/build.gradle.kts` (die Quelle), `docs/README.de.md` ("Aktuelle Version"), `docs/README.en.md` ("Current
+ * version") und der neueste Eintrag von `RELEASE_NOTES.md`. (Die Kurzfassung `README.md` nennt keine Version, `ReadmeFilesTest` haelt das fest.) Die README nannte
+ * bis zur QS (B39) noch 1.17.7, obwohl 1.23.0 ausgeliefert war — Doku-Drift, den kein Test bemerkte. Diese Pruefung haelt sie zusammen; sie laeuft in
+ * jedem `testDebugUnitTest` und scheitert, sobald ein Release eine der READMEs oder die Release-Notes vergisst.
  */
 class ReleaseDocsConsistencyTest {
 
@@ -30,30 +30,34 @@ class ReleaseDocsConsistencyTest {
     }
 
     @Test
-    fun `the README names the version and version code of the build`() {
+    fun `the detailed READMEs name the version and version code of the build`() {
         val build = buildVersion()
-        val line = read("README.md").lineSequence().firstOrNull { it.contains("Aktuelle Version:") }
-        assertNotNull("README.md braucht eine Zeile 'Aktuelle Version: **x** (versionCode n)'", line)
+        for ((path, label) in listOf(ReadmeFiles.DE to "Aktuelle Version", ReadmeFiles.EN to "Current version")) {
+            val line = read(path).lineSequence().firstOrNull { it.contains("$label:") }
+            assertNotNull("$path braucht eine Zeile '$label: **x** (versionCode n)'", line)
 
-        val match = Regex("""Aktuelle Version: \*\*([^*]+)\*\* \(versionCode (\d+)\)""").find(line!!)
-        assertNotNull("Format der README-Zeile: $line", match)
-        assertEquals("README-Version", build.name, match!!.groupValues[1])
-        assertEquals("README-versionCode", build.code, match.groupValues[2].toInt())
+            val match = Regex("""$label: \*\*([^*]+)\*\* \(versionCode (\d+)\)""").find(line!!)
+            assertNotNull("Format der Zeile in $path: $line", match)
+            assertEquals("Version in $path", build.name, match!!.groupValues[1])
+            assertEquals("versionCode in $path", build.code, match.groupValues[2].toInt())
+        }
     }
 
     @Test
-    fun `the README and CLAUDE_md name the target and compile SDK of the build`() {
-        // targetSdk/compileSdk stehen in README ("targetSdk **37** (Android 17) · compileSdk **37**") und CLAUDE.md ("targetSdk 37 / compileSdk 37").
-        // Der Sprung auf compileSdk 37 (v1.26.0) und auf targetSdk 37 haette in beiden Dateien sonst stillschweigend alt weiterbehauptet.
+    fun `the detailed READMEs and CLAUDE_md name the target and compile SDK of the build`() {
+        // targetSdk/compileSdk stehen in beiden ausfuehrlichen READMEs ("targetSdk **37** (Android 17) · compileSdk **37**") und CLAUDE.md ("targetSdk 37 / compileSdk 37").
+        // Der Sprung auf compileSdk 37 (v1.26.0) und auf targetSdk 37 haette in allen Dateien sonst stillschweigend alt weiterbehauptet.
         val gradle = read("app/build.gradle.kts")
         val compile = Regex("""compileSdk = (\d+)""").find(gradle)?.groupValues?.get(1)
         val target = Regex("""targetSdk = (\d+)""").find(gradle)?.groupValues?.get(1)
         assertNotNull("compileSdk in build.gradle.kts", compile)
         assertNotNull("targetSdk in build.gradle.kts", target)
 
-        val readme = read("README.md").lineSequence().first { it.contains("Aktuelle Version:") }
-        assertEquals("README targetSdk", target, Regex("""targetSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
-        assertEquals("README compileSdk", compile, Regex("""compileSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
+        for ((path, label) in listOf(ReadmeFiles.DE to "Aktuelle Version", ReadmeFiles.EN to "Current version")) {
+            val readme = read(path).lineSequence().first { it.contains("$label:") }
+            assertEquals("targetSdk in $path", target, Regex("""targetSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
+            assertEquals("compileSdk in $path", compile, Regex("""compileSdk \*\*(\d+)\*\*""").find(readme)?.groupValues?.get(1))
+        }
 
         val claude = Regex("""targetSdk (\d+) / compileSdk (\d+)""").find(read("CLAUDE.md"))
         assertNotNull("CLAUDE.md braucht 'targetSdk N / compileSdk N' im Projekt-Kontext", claude)
@@ -120,10 +124,12 @@ class ReleaseDocsConsistencyTest {
     }
 
     @Test
-    fun `the README documents KEYSTORE_FILE and the certificate pin`() {
-        val readme = read("README.md")
-        assertTrue(readme.contains("KEYSTORE_FILE"))
-        assertTrue(readme.contains("release-cert.sha256"))
+    fun `the detailed READMEs document KEYSTORE_FILE and the certificate pin`() {
+        for (path in ReadmeFiles.detailed) {
+            val readme = read(path)
+            assertTrue("$path nennt KEYSTORE_FILE nicht", readme.contains("KEYSTORE_FILE"))
+            assertTrue("$path nennt release-cert.sha256 nicht", readme.contains("release-cert.sha256"))
+        }
     }
 
     // ── Tag-Befehl: eine Form an allen Stellen ────────────────────────────
@@ -136,9 +142,9 @@ class ReleaseDocsConsistencyTest {
     fun `every place that names the release tag command uses an annotated tag with the release message`() {
         // README ("Tag-Konvention: annotierte Tags"), Schritt 4 der README, der Hinweis darunter, der Kopf von release.sh und dessen Abschlusszeile
         // nannten zwei Formen: `git tag -a … -m …` und das leichte `git tag vX.Y.Z`. Die ausgelieferten Tags sind annotiert ("Release 1.32.9 (versionCode 119)").
-        // Im Skript steht der Befehl in einem `echo "…"`, die Anfuehrungszeichen sind dort maskiert (`\"`).
+        // Im Skript steht der Befehl in einem `echo "…"`, die Anfuehrungszeichen sind dort maskiert (`\"`). Beide ausfuehrlichen READMEs nennen ihn gleich.
         val form = Regex("""git tag -a v\S+ -m \\?"Release \S+ \(versionCode \S+\)\\?"""")
-        for (file in listOf("README.md", "scripts/release.sh")) {
+        for (file in ReadmeFiles.detailed + "scripts/release.sh") {
             val mentions = linesWith(file, "git tag ")
             assertTrue("$file nennt den Tag-Befehl mindestens zweimal, war: $mentions", mentions.size >= 2)
             mentions.forEach { assertTrue("kein annotierter Tag mit Release-Meldung: $it", form.containsMatchIn(it)) }
@@ -148,7 +154,7 @@ class ReleaseDocsConsistencyTest {
     @Test
     fun `every place that pushes a release pushes main together with the tag, never all tags`() {
         // `git push && git push --tags` schickt jeden lokalen Tag mit; die Freigabeliste der Sitzung erlaubt nur `origin main` und `origin v*`.
-        for (file in listOf("README.md", "scripts/release.sh")) {
+        for (file in ReadmeFiles.detailed + "scripts/release.sh") {
             val mentions = linesWith(file, "git push")
             assertTrue("$file nennt den Push mindestens zweimal, war: $mentions", mentions.size >= 2)
             mentions.forEach {

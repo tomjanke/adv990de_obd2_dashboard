@@ -8,7 +8,7 @@ import java.io.File
 
 /**
  * Der eigene Quelltext steht unter der Apache License 2.0 (Entscheidung des Nutzers, 2026-11-03). GitHub erkennt die Lizenz an einer `LICENSE` im Wurzelverzeichnis;
- * die App liefert denselben Text aus `docs/licenses/` mit (Lizenzseite). Beide muessen derselbe Text bleiben, `NOTICE` nennt den Rechteinhaber, das README die Lizenz.
+ * die App liefert denselben Text aus `docs/licenses/` mit (Lizenzseite). Beide muessen derselbe Text bleiben, `NOTICE` nennt den Rechteinhaber, die READMEs die Lizenz.
  */
 class RepositoryLicenseTest {
 
@@ -38,11 +38,14 @@ class RepositoryLicenseTest {
 
     @Test
     fun `the README names the license and points to the files`() {
-        val readme = File(projectRoot, "README.md").readText()
-        assertTrue("README braucht den Abschnitt '## Lizenz'", readme.contains("\n## Lizenz\n"))
-        val section = readme.substringAfter("\n## Lizenz\n").substringBefore("\n## ")
-        assertTrue("Der Lizenz-Abschnitt nennt die Apache License 2.0 nicht", section.contains("Apache License 2.0"))
-        assertTrue("Der Lizenz-Abschnitt nennt LICENSE nicht", section.contains("`LICENSE`"))
-        assertTrue("Der Lizenz-Abschnitt nennt NOTICE nicht", section.contains("`NOTICE`"))
+        // Die ausfuehrlichen Fassungen haben den Abschnitt (deutsch "Lizenz", englisch "License"); die Kurzfassung nennt die Lizenz in beiden Sprachen (ReadmeFilesTest).
+        for ((path, heading) in listOf(ReadmeFiles.DE to "Lizenz", ReadmeFiles.EN to "License")) {
+            val readme = ReadmeFiles.read(path)
+            assertTrue("$path braucht den Abschnitt '## $heading'", readme.contains("\n## $heading\n"))
+            val section = readme.substringAfter("\n## $heading\n").substringBefore("\n## ")
+            assertTrue("Der Lizenz-Abschnitt von $path nennt die Apache License 2.0 nicht", section.contains("Apache License 2.0"))
+            assertTrue("Der Lizenz-Abschnitt von $path nennt LICENSE nicht", section.contains("`LICENSE`"))
+            assertTrue("Der Lizenz-Abschnitt von $path nennt NOTICE nicht", section.contains("`NOTICE`"))
+        }
     }
 }

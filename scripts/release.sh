@@ -17,7 +17,7 @@
 # Umgebung:
 #   RELEASE_ARCHIVE_DIR   Ablage fuer mapping.txt und APK-Pruefsumme (Standard: $HOME/obd2-release-archive). Ausserhalb des
 #                         Repos: die mapping.txt ist ~45 MB je Release.
-#   Die Signierung kommt aus den Gradle-Properties/Umgebungsvariablen aus README ("assembleRelease signiert via env-vars").
+#   Die Signierung kommt aus den Gradle-Properties/Umgebungsvariablen aus dem README ("assembleRelease signiert via env-vars", docs/README.de.md).
 #   KEYSTORE_FILE         Ort des Keystores (Standard: keystore.jks im Projekt). Empfohlen: ausserhalb des Projektbaums (B31).
 #
 # Zusaetzlich (B31): Keystore und ~/.gradle/gradle.properties duerfen nur der Eigentuemer lesen, und das APK muss mit dem
@@ -57,9 +57,12 @@ if [ -n "$(git status --porcelain)" ]; then
     fail "Der Arbeitsbaum ist nicht sauber. Version bumpen UND committen, dann bauen (B32)."
 fi
 
-# 2. README und Release-Notes nennen dieselbe Version (ReleaseDocsConsistencyTest prueft das ebenfalls).
-grep -q "Aktuelle Version: \*\*$VERSION_NAME\*\* (versionCode $VERSION_CODE)" README.md \
-    || fail "README.md nennt nicht 'Aktuelle Version: **$VERSION_NAME** (versionCode $VERSION_CODE)'"
+# 2. Die beiden ausfuehrlichen READMEs und die Release-Notes nennen dieselbe Version (ReleaseDocsConsistencyTest prueft das ebenfalls;
+#    die Kurzfassung README.md nennt keine Version).
+grep -q "Aktuelle Version: \*\*$VERSION_NAME\*\* (versionCode $VERSION_CODE)" docs/README.de.md \
+    || fail "docs/README.de.md nennt nicht 'Aktuelle Version: **$VERSION_NAME** (versionCode $VERSION_CODE)'"
+grep -q "Current version: \*\*$VERSION_NAME\*\* (versionCode $VERSION_CODE)" docs/README.en.md \
+    || fail "docs/README.en.md nennt nicht 'Current version: **$VERSION_NAME** (versionCode $VERSION_CODE)'"
 head -20 RELEASE_NOTES.md | grep -q "^## Version $VERSION_NAME (versionCode $VERSION_CODE)" \
     || fail "Der oberste Eintrag von RELEASE_NOTES.md ist nicht '## Version $VERSION_NAME (versionCode $VERSION_CODE)'"
 

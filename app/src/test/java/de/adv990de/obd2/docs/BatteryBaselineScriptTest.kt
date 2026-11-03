@@ -76,8 +76,9 @@ class BatteryBaselineScriptTest {
 
     @Test
     fun `the readme and the idea list point to the script`() {
-        val readme = File(projectRoot, "README.md").readText()
-        assertTrue("README nennt scripts/battery_baseline.py nicht", "scripts/battery_baseline.py" in readme)
+        for (path in ReadmeFiles.detailed) {
+            assertTrue("$path nennt scripts/battery_baseline.py nicht", "scripts/battery_baseline.py" in ReadmeFiles.read(path))
+        }
         val ideas = File(projectRoot, "docs/ideas/2026-10-17-adventure-enduro-funktionsideen.md").readText()
         assertTrue("die Ideenliste nennt scripts/battery_baseline.py nicht", "scripts/battery_baseline.py" in ideas)
     }

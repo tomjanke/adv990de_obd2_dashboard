@@ -24,7 +24,7 @@ Open an issue and describe what you want to do and why. The app is read-only tow
 - **One focused change** per pull request, small enough to review.
 - **Tests are required**: a new view model, parser or repository method comes with JVM tests (`./gradlew :app:testDebugUnitTest`). The whole suite must pass; it also checks rules across files (documentation, resources, licenses, the build files).
 - **All three languages**: every text in `values/` (English), `values-de/` and `values-es/` (`StringResourcesParityTest` checks it). No hard-coded texts or colours: texts through `stringResource`, colours through `MaterialTheme.colorScheme`.
-- **Documentation moves with the code**: README and `CLAUDE.md` state facts that tests compare with the build (version, test counts, target SDK). Change what your change makes wrong.
+- **Documentation moves with the code**: The READMEs (`docs/README.en.md` and `docs/README.de.md`) and `CLAUDE.md` state facts that tests compare with the build (version, test counts, target SDK), and the two detailed READMEs have to stay in step (`ReadmeFilesTest` checks the structure, commands, links and numbers). Change what your change makes wrong.
 - **A new dependency** needs its checksums in `gradle/verification-metadata.xml` (command: `CLAUDE.md`, "Build-Integrität") and an entry in the license catalogue.
 - **No personal data** in code, tests, screenshots or commit messages: use invented values.
 - Commit messages in English, imperative, with a prefix as in the history (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `build:`).
@@ -58,7 +58,7 @@ Eröffnen Sie ein Issue und beschreiben Sie, was Sie vorhaben und wozu. Die App 
 - **Eine zusammenhängende Änderung** je Pull Request, klein genug zum Prüfen.
 - **Tests sind Pflicht**: ein neues ViewModel, ein neuer Parser oder eine neue Repository-Methode kommt mit JVM-Tests (`./gradlew :app:testDebugUnitTest`). Die ganze Suite muss grün sein; sie prüft auch Regeln über Dateien hinweg (Dokumentation, Ressourcen, Lizenzen, die Build-Dateien).
 - **Alle drei Sprachen**: jeder Text in `values/` (Englisch), `values-de/` und `values-es/` (`StringResourcesParityTest` prüft das). Keine festen Texte oder Farben: Texte über `stringResource`, Farben über `MaterialTheme.colorScheme`.
-- **Die Dokumentation zieht mit**: README und `CLAUDE.md` nennen Tatsachen, die Tests mit dem Build vergleichen (Version, Testzahlen, Ziel-SDK). Ändern Sie, was Ihre Änderung falsch macht.
+- **Die Dokumentation zieht mit**: Die READMEs (`docs/README.en.md` und `docs/README.de.md`) und `CLAUDE.md` nennen Tatsachen, die Tests mit dem Build vergleichen (Version, Testzahlen, Ziel-SDK), und die beiden ausführlichen READMEs müssen im Gleichschritt bleiben (`ReadmeFilesTest` prüft Gliederung, Befehle, Links und Zahlen). Ändern Sie, was Ihre Änderung falsch macht.
 - **Eine neue Abhängigkeit** braucht ihre Prüfsummen in `gradle/verification-metadata.xml` (Befehl: `CLAUDE.md`, „Build-Integrität“) und einen Eintrag im Lizenzkatalog.
 - **Keine persönlichen Daten** in Code, Tests, Screenshots oder Commit-Nachrichten: erfundene Werte nehmen.
 - Commit-Nachrichten englisch, im Imperativ, mit Präfix wie in der Historie (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `build:`).

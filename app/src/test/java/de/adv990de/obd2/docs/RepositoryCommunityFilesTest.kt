@@ -85,11 +85,17 @@ class RepositoryCommunityFilesTest {
     }
 
     @Test
-    fun `the README points to both files and to the workflow`() {
-        val readme = read("README.md")
-        assertTrue(readme.contains("[`CONTRIBUTING.md`](CONTRIBUTING.md)"))
-        assertTrue(readme.contains("[`SECURITY.md`](SECURITY.md)"))
-        assertTrue("README nennt den Workflow nicht", readme.contains(workflowPath))
+    fun `the READMEs point to both files and the detailed ones to the workflow`() {
+        // Die Kurzfassung liegt im Hauptverzeichnis, die ausfuehrlichen Fassungen in docs/ — ihre Links fuehren mit `../` hinaus.
+        val short = read("README.md")
+        assertTrue("README.md verweist nicht auf CONTRIBUTING.md", short.contains("](CONTRIBUTING.md)"))
+        assertTrue("README.md verweist nicht auf SECURITY.md", short.contains("](SECURITY.md)"))
+        for (path in ReadmeFiles.detailed) {
+            val readme = read(path)
+            assertTrue("$path verweist nicht auf CONTRIBUTING.md", readme.contains("[`CONTRIBUTING.md`](../CONTRIBUTING.md)"))
+            assertTrue("$path verweist nicht auf SECURITY.md", readme.contains("[`SECURITY.md`](../SECURITY.md)"))
+            assertTrue("$path nennt den Workflow nicht", readme.contains(workflowPath))
+        }
         assertTrue("$workflowPath fehlt", file(workflowPath).isFile)
     }
 
@@ -215,11 +221,14 @@ class RepositoryCommunityFilesTest {
     }
 
     @Test
-    fun `the README and CONTRIBUTING md point to the code of conduct, the forms and the template`() {
-        val readme = read("README.md")
-        assertTrue("Das README verweist nicht auf CODE_OF_CONDUCT.md", readme.contains("[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)"))
-        assertTrue("Das README nennt die Formulare nicht", readme.contains("ISSUE_TEMPLATE/"))
-        assertTrue("Das README nennt die Pull-Request-Vorlage nicht", readme.contains("pull_request_template.md"))
+    fun `the READMEs and CONTRIBUTING md point to the code of conduct, the forms and the template`() {
+        assertTrue("README.md verweist nicht in beiden Sprachen auf CODE_OF_CONDUCT.md", read("README.md").split("](CODE_OF_CONDUCT.md)").size - 1 >= 2)
+        for (path in ReadmeFiles.detailed) {
+            val readme = read(path)
+            assertTrue("$path verweist nicht auf CODE_OF_CONDUCT.md", readme.contains("[`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md)"))
+            assertTrue("$path nennt die Formulare nicht", readme.contains("ISSUE_TEMPLATE/"))
+            assertTrue("$path nennt die Pull-Request-Vorlage nicht", readme.contains("pull_request_template.md"))
+        }
         val contributing = read("CONTRIBUTING.md")
         assertTrue("CONTRIBUTING.md verweist nicht in beiden Sprachen auf den Verhaltenskodex", contributing.split("](CODE_OF_CONDUCT.md)").size - 1 >= 2)
         assertTrue("CODE_OF_CONDUCT.md fehlt", file("CODE_OF_CONDUCT.md").isFile)

@@ -59,9 +59,11 @@ class BluetoothScopeSourceTest {
 
     @Test
     fun `the README does not promise BLE adapters`() {
-        val readme = read("README.md")
-        assertFalse("README bewirbt BLE-Adapter", readme.contains("**BLE** (ELM327-BLE-Adapter"))
-        assertFalse(readme.contains("Bluetooth Classic + BLE"))
-        assertFalse("kein Verweis mehr auf die geloeschte Datei", readme.contains("`BleConnection.kt` nutzt"))
+        for (path in ReadmeFiles.all) {
+            val readme = ReadmeFiles.read(path)
+            assertFalse("$path bewirbt BLE-Adapter", readme.contains("**BLE** (ELM327-BLE-Adapter"))
+            assertFalse("$path: Bluetooth Classic + BLE", readme.contains("Bluetooth Classic + BLE"))
+            assertFalse("$path: kein Verweis mehr auf die geloeschte Datei", readme.contains("`BleConnection.kt` nutzt"))
+        }
     }
 }

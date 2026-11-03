@@ -36,8 +36,11 @@ class CrashReportingConfigTest {
 
     @Test
     fun `the README no longer promises more than the switch delivers`() {
-        val readme = read("README.md")
-        assertTrue("der Schalter ist dokumentiert", readme.contains("Absturzberichte senden"))
-        assertFalse("die alte, ungenaue Aussage", readme.contains("optional, deaktivierbar"))
+        // Der Schalter heisst in der App "Absturzberichte senden" bzw. "Send crash reports"; jede ausfuehrliche Fassung nennt ihn in ihrer Sprache.
+        for ((path, label) in listOf(ReadmeFiles.DE to "Absturzberichte senden", ReadmeFiles.EN to "Send crash reports")) {
+            val readme = ReadmeFiles.read(path)
+            assertTrue("der Schalter ist in $path dokumentiert", readme.contains(label))
+            assertFalse("die alte, ungenaue Aussage in $path", readme.contains("optional, deaktivierbar"))
+        }
     }
 }

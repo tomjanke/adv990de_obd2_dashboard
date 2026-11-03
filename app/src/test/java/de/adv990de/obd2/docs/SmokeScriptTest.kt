@@ -59,14 +59,14 @@ class SmokeScriptTest {
 
     @Test
     fun `the simulator mode is documented where people look for it`() {
-        for (file in listOf("scripts/smoke.py", "README.md")) {
+        for (file in listOf("scripts/smoke.py") + ReadmeFiles.detailed) {
             assertTrue("$file nennt --simulator nicht", "--simulator" in File(projectRoot, file).readText())
         }
     }
 
     @Test
     fun `the release flow points to the script`() {
-        assertTrue("README nennt scripts/smoke.py nicht", "scripts/smoke.py" in File(projectRoot, "README.md").readText())
+        for (path in ReadmeFiles.detailed) assertTrue("$path nennt scripts/smoke.py nicht", "scripts/smoke.py" in ReadmeFiles.read(path))
         assertTrue("release.sh nennt scripts/smoke.py nicht", "scripts/smoke.py" in File(projectRoot, "scripts/release.sh").readText())
     }
 }

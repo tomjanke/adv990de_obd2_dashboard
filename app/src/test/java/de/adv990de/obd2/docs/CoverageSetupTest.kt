@@ -139,7 +139,7 @@ class CoverageSetupTest {
 
     @Test
     fun `the readme and CLAUDE_md point to the script and the snapshot`() {
-        for (name in listOf("README.md", "CLAUDE.md")) {
+        for (name in ReadmeFiles.detailed + "CLAUDE.md") {
             val text = File(projectRoot, name).readText()
             assertTrue("$name nennt scripts/coverage.sh nicht", "scripts/coverage.sh" in text)
             assertTrue("$name nennt docs/qa/coverage.md nicht", "docs/qa/coverage.md" in text)
