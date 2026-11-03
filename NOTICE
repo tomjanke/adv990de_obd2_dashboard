@@ -1,0 +1,9 @@
+OBD2 Monitor
+Copyright 2026 adv990de
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The libraries that ship in the app (AndroidX, Kotlin, Hilt, Room, Sentry and
+others), the two typefaces (Space Grotesk, IBM Plex Mono) and the weather data
+(Open-Meteo, CC BY 4.0) keep their own licenses. The license texts are in
+docs/licenses/, and the app lists them under App info > Open-source licenses.

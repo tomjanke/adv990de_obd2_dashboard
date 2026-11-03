@@ -384,6 +384,10 @@ Alle UI-Strings werden über `stringResource()` resolved. ViewModels nutzen die 
 
 ---
 
+## Lizenz
+
+Der Quelltext steht unter der **Apache License 2.0** (`LICENSE`, Copyright 2026 adv990de, `NOTICE`). Die ausgelieferten Bibliotheken, die beiden Schriften (Space Grotesk, IBM Plex Mono: SIL Open Font License 1.1) und die Wetterdaten von Open-Meteo (CC BY 4.0) behalten ihre eigenen Lizenzen; die Texte liegen in `docs/licenses/`, die App zeigt sie unter App-Info → „Open-Source-Lizenzen“. Die sieben Symbole in `AppIcons.kt` stammen aus den Material Icons (Apache License 2.0, Google).
+
 ## Release-Historie
 
 Siehe [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — chronologische Änderungen seit Version 1.0.
