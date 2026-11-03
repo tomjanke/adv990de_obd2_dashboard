@@ -4,7 +4,7 @@ Detailed version in English · [Deutsche Fassung](README.de.md) · [Short versio
 
 **OBD Dashboard** is an Android app that shows **ride and OBD data** live as a dashboard. I wrote it first of all for my **KTM 990 Adventure** (hence the repository name `adv990de_obd2_dashboard`). The OBD data come through an OBD2 adapter (ELM327 over classic Bluetooth), the ride data (speed, altitude, gradient, heading) from the phone's GPS and pressure sensor. It reads live sensor data, shows fault codes (DTCs), stores drive sessions locally and visualises configurable dashboards in Jetpack Compose.
 
-> Current version: **1.44.18** (versionCode 156) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
+> Current version: **1.44.19** (versionCode 157) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
 ---
 

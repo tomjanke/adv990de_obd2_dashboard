@@ -1,4 +1,17 @@
-# Release Notes — OBD2 Monitor
+# Release Notes — OBD Dashboard
+
+## Version 1.44.19 (versionCode 157)
+
+Die App heißt jetzt **OBD Dashboard**.
+
+### Was sich ändert
+
+- **Neuer Name:** In der App-Info steht „OBD Dashboard“ statt „Bike OBD2 Monitor“, im Launcher „OBD Dashboard“ statt „BOM“; die Debug-Variante heißt „OBD Dashboard Debug“ (vorher „BOM Debug“). Der Name ist in Deutsch, Englisch und Spanisch gleich.
+- **Wofür die App da ist:** ein Dashboard, das Fahrt- und OBD-Daten zeigt, in erster Linie für die KTM 990 Adventure des Entwicklers geschrieben. Erprobt ist sie nur an diesem einen Motorrad mit einem Adapter (MWT_OBD2); an anderen Fahrzeugen läuft sie vielleicht. Die READMEs und der About-Text des Repositorys sagen das jetzt.
+- **Bauen unter Linux und Windows:** Die Prüfsummen der Android-Werkzeuge `aapt2` für Linux und Windows sind ergänzt. Vorher scheiterte der Bau auf anderen Systemen als macOS an der Abhängigkeitsprüfung.
+- **Unverändert:** Funktionen, Aufzeichnung, Datenbank (bleibt **v6**), gespeicherte Einstellungen, Berechtigungen und die Paketkennung (ein Update behält alle Daten). Das Fahrzeug bleibt rein lesend. Interne Kennungen wie die Theme-Namen heißen weiter wie vorher.
+
+---
 
 ## Version 1.44.18 (versionCode 156)
 
