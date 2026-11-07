@@ -206,25 +206,14 @@
     <string name="history_cd_export">Export CSV</string>
     <string name="history_cd_export_all">Export all drives</string>
     <string name="history_cd_import">Import drives</string>
-    <string name="history_export_all_title">Export all drives</string>
-    <plurals name="history_export_all_message">
-        <item quantity="one">%1$d drive as one CSV file. The recording in progress is not included.</item>
-        <item quantity="other">%1$d drives as one CSV file. The recording in progress is not included.</item>
-    </plurals>
     <string name="history_export_share">Share</string>
     <string name="history_export_save">Save</string>
-    <plurals name="history_export_saved">
-        <item quantity="one">%1$d drive saved</item>
-        <item quantity="other">%1$d drives saved</item>
-    </plurals>
     <string name="history_export_none">No finished drive to export.</string>
     <string name="history_save_unavailable">No file dialog available</string>
     <string name="history_cd_delete">Delete session</string>
     <string name="history_cd_delete_all">Delete all drives</string>
 
     <!-- Drive import (history) -->
-    <string name="trip_import_title">Import drives</string>
-    <string name="trip_import_working">Working …</string>
     <plurals name="trip_import_new">
         <item quantity="one">%1$d new drive</item>
         <item quantity="other">%1$d new drives</item>
@@ -254,18 +243,10 @@
     <string name="trip_import_bad_value">%1$s is not valid</string>
     <string name="trip_import_note">The file contains neither VIN nor fault codes: imported drives show them as not recorded.</string>
     <string name="trip_import_nothing_new">Nothing to import.</string>
-    <string name="trip_import_confirm">Import</string>
-    <string name="trip_import_close">Close</string>
     <plurals name="trip_import_done">
         <item quantity="one">%1$d drive imported</item>
         <item quantity="other">%1$d drives imported</item>
     </plurals>
-    <string name="trip_import_error_format">This is not a drive file of this app. It needs the columns timestamp, pid and value.</string>
-    <string name="trip_import_error_too_many_rows">The file has more than 1,500,000 rows.</string>
-    <string name="trip_import_error_split">The rows of one drive are not together in this file. The app does not write its export like that.</string>
-    <string name="trip_import_error_too_large">The file is larger than 96 MB.</string>
-    <string name="trip_import_error_unreadable">The file could not be read.</string>
-    <string name="trip_import_error_write">Nothing was imported: the drives could not be saved.</string>
     <string name="history_delete_all_title">Delete all drives?</string>
     <string name="history_delete_all_message">All saved drives will be deleted. A recording in progress is kept. You can undo this in a moment.</string>
     <plurals name="history_deleted">
@@ -356,14 +337,6 @@
     <string name="app_logs_clear_message">All log entries will be deleted. You can undo this right afterwards.</string>
     <string name="app_logs_deleted">Logs deleted</string>
     <string name="app_logs_export">Export logs</string>
-    <string name="app_logs_export_title">Export logs</string>
-    <plurals name="app_logs_export_message">
-        <item quantity="one">%1$d log entry as one CSV file. It contains the name of your adapter and error messages — check it before sharing.</item>
-        <item quantity="other">%1$d log entries as one CSV file. It contains the name of your adapter and error messages — check it before sharing.</item>
-    </plurals>
-    <string name="app_logs_export_saved">Logs saved</string>
-    <string name="app_logs_export_none">No log entries to export.</string>
-    <string name="app_logs_share_chooser">Export logs</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Color scheme</string>
     <string name="settings_brightness">Brightness</string>
@@ -504,12 +477,6 @@
     <string name="voltage_state_marginal">barely charging</string>
     <string name="voltage_state_discharging">discharging</string>
 
-    <!-- Logbook: reasons an import fails (the file is the app's own CSV export) -->
-    <string name="logbook_import_error_format">This is not a valid logbook file. It needs the columns date, type and odometer_km and at most 20,000 rows.</string>
-    <string name="logbook_import_error_too_large">The file is larger than 5 MB.</string>
-    <string name="logbook_import_error_unreadable">The file could not be read.</string>
-    <string name="logbook_import_error_write">Nothing was imported: the entries could not be saved.</string>
-
     <!-- Logbook: the fourth section of "Drives" -->
     <string name="trips_section_logbook">Logbook</string>
     <string name="logbook_title">Logbook</string>
@@ -598,15 +565,6 @@
     <string name="logbook_no">No</string>
 
     <!-- Logbook: export and import -->
-    <string name="logbook_export_title">Export logbook</string>
-    <plurals name="logbook_export_message">
-        <item quantity="one">%1$d entry as one CSV file. The logbook is deleted with the app data, so keep the file safe.</item>
-        <item quantity="other">%1$d entries as one CSV file. The logbook is deleted with the app data, so keep the file safe.</item>
-    </plurals>
-    <string name="logbook_export_saved">Logbook saved</string>
-    <string name="logbook_export_none">No entries to export.</string>
-    <string name="logbook_import_title">Import logbook</string>
-    <string name="logbook_import_working">Working …</string>
     <plurals name="logbook_import_new">
         <item quantity="one">%1$d new entry</item>
         <item quantity="other">%1$d new entries</item>
@@ -624,8 +582,6 @@
         <item quantity="other">%1$d of the new entries have a notice (reading and date, price or consumption)</item>
     </plurals>
     <string name="logbook_import_nothing_new">Nothing to import.</string>
-    <string name="logbook_import_confirm">Import</string>
-    <string name="logbook_import_close">Close</string>
     <plurals name="logbook_import_done">
         <item quantity="one">%1$d entry imported</item>
         <item quantity="other">%1$d entries imported</item>

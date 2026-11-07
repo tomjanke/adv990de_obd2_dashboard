@@ -206,25 +206,14 @@
     <string name="history_cd_export">CSV exportieren</string>
     <string name="history_cd_export_all">Alle Fahrten exportieren</string>
     <string name="history_cd_import">Fahrten importieren</string>
-    <string name="history_export_all_title">Alle Fahrten exportieren</string>
-    <plurals name="history_export_all_message">
-        <item quantity="one">%1$d Fahrt als eine CSV-Datei. Die laufende Aufzeichnung ist nicht dabei.</item>
-        <item quantity="other">%1$d Fahrten als eine CSV-Datei. Die laufende Aufzeichnung ist nicht dabei.</item>
-    </plurals>
     <string name="history_export_share">Teilen</string>
     <string name="history_export_save">Speichern</string>
-    <plurals name="history_export_saved">
-        <item quantity="one">%1$d Fahrt gespeichert</item>
-        <item quantity="other">%1$d Fahrten gespeichert</item>
-    </plurals>
     <string name="history_export_none">Keine abgeschlossene Fahrt zum Exportieren.</string>
     <string name="history_save_unavailable">Kein Dateidialog verfügbar</string>
     <string name="history_cd_delete">Fahrt löschen</string>
     <string name="history_cd_delete_all">Alle Fahrten löschen</string>
 
     <!-- Fahrten-Import (Verlauf) -->
-    <string name="trip_import_title">Fahrten importieren</string>
-    <string name="trip_import_working">Wird bearbeitet …</string>
     <plurals name="trip_import_new">
         <item quantity="one">%1$d neue Fahrt</item>
         <item quantity="other">%1$d neue Fahrten</item>
@@ -254,18 +243,10 @@
     <string name="trip_import_bad_value">%1$s ist ungültig</string>
     <string name="trip_import_note">Die Datei enthält weder FIN noch Fehlercodes: Importierte Fahrten zeigen sie als nicht erfasst.</string>
     <string name="trip_import_nothing_new">Nichts zu importieren.</string>
-    <string name="trip_import_confirm">Importieren</string>
-    <string name="trip_import_close">Schließen</string>
     <plurals name="trip_import_done">
         <item quantity="one">%1$d Fahrt importiert</item>
         <item quantity="other">%1$d Fahrten importiert</item>
     </plurals>
-    <string name="trip_import_error_format">Das ist keine Fahrten-Datei dieser App. Sie braucht die Spalten timestamp, pid und value.</string>
-    <string name="trip_import_error_too_many_rows">Die Datei hat mehr als 1.500.000 Zeilen.</string>
-    <string name="trip_import_error_split">Die Zeilen einer Fahrt stehen in dieser Datei nicht zusammen. So schreibt die App ihren Export nicht.</string>
-    <string name="trip_import_error_too_large">Die Datei ist größer als 96 MB.</string>
-    <string name="trip_import_error_unreadable">Die Datei konnte nicht gelesen werden.</string>
-    <string name="trip_import_error_write">Es wurde nichts importiert: Die Fahrten konnten nicht gespeichert werden.</string>
     <string name="history_delete_all_title">Alle Fahrten löschen?</string>
     <string name="history_delete_all_message">Alle gespeicherten Fahrten werden gelöscht. Eine laufende Aufzeichnung bleibt erhalten. Du kannst das gleich noch rückgängig machen.</string>
     <plurals name="history_deleted">
@@ -356,14 +337,6 @@
     <string name="app_logs_clear_message">Alle Log-Einträge werden gelöscht. Du kannst das gleich noch rückgängig machen.</string>
     <string name="app_logs_deleted">Logs gelöscht</string>
     <string name="app_logs_export">Logs exportieren</string>
-    <string name="app_logs_export_title">Logs exportieren</string>
-    <plurals name="app_logs_export_message">
-        <item quantity="one">%1$d Log-Eintrag als eine CSV-Datei. Sie enthält den Namen deines Adapters und Fehlermeldungen — vor dem Teilen prüfen.</item>
-        <item quantity="other">%1$d Log-Einträge als eine CSV-Datei. Sie enthält den Namen deines Adapters und Fehlermeldungen — vor dem Teilen prüfen.</item>
-    </plurals>
-    <string name="app_logs_export_saved">Logs gespeichert</string>
-    <string name="app_logs_export_none">Keine Log-Einträge zum Exportieren.</string>
-    <string name="app_logs_share_chooser">Logs exportieren</string>
     <!-- Theme picker (color scheme + brightness) -->
     <string name="settings_color_scheme">Farbschema</string>
     <string name="settings_brightness">Helligkeit</string>
@@ -504,12 +477,6 @@
     <string name="voltage_state_marginal">lädt kaum</string>
     <string name="voltage_state_discharging">entlädt</string>
 
-    <!-- Logbuch: Gründe, aus denen ein Import scheitert (die Datei ist der eigene CSV-Export der App) -->
-    <string name="logbook_import_error_format">Das ist keine gültige Logbuch-Datei. Sie braucht die Spalten date, type und odometer_km und höchstens 20.000 Zeilen.</string>
-    <string name="logbook_import_error_too_large">Die Datei ist größer als 5 MB.</string>
-    <string name="logbook_import_error_unreadable">Die Datei konnte nicht gelesen werden.</string>
-    <string name="logbook_import_error_write">Es wurde nichts importiert: Die Einträge konnten nicht gespeichert werden.</string>
-
     <!-- Logbuch: der vierte Bereich von „Fahrten“ -->
     <string name="trips_section_logbook">Logbuch</string>
     <string name="logbook_title">Logbuch</string>
@@ -598,15 +565,6 @@
     <string name="logbook_no">Nein</string>
 
     <!-- Logbuch: Export und Import -->
-    <string name="logbook_export_title">Logbuch exportieren</string>
-    <plurals name="logbook_export_message">
-        <item quantity="one">%1$d Eintrag als eine CSV-Datei. Das Logbuch geht mit den App-Daten verloren, die Datei also sicher aufbewahren.</item>
-        <item quantity="other">%1$d Einträge als eine CSV-Datei. Das Logbuch geht mit den App-Daten verloren, die Datei also sicher aufbewahren.</item>
-    </plurals>
-    <string name="logbook_export_saved">Logbuch gespeichert</string>
-    <string name="logbook_export_none">Keine Einträge zum Exportieren.</string>
-    <string name="logbook_import_title">Logbuch importieren</string>
-    <string name="logbook_import_working">Wird bearbeitet …</string>
     <plurals name="logbook_import_new">
         <item quantity="one">%1$d neuer Eintrag</item>
         <item quantity="other">%1$d neue Einträge</item>
@@ -624,8 +582,6 @@
         <item quantity="other">%1$d der neuen Einträge haben einen Hinweis (Stand und Datum, Preis oder Verbrauch)</item>
     </plurals>
     <string name="logbook_import_nothing_new">Nichts zu importieren.</string>
-    <string name="logbook_import_confirm">Importieren</string>
-    <string name="logbook_import_close">Schließen</string>
     <plurals name="logbook_import_done">
         <item quantity="one">%1$d Eintrag importiert</item>
         <item quantity="other">%1$d Einträge importiert</item>
