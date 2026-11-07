@@ -52,5 +52,8 @@ internal class PackageInspector(private val trips: TripImporter, private val log
         PartPlan.Unreadable(UnreadableReason.UNREADABLE)
     } catch (e: SecurityException) {
         PartPlan.Unreadable(UnreadableReason.UNREADABLE)
+    } catch (e: Exception) {
+        // A parser that fails in an unexpected way must not take the other parts with it (D9). Errors (OutOfMemoryError) go through on purpose.
+        PartPlan.Unreadable(UnreadableReason.UNREADABLE)
     }
 }
