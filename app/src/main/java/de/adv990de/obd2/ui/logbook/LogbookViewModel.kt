@@ -1,18 +1,12 @@
 package de.adv990de.obd2.ui.logbook
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
-import de.adv990de.obd2.data.FileTooLargeException
 import de.adv990de.obd2.data.LogbookOdometer
-import de.adv990de.obd2.data.LogbookExporter
-import de.adv990de.obd2.data.LogbookImporter
 import de.adv990de.obd2.data.VehicleLogRepository
 import de.adv990de.obd2.di.ApplicationScope
-import de.adv990de.obd2.logbook.ImportPlan
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
@@ -23,12 +17,8 @@ import de.adv990de.obd2.logbook.MaintenanceRow
 import de.adv990de.obd2.logbook.estimateKm
 import de.adv990de.obd2.logbook.gpsShareKm
 import de.adv990de.obd2.logbook.maintenanceRows
-import de.adv990de.obd2.logbook.logbookFileName
 import de.adv990de.obd2.logbook.logbookInsights
-import de.adv990de.obd2.ui.UiText
-import de.adv990de.obd2.ui.components.ExportFeedback
 import de.adv990de.obd2.ui.components.UndoableDeletion
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,18 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.IOException
-import java.time.LocalDate
 import javax.inject.Inject
-
-/** Wo ein Import steht: nichts ([Idle]), lesen oder schreiben ([Working]), die Vorschau wartet auf die Bestaetigung ([Preview]), fertig ([Done]) oder gescheitert ([Failed]). */
-sealed interface ImportState {
-    data object Idle : ImportState
-    data object Working : ImportState
-    data class Preview(val plan: ImportPlan) : ImportState
-    data class Done(val count: Int) : ImportState
-    data class Failed(val text: UiText) : ImportState
-}
 
 /**
  * Die Uebersicht der Wartung: [rows] (je Art das Intervall des Nutzers und die Faelligkeit), [loggedKm] (hoechster Stand im Logbuch), [estimatedKm] (er plus die GPS-Kilometer seit diesem Stand,
@@ -58,22 +37,16 @@ sealed interface ImportState {
 data class MaintenanceState(val rows: List<MaintenanceRow>, val loggedKm: Int?, val estimatedKm: Int?, val gpsShareKm: Int)
 
 /**
- * Die Logbuch-Liste: Filter, Loeschen nach dem Loesch-Vertrag (Papierkorb oder Wischen, ohne Dialog, nur Rueckgaengig), Export (Teilen oder Speichern) und Import
- * (Datei lesen, Vorschau, erst nach der Bestaetigung schreiben). Der Export enthaelt das **ganze** Logbuch ohne die Eintraege im Rueckgaengig-Fenster — der Filter
- * gilt nur fuer die Anzeige, die Sicherung soll vollstaendig sein.
+ * Die Logbuch-Liste: Filter, Loeschen nach dem Loesch-Vertrag (Papierkorb oder Wischen, ohne Dialog, nur Rueckgaengig), die Auswertung und die Wartungs-Uebersicht. Export und
+ * Import des Logbuchs laufen ueber die Seite „Daten sichern und wiederherstellen“, die Symbole der Kopfleiste fuehren nur dorthin.
  */
 @HiltViewModel
 class LogbookViewModel @Inject constructor(
     private val repository: VehicleLogRepository,
-    private val exporter: LogbookExporter,
-    private val importer: LogbookImporter,
     private val appPreferences: AppPreferences,
     odometer: LogbookOdometer,
     @ApplicationScope appScope: CoroutineScope,
 ) : ViewModel() {
-
-    /** "Heute" fuer die Pruefung beim Import (Datum nicht in der Zukunft); nur Tests setzen es. */
-    internal var today: () -> LocalDate = { LocalDate.now() }
 
     /** Loeschen mit Rueckgaengig; laeuft im app-weiten Scope, damit ein Loeschen im Fenster das ViewModel ueberlebt (s. [onCleared]). */
     private val deletion = UndoableDeletion<Long>(scope = appScope) { ids -> repository.delete(ids) }
@@ -136,108 +109,6 @@ class LogbookViewModel @Inject constructor(
     fun delete(id: Long) = deletion.schedule(setOf(id))
 
     fun undoDelete() = deletion.undo()
-
-    // ── Export (Teilen oder Speichern), wie bei den Fahrten und dem App-Log ──
-
-    private val _exportDialogVisible = MutableStateFlow(false)
-
-    /** Der Dialog "Logbuch exportieren" (Teilen oder Speichern); liegt hier, damit eine Drehung ihn offen laesst. */
-    val exportDialogVisible: StateFlow<Boolean> = _exportDialogVisible.asStateFlow()
-
-    /** Teilen-Menue, Fehler und „nichts zu exportieren“ des Exports; die Oberflaeche zeigt sie mit `ExportFeedbackEffects`. */
-    val exportFeedback = ExportFeedback()
-
-    private val _saved = MutableStateFlow(false)
-
-    /** Wahr, nachdem das Logbuch in die vom Nutzer gewaehlte Datei geschrieben wurde (die Snackbar sagt es). */
-    val saved: StateFlow<Boolean> = _saved.asStateFlow()
-
-    /** Export-Symbol der Kopfleiste: erst fragen, wie — aber nur, wenn es etwas zu exportieren gibt. */
-    fun requestExport() {
-        if (visible.value.isNotEmpty()) _exportDialogVisible.value = true
-    }
-
-    fun cancelExport() {
-        _exportDialogVisible.value = false
-    }
-
-    /** "Teilen": das ganze sichtbare Logbuch in EINER CSV-Datei, dem Teilen-Menue uebergeben. */
-    fun shareExport() {
-        _exportDialogVisible.value = false
-        if (visible.value.isEmpty()) {
-            exportFeedback.reportNothingToExport() // nichts mehr sichtbar (alles im Rueckgaengig-Fenster ausgeblendet)
-            return
-        }
-        val hidden = deletion.pending.value
-        exportFeedback.launchShare(viewModelScope) { exporter.exportToCsv(hidden) }
-    }
-
-    /** "Speichern": dieselbe CSV, in die Datei geschrieben, die der Nutzer mit dem Dateidialog gewaehlt hat ([target]). */
-    fun saveExportTo(target: Uri) {
-        if (visible.value.isEmpty()) {
-            exportFeedback.reportNothingToExport()
-            return
-        }
-        val hidden = deletion.pending.value
-        exportFeedback.launchSave(viewModelScope, onSaved = { _saved.value = true }) { exporter.saveCsv(target, hidden) }
-    }
-
-    /** Der Name, den der Dateidialog des Systems vorschlaegt: `logbook_<UTC-Zeit>.csv`. */
-    fun exportFileName(): String = logbookFileName(System.currentTimeMillis())
-
-    fun consumeSaved() {
-        _saved.value = false
-    }
-
-    // ── Import ──
-
-    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
-    val importState: StateFlow<ImportState> = _importState.asStateFlow()
-
-    /** Import-Symbol: die gewaehlte Datei lesen und pruefen, daraus die Vorschau machen — es wird nichts geschrieben. Waehrend gearbeitet wird, zaehlt ein zweiter Aufruf nicht. */
-    fun pickImport(source: Uri) {
-        if (_importState.value is ImportState.Working) return
-        _importState.value = ImportState.Working
-        viewModelScope.launch {
-            try {
-                _importState.value = ImportState.Preview(importer.read(source, today()))
-            } catch (e: CancellationException) {
-                _importState.value = ImportState.Idle
-                throw e
-            } catch (e: Exception) {
-                _importState.value = ImportState.Failed(readFailureText(e))
-            }
-        }
-    }
-
-    /** Bestaetigt die Vorschau: schreibt den Plan in einer Transaktion. Ohne Vorschau, oder wenn schon gearbeitet wird, passiert nichts (kein doppeltes Schreiben). */
-    fun confirmImport() {
-        val preview = _importState.value as? ImportState.Preview ?: return
-        _importState.value = ImportState.Working
-        viewModelScope.launch {
-            try {
-                _importState.value = ImportState.Done(importer.apply(preview.plan))
-            } catch (e: CancellationException) {
-                _importState.value = ImportState.Idle
-                throw e
-            } catch (e: Exception) {
-                _importState.value = ImportState.Failed(UiText.StringResource(R.string.logbook_import_error_write))
-            }
-        }
-    }
-
-    /** Schliesst Vorschau, Ergebnis oder Fehler; waehrend gearbeitet wird, aendert es nichts. */
-    fun dismissImport() {
-        if (_importState.value !is ImportState.Working) _importState.value = ImportState.Idle
-    }
-
-    /** Ein Fehler hat immer einen sichtbaren Text: bekannte Gruende haben ihren eigenen, alles andere die Meldung oder den Klassennamen. */
-    private fun readFailureText(e: Exception): UiText = when (e) {
-        is IllegalArgumentException -> UiText.StringResource(R.string.logbook_import_error_format)
-        is FileTooLargeException -> UiText.StringResource(R.string.logbook_import_error_too_large)
-        is IOException, is SecurityException -> UiText.StringResource(R.string.logbook_import_error_unreadable)
-        else -> UiText.DynamicString(e.message ?: e.javaClass.simpleName)
-    }
 
     /** Die Snackbar "Rueckgaengig" verschwindet mit der Seite, also wird das Loeschen jetzt endgueltig. */
     override fun onCleared() {

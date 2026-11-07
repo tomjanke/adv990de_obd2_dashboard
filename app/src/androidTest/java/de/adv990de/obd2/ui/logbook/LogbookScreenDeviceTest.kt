@@ -1,9 +1,5 @@
 package de.adv990de.obd2.ui.logbook
 
-import java.io.File
-import androidx.lifecycle.ViewModelProvider
-import android.net.Uri
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -13,7 +9,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertWidthIsAtLeast
-import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -52,11 +47,14 @@ import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.VehicleLogRepository
-import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.ui.assertTransferTarget
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.transfer.TRANSFER_MODE_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PART_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_ARG
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -123,6 +121,14 @@ class LogbookScreenDeviceTest {
                 composable("logbook") { LogbookScreen(navController) }
                 composable(Screen.LogEntry.route, arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L })) { Text(ENTRY_MARKER) }
                 composable(Screen.LogbookStats.route, arguments = listOf(navArgument(LOG_STATS_TYPE_ARG) { type = NavType.StringType })) { Text(STATS_MARKER) }
+                composable(
+                    Screen.DataTransfer.route,
+                    arguments = listOf(
+                        navArgument(TRANSFER_MODE_ARG) { type = NavType.StringType; defaultValue = "export" },
+                        navArgument(TRANSFER_PART_ARG) { type = NavType.StringType; defaultValue = "" },
+                        navArgument(TRANSFER_PICK_ARG) { type = NavType.BoolType; defaultValue = false },
+                    ),
+                ) { Text(TRANSFER_MARKER) }
             }
         }
         composeRule.waitForIdle()
@@ -708,97 +714,55 @@ class LogbookScreenDeviceTest {
         for (type in de.adv990de.obd2.logbook.MAINTENANCE_TYPES) cell(type).assertHeightIsAtLeast(56.dp)
     }
 
-    // --- Export ---
+    // --- Abkuerzungen auf die Seite „Daten sichern und wiederherstellen“ ---
+    // Export und Import selbst laufen dort (Tests: DataTransferScreenDeviceTest, DataTransferViewModelTest, TransferExporterTest, TransferImporter*Test); das Logbuch verspricht nur Route und Argumente.
+
+    private fun assertOnTransferPage(mode: String, part: String, pick: Boolean) {
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(TRANSFER_MARKER).assertIsDisplayed()
+        composeRule.runOnUiThread { assertTransferTarget(navController, mode, part, pick) }
+    }
 
     @Test
-    fun theExportIcon_opensTheDialogWithTheCountAndTwoWays_andCancelClosesIt() {
+    fun theExportShortcut_opensTheTransferPage_exportingTheLogbookAsCsv() {
         save(entry(LogType.FUEL, day(1), 1_000, 10_000, true), entry(LogType.OIL, day(2), 1_100, 150))
         launch()
 
         composeRule.onNodeWithTag(LOGBOOK_EXPORT_TEST_TAG).assertIsEnabled().performClick()
-        composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(string(R.string.logbook_export_title), useUnmergedTree = true).assertIsDisplayed()
-        composeRule.onNodeWithText(composeRule.activity.resources.getQuantityString(R.plurals.logbook_export_message, 2, 2)).assertIsDisplayed()
-        composeRule.onNodeWithTag(LOGBOOK_EXPORT_SAVE_TEST_TAG).assertHeightIsAtLeast(56.dp)
-        composeRule.onNodeWithTag(LOGBOOK_EXPORT_SHARE_TEST_TAG).assertHeightIsAtLeast(56.dp)
-
-        composeRule.onNodeWithText(string(R.string.cancel)).performClick()
-        composeRule.waitForIdle()
-        composeRule.onAllNodesWithText(string(R.string.logbook_export_title)).assertCountEquals(0)   // der Dialog ist zu (das Symbol traegt den Text nur als Beschreibung)
+        assertOnTransferPage(mode = "export", part = "LOGBOOK", pick = false)
     }
 
     @Test
-    fun theExportIcon_isEnabledOnceThereIsAnEntry() {
+    fun theExportShortcut_isEnabledOnceThereIsAnEntry() {
         save(entry(LogType.CHAIN_KIT_CHANGE, day(1), 1_000))
         launch()
 
         composeRule.onNodeWithTag(LOGBOOK_EXPORT_TEST_TAG).assertIsEnabled()
     }
 
+    @Test
+    fun aDisabledExportShortcut_goesNowhere() {
+        launch()
+
+        composeRule.onNodeWithTag(LOGBOOK_EXPORT_TEST_TAG).assertIsNotEnabled().performClick()
+
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithText(TRANSFER_MARKER).assertCountEquals(0)
+    }
+
+    @Test
+    fun theImportShortcut_opensTheTransferPage_inImportMode_andAsksForTheFileAtOnce_evenWithAnEmptyLogbook() {
+        launch()
+
+        composeRule.onNodeWithTag(LOGBOOK_IMPORT_TEST_TAG).assertIsEnabled().performClick()
+
+        assertOnTransferPage(mode = "import", part = "", pick = true)
+    }
+
     private companion object {
         const val ENTRY_MARKER = "LOGBOOK_ENTRY_PAGE_MARKER"
         const val STATS_MARKER = "LOGBOOK_STATS_PAGE_MARKER"
-    }
-
-    // ── Speichern: was der Dateidialog des Systems der Seite liefert ────────────
-    // Der Dialog selbst laesst sich im Test nicht bedienen; sein Ergebnis ist der Aufruf `saveExportTo(uri)` des ViewModels, den der Test hier selbst macht. Die Seite steht
-    // dafuer ohne NavHost (sonst gehoert das ViewModel dem NavBackStackEntry), also an der Activity. Das Ziel ist eine echte Datei (`file:`-Uri): das Schreiben ist echt.
-
-    private fun showWithoutNavHost() {
-        composeRule.setContent { LogbookScreen(rememberNavController()) }
-        composeRule.waitForIdle()
-    }
-
-    private fun saveInto(uri: Uri) {
-        val vm = ViewModelProvider(composeRule.activity)[LogbookViewModel::class.java]
-        composeRule.runOnUiThread { vm.saveExportTo(uri) }
-    }
-
-    private fun waitForSnackbar(text: String) = composeRule.waitUntil(timeoutMillis = 10_000) {
-        composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
-    }
-
-    @Test
-    fun savingTheLogbook_writesTheFileWithEveryEntry_andAnnouncesIt() {
-        save(entry(LogType.OIL, day(1), 1_000, amountMl = 250), entry(LogType.FUEL, day(2), 1_200, amountMl = 12_000, full = true))
-        val file = File(composeRule.activity.cacheDir, "logbook_save_test_${System.nanoTime()}.csv")
-        try {
-            showWithoutNavHost()
-
-            saveInto(Uri.fromFile(file))
-
-            waitForSnackbar(string(R.string.logbook_export_saved))
-            val lines = file.readLines()
-            assertEquals("Kopfzeile und zwei Eintraege", 3, lines.size)
-            assertTrue(lines.first().startsWith("date,type,odometer_km"))
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun savingAnEmptyLogbook_saysThereIsNothingToExport_andWritesNoFile() {
-        val file = File(composeRule.activity.cacheDir, "logbook_save_empty_${System.nanoTime()}.csv")
-        showWithoutNavHost()
-
-        saveInto(Uri.fromFile(file))
-
-        waitForSnackbar(string(R.string.logbook_export_none))
-        assertTrue("es gibt nichts zu schreiben, also keine Datei", !file.exists())
-    }
-
-    @Test
-    fun aSaveIntoAPlaceThatCannotBeWritten_showsAnErrorSnackbar_andIsNotAnnouncedAsSaved() {
-        save(entry(LogType.OIL, day(1), 1_000, amountMl = 250))
-        showWithoutNavHost()
-
-        saveInto(Uri.fromFile(File("/nonexistent-directory-for-this-test/logbook.csv")))
-
-        val errorPrefix = string(R.string.history_export_error_prefix, "").trim()
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodes(hasText(errorPrefix, substring = true)).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithText(string(R.string.logbook_export_saved)).assertDoesNotExist()
+        const val TRANSFER_MARKER = "LOGBOOK_TRANSFER_PAGE_MARKER"
     }
 }

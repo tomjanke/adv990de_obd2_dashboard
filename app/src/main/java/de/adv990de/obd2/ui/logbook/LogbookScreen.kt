@@ -1,8 +1,5 @@
 package de.adv990de.obd2.ui.logbook
 
-import android.content.ActivityNotFoundException
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,11 +40,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -62,13 +57,13 @@ import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.EmptyState
-import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
+import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.transfer.TransferMode
 import de.adv990de.obd2.ui.theme.PreviewTheme
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
 
@@ -97,7 +92,7 @@ private val EmptyFilterHeight = 160.dp
 internal fun logbookFilterTestTag(filter: LogFilter) = "logbook_filter_${filter.name}"
 
 /**
- * Das Logbuch (vierter Bereich von "Fahrten"): Kopfleiste mit Export und Import, Filter, die Liste (neueste zuerst) und der Knopf "Eintrag". Eine Zeile oeffnet den
+ * Das Logbuch (vierter Bereich von "Fahrten"): Kopfleiste mit den Abkuerzungen fuer Export und Import, Filter, die Liste (neueste zuerst) und der Knopf "Eintrag". Eine Zeile oeffnet den
  * Eintrag zum Bearbeiten; Loeschen nach dem Loesch-Vertrag (Papierkorb oder Wischen, ohne Dialog, nur Rueckgaengig). Eigenes Scaffold wie die Fahrtenliste; der Umschalter
  * des Hosts steht als [header] ueber der Liste.
  */
@@ -114,31 +109,10 @@ internal fun LogbookScreen(
     val hasEntries by vm.hasEntries.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
-    val exportDialogVisible by vm.exportDialogVisible.collectAsStateWithLifecycle()
-    val saved by vm.saved.collectAsStateWithLifecycle()
-    val importState by vm.importState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // Der Dialog "Intervall festlegen" einer Wartungsart (Tipp auf eine Zelle der Uebersicht); der Name der Art ueberlebt eine Drehung.
     var intervalDialogFor by rememberSaveable { mutableStateOf<String?>(null) }
-
-    // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); "Importieren": die Dateiauswahl des Systems. Das Ergebnis ist die Uri, null bei Abbruch.
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri -> if (uri != null) vm.saveExportTo(uri) }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.pickImport(uri) }
-
-    // Strings auf Composable-Ebene aufloesen (context.getString() in einem Effekt umgeht die Recomposition bei Sprachwechsel).
-    val dialogUnavailableMessage = stringResource(R.string.history_save_unavailable)
-
-    ExportFeedbackEffects(
-        feedback = vm.exportFeedback,
-        snackbarHostState = snackbarHostState,
-        shareChooserTitle = stringResource(R.string.logbook_export_title),
-        nothingToExportMessage = stringResource(R.string.logbook_export_none),
-        savedMessage = if (saved) stringResource(R.string.logbook_export_saved) else null,
-        onSavedShown = vm::consumeSaved,
-    )
 
     // Der Loesch-Vertrag: Papierkorb oder Wischen -> der Eintrag verschwindet sofort -> "Rueckgaengig" so lange wie das Fenster -> erst dann wirklich geloescht.
     UndoSnackbarEffect(
@@ -148,24 +122,6 @@ internal fun LogbookScreen(
         snackbarHostState = snackbarHostState,
         onUndo = vm::undoDelete,
     )
-
-    if (exportDialogVisible) {
-        LogbookExportDialog(
-            entryCount = entries.size.coerceAtLeast(1),
-            onShare = vm::shareExport,
-            onSave = {
-                vm.cancelExport()
-                try {
-                    saveLauncher.launch(vm.exportFileName())
-                } catch (_: ActivityNotFoundException) {
-                    scope.launch { snackbarHostState.showSnackbar(dialogUnavailableMessage) }
-                }
-            },
-            onDismiss = vm::cancelExport,
-        )
-    }
-
-    LogbookImportDialog(state = importState, onConfirm = vm::confirmImport, onDismiss = vm::dismissImport)
 
     intervalDialogFor?.let { name ->
         val type = LogType.entries.firstOrNull { it.name == name }
@@ -190,18 +146,17 @@ internal fun LogbookScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.logbook_title)) },
                 actions = {
-                    // Sicherung: das ganze Logbuch als CSV. Ohne sichtbaren Eintrag gibt es nichts zu exportieren.
-                    IconButton(onClick = vm::requestExport, enabled = hasEntries, modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_EXPORT_TEST_TAG)) {
+                    // Abkuerzungen auf die Seite „Daten sichern und wiederherstellen“: Exportieren mit dem Logbuch vorgewaehlt (CSV; ohne sichtbaren Eintrag gibt es nichts zu exportieren),
+                    // Importieren mit dem Dateidialog gleich offen (immer moeglich).
+                    IconButton(
+                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.LOGBOOK)) },
+                        enabled = hasEntries,
+                        modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_EXPORT_TEST_TAG),
+                    ) {
                         Icon(AppIcons.Download, contentDescription = stringResource(R.string.logbook_cd_export))
                     }
                     IconButton(
-                        onClick = {
-                            try {
-                                importLauncher.launch(arrayOf("*/*"))
-                            } catch (_: ActivityNotFoundException) {
-                                scope.launch { snackbarHostState.showSnackbar(dialogUnavailableMessage) }
-                            }
-                        },
+                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
                         modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_IMPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Upload, contentDescription = stringResource(R.string.logbook_cd_import))
