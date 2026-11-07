@@ -9,21 +9,18 @@ import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 
 /** Die gewählte Datei ist kein Paket dieser App (keine ZIP-Datei, beschädigt oder zu viele Dateien darin). */
 class NotAPackageException(message: String) : IllegalArgumentException(message)
 
 /**
  * Liest ein Paket **ohne etwas zu entpacken**: nur die bekannten Namen ([PackageFormat.KNOWN_ENTRIES], exakter Vergleich) werden je geöffnet, ein Pfad aus dem Paket wird nie
- * als Datei benutzt (kein „Zip Slip“); Verzeichnisse und alles Unbekannte sind unsichtbar. Bei doppeltem Namen gilt der erste. Die Gesamtgrenze gilt über alle geöffneten
+ * als Datei benutzt (kein „Zip Slip“); Verzeichnisse und alles Unbekannte sind unsichtbar. Ein doppelter bekannter Name macht das Ganze zu keinem Paket (ein Export schreibt nie Duplikate). Die Gesamtgrenze gilt über alle geöffneten
  * Einträge zusammen und zählt, was wirklich entpackt wird, nicht die Angabe im Kopf.
  */
 class PackageReader private constructor(
     private val zip: ZipFile,
     private val entries: Map<String, ZipEntry>,
-    private val duplicates: Set<String>,
-    private val file: File,
     maxTotalBytes: Long,
     private val limitOf: (String) -> Long,
 ) : Closeable {
@@ -47,15 +44,14 @@ class PackageReader private constructor(
             }
             try {
                 val known = LinkedHashMap<String, ZipEntry>()
-                val duplicates = HashSet<String>()
                 var count = 0
                 val all = zip.entries()
                 while (all.hasMoreElements()) {
                     val entry = all.nextElement()
                     if (++count > maxEntries) throw NotAPackageException("too many files in the zip")
-                    if (!entry.isDirectory && entry.name in PackageFormat.KNOWN_ENTRIES) if (known.putIfAbsent(entry.name, entry) != null) duplicates += entry.name
+                    if (!entry.isDirectory && entry.name in PackageFormat.KNOWN_ENTRIES && known.putIfAbsent(entry.name, entry) != null) throw NotAPackageException("duplicate file in the zip")
                 }
-                return PackageReader(zip, known, duplicates, file, maxTotalBytes, limitOf)
+                return PackageReader(zip, known, maxTotalBytes, limitOf)
             } catch (e: NotAPackageException) {
                 zip.close()
                 throw e
@@ -78,22 +74,7 @@ class PackageReader private constructor(
      */
     fun openEntry(name: String): InputStream? {
         val entry = entries[name] ?: return null
-        // ZipFile.getInputStream löst über den Namen auf (bei doppeltem Namen gewänne der letzte): dann der erste, der Reihe nach gelesen.
-        val input = if (name in duplicates) firstEntryStream(name) else zip.getInputStream(entry)
-        return LimitedEntryStream(input, name, limitOf(name))
-    }
-
-    private fun firstEntryStream(name: String): InputStream {
-        val sequential = ZipInputStream(file.inputStream().buffered())
-        try {
-            while (true) {
-                val next = sequential.nextEntry ?: throw IOException("entry $name vanished")
-                if (!next.isDirectory && next.name == name) return sequential
-            }
-        } catch (e: Throwable) {
-            sequential.close()
-            throw e
-        }
+        return LimitedEntryStream(zip.getInputStream(entry), name, limitOf(name))
     }
 
     /** `null` = fehlt oder nicht lesbar (→ „keine Sicherung dieser App“). */

@@ -79,11 +79,15 @@ class PackageReaderTest {
     }
 
     @Test
-    fun aDuplicateKnownNameTakesTheFirst() {
+    fun aDuplicateKnownNameIsNotAPackage() {
         val bytes = zip("trips.csv" to text("FIRST"), "trips.cXv" to text("OTHER")).readBytes()
         val patched = String(bytes, Charsets.ISO_8859_1).replace("trips.cXv", "trips.csv").toByteArray(Charsets.ISO_8859_1)
         val file = tmp.newFile().also { it.writeBytes(patched) }
-        PackageReader.open(file).use { assertEquals("FIRST", it.read("trips.csv")) }
+        try {
+            PackageReader.open(file).close()
+            fail("expected NotAPackageException")
+        } catch (_: NotAPackageException) {
+        }
     }
 
     @Test
