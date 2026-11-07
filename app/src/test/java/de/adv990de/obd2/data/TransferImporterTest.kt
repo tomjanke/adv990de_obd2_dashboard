@@ -247,6 +247,30 @@ class TransferImporterTest {
     }
 
     @Test
+    fun `a cancellation in the middle of the copy leaves no copy behind`() = runTest {
+        val bytes = packageBytes(entries = arrayOf("logbook.csv" to logbookCsv))
+        val uri = serve(bytes)
+        var opened = 0
+        every { resolver.openInputStream(uri) } answers {
+            // first open = the head, second open = the copy: it delivers some bytes and is then cancelled
+            if (++opened == 1) ByteArrayInputStream(bytes) else object : java.io.InputStream() {
+                var n = 0
+                override fun read(): Int = throw CancellationException("cancelled")
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (n++ == 0) { System.arraycopy(bytes, 0, b, off, minOf(10, len)); return minOf(10, len) }
+                    throw CancellationException("cancelled")
+                }
+            }
+        }
+        try {
+            real.inspect(uri, nowMs, today)
+            fail("expected CancellationException")
+        } catch (_: CancellationException) {
+        }
+        assertTrue(copies().isEmpty())
+    }
+
+    @Test
     fun `a stale copy of a killed process is removed`() = runTest {
         val dir = File(tmp.root, TRANSFER_IMPORT_CACHE_DIR).apply { mkdirs() }
         val stale = File(dir, "package_old.zip").apply { writeText("x"); setLastModified(System.currentTimeMillis() - 2 * 60 * 60 * 1000) }

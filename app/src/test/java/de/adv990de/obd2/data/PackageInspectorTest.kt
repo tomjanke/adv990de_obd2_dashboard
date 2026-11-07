@@ -163,4 +163,38 @@ class PackageInspectorTest {
         val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to "{}", "counters.json" to "{}", "dtc_history.csv" to "code\n"), nowMs, today)
         assertTrue(preview.parts.isEmpty())
     }
+
+    @Test
+    fun `a parser that throws an unexpected exception only makes its own part unreadable`() = runTest {
+        stubRepos()
+        coEvery { sessionRepo.sessionSpans() } throws IllegalStateException("boom")
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv, "logbook.csv" to logbookCsv), nowMs, today)
+        assertEquals(PartPlan.Unreadable(UnreadableReason.UNREADABLE), preview.parts.getValue(DataPart.TRIPS))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun `an empty zip is not a backup`() = runTest {
+        stubRepos()
+        try {
+            inspector.inspect(zip(), nowMs, today)
+            fail("expected TransferFileException")
+        } catch (e: TransferFileException) {
+            assertEquals(TransferFileException.Kind.NOT_A_BACKUP, e.kind)
+        }
+    }
+
+    @Test
+    fun `a manifest whose format is not a whole number from 1 is not a backup`() = runTest {
+        stubRepos()
+        val base = """{"app_id":"de.adv990de.obd2","app_version":"1","created_ms":1,"parts":{}"""
+        for (bad in listOf("\"1\"", "1.5", "0", "-1", "null", "true")) {
+            try {
+                inspector.inspect(zip("manifest.json" to "$base,\"format\":$bad}", "logbook.csv" to logbookCsv), nowMs, today)
+                fail("expected TransferFileException for format=$bad")
+            } catch (e: TransferFileException) {
+                assertEquals("format=$bad", TransferFileException.Kind.NOT_A_BACKUP, e.kind)
+            }
+        }
+    }
 }
