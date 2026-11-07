@@ -386,6 +386,35 @@ class DataTransferViewModelTest {
     }
 
     @Test
+    fun `a new pick after the preview replaces it`() = runTest {
+        val f = ready()
+        f.vm.pickImport(source)
+        runCurrent()
+        val second = preview.copy(parts = linkedMapOf(DataPart.TRIPS to tripsNoNews))
+        coEvery { f.importer.inspect(any(), any(), any()) } returns second
+        f.vm.pickImport(mockk())
+        runCurrent()
+
+        assertEquals(second, (f.vm.importState.value as TransferImportState.Preview).preview)
+        coVerify(exactly = 2) { f.importer.inspect(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a new import can start after a failure`() = runTest {
+        val f = ready()
+        coEvery { f.importer.inspect(any(), any(), any()) } throws java.io.IOException("gone")
+        f.vm.pickImport(source)
+        runCurrent()
+        assertTrue(f.vm.importState.value is TransferImportState.Failed)
+
+        coEvery { f.importer.inspect(any(), any(), any()) } returns preview
+        f.vm.pickImport(source)
+        runCurrent()
+
+        assertTrue(f.vm.importState.value is TransferImportState.Preview)
+    }
+
+    @Test
     fun `confirm writes the chosen parts and shows the result and refreshes the counts`() = runTest {
         val f = ready()
         f.vm.pickImport(source)
