@@ -702,4 +702,9 @@
     <string name="settings_maintenance_summary">Chain care, service, tires: when maintenance is due</string>
     <string name="settings_maintenance_intro">After how many kilometres a maintenance is due. Without an interval there is no reminder. The logbook shows “due in N km” from the last entry of the kind, counted with the estimated odometer reading (the last reading in the log plus the kilometres counted by GPS).</string>
     <string name="settings_maintenance_not_set">Not set</string>
+    <string name="transfer_error_not_a_backup">This file is not a backup of this app.</string>
+    <string name="transfer_error_applog_csv">An app log cannot be imported.</string>
+    <string name="transfer_error_unrecognized">The file was not recognised (neither a package nor a CSV export of this app).</string>
+    <string name="transfer_error_too_large">The file is too large.</string>
+    <string name="transfer_error_unreadable">The file could not be read.</string>
 </resources>

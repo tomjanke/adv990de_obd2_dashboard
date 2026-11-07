@@ -702,4 +702,9 @@
     <string name="settings_maintenance_summary">Kettenpflege, Service, Reifen: wann die Wartung fällig wird</string>
     <string name="settings_maintenance_intro">Nach wie vielen Kilometern eine Wartung fällig ist. Ohne Intervall gibt es keine Erinnerung. Das Logbuch zeigt „fällig in N km“ ab dem letzten Eintrag der Art, gerechnet mit dem geschätzten Kilometerstand (letzter Stand im Logbuch plus die per GPS gezählten Kilometer).</string>
     <string name="settings_maintenance_not_set">Nicht festgelegt</string>
+    <string name="transfer_error_not_a_backup">Diese Datei ist keine Sicherung dieser App.</string>
+    <string name="transfer_error_applog_csv">Ein App-Log lässt sich nicht einlesen.</string>
+    <string name="transfer_error_unrecognized">Die Datei wurde nicht erkannt (weder ein Paket noch ein CSV-Export dieser App).</string>
+    <string name="transfer_error_too_large">Die Datei ist zu groß.</string>
+    <string name="transfer_error_unreadable">Die Datei ließ sich nicht lesen.</string>
 </resources>

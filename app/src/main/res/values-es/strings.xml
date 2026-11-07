@@ -727,4 +727,9 @@
     <string name="settings_maintenance_summary">Cuidado de la cadena, revisión, neumáticos: cuándo toca el mantenimiento</string>
     <string name="settings_maintenance_intro">Tras cuántos kilómetros toca un mantenimiento. Sin intervalo no hay recordatorio. La bitácora muestra “vence en N km” a partir de la última entrada de ese tipo, contado con el kilometraje estimado (la última lectura de la bitácora más los kilómetros contados por GPS).</string>
     <string name="settings_maintenance_not_set">Sin definir</string>
+    <string name="transfer_error_not_a_backup">Este archivo no es una copia de seguridad de esta app.</string>
+    <string name="transfer_error_applog_csv">Un registro de la app no se puede importar.</string>
+    <string name="transfer_error_unrecognized">No se reconoció el archivo (ni un paquete ni una exportación CSV de esta app).</string>
+    <string name="transfer_error_too_large">El archivo es demasiado grande.</string>
+    <string name="transfer_error_unreadable">No se pudo leer el archivo.</string>
 </resources>
