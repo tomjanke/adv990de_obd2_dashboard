@@ -221,6 +221,18 @@ class TransferImporterTest {
     }
 
     @Test
+    fun `a file above the package limit is refused as too large and no copy stays`() = runTest {
+        real.maxPackageBytes = 100
+        val uri = serve(packageBytes(entries = arrayOf("logbook.csv" to logbookCsv.repeat(20))))
+        try {
+            real.inspect(uri, nowMs, today)
+            fail("expected FileTooLargeException")
+        } catch (_: FileTooLargeException) {
+        }
+        assertTrue(copies().isEmpty())
+    }
+
+    @Test
     fun `the copy is never put under exports, the folder the file provider shares`() = runTest {
         val dirs = mutableListOf<List<String>>()
         val bytes = packageBytes(entries = arrayOf("logbook.csv" to logbookCsv))

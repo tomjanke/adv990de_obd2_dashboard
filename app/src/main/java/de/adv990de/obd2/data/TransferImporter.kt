@@ -44,6 +44,9 @@ class TransferImporter @Inject constructor(
 ) {
     private val inspector = PackageInspector(trips, logbook)
 
+    /** Die Grenze der Kopie eines Pakets; nur als Naht fuer Tests veraenderbar (eine Datei von 128 MiB baut kein Test). */
+    internal var maxPackageBytes: Long = PackageFormat.MAX_TOTAL_BYTES
+
     suspend fun inspect(source: Uri, nowMs: Long, today: LocalDate): TransferPreview = withContext(Dispatchers.IO) {
         val head = readHead(source)
         when (val kind = detectFileKind(head, head.size)) {
@@ -80,7 +83,7 @@ class TransferImporter @Inject constructor(
         deleteStaleCopies(dir)
         val copy = File.createTempFile("package_", ".zip", dir)
         try {
-            open(source).use { stream -> copyLimited(LimitedInputStream(stream, PackageFormat.MAX_TOTAL_BYTES), copy) }
+            open(source).use { stream -> copyLimited(LimitedInputStream(stream, maxPackageBytes), copy) }
             val reader = try {
                 PackageReader.open(copy)
             } catch (e: NotAPackageException) {
