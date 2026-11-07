@@ -1,8 +1,5 @@
 package de.adv990de.obd2.ui.history
 
-import android.content.ActivityNotFoundException
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,10 +29,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,7 +50,6 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import de.adv990de.obd2.R
-import kotlinx.coroutines.launch
 import de.adv990de.obd2.data.decodeSessionDtcs
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.VinDecoder
@@ -66,7 +60,10 @@ import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTime
+import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
@@ -85,36 +82,19 @@ fun HistoryScreen(
     val undoCount by vm.undoCount.collectAsStateWithLifecycle()
     val deleteAllConfirmationVisible by vm.deleteAllConfirmationVisible.collectAsStateWithLifecycle()
     val canExportAll by vm.canExportAll.collectAsStateWithLifecycle()
-    val exportAllDialogVisible by vm.exportAllDialogVisible.collectAsStateWithLifecycle()
-    val finishedTripCount by vm.finishedTripCount.collectAsStateWithLifecycle()
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
-    val savedCount by vm.savedCount.collectAsStateWithLifecycle()
-    val tripImportState by vm.tripImportState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) vm.saveAllTo(uri)
-    }
-    // "Importieren": das Dateidialog-System fragt nach der Datei (jede Art, der Name sagt nichts ueber den Inhalt); das Ergebnis ist die Uri, null bei Abbruch.
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) vm.pickTripImport(uri)
-    }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // Die Fahrt, deren Details offen sind (nur die Id: eine Drehung baut die Seite neu auf, der Dialog gehoert dazu).
     var detailSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
-
-    // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect
-    // umgeht die Recomposition bei Sprach- oder Konfigurationswechsel.
-    val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
 
     ExportFeedbackEffects(
         feedback = vm.exportFeedback,
         snackbarHostState = snackbarHostState,
         shareChooserTitle = stringResource(R.string.history_share_chooser),
         nothingToExportMessage = stringResource(R.string.history_export_none),
-        savedMessage = savedCount?.let { pluralStringResource(R.plurals.history_export_saved, it, it) },
-        onSavedShown = vm::consumeSaved,
+        savedMessage = null,
+        onSavedShown = {},
     )
 
     // The shared local-delete contract: row trash or swipe -> the trip disappears at once -> the
@@ -126,24 +106,6 @@ fun HistoryScreen(
         snackbarHostState = snackbarHostState,
         onUndo = vm::undoDelete,
     )
-
-    if (exportAllDialogVisible) {
-        ExportAllDialog(
-            tripCount = finishedTripCount,
-            onShare = vm::exportAll,
-            onSave = {
-                vm.cancelExportAll()
-                try {
-                    saveLauncher.launch(vm.exportAllFileName())
-                } catch (_: ActivityNotFoundException) {
-                    scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
-                }
-            },
-            onDismiss = vm::cancelExportAll,
-        )
-    }
-
-    TripImportDialog(state = tripImportState, onConfirm = vm::confirmTripImport, onDismiss = vm::dismissTripImport)
 
     if (deleteAllConfirmationVisible) {
         ConfirmDeleteDialog(
@@ -171,24 +133,18 @@ fun HistoryScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.history_title)) },
                 actions = {
-                    // Alle Fahrten in einer CSV: Teilen oder auf dem Geraet speichern. Gleiche Voraussetzung wie der Papierkorb daneben:
-                    // mindestens eine abgeschlossene, sichtbare Fahrt (die laufende Aufzeichnung ist nicht dabei).
+                    // Abkuerzung auf die Seite „Daten sichern und wiederherstellen“, Exportieren mit den Fahrten vorgewaehlt (CSV). Gleiche Voraussetzung wie der Papierkorb
+                    // daneben: mindestens eine abgeschlossene, sichtbare Fahrt (die laufende Aufzeichnung ist nicht dabei).
                     IconButton(
-                        onClick = vm::requestExportAll,
+                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.TRIPS)) },
                         enabled = canExportAll,
-                        modifier = Modifier.size(RowButtonSize),
+                        modifier = Modifier.size(RowButtonSize).testTag(HISTORY_EXPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Download, contentDescription = stringResource(R.string.history_cd_export_all))
                     }
-                    // Fahrten aus einer Export-Datei zurueckholen (z. B. aus der Vorgaenger-App): immer moeglich, auch ohne Fahrten in der Liste.
+                    // Abkuerzung auf dieselbe Seite im Modus Importieren, der Dateidialog oeffnet sich dort gleich: immer moeglich, auch ohne Fahrten in der Liste.
                     IconButton(
-                        onClick = {
-                            try {
-                                importLauncher.launch(arrayOf("*/*"))
-                            } catch (_: ActivityNotFoundException) {
-                                scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
-                            }
-                        },
+                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
                         modifier = Modifier.size(RowButtonSize).testTag(HISTORY_IMPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Upload, contentDescription = stringResource(R.string.history_cd_import))
@@ -256,7 +212,8 @@ fun HistoryScreen(
 /** Glove-friendly touch size of the row and top-bar buttons (CLAUDE.md design principle 4). */
 private val RowButtonSize = 56.dp
 
-/** Test tag of the import icon in the top bar. */
+/** Test tags of the export and import shortcuts in the top bar. */
+internal const val HISTORY_EXPORT_TEST_TAG = "history_export"
 internal const val HISTORY_IMPORT_TEST_TAG = "history_import"
 
 /** Test tag of one history row — the full-width swipe container the UI tests swipe. */

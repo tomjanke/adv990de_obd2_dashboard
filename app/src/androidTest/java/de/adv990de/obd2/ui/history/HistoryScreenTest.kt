@@ -1,8 +1,5 @@
 package de.adv990de.obd2.ui.history
 
-import java.io.File
-import androidx.lifecycle.ViewModelProvider
-import android.net.Uri
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -24,6 +21,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -42,6 +40,9 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.obd.dtcDescriptionRes
 import de.adv990de.obd2.obd.model.DtcEntry
+import de.adv990de.obd2.ui.SHORTCUT_TARGET_TEST_TAG
+import de.adv990de.obd2.ui.ShortcutNavHost
+import de.adv990de.obd2.ui.assertTransferTarget
 import de.adv990de.obd2.ui.formatDateTime
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -49,8 +50,6 @@ import io.mockk.every
 import io.mockk.spyk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -150,10 +149,13 @@ class HistoryScreenTest {
         testDb.close()
     }
 
+    private lateinit var navController: NavHostController
+
     private fun launchHistoryScreen() {
         composeRule.setContent {
-            val navController = rememberNavController()
-            HistoryScreen(navController = navController)
+            val controller = rememberNavController()
+            navController = controller
+            ShortcutNavHost(controller) { HistoryScreen(navController = it) }
         }
         composeRule.waitForIdle()
     }
@@ -574,9 +576,6 @@ class HistoryScreenTest {
         runCatching { composeRule.onNodeWithContentDescription(exportAllDescription()).assertIsEnabled() }.isSuccess
     }
 
-    private fun exportAllMessage(count: Int) =
-        composeRule.activity.resources.getQuantityString(R.plurals.history_export_all_message, count, count)
-
     @Test
     fun theExportAllButton_isEnabled_whenAFinishedTripExists() {
         launchHistoryScreen()
@@ -596,136 +595,45 @@ class HistoryScreenTest {
         composeRule.onNodeWithContentDescription(exportAllDescription()).assertIsNotEnabled()
     }
 
-    @Test
-    fun theExportAllDialog_announcesTheTripCount_andOffersSaveShareAndCancel_eachAtLeast56dpHigh() {
-        insertTrip(5, "1HGBH41JXMN109186", dtcCodes = null)
-        runBlocking { sessionRepository.startSession("5YJSA1E26HF000337") } // die laufende Aufzeichnung zaehlt nicht mit
-        launchHistoryScreen()
-        waitForExportAllEnabled()
-        waitForText("5YJSA1E26HF000337")
-
-        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
-
-        waitForText(exportAllMessage(2))
-        composeRule.onNodeWithText(string(R.string.history_export_all_title)).assertIsDisplayed()
-        composeRule.onNodeWithTag(EXPORT_ALL_SAVE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
-        composeRule.onNodeWithTag(EXPORT_ALL_SHARE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
-        composeRule.onNode(hasText(string(R.string.cancel)) and hasClickAction()).assertHeightIsAtLeast(56.dp)
-        composeRule.onNodeWithText(string(R.string.history_export_save)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.history_export_share)).assertIsDisplayed()
-    }
-
-    @Test
-    fun cancellingTheExportAllDialog_closesIt_andExportsNothing() {
-        launchHistoryScreen()
-        waitForExportAllEnabled()
-        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
-        waitForText(exportAllMessage(1))
-
-        composeRule.onNode(hasText(string(R.string.cancel)) and hasClickAction()).performClick()
-
-        waitForTextToDisappear(exportAllMessage(1))
-        coVerify(exactly = 0) { sessionRepository.exportSessionsToCsv(any()) }
-    }
-
-    @Test
-    fun share_exportsTheFinishedTripsIntoOneFile_closesTheDialog_andShowsAFailureAsASnackbar() {
-        insertTrip(5, "1HGBH41JXMN109186", dtcCodes = null)
-        coEvery { sessionRepository.exportSessionsToCsv(any()) } throws RuntimeException("boom")
-        launchHistoryScreen()
-        waitForExportAllEnabled()
-        composeRule.onNodeWithContentDescription(exportAllDescription()).performClick()
-        waitForText(exportAllMessage(2))
-
-        composeRule.onNodeWithTag(EXPORT_ALL_SHARE_TEST_TAG).performClick()
-
-        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "boom"))
-        waitForTextToDisappear(exportAllMessage(2))
-        // Beide Fahrten in einem Aufruf, die aeltere zuerst (die der Test selbst angelegt hat, ist die juengere).
-        coVerify(exactly = 1) { sessionRepository.exportSessionsToCsv(match { it.size == 2 && it == it.sorted() }) }
-    }
-
-    // ── Speichern: was der Dateidialog des Systems der Seite liefert ────────────
-    // Der Dialog selbst laesst sich im Test nicht bedienen; sein Ergebnis ist der Aufruf `saveAllTo(uri)` des ViewModels, den der Test hier selbst macht — am ViewModel,
-    // das die Seite per `hiltViewModel()` an der Activity bekam. Das Ziel ist eine echte Datei (eine `file:`-Uri), das Schreiben also echt.
-
-    private fun saveInto(uri: Uri) {
-        val vm = ViewModelProvider(composeRule.activity)[HistoryViewModel::class.java]
-        composeRule.runOnUiThread { vm.saveAllTo(uri) }
-    }
-
-    @Test
-    fun savingTheFinishedTrips_writesTheFile_andAnnouncesHowManyWereSaved() {
-        val file = File(targetContext.cacheDir, "history_save_test_${System.nanoTime()}.csv")
-        try {
-            launchHistoryScreen()
-            waitForExportAllEnabled()
-
-            saveInto(Uri.fromFile(file))
-
-            waitForText(composeRule.activity.resources.getQuantityString(R.plurals.history_export_saved, 1, 1))
-            assertTrue("die Datei hat die Kopfzeile des Exports", file.readLines().first().startsWith("timestamp,pid,value,name,source,session"))
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun savingWithNothingFinished_saysSo_andWritesNothing() {
-        runBlocking {
-            testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
-            sessionRepository.startSession("5YJSA1E26HF000337")   // nur die laufende Aufzeichnung: nichts zu exportieren
-        }
-        launchHistoryScreen()
-        waitForText("5YJSA1E26HF000337")
-
-        saveInto(Uri.parse("content://test/history.csv"))
-
-        waitForText(string(R.string.history_export_none))
-        coVerify(exactly = 0) { sessionRepository.saveSessionsCsv(any(), any()) }
-    }
-
-    @Test
-    fun aFailedSave_showsItsCause_andIsNotAnnouncedAsSaved() {
-        coEvery { sessionRepository.saveSessionsCsv(any(), any()) } throws java.io.IOException("no space left")
-        launchHistoryScreen()
-        waitForExportAllEnabled()
-
-        saveInto(Uri.parse("content://test/history.csv"))
-
-        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "no space left"))
-        composeRule.onNodeWithText(composeRule.activity.resources.getQuantityString(R.plurals.history_export_saved, 1, 1)).assertDoesNotExist()
-    }
-
-    // ── Fahrten importieren ───────────────────────────────────────────────────
-    // Der Dateidialog des Systems laesst sich im Test nicht bedienen; sein Ergebnis ist der Aufruf `pickTripImport(uri)` des ViewModels, den der Test hier selbst macht — am ViewModel,
-    // das die Seite per `hiltViewModel()` an der Activity bekam. Die Datei ist echt (eine `file:`-Uri), Lesen, Vorschau und Schreiben sind es auch.
+    // ── Abkuerzungen auf die Seite „Daten sichern und wiederherstellen“ ──────────────────────
+    // Export und Import selbst laufen dort (Tests: DataTransferScreenDeviceTest, DataTransferViewModelTest, TransferImporter*Test); die Liste verspricht nur Route und Argumente.
 
     private fun importDescription() = string(R.string.history_cd_import)
 
-    private fun plural(id: Int, n: Int) = composeRule.activity.resources.getQuantityString(id, n, n)
-
-    /** Eine Export-Datei mit zwei Fahrten, [daysAgo] Tage zurueck: die erste hat zwei, die zweite eine Zeile. */
-    private fun tripFile(daysAgo: Long, name: String = "history_import_test_${System.nanoTime()}.csv"): Pair<File, Long> {
-        val start = System.currentTimeMillis() - daysAgo * 24 * 3_600_000
-        val file = File(targetContext.cacheDir, name)
-        file.writeText(
-            "timestamp,pid,value,name,source,session\n" +
-                "$start,010C,1612.0,RPM,ECU,1\n${start + 1_000},0105,79.0,Coolant Temp,ECU,1\n" +
-                "${start + 7_200_000},010C,900.0,RPM,ECU,2\n",
-        )
-        return file to start
+    private fun assertOnTransferPage(mode: String, part: String, pick: Boolean) {
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(SHORTCUT_TARGET_TEST_TAG).assertIsDisplayed()
+        composeRule.runOnUiThread { assertTransferTarget(navController, mode, part, pick) }
     }
-
-    private fun pickImport(file: File) {
-        val vm = ViewModelProvider(composeRule.activity)[HistoryViewModel::class.java]
-        composeRule.runOnUiThread { vm.pickTripImport(Uri.fromFile(file)) }
-    }
-
-    private fun sessionCount(): Int = testDb.openHelper.readableDatabase.query("SELECT COUNT(*) FROM sessions").use { it.moveToFirst(); it.getInt(0) }
 
     @Test
-    fun theImportButton_isAlwaysThere_atLeast56dp_evenWithoutAnyTrip() {
+    fun theExportShortcut_opensTheTransferPage_exportingTheTripsAsCsv_atLeast56dp() {
+        launchHistoryScreen()
+        waitForExportAllEnabled()
+
+        composeRule.onNodeWithTag(HISTORY_EXPORT_TEST_TAG).assertHeightIsAtLeast(56.dp).assertWidthIsAtLeast(56.dp)
+        composeRule.onNodeWithTag(HISTORY_EXPORT_TEST_TAG).performClick()
+
+        assertOnTransferPage(mode = "export", part = "TRIPS", pick = false)
+    }
+
+    @Test
+    fun aDisabledExportShortcut_goesNowhere() {
+        runBlocking {
+            testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0))
+            sessionRepository.startSession("5YJSA1E26HF000337")
+        }
+        launchHistoryScreen()
+        waitForText("5YJSA1E26HF000337")
+
+        composeRule.onNodeWithTag(HISTORY_EXPORT_TEST_TAG).assertIsNotEnabled().performClick()
+
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag(SHORTCUT_TARGET_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theImportShortcut_isAlwaysThere_atLeast56dp_evenWithoutAnyTrip() {
         runBlocking { testDb.sessionDao().delete(SessionEntity(id = insertedSessionId, startTime = 0)) }
         launchHistoryScreen()
         waitForText(string(R.string.history_empty))
@@ -736,107 +644,13 @@ class HistoryScreenTest {
     }
 
     @Test
-    fun aChosenFile_showsThePreview_andConfirmingBringsTheTripsIntoTheList() {
-        val (file, start) = tripFile(daysAgo = 5)
-        try {
-            launchHistoryScreen()
-            waitForText("WP0ZZZ99ZTS392124")
+    fun theImportShortcut_opensTheTransferPage_inImportMode_andAsksForTheFileAtOnce() {
+        launchHistoryScreen()
+        waitForText("WP0ZZZ99ZTS392124")
 
-            pickImport(file)
+        composeRule.onNodeWithTag(HISTORY_IMPORT_TEST_TAG).performClick()
 
-            waitForText(plural(R.plurals.trip_import_new, 2))
-            composeRule.onNodeWithText(plural(R.plurals.trip_import_readings, 3)).assertIsDisplayed()
-            assertEquals("reading alone writes nothing", 1, sessionCount())
-            composeRule.onNodeWithTag(TRIP_IMPORT_CONFIRM_TEST_TAG).performClick()
-
-            waitForText(plural(R.plurals.trip_import_done, 2))
-            composeRule.onNodeWithTag(TRIP_IMPORT_CLOSE_TEST_TAG).performClick()
-            waitForTextToDisappear(plural(R.plurals.trip_import_done, 2))
-            waitForText(formatDateTime(start))
-            waitForText(formatDateTime(start + 7_200_000))
-            assertEquals(3, sessionCount())
-            composeRule.onNodeWithText("WP0ZZZ99ZTS392124").assertIsDisplayed()
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun cancellingThePreview_importsNothing() {
-        val (file, _) = tripFile(daysAgo = 5)
-        try {
-            launchHistoryScreen()
-            waitForText("WP0ZZZ99ZTS392124")
-            pickImport(file)
-            waitForText(plural(R.plurals.trip_import_new, 2))
-
-            composeRule.onNodeWithTag(TRIP_IMPORT_CANCEL_TEST_TAG).performClick()
-
-            waitForTextToDisappear(plural(R.plurals.trip_import_new, 2))
-            assertEquals(1, sessionCount())
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun theSameFileAgain_saysThereIsNothingToImport() {
-        val (file, _) = tripFile(daysAgo = 5)
-        try {
-            launchHistoryScreen()
-            waitForText("WP0ZZZ99ZTS392124")
-            pickImport(file)
-            waitForText(plural(R.plurals.trip_import_new, 2))
-            composeRule.onNodeWithTag(TRIP_IMPORT_CONFIRM_TEST_TAG).performClick()
-            waitForText(plural(R.plurals.trip_import_done, 2))
-            composeRule.onNodeWithTag(TRIP_IMPORT_CLOSE_TEST_TAG).performClick()
-            waitForTextToDisappear(plural(R.plurals.trip_import_done, 2))
-
-            pickImport(file)
-
-            waitForText(string(R.string.trip_import_nothing_new))
-            composeRule.onNodeWithText(plural(R.plurals.trip_import_duplicates, 2)).assertIsDisplayed()
-            composeRule.onAllNodesWithTag(TRIP_IMPORT_CONFIRM_TEST_TAG).assertCountEquals(0)
-            assertEquals(3, sessionCount())
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun aFileThatIsNoTripExport_showsTheReason_andWritesNothing() {
-        val file = File(targetContext.cacheDir, "history_import_wrong_${System.nanoTime()}.csv")
-        file.writeText("date,type,odometer_km\n2026-10-02,FUEL,40362\n")
-        try {
-            launchHistoryScreen()
-            waitForText("WP0ZZZ99ZTS392124")
-
-            pickImport(file)
-
-            waitForText(string(R.string.trip_import_error_format))
-            composeRule.onNodeWithTag(TRIP_IMPORT_CLOSE_TEST_TAG).performClick()
-            waitForTextToDisappear(string(R.string.trip_import_error_format))
-            assertEquals(1, sessionCount())
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun aTripOlderThanTheRetention_isNamedAndNotImported() {
-        val (file, _) = tripFile(daysAgo = 100)
-        try {
-            launchHistoryScreen()
-            waitForText("WP0ZZZ99ZTS392124")
-
-            pickImport(file)
-
-            waitForText(string(R.string.trip_import_nothing_new))
-            composeRule.onNodeWithText(plural(R.plurals.trip_import_expired, 2)).assertIsDisplayed()
-            assertEquals(1, sessionCount())
-        } finally {
-            file.delete()
-        }
+        assertOnTransferPage(mode = "import", part = "", pick = true)
     }
 
     // ── Min/Max je Fahrt im Detail-Dialog (F11) ───────────────────────────────

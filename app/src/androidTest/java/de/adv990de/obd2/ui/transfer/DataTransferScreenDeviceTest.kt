@@ -371,6 +371,13 @@ class DataTransferScreenDeviceTest {
         assertEquals(1, dismisses)
     }
 
+    @Test
+    fun aFailureWithADynamicText_isShownAsIs() {
+        showImport(TransferImportState.Failed(UiText.DynamicString("odd failure")))
+
+        composeRule.onNodeWithText("odd failure").assertIsDisplayed()
+    }
+
     // ── Grosse Schrift, schmales Fenster ─────────────────────────────────────
 
     @Test
