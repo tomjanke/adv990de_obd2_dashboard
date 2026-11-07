@@ -1,8 +1,5 @@
 package de.adv990de.obd2.ui.settings
 
-import android.content.ActivityNotFoundException
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,11 +25,9 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,12 +40,13 @@ import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.ConfirmDeleteDialog
 import de.adv990de.obd2.ui.components.EmptyState
-import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
+import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.formatDateTimeSeconds
+import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,27 +57,7 @@ fun AppLogsScreen(
     val logs by vm.logs.collectAsStateWithLifecycle()
     val undoBatchId by vm.undoBatchId.collectAsStateWithLifecycle()
     val confirmationVisible by vm.clearConfirmationVisible.collectAsStateWithLifecycle()
-    val exportDialogVisible by vm.exportDialogVisible.collectAsStateWithLifecycle()
-    val saved by vm.saved.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    // "Speichern": das Dateidialog-System fragt nach Ort und Namen (z. B. Downloads); das Ergebnis ist die Uri der neuen Datei, null bei Abbruch.
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) vm.saveExportTo(uri)
-    }
-
-    // Strings auf Composable-Ebene aufloesen: context.getString() in einem LaunchedEffect umgeht die Recomposition bei Sprachwechsel.
-    val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
-
-    ExportFeedbackEffects(
-        feedback = vm.exportFeedback,
-        snackbarHostState = snackbarHostState,
-        shareChooserTitle = stringResource(R.string.app_logs_share_chooser),
-        nothingToExportMessage = stringResource(R.string.app_logs_export_none),
-        savedMessage = if (saved) stringResource(R.string.app_logs_export_saved) else null,
-        onSavedShown = vm::consumeSaved,
-    )
-
     // The shared local-delete contract: trash icon -> confirmation -> the entries disappear at once
     // -> "Rückgängig" snackbar for the length of the undo window -> only then really deleted.
     UndoSnackbarEffect(
@@ -103,10 +79,10 @@ fun AppLogsScreen(
                     }
                 },
                 actions = {
-                    // 56 dp touch target (glove-friendly); disabled while there is nothing to export — which includes the undo window of a
-                    // delete-all, when the list is already hidden.
+                    // Shortcut to the page "Daten sichern und wiederherstellen" with the app log chosen (CSV). 56 dp touch target (glove-friendly); disabled while there is
+                    // nothing to export — which includes the undo window of a delete-all, when the list is already hidden.
                     IconButton(
-                        onClick = vm::requestExport,
+                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.APP_LOG)) },
                         enabled = logs.isNotEmpty(),
                         modifier = Modifier.size(56.dp),
                     ) {
@@ -139,22 +115,6 @@ fun AppLogsScreen(
                 }
             }
         }
-    }
-
-    if (exportDialogVisible) {
-        AppLogExportDialog(
-            entryCount = logs.size,
-            onShare = vm::shareExport,
-            onSave = {
-                vm.cancelExport()
-                try {
-                    saveLauncher.launch(vm.exportFileName())
-                } catch (_: ActivityNotFoundException) {
-                    scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
-                }
-            },
-            onDismiss = vm::cancelExport,
-        )
     }
 
     if (confirmationVisible) {

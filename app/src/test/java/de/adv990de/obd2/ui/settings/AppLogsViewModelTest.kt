@@ -1,8 +1,6 @@
 package de.adv990de.obd2.ui.settings
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
-import de.adv990de.obd2.data.AppLogExporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import io.mockk.Runs
@@ -11,7 +9,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,7 +30,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppLogsViewModelTest {
@@ -55,7 +51,6 @@ class AppLogsViewModelTest {
     private class Fixture(
         val logsFlow: MutableStateFlow<List<AppLogEntity>>,
         val repo: AppLogRepository,
-        val exporter: AppLogExporter,
         val vm: AppLogsViewModel,
     )
 
@@ -70,9 +65,8 @@ class AppLogsViewModelTest {
                 logsFlow.value = logsFlow.value.filter { it.id > maxId }
             }
         }
-        val exporter = mockk<AppLogExporter>()
         // The app scope shares the test scheduler, so virtual time drives the undo window.
-        return Fixture(logsFlow, repo, exporter, AppLogsViewModel(repo, exporter, CoroutineScope(testDispatcher + Job())))
+        return Fixture(logsFlow, repo, AppLogsViewModel(repo, CoroutineScope(testDispatcher + Job())))
     }
 
     // NOTE: tests inside the undo window use runCurrent(), never advanceUntilIdle(): the latter jumps virtual
@@ -240,180 +234,5 @@ class AppLogsViewModelTest {
         advanceTimeBy(60_000); runCurrent()
         coVerify(exactly = 1) { f.repo.deleteUpTo(any()) }         // and not a second time
         job.cancel()
-    }
-
-    // ── export (share or save) ────────────────────────────────────────────────
-
-    @Test
-    fun `requestExport opens the dialog only when there are entries`() = runTest {
-        val empty = fixture()
-        val emptyJob = collect(empty.vm); runCurrent()
-        empty.vm.requestExport()
-        assertFalse(empty.vm.exportDialogVisible.value)
-        emptyJob.cancel()
-
-        val filled = fixture(entry(1))
-        val filledJob = collect(filled.vm); runCurrent()
-        filled.vm.requestExport()
-        assertTrue(filled.vm.exportDialogVisible.value)
-        filledJob.cancel()
-    }
-
-    @Test
-    fun `cancelExport closes the dialog and exports nothing`() = runTest {
-        val f = fixture(entry(1))
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.requestExport()
-        f.vm.cancelExport()
-        runCurrent()
-
-        assertFalse(f.vm.exportDialogVisible.value)
-        coVerify(exactly = 0) { f.exporter.exportToCsv(any()) }
-        coVerify(exactly = 0) { f.exporter.saveCsv(any(), any()) }
-        job.cancel()
-    }
-
-    @Test
-    fun `shareExport exports the whole log, closes the dialog and hands the file to the share chooser`() = runTest {
-        val f = fixture(entry(2), entry(1))
-        val uri = mockk<Uri>()
-        coEvery { f.exporter.exportToCsv(any()) } returns uri
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.requestExport()
-        f.vm.shareExport(); runCurrent()
-
-        assertFalse(f.vm.exportDialogVisible.value)
-        assertEquals(uri, f.vm.exportFeedback.shareUri.value)
-        coVerify(exactly = 1) { f.exporter.exportToCsv(0L) }
-        f.vm.exportFeedback.consumeShareUri()
-        assertNull(f.vm.exportFeedback.shareUri.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `an export leaves out what a delete-all in its undo window already hides - only the lines after the highest hidden id`() = runTest {
-        val f = fixture(entry(2), entry(1))
-        coEvery { f.exporter.exportToCsv(any()) } returns mockk()
-        coEvery { f.exporter.saveCsv(any(), any()) } just Runs
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.confirmClear(); runCurrent()
-        f.logsFlow.value = listOf(entry(3), entry(2), entry(1)); runCurrent()   // a new line arrives inside the undo window
-
-        f.vm.shareExport(); runCurrent()
-        f.vm.saveExportTo(mockk()); runCurrent()
-
-        coVerify(exactly = 1) { f.exporter.exportToCsv(2L) }                    // not 0: the hidden lines stay out of the file
-        coVerify(exactly = 1) { f.exporter.saveCsv(any(), 2L) }
-        job.cancel()
-    }
-
-    @Test
-    fun `an export with nothing visible says so and does not export`() = runTest {
-        val f = fixture(entry(1))
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.confirmClear(); runCurrent()                                        // everything hidden, undo window open
-        f.vm.shareExport(); runCurrent()
-        assertTrue(f.vm.exportFeedback.nothingToExport.value)
-        f.vm.exportFeedback.consumeNothingToExport()
-        assertFalse(f.vm.exportFeedback.nothingToExport.value)
-        f.vm.saveExportTo(mockk()); runCurrent()
-        assertTrue(f.vm.exportFeedback.nothingToExport.value)
-
-        coVerify(exactly = 0) { f.exporter.exportToCsv(any()) }
-        coVerify(exactly = 0) { f.exporter.saveCsv(any(), any()) }
-        job.cancel()
-    }
-
-    @Test
-    fun `a failed share is reported with the message, or the class name when there is none`() = runTest {
-        val f = fixture(entry(1))
-        val job = collect(f.vm); runCurrent()
-
-        coEvery { f.exporter.exportToCsv(any()) } throws IOException("disk full")
-        f.vm.shareExport(); runCurrent()
-        assertEquals("disk full", f.vm.exportFeedback.error.value)
-        assertNull(f.vm.exportFeedback.shareUri.value)
-
-        f.vm.exportFeedback.consumeError()
-        coEvery { f.exporter.exportToCsv(any()) } throws IllegalStateException()
-        f.vm.shareExport(); runCurrent()
-        assertEquals("IllegalStateException", f.vm.exportFeedback.error.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `saveExportTo writes into the chosen file and reports it`() = runTest {
-        val f = fixture(entry(2), entry(1))
-        val target = mockk<Uri>()
-        coEvery { f.exporter.saveCsv(any(), any()) } just Runs
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.saveExportTo(target); runCurrent()
-
-        coVerify(exactly = 1) { f.exporter.saveCsv(target, 0L) }
-        assertTrue(f.vm.saved.value)
-        assertNull(f.vm.exportFeedback.error.value)
-        f.vm.consumeSaved()
-        assertFalse(f.vm.saved.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `a failed save reports the error and does not claim success`() = runTest {
-        val f = fixture(entry(1))
-        coEvery { f.exporter.saveCsv(any(), any()) } throws IOException("The chosen file could not be opened for writing")
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.saveExportTo(mockk()); runCurrent()
-
-        assertEquals("The chosen file could not be opened for writing", f.vm.exportFeedback.error.value)
-        assertFalse(f.vm.saved.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `a new export attempt replaces the error of the one before`() = runTest {
-        val f = fixture(entry(1))
-        val job = collect(f.vm); runCurrent()
-        coEvery { f.exporter.exportToCsv(any()) } throws IOException("disk full") andThen mockk<Uri>()
-        coEvery { f.exporter.saveCsv(any(), any()) } throws IOException("no space") andThen Unit
-
-        f.vm.shareExport(); runCurrent()
-        assertEquals("disk full", f.vm.exportFeedback.error.value)
-        f.vm.shareExport(); runCurrent()                       // the error was not consumed, the retry works
-        assertNull(f.vm.exportFeedback.error.value)
-
-        f.vm.saveExportTo(mockk()); runCurrent()
-        assertEquals("no space", f.vm.exportFeedback.error.value)
-        f.vm.saveExportTo(mockk()); runCurrent()
-        assertNull(f.vm.exportFeedback.error.value)
-        assertTrue(f.vm.saved.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `a cancelled export is not an error`() = runTest {
-        val f = fixture(entry(1))
-        coEvery { f.exporter.exportToCsv(any()) } throws CancellationException("scope gone")
-        coEvery { f.exporter.saveCsv(any(), any()) } throws CancellationException("scope gone")
-        val job = collect(f.vm); runCurrent()
-
-        f.vm.shareExport(); runCurrent()
-        f.vm.saveExportTo(mockk()); runCurrent()
-
-        assertNull(f.vm.exportFeedback.error.value)
-        assertFalse(f.vm.saved.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `the file name proposed to the system dialog is the log name with the export time`() {
-        val f = fixture()
-        val name = f.vm.exportFileName()
-        assertTrue(name, Regex("""applog_\d{8}T\d{9}Z\.csv""").matches(name))
     }
 }

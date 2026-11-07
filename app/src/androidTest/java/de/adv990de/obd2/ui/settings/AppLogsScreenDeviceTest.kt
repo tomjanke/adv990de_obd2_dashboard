@@ -1,13 +1,12 @@
 package de.adv990de.obd2.ui.settings
 
-import androidx.lifecycle.ViewModelProvider
-import android.net.Uri
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -15,6 +14,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -24,16 +24,15 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.HiltTestActivity
 import de.adv990de.obd2.R
-import de.adv990de.obd2.data.AppLogExporter
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.idleObdRepository
-import io.mockk.coEvery
-import io.mockk.coVerify
+import de.adv990de.obd2.ui.SHORTCUT_TARGET_TEST_TAG
+import de.adv990de.obd2.ui.ShortcutNavHost
+import de.adv990de.obd2.ui.assertTransferTarget
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.spyk
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -101,11 +100,6 @@ class AppLogsScreenDeviceTest {
     @JvmField
     val appLogRepository: AppLogRepository = spyk(AppLogRepository(testDb.appLogDao()))
 
-    /** The export itself is checked in `AppLogExporterDeviceTest`; here a mock shows what the screen asks of it (and when). */
-    @BindValue
-    @JvmField
-    val appLogExporter: AppLogExporter = mockk()
-
     /**
      * AppLogsScreen never touches ObdRepository, but it is still part of the Hilt component graph
      * (ObdForegroundService's entry point, other HiltViewModels' constructors) — real ObdRepository
@@ -134,10 +128,13 @@ class AppLogsScreenDeviceTest {
         )
     }
 
+    private lateinit var navController: NavHostController
+
     private fun launchAppLogsScreen() {
         composeRule.setContent {
-            val navController = rememberNavController()
-            AppLogsScreen(navController = navController)
+            val controller = rememberNavController()
+            navController = controller
+            ShortcutNavHost(controller) { AppLogsScreen(navController = it) }
         }
     }
 
@@ -297,12 +294,10 @@ class AppLogsScreenDeviceTest {
         assertEquals(1, logsInDatabase().size)
     }
 
-    // --- export (share or save) ---
+    // --- Abkuerzung auf die Seite „Daten sichern und wiederherstellen“ ---
+    // Der Export selbst laeuft dort (Tests: DataTransferScreenDeviceTest, DataTransferViewModelTest, TransferExporterTest); die Seite der App-Logs verspricht nur Route und Argumente.
 
     private fun exportDescription() = str(R.string.app_logs_export)
-
-    private fun exportMessage(count: Int) =
-        composeRule.activity.resources.getQuantityString(R.plurals.app_logs_export_message, count, count)
 
     @Test
     fun exportIcon_isDisabled_whenThereAreNoLogs() {
@@ -312,108 +307,36 @@ class AppLogsScreenDeviceTest {
     }
 
     @Test
-    fun exportIcon_isEnabled_whenThereAreLogs() {
+    fun exportIcon_isEnabled_whenThereAreLogs_andAtLeast56dp() {
         insertLog(level = "INFO", message = "something to export")
         launchAppLogsScreen()
         waitForText("something to export")
 
-        composeRule.onNodeWithContentDescription(exportDescription()).assertIsEnabled()
+        composeRule.onNodeWithContentDescription(exportDescription()).assertIsEnabled().assertHeightIsAtLeast(56.dp).assertWidthIsAtLeast(56.dp)
     }
 
     @Test
-    fun exportDialog_announcesTheEntryCount_andOffersSaveShareAndCancel_eachAtLeast56dpHigh() {
-        insertLog(level = "INFO", message = "first")
-        insertLog(level = "WARN", message = "second")
+    fun exportIcon_opensTheTransferPage_exportingTheAppLogAsCsv() {
+        insertLog(level = "INFO", message = "to be exported")
         launchAppLogsScreen()
-        waitForText("second")
+        waitForText("to be exported")
 
         composeRule.onNodeWithContentDescription(exportDescription()).performClick()
 
-        waitForText(exportMessage(2))
-        composeRule.onNodeWithText(str(R.string.app_logs_export_title)).assertIsDisplayed()
-        composeRule.onNodeWithTag(APP_LOG_EXPORT_SAVE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
-        composeRule.onNodeWithTag(APP_LOG_EXPORT_SHARE_TEST_TAG).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
-        composeRule.onNode(hasText(str(R.string.cancel)) and hasClickAction()).assertHeightIsAtLeast(56.dp)
-        composeRule.onNodeWithText(str(R.string.history_export_save)).assertIsDisplayed()
-        composeRule.onNodeWithText(str(R.string.history_export_share)).assertIsDisplayed()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(SHORTCUT_TARGET_TEST_TAG).assertIsDisplayed()
+        composeRule.runOnUiThread { assertTransferTarget(navController, mode = "export", part = "APP_LOG", pick = false) }
     }
 
     @Test
-    fun cancellingTheExportDialog_closesIt_andExportsNothing() {
-        insertLog(level = "INFO", message = "one entry")
-        launchAppLogsScreen()
-        waitForText("one entry")
-        composeRule.onNodeWithContentDescription(exportDescription()).performClick()
-        waitForText(exportMessage(1))
-
-        composeRule.onNode(hasText(str(R.string.cancel)) and hasClickAction()).performClick()
-
-        waitUntilGone(exportMessage(1))
-        coVerify(exactly = 0) { appLogExporter.exportToCsv(any()) }
-        coVerify(exactly = 0) { appLogExporter.saveCsv(any(), any()) }
-    }
-
-    @Test
-    fun share_asksTheExporterForTheWholeLog_closesTheDialog_andShowsAFailureAsASnackbar() {
-        insertLog(level = "INFO", message = "to be shared")
-        coEvery { appLogExporter.exportToCsv(any()) } throws RuntimeException("boom")
-        launchAppLogsScreen()
-        waitForText("to be shared")
-        composeRule.onNodeWithContentDescription(exportDescription()).performClick()
-        waitForText(exportMessage(1))
-
-        composeRule.onNodeWithTag(APP_LOG_EXPORT_SHARE_TEST_TAG).performClick()
-
-        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "boom"))
-        waitUntilGone(exportMessage(1))
-        coVerify(exactly = 1) { appLogExporter.exportToCsv(0L) }
-    }
-
-    /**
-     * Der Dateidialog des Systems laesst sich im Geraete-Test nicht bedienen (er erschiene vor der Test-App); das Ergebnis, das er der Seite liefert, ist der Aufruf
-     * `saveExportTo(uri)` des ViewModels — den der Test hier selbst macht. Das ViewModel ist dasselbe, das die Seite per `hiltViewModel()` an der Activity bekam.
-     */
-    private fun saveInto(uri: Uri) {
-        val vm = ViewModelProvider(composeRule.activity)[AppLogsViewModel::class.java]
-        composeRule.runOnUiThread { vm.saveExportTo(uri) }
-    }
-
-    @Test
-    fun aSavedExport_isAnnouncedAsASnackbar_andWentToTheChosenFile() {
-        insertLog(level = "INFO", message = "to be saved")
-        val target = Uri.parse("content://test/applog.csv")
-        coEvery { appLogExporter.saveCsv(any(), any()) } returns Unit
-        launchAppLogsScreen()
-        waitForText("to be saved")
-
-        saveInto(target)
-
-        waitForText(str(R.string.app_logs_export_saved))
-        coVerify(exactly = 1) { appLogExporter.saveCsv(target, 0L) }
-    }
-
-    @Test
-    fun savingWithoutAnyLog_saysThereIsNothingToExport_andWritesNothing() {
+    fun aDisabledExportIcon_goesNowhere() {
         launchAppLogsScreen()
         composeRule.waitForIdle()
 
-        saveInto(Uri.parse("content://test/applog.csv"))
+        composeRule.onNodeWithContentDescription(exportDescription()).assertIsNotEnabled().performClick()
 
-        waitForText(str(R.string.app_logs_export_none))
-        coVerify(exactly = 0) { appLogExporter.saveCsv(any(), any()) }
-    }
-
-    @Test
-    fun aFailedSave_isShownAsASnackbarWithItsCause_andIsNotAnnouncedAsSaved() {
-        insertLog(level = "INFO", message = "to be saved")
-        coEvery { appLogExporter.saveCsv(any(), any()) } throws java.io.IOException("no space left")
-        launchAppLogsScreen()
-        waitForText("to be saved")
-
-        saveInto(Uri.parse("content://test/applog.csv"))
-
-        waitForText(composeRule.activity.getString(R.string.history_export_error_prefix, "no space left"))
-        composeRule.onNodeWithText(str(R.string.app_logs_export_saved)).assertDoesNotExist()
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag(SHORTCUT_TARGET_TEST_TAG).assertCountEquals(0)
     }
 
     @Test
