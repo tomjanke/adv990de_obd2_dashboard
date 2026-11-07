@@ -3,6 +3,7 @@ package de.adv990de.obd2.data
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.logbookCsvHeader
 import de.adv990de.obd2.logbook.logbookCsvLine
 import de.adv990de.obd2.logbook.logbookFileName
@@ -30,17 +31,22 @@ class LogbookExporter @Inject constructor(
     private val files = CsvExportFiles(context)
 
     /** Writes the logbook into a new file in the cache and returns a [Uri] the share chooser can hand on (the file provider grants read access). */
-    suspend fun exportToCsv(excluding: Set<Long> = emptySet()): Uri = files.share(::logbookFileName) { writeRows(it, excluding) }
+    suspend fun exportToCsv(excluding: Set<Long> = emptySet()): Uri = files.share(::logbookFileName) { writeCsv(it, excluding) }
 
     /**
      * Writes the same CSV into the file the user chose with the system file dialog ([target], from `CreateDocument`). The CSV goes to the cache
      * first and is copied only when it is complete ([copyToTarget]); the cache file is removed afterwards, whatever happened.
      */
-    suspend fun saveCsv(target: Uri, excluding: Set<Long> = emptySet()) = files.save(target, ::logbookFileName) { writeRows(it, excluding) }
+    suspend fun saveCsv(target: Uri, excluding: Set<Long> = emptySet()) = files.save(target, ::logbookFileName) { writeCsv(it, excluding) }
 
-    private suspend fun writeRows(writer: Writer, excluding: Set<Long>) {
+    internal suspend fun writeCsv(writer: Writer, excluding: Set<Long> = emptySet()) {
         val entries = repository.all().filter { it.id !in excluding }
         currentCoroutineContext().ensureActive()
+        writeEntries(writer, entries)
+    }
+
+    /** Schreibt schon gelesene Eintraege (das Paket liest einmal und nennt im Manifest dieselbe Zahl). */
+    internal suspend fun writeEntries(writer: Writer, entries: List<LogEntry>) {
         writer.write(logbookCsvHeader())
         entries.forEachIndexed { index, entry ->
             writer.write(logbookCsvLine(entry))

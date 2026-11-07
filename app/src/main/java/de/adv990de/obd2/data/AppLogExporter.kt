@@ -30,15 +30,15 @@ class AppLogExporter @Inject constructor(
     private val files = CsvExportFiles(context)
 
     /** Writes the log into a new file in the cache and returns a [Uri] the share chooser can hand on (the file provider grants read access). */
-    suspend fun exportToCsv(afterId: Long = 0L): Uri = files.share(::appLogExportFileName) { writeRows(it, afterId) }
+    suspend fun exportToCsv(afterId: Long = 0L): Uri = files.share(::appLogExportFileName) { writeCsv(it, afterId) }
 
     /**
      * Writes the same CSV into the file the user chose with the system file dialog ([target], from `CreateDocument`). The CSV goes to the cache
      * first and is copied only when it is complete ([copyToTarget]); the cache file is removed afterwards, whatever happened.
      */
-    suspend fun saveCsv(target: Uri, afterId: Long = 0L) = files.save(target, ::appLogExportFileName) { writeRows(it, afterId) }
+    suspend fun saveCsv(target: Uri, afterId: Long = 0L) = files.save(target, ::appLogExportFileName) { writeCsv(it, afterId) }
 
-    private suspend fun writeRows(writer: Writer, afterId: Long) {
+    internal suspend fun writeCsv(writer: Writer, afterId: Long = 0L) {
         writer.write(csvRow(*APP_LOG_EXPORT_COLUMNS))
         currentCoroutineContext().ensureActive()
         dao.getExportCursor(SimpleSQLiteQuery(APP_LOG_EXPORT_QUERY_SQL, arrayOf(afterId))).use { cursor ->

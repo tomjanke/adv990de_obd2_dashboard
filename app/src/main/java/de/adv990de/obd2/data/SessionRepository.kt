@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -228,7 +229,7 @@ class SessionRepository @Inject constructor(
      */
     suspend fun exportSessionsToCsv(sessionIds: List<Long>): Uri {
         requireTripsToExport(sessionIds)
-        return files.share({ exportFileNameFor(sessionIds, it) }) { writeTrips(it, sessionIds) }
+        return files.share({ exportFileNameFor(sessionIds, it) }) { writeTripsCsv(it, sessionIds) }
     }
 
     /**
@@ -239,7 +240,7 @@ class SessionRepository @Inject constructor(
      */
     suspend fun saveSessionsCsv(sessionIds: List<Long>, target: Uri) {
         requireTripsToExport(sessionIds)
-        files.save(target, { exportFileNameFor(sessionIds, it) }) { writeTrips(it, sessionIds) }
+        files.save(target, { exportFileNameFor(sessionIds, it) }) { writeTripsCsv(it, sessionIds) }
     }
 
     /**
@@ -265,10 +266,16 @@ class SessionRepository @Inject constructor(
         accumulator.result()
     }
 
+    /** The trips a data export takes: every finished trip, oldest first — the one being recorded right now is not part of it. */
+    suspend fun exportableSessionIds(): List<Long> {
+        val active = _activeSessionId.value
+        return sessionIds.first().filter { it != active }.sorted()
+    }
+
     private fun requireTripsToExport(sessionIds: List<Long>) = require(sessionIds.isNotEmpty()) { "There is no trip to export" }
 
     /** The one place that writes the rows of the export: the trips, one after the other, into the file [CsvExportFiles] opened. */
-    private suspend fun writeTrips(writer: Writer, sessionIds: List<Long>) {
+    internal suspend fun writeTripsCsv(writer: Writer, sessionIds: List<Long>) {
         writer.write(csvRow(*EXPORT_COLUMNS))
         var written = 0
         for (id in sessionIds) {
