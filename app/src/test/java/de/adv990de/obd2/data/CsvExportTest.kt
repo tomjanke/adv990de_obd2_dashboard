@@ -212,5 +212,34 @@ class CsvExportTest {
         assertTrue("ORDER BY id (Index-Reihenfolge, kein Sortierlauf): $EXPORT_QUERY_SQL", EXPORT_QUERY_SQL.contains("ORDER BY id"))
         assertFalse("ORDER BY timestamp zwaenge SQLite zum Sortieren aller Zeilen (DAT-09)", EXPORT_QUERY_SQL.contains("ORDER BY timestamp"))
     }
-}
 
+    // ── Pakete (obd-dashboard_*.zip) ───────────────────────────────────────
+
+    @Test
+    fun `a collision puts the counter before the extension, whatever it is`() {
+        val dir = File(tempFolder.root, "exports")
+        createExportFile(dir, "x.csv")
+        createExportFile(dir, "x.zip")
+        createExportFile(dir, "plain")
+
+        assertEquals("x-1.csv", createExportFile(dir, "x.csv").name)
+        assertEquals("x-1.zip", createExportFile(dir, "x.zip").name)
+        assertEquals("plain-1", createExportFile(dir, "plain").name)
+        assertEquals("x-2.zip", createExportFile(dir, "x.zip").name)
+    }
+
+    @Test
+    fun `a stale package is cleaned up, a recent one a directory and a foreign zip stay`() {
+        val dir = File(tempFolder.root, "exports")
+        val now = 10_000_000_000L
+        val old = exportFile(dir, "obd-dashboard_20260101T000000000Z.zip", ageMs = EXPORT_MAX_AGE_MS + 1, now = now)
+        val recent = exportFile(dir, "obd-dashboard_20991231T000000000Z.zip", ageMs = 1, now = now)
+        val foreign = exportFile(dir, "other.zip", ageMs = EXPORT_MAX_AGE_MS + 1, now = now)
+        val folder = File(dir, "obd-dashboard_folder.zip").also { it.mkdirs(); it.setLastModified(now - EXPORT_MAX_AGE_MS - 1) }
+
+        assertEquals(1, deleteStaleExports(dir, now))
+
+        assertFalse(old.exists())
+        assertTrue(recent.exists() && foreign.exists() && folder.exists())
+    }
+}

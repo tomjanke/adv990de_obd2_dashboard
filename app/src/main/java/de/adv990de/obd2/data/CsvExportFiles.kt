@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.OutputStream
 import java.io.Writer
 
 /**
@@ -20,7 +21,11 @@ import java.io.Writer
 internal class CsvExportFiles(private val context: Context) {
 
     /** Schreibt die Datei in den Cache und liefert eine [Uri], die das Teilen-Menue weiterreichen kann (der FileProvider gibt Leserecht). */
-    suspend fun share(fileName: (nowMillis: Long) -> String, write: suspend (Writer) -> Unit): Uri = withContext(Dispatchers.IO) {
+    suspend fun share(fileName: (nowMillis: Long) -> String, write: suspend (Writer) -> Unit): Uri =
+        shareStream(fileName) { out -> out.bufferedWriter().use { write(it) } }
+
+    /** Wie [share], aber mit Bytes statt Text (die Pakete): [write] schreibt in den Strom, der danach geschlossen wird. */
+    suspend fun shareStream(fileName: (nowMillis: Long) -> String, write: suspend (OutputStream) -> Unit): Uri = withContext(Dispatchers.IO) {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", writeToCache(fileName, write))
     }
 
@@ -28,7 +33,11 @@ internal class CsvExportFiles(private val context: Context) {
      * Schreibt dieselbe Datei in [target] (von `CreateDocument`): erst in den Cache und erst bei Erfolg kopiert, ein Fehler beim Schreiben fasst das Ziel nie an; ein Ziel,
      * das sich nicht zum Schreiben oeffnen laesst, ist eine [java.io.IOException].
      */
-    suspend fun save(target: Uri, fileName: (nowMillis: Long) -> String, write: suspend (Writer) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun save(target: Uri, fileName: (nowMillis: Long) -> String, write: suspend (Writer) -> Unit) =
+        saveStream(target, fileName) { out -> out.bufferedWriter().use { write(it) } }
+
+    /** Wie [save], aber mit Bytes statt Text (die Pakete). */
+    suspend fun saveStream(target: Uri, fileName: (nowMillis: Long) -> String, write: suspend (OutputStream) -> Unit) = withContext(Dispatchers.IO) {
         val file = writeToCache(fileName, write)
         try {
             copyToTarget(context.contentResolver, file, target)
@@ -37,13 +46,13 @@ internal class CsvExportFiles(private val context: Context) {
         }
     }
 
-    private suspend fun writeToCache(fileName: (Long) -> String, write: suspend (Writer) -> Unit): File {
+    private suspend fun writeToCache(fileName: (Long) -> String, write: suspend (OutputStream) -> Unit): File {
         val exportDir = File(context.cacheDir, EXPORT_CACHE_DIR)
         val now = System.currentTimeMillis()
         deleteStaleExports(exportDir, now)
         val file = createExportFile(exportDir, fileName(now))
         try {
-            file.bufferedWriter().use { write(it) }
+            file.outputStream().buffered().use { write(it) }
         } catch (e: Throwable) {
             file.delete()
             throw e

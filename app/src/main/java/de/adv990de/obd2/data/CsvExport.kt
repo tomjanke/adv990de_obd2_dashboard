@@ -82,19 +82,22 @@ internal fun createExportFile(dir: File, sessionId: Long, nowMillis: Long): File
 
 /**
  * Legt die (leere) Exportdatei an und garantiert, dass sie neu ist: Gibt es den Namen schon (zwei Exporte in
- * derselben Millisekunde), kommt `-1`, `-2` ... davor `.csv`. `createNewFile` ist atomar — kein Pruefen-dann-Anlegen.
+ * derselben Millisekunde), kommt `-1`, `-2` ... vor die Endung des Namens (`.csv`, `.zip`; ohne Endung ans Ende). `createNewFile` ist atomar — kein Pruefen-dann-Anlegen.
  */
 internal fun createExportFile(dir: File, name: String): File {
     dir.mkdirs()
+    val dot = name.lastIndexOf('.')
+    val base = if (dot > 0) name.substring(0, dot) else name
+    val extension = if (dot > 0) name.substring(dot) else ""
     var attempt = 0
     while (true) {
-        val candidate = File(dir, if (attempt == 0) name else name.removeSuffix(".csv") + "-$attempt.csv")
+        val candidate = File(dir, if (attempt == 0) name else "$base-$attempt$extension")
         if (candidate.createNewFile()) return candidate
         attempt++
     }
 }
 
-private val EXPORT_FILE = Regex("""(?:session|applog|logbook)_.*\.csv""")
+private val EXPORT_FILE = Regex("""(?:(?:session|applog|logbook)_.*\.csv|obd-dashboard_.*\.zip)""")
 
 /**
  * Loescht Exportdateien in [dir], die aelter als [maxAgeMs] sind (DAT-07: sie wurden nie geloescht). Angefasst

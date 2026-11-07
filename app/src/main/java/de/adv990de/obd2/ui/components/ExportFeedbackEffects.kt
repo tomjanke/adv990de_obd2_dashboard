@@ -10,7 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.adv990de.obd2.R
 
 /**
- * Zeigt, was ein Export gebracht hat — der gemeinsame Teil von `HistoryScreen`, `AppLogsScreen` und `LogbookScreen`: das Teilen-Menue ([shareCsv]; nimmt keine App die Datei an, sagt es
+ * Zeigt, was ein Export gebracht hat — der gemeinsame Teil von `HistoryScreen`, `AppLogsScreen` und `LogbookScreen`: das Teilen-Menue ([shareExport]; nimmt keine App die Datei an, sagt es
  * eine Snackbar), die Meldung „gespeichert“, „nichts zu exportieren“ und einen Fehler. Jeder Zustand wird einmal gezeigt und dann am [feedback] quittiert; die Snackbars stehen
  * hintereinander in der Reihenfolge der Effekte.
  *
@@ -36,7 +36,7 @@ fun ExportFeedbackEffects(
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
-            if (!shareCsv(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
+            if (!shareExport(context, uri, shareChooserTitle)) snackbarHostState.showSnackbar(shareNoAppMessage)
             feedback.consumeShareUri()
         }
     }

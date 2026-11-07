@@ -182,4 +182,101 @@ class CsvExportFilesTest {
         verify(exactly = 0) { resolver.openOutputStream(any<Uri>(), any<String>()) }
         assertTrue(exportedFiles().isEmpty())
     }
+
+    // --- Strom-Varianten (Pakete) ---
+
+    @Test
+    fun `shareStream writes the bytes untouched into a new file and hands out the uri`() = runTest {
+        val shared = mockk<Uri>()
+        stubEnvironment(shared)
+        val file = slot<File>()
+        every { FileProvider.getUriForFile(any(), any(), capture(file)) } returns shared
+        val bytes = byteArrayOf(0x50, 0x4B, 3, 4, 0, -1, 127)
+
+        val uri = files.shareStream({ "obd-dashboard_$it.zip" }) { it.write(bytes) }
+
+        assertSame(shared, uri)
+        assertTrue(file.captured.name.matches(Regex("""obd-dashboard_\d+\.zip""")))
+        assertTrue(bytes.contentEquals(file.captured.readBytes()))
+    }
+
+    @Test
+    fun `a failing stream write leaves no file and hands nothing out`() = runTest {
+        stubEnvironment()
+
+        try {
+            files.shareStream({ "obd-dashboard_$it.zip" }) { it.write(1); throw IllegalStateException("disk full") }
+            fail()
+        } catch (e: IllegalStateException) {
+            assertEquals("disk full", e.message)
+        }
+
+        assertTrue(exportedFiles().isEmpty())
+        verify(exactly = 0) { FileProvider.getUriForFile(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a cancelled stream write leaves no file`() = runTest {
+        stubEnvironment()
+        lateinit var job: Job
+
+        job = launch { files.shareStream({ "obd-dashboard_$it.zip" }) { it.write(1); job.cancel(); kotlinx.coroutines.currentCoroutineContext().ensureActive() } }
+        job.join()
+
+        assertTrue(job.isCancelled)
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `saveStream copies the finished bytes into the target and always removes the cache file`() = runTest {
+        stubEnvironment()
+        val target = mockk<Uri>()
+        val out = ByteArrayOutputStream()
+        stubTarget(target, out)
+
+        files.saveStream(target, { "obd-dashboard_$it.zip" }) { it.write(byteArrayOf(9, 8, 7)) }
+
+        assertTrue(byteArrayOf(9, 8, 7).contentEquals(out.toByteArray()))
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `saveStream reports a target that cannot be opened and leaves no cache file`() = runTest {
+        stubEnvironment()
+        val target = mockk<Uri>()
+        stubTarget(target, null)
+
+        try {
+            files.saveStream(target, { "obd-dashboard_$it.zip" }) { it.write(1) }
+            fail()
+        } catch (_: IOException) { }
+
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `a failing stream write never touches the chosen target`() = runTest {
+        stubEnvironment()
+        val target = mockk<Uri>()
+        val resolver = stubTarget(target, ByteArrayOutputStream())
+
+        try {
+            files.saveStream(target, { "x_$it.zip" }) { throw IllegalStateException("locked") }
+        } catch (_: IllegalStateException) { }
+
+        verify(exactly = 0) { resolver.openOutputStream(any<Uri>(), any<String>()) }
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `the writer wrapper closes the writer so the whole text reaches the target`() = runTest {
+        stubEnvironment()
+        val target = mockk<Uri>()
+        val out = ByteArrayOutputStream()
+        stubTarget(target, out)
+
+        files.save(target, { "logbook_$it.csv" }) { it.write("small") }
+
+        assertEquals("small", out.toString(Charsets.UTF_8.name()))
+    }
 }
