@@ -4,6 +4,9 @@ package de.adv990de.obd2.transfer
 enum class FileKind { PACKAGE, TRIPS_CSV, LOGBOOK_CSV, APP_LOG_CSV, UNKNOWN }
 
 private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
+
+/** An empty zip starts with the end-of-directory record: it is a zip (the reader then says it is no backup of this app). */
+private val EMPTY_ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x05, 0x06)
 private val BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
 
 /**
@@ -13,7 +16,7 @@ private val BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
 fun detectFileKind(head: ByteArray, length: Int = head.size): FileKind {
     val n = minOf(length, head.size)
     if (n == 0) return FileKind.UNKNOWN
-    if (n >= ZIP_MAGIC.size && ZIP_MAGIC.indices.all { head[it] == ZIP_MAGIC[it] }) return FileKind.PACKAGE
+    if (n >= ZIP_MAGIC.size && (ZIP_MAGIC.indices.all { head[it] == ZIP_MAGIC[it] } || EMPTY_ZIP_MAGIC.indices.all { head[it] == EMPTY_ZIP_MAGIC[it] })) return FileKind.PACKAGE
     if ((0 until n).any { head[it] == 0.toByte() }) return FileKind.UNKNOWN
     val start = if (n >= BOM.size && BOM.indices.all { head[it] == BOM[it] }) BOM.size else 0
     val text = String(head, start, n - start, Charsets.UTF_8)

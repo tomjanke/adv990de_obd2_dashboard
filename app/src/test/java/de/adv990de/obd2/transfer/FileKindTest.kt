@@ -10,7 +10,7 @@ class FileKindTest {
 
     @Test fun zipHead() = assertEquals(FileKind.PACKAGE, detectFileKind(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 0, 0)))
 
-    @Test fun emptyZipIsUnknown() = assertEquals(FileKind.UNKNOWN, detectFileKind(byteArrayOf(0x50, 0x4B, 0x05, 0x06, 0, 0)))
+    @Test fun emptyZipIsAPackageSoTheReaderCanSayItIsNotOurs() = assertEquals(FileKind.PACKAGE, detectFileKind(byteArrayOf(0x50, 0x4B, 0x05, 0x06, 0, 0)))
 
     @Test fun pkWithoutTheRightMagicIsUnknown() = assertEquals(FileKind.UNKNOWN, kind("PK hello"))
 
