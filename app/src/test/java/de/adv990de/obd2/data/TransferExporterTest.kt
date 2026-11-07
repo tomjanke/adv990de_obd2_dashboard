@@ -123,9 +123,11 @@ class TransferExporterTest {
 
     private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size) {
         every { sessionDao.observeIds() } returns flowOf(tripIds)
+        coEvery { sessionDao.idsWithReadings() } returns tripIds
         every { sensorReadingDao.getBySessionCursor(any()) } answers { tripCursor() }
         coEvery { logbook.all() } returns logEntries
         every { appLogDao.getExportCursor(any()) } answers { logCursor() }
+        coEvery { appLogDao.countAfter(0L) } returns logRows.size
         every { appLogs.logs } returns flowOf(List(logCount) { AppLogEntity(id = it + 1L, timestamp = 1L, level = "INFO", message = "m") })
     }
 
@@ -391,5 +393,68 @@ class TransferExporterTest {
             fail("expected IllegalArgumentException")
         } catch (_: IllegalArgumentException) {
         }
+    }
+
+    @Test
+    fun `the manifest counts the app log rows the file really has, not the 1000 the screen shows`() = runTest {
+        stubData(logCount = 1000)
+        val total = 1500
+        coEvery { appLogDao.countAfter(0L) } returns total
+        every { appLogDao.getExportCursor(any()) } answers {
+            var index = -1
+            mockk {
+                every { getColumnIndexOrThrow("timestamp") } returns 0
+                every { getColumnIndexOrThrow("level") } returns 1
+                every { getColumnIndexOrThrow("message") } returns 2
+                every { moveToNext() } answers { index++; index < total }
+                every { getLong(0) } answers { index.toLong() }
+                every { getString(1) } returns "INFO"
+                every { getString(2) } returns "m"
+                every { close() } just Runs
+            }
+        }
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.APP_LOG))
+        val written = zipBytes(file.captured, "applog.csv").toString(Charsets.UTF_8).lines().count { it.isNotBlank() } - 1
+        assertEquals(total, written)
+        assertEquals(written, parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts[DataPart.APP_LOG])
+    }
+
+    @Test
+    fun `the manifest counts only trips that have rows in the file`() = runTest {
+        // trip 2 has no readings: it is not part of the export, the file has two trips
+        stubData(tripIds = listOf(1L, 2L, 3L))
+        coEvery { sessionDao.idsWithReadings() } returns listOf(1L, 3L)
+        every { sensorReadingDao.getBySessionCursor(any()) } answers { tripCursor() }
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRIPS))
+        val lines = zipBytes(file.captured, "trips.csv").toString(Charsets.UTF_8).lines().filter { it.isNotBlank() }.drop(1)
+        val tripsInFile = lines.map { it.substringAfterLast(',') }.toSet()
+        assertEquals(setOf("1", "3"), tripsInFile)
+        assertEquals(tripsInFile.size, parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts[DataPart.TRIPS])
+    }
+
+    @Test
+    fun `csv of an empty logbook or app log is refused like the package`() = runTest {
+        stubData(logEntries = emptyList())
+        coEvery { appLogDao.countAfter(0L) } returns 0
+        stubEnvironment()
+        for (part in listOf(DataPart.LOGBOOK, DataPart.APP_LOG)) {
+            try {
+                exporter.share(request(part, format = ExportFormat.CSV))
+                fail("expected IllegalStateException for $part")
+            } catch (e: IllegalStateException) {
+                assertEquals("Nothing to export", e.message)
+            }
+            try {
+                exporter.save(mockk<Uri>(), request(part, format = ExportFormat.CSV))
+                fail("expected IllegalStateException for $part")
+            } catch (e: IllegalStateException) {
+                assertEquals("Nothing to export", e.message)
+            }
+        }
+        assertTrue(exportedFiles().isEmpty())
     }
 }

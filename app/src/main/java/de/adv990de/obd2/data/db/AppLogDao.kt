@@ -30,6 +30,10 @@ interface AppLogDao {
     @Query("DELETE FROM app_log WHERE id <= :maxId")
     suspend fun deleteUpTo(maxId: Long)
 
+    /** How many rows the export writes for [afterId]: the same condition as the export query, without the 1000-row limit of the screen. */
+    @Query("SELECT COUNT(*) FROM app_log WHERE id > :afterId")
+    suspend fun countAfter(afterId: Long): Int
+
     /**
      * The rows of the export as a cursor (the shared [de.adv990de.obd2.data.APP_LOG_EXPORT_QUERY_SQL]): read row by row, so memory stays constant. A
      * raw query because Room needs the SQL at compile time for typed results and the export reads only three columns through a cursor.

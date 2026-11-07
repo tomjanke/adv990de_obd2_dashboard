@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -266,10 +265,13 @@ class SessionRepository @Inject constructor(
         accumulator.result()
     }
 
-    /** The trips a data export takes: every finished trip, oldest first — the one being recorded right now is not part of it. */
+    /**
+     * The trips a data export takes: every trip that has readings, oldest first — the one being recorded right now is not part of it. A trip without readings
+     * has no rows in the file, so it is neither written nor counted. (The history screen has its own list, [sessionIds].)
+     */
     suspend fun exportableSessionIds(): List<Long> {
         val active = _activeSessionId.value
-        return sessionIds.first().filter { it != active }.sorted()
+        return db.sessionDao().idsWithReadings().filter { it != active }.sorted()
     }
 
     private fun requireTripsToExport(sessionIds: List<Long>) = require(sessionIds.isNotEmpty()) { "There is no trip to export" }

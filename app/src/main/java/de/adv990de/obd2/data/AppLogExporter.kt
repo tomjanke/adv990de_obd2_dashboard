@@ -29,6 +29,9 @@ class AppLogExporter @Inject constructor(
 ) {
     private val files = CsvExportFiles(context)
 
+    /** The rows [writeCsv] writes for [afterId] (not the 1000 the screen shows): the number a package manifest names. */
+    suspend fun count(afterId: Long = 0L): Int = dao.countAfter(afterId)
+
     /** Writes the log into a new file in the cache and returns a [Uri] the share chooser can hand on (the file provider grants read access). */
     suspend fun exportToCsv(afterId: Long = 0L): Uri = files.share(::appLogExportFileName) { writeCsv(it, afterId) }
 

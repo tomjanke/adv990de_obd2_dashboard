@@ -66,8 +66,8 @@ class TransferExporter @Inject constructor(
         val csvPart = csvPartFor(request)
         if (csvPart != null) return when (csvPart) {
             DataPart.TRIPS -> sessions.exportSessionsToCsv(tripIdsOrNothing())
-            DataPart.LOGBOOK -> logbookExporter.exportToCsv()
-            else -> appLogExporter.exportToCsv()
+            DataPart.LOGBOOK -> { requireLogbookRows(); logbookExporter.exportToCsv() }
+            else -> { requireAppLogRows(); appLogExporter.exportToCsv() }
         }
         val pkg = buildPackage(request)
         return files.shareStream(PackageFormat::fileName) { out -> writePackage(out, pkg.createdMs, pkg.entries) }
@@ -78,8 +78,8 @@ class TransferExporter @Inject constructor(
         if (csvPart != null) {
             when (csvPart) {
                 DataPart.TRIPS -> sessions.saveSessionsCsv(tripIdsOrNothing(), target)
-                DataPart.LOGBOOK -> logbookExporter.saveCsv(target)
-                else -> appLogExporter.saveCsv(target)
+                DataPart.LOGBOOK -> { requireLogbookRows(); logbookExporter.saveCsv(target) }
+                else -> { requireAppLogRows(); appLogExporter.saveCsv(target) }
             }
             return
         }
@@ -104,6 +104,10 @@ class TransferExporter @Inject constructor(
 
     private suspend fun tripIdsOrNothing(): List<Long> = sessions.exportableSessionIds().ifEmpty { throw IllegalStateException(NOTHING_TO_EXPORT) }
 
+    private suspend fun requireLogbookRows() = check(logbook.all().isNotEmpty()) { NOTHING_TO_EXPORT }
+
+    private suspend fun requireAppLogRows() = check(appLogExporter.count() > 0) { NOTHING_TO_EXPORT }
+
     private class Built(val createdMs: Long, val entries: List<PackageEntry>)
 
     private suspend fun buildPackage(request: ExportRequest): Built {
@@ -125,7 +129,7 @@ class TransferExporter @Inject constructor(
             }
         }
         if (DataPart.APP_LOG in chosen) {
-            val count = appLogs.logs.first().size
+            val count = appLogExporter.count()
             if (count > 0) {
                 written[DataPart.APP_LOG] = count
                 body += PackageEntry(DataPart.APP_LOG.packageEntry) { appLogExporter.writeCsv(it) }

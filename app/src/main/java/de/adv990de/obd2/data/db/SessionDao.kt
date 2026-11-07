@@ -20,6 +20,10 @@ interface SessionDao {
     /** Every trip id, oldest first — the history decides from this which trips "delete all" would touch. */
     @Query("SELECT id FROM sessions ORDER BY id") fun observeIds(): Flow<List<Long>>
 
+    /** The ids of the trips that have at least one reading, oldest first — only those have rows in an export file. */
+    @Query("SELECT id FROM sessions WHERE EXISTS (SELECT 1 FROM sensor_readings WHERE sessionId = sessions.id) ORDER BY id")
+    suspend fun idsWithReadings(): List<Long>
+
     /**
      * Beginn und Ende jeder Fahrt, fuer den Fahrten-Import (Fahrten, die sich zeitlich beruehren, sind dieselbe Fahrt). Eine nie beendete Fahrt (ein getoeteter Prozess laesst
      * `endTime` leer) endet beim letzten Messwert, ohne Messwerte bei ihrem Beginn.
