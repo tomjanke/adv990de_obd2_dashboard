@@ -707,4 +707,50 @@
     <string name="transfer_error_unrecognized">Die Datei wurde nicht erkannt (weder ein Paket noch ein CSV-Export dieser App).</string>
     <string name="transfer_error_too_large">Die Datei ist zu groß.</string>
     <string name="transfer_error_unreadable">Die Datei ließ sich nicht lesen.</string>
+    <string name="settings_data_transfer">Daten sichern und wiederherstellen</string>
+    <string name="settings_data_transfer_summary">Daten exportieren, teilen und einlesen</string>
+    <string name="transfer_title">Daten sichern und wiederherstellen</string>
+    <string name="transfer_mode_export">Exportieren</string>
+    <string name="transfer_mode_import">Importieren</string>
+    <string name="transfer_part_trips">Fahrten</string>
+    <string name="transfer_part_logbook">Logbuch</string>
+    <string name="transfer_part_settings">Einstellungen</string>
+    <string name="transfer_part_counters">Zähler</string>
+    <string name="transfer_part_dtc_history">Fehlerhistorie</string>
+    <string name="transfer_part_app_log">App-Log</string>
+    <string name="transfer_part_row">%1$s · %2$s</string>
+    <string name="transfer_part_empty">noch nichts</string>
+    <string name="transfer_export_hint">Wähle, was in die Datei kommt.</string>
+    <string name="transfer_format_label">Dateiformat</string>
+    <string name="transfer_format_package">Paket (ZIP)</string>
+    <string name="transfer_format_csv">CSV</string>
+    <string name="transfer_format_csv_hint">CSV geht nur für genau eines von Fahrten, Logbuch oder App-Log.</string>
+    <string name="transfer_note_app_log">Der App-Log enthält den Namen deines Adapters und Fehlermeldungen.</string>
+    <string name="transfer_nothing_to_export">Nichts zu exportieren.</string>
+    <string name="transfer_saved">Gespeichert.</string>
+    <string name="transfer_import_hint">Liest ein Paket oder eine CSV-Datei aus einem früheren Export.</string>
+    <string name="transfer_import_pick">Datei wählen</string>
+    <string name="transfer_import_confirm">Importieren</string>
+    <string name="transfer_import_close">Fertig</string>
+    <string name="transfer_working">Lese …</string>
+    <string name="transfer_import_nothing">Diese Datei enthält nichts, was sich einlesen lässt.</string>
+    <string name="transfer_warning_newer_format">Dieses Paket stammt aus einer neueren App-Version. Bekannte Teile werden gelesen, der Rest wird ignoriert.</string>
+    <string name="transfer_note_app_log_ignored">Der App-Log im Paket wird nicht eingelesen.</string>
+    <string name="transfer_part_unreadable_format">Dieser Teil ließ sich nicht lesen (falsches Format).</string>
+    <string name="transfer_part_unreadable_too_large">Dieser Teil ist zu groß.</string>
+    <string name="transfer_part_unreadable_io">Dieser Teil ließ sich nicht lesen.</string>
+    <string name="transfer_result_done">%1$s: %2$s</string>
+    <string name="transfer_result_failed">%1$s: fehlgeschlagen (%2$s)</string>
+    <plurals name="transfer_count_trips">
+        <item quantity="one">%1$d Fahrt</item>
+        <item quantity="other">%1$d Fahrten</item>
+    </plurals>
+    <plurals name="transfer_count_entries">
+        <item quantity="one">%1$d Eintrag</item>
+        <item quantity="other">%1$d Einträge</item>
+    </plurals>
+    <plurals name="transfer_count_lines">
+        <item quantity="one">%1$d Zeile</item>
+        <item quantity="other">%1$d Zeilen</item>
+    </plurals>
 </resources>

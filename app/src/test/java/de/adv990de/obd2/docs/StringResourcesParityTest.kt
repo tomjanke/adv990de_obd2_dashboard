@@ -201,10 +201,10 @@ class StringResourcesParityTest {
             "values-de" to setOf(
                 "app_info_build_label", "app_info_name_label", "app_info_version_label", "app_label", "app_name", "freeze_frame_title",
                 "history_detail_stats_max", "history_detail_stats_min", "nav_live", "settings_fuel_reserve_label", "settings_fuel_reserve_title",
-                "settings_theme_amber", "settings_theme_system",
+                "settings_theme_amber", "settings_theme_system", "transfer_format_csv",
             ),
             "values-es" to setOf(
-                "app_info_name_label", "app_label", "app_name", "freeze_frame_error_prefix", "freeze_frame_title", "pid_rpm", "vehicle_info_label_vin",
+                "app_info_name_label", "app_label", "app_name", "freeze_frame_error_prefix", "freeze_frame_title", "pid_rpm", "transfer_format_csv", "vehicle_info_label_vin",
             ),
         )
 

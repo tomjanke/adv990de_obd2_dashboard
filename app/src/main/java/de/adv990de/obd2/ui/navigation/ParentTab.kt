@@ -16,6 +16,7 @@ internal fun parentTab(route: String?): Screen? = when (route) {
     Screen.AppLogs.route,
     Screen.GearSettings.route,
     Screen.Licenses.route,
-    Screen.MaintenanceIntervals.route -> Screen.Settings
+    Screen.MaintenanceIntervals.route,
+    Screen.DataTransfer.route -> Screen.Settings
     else -> null
 }

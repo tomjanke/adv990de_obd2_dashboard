@@ -1,16 +1,13 @@
 package de.adv990de.obd2.ui.logbook
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,15 +20,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.logbook.ImportPlan
-import de.adv990de.obd2.logbook.ImportReason
-import de.adv990de.obd2.logbook.LogEntry
-import de.adv990de.obd2.logbook.LogIssue
-import de.adv990de.obd2.logbook.LogType
-import de.adv990de.obd2.logbook.RowError
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
-import java.time.LocalDate
+import de.adv990de.obd2.ui.transfer.LogbookPreviewBody
+import de.adv990de.obd2.ui.transfer.previewLogbookPlan
 
 /** Test tags of the buttons and the preview body. */
 internal const val LOGBOOK_IMPORT_CONFIRM_TEST_TAG = "logbook_import_confirm"
@@ -41,9 +34,6 @@ internal const val LOGBOOK_IMPORT_BODY_TEST_TAG = "logbook_import_body"
 
 /** Glove-friendly touch height of the dialog buttons (the M3 default of a dialog `TextButton` is only 40 dp). */
 private val DialogButtonMinHeight = 56.dp
-
-/** Hoechstens so viele abgelehnte Zeilen nennt die Vorschau einzeln; der Rest steht als "… und N weitere". */
-internal const val MAX_LISTED_ROW_ERRORS = 20
 
 /**
  * Der Dialog des Imports: Arbeit ([ImportState.Working]), die Vorschau mit den Zahlen und den abgelehnten Zeilen ([ImportState.Preview] — erst "Importieren" schreibt),
@@ -96,30 +86,7 @@ private fun PreviewDialog(plan: ImportPlan, onConfirm: () -> Unit, onDismiss: ()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.logbook_import_title)) },
-        text = {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag(LOGBOOK_IMPORT_BODY_TEST_TAG), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (nothingNew) stringResource(R.string.logbook_import_nothing_new)
-                    else pluralStringResource(R.plurals.logbook_import_new, plan.toInsert.size, plan.toInsert.size),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                if (plan.duplicates > 0) Text(pluralStringResource(R.plurals.logbook_import_duplicates, plan.duplicates, plan.duplicates))
-                if (plan.warnings > 0) Text(pluralStringResource(R.plurals.logbook_import_warnings, plan.warnings, plan.warnings))
-                if (plan.rejected.isNotEmpty()) {
-                    Text(
-                        pluralStringResource(R.plurals.logbook_import_rejected, plan.rejected.size, plan.rejected.size),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    plan.rejected.take(MAX_LISTED_ROW_ERRORS).forEach { row ->
-                        Text(stringResource(R.string.logbook_import_row, row.line, rowReasonText(row)), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
-                    }
-                    if (plan.rejected.size > MAX_LISTED_ROW_ERRORS) {
-                        val more = plan.rejected.size - MAX_LISTED_ROW_ERRORS
-                        Text(pluralStringResource(R.plurals.logbook_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
-                    }
-                }
-            }
-        },
+        text = { LogbookPreviewBody(plan, Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag(LOGBOOK_IMPORT_BODY_TEST_TAG)) },
         confirmButton = {
             if (nothingNew) CloseButton(onDismiss)
             else ProvideMinTouchTarget {
@@ -140,38 +107,14 @@ private fun PreviewDialog(plan: ImportPlan, onConfirm: () -> Unit, onDismiss: ()
     )
 }
 
-/** Die Gruende einer abgelehnten Zeile, durch Semikolon getrennt: ein nicht lesbarer Wert nennt seine Spalte, eine Regel ihren Text. */
-@Composable
-private fun rowReasonText(row: RowError): String = row.reasons.map { reason ->
-    when (reason) {
-        is ImportReason.BadValue -> stringResource(R.string.logbook_import_bad_value, reason.column)
-        is ImportReason.Rule -> stringResource(reason.error.messageRes(null))
-    }
-}.joinToString("; ")
-
 // region — Previews
 //
 // Ein Dialog ist ein eigenes Fenster: jede Vorschau zeigt ihn in einer Flaeche.
 
-private val PREVIEW_ENTRY = LogEntry(
-    type = LogType.FUEL, date = LocalDate.of(2026, 10, 2), odometerKm = 40_362, amountMl = 14_370,
-    fullTank = true, costCents = 2_743, note = null, brand = null,
-)
-
-private val PREVIEW_PLAN = ImportPlan(
-    toInsert = List(98) { PREVIEW_ENTRY.copy(odometerKm = 30_000 + it) },
-    duplicates = 4,
-    rejected = listOf(
-        RowError(17, listOf(ImportReason.BadValue("date"))),
-        RowError(23, listOf(ImportReason.Rule(LogIssue.CostRange), ImportReason.Rule(LogIssue.AmountRange))),
-    ),
-    warnings = 3,
-)
-
 @Preview(name = "LogbookImportDialog · preview (light)", showBackground = true)
 @Composable
 private fun PreviewLogbookImportDialogPreviewLight() {
-    PreviewTheme(dark = false) { LogbookImportDialog(ImportState.Preview(PREVIEW_PLAN), onConfirm = {}, onDismiss = {}) }
+    PreviewTheme(dark = false) { LogbookImportDialog(ImportState.Preview(previewLogbookPlan()), onConfirm = {}, onDismiss = {}) }
 }
 
 @Preview(name = "LogbookImportDialog · nothing new (dark)", showBackground = true)

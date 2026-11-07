@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.navigation
 
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.ui.transfer.TransferMode
 
 sealed class Screen(val route: String) {
     object Dashboard : Screen("dashboard")
@@ -31,5 +33,15 @@ sealed class Screen(val route: String) {
      */
     object LogbookStats : Screen("logbook_stats/{type}") {
         fun routeFor(type: LogType) = "logbook_stats/${type.name}"
+    }
+
+    /**
+     * Die Seite „Daten sichern und wiederherstellen“ (Einstellungen → Info & Wartung) und ihre Abkuerzungen aus den Symbolen der Listen. Die Argumente sind alle optional:
+     * `mode` (`export`/`import`), `part` (der Name einer [DataPart]-Art, leer = keine) und `pick` (der Dateidialog des Imports oeffnet sofort). Die Route ist das **Muster**
+     * (`destination.route`), geoeffnet wird mit [routeFor].
+     */
+    object DataTransfer : Screen("data_transfer?mode={mode}&part={part}&pick={pick}") {
+        fun routeFor(mode: TransferMode = TransferMode.EXPORT, part: DataPart? = null, pick: Boolean = false): String =
+            "data_transfer?mode=${mode.name.lowercase()}&part=${part?.name.orEmpty()}&pick=$pick"
     }
 }

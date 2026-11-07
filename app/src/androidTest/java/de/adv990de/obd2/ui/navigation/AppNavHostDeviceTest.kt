@@ -27,6 +27,13 @@ import de.adv990de.obd2.ui.logbook.LOGBOOK_STATS_LIST_TEST_TAG
 import de.adv990de.obd2.ui.licenses.LICENSES_LIST_TEST_TAG
 import de.adv990de.obd2.ui.settings.MAINTENANCE_LIST_TEST_TAG
 import de.adv990de.obd2.ui.settings.SETTINGS_LIST_TEST_TAG
+import de.adv990de.obd2.ui.transfer.TRANSFER_MODE_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PART_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_TEST_TAG
+import de.adv990de.obd2.ui.transfer.TRANSFER_SAVE_TEST_TAG
+import de.adv990de.obd2.ui.transfer.TransferMode
+import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.trips.TripsSection
 import de.adv990de.obd2.ui.trips.tripsSectionTestTag
 import io.mockk.every
@@ -91,6 +98,7 @@ class AppNavHostDeviceTest {
         Screen.MaintenanceIntervals -> Screen.MaintenanceIntervals.route
         Screen.LogEntry -> Screen.LogEntry.routeFor(0)
         Screen.LogbookStats -> Screen.LogbookStats.routeFor(LogType.FUEL)
+        Screen.DataTransfer -> Screen.DataTransfer.routeFor()
     }
 
     /** Ein Merkmal, das nur dieser Bildschirm hat — kein Text, den auch das Hauptmenue traegt (Beschriftung und Titel koennen gleich lauten). */
@@ -109,12 +117,14 @@ class AppNavHostDeviceTest {
             // Der Knopf steht am Ende des scrollbaren Formulars: im Querformat (448 dp hoch) liegt er unter dem Rand — erst hinscrollen, dann pruefen.
             Screen.LogEntry -> composeRule.onNodeWithTag(LOGBOOK_SAVE_TEST_TAG).performScrollTo().assertIsDisplayed()
             Screen.LogbookStats -> composeRule.onNodeWithTag(LOGBOOK_STATS_LIST_TEST_TAG).assertIsDisplayed()
+            Screen.DataTransfer -> composeRule.onNodeWithTag(TRANSFER_SAVE_TEST_TAG).performScrollTo().assertIsDisplayed()
         }
     }
 
     private val allScreens = listOf(
         Screen.Dashboard, Screen.FreezeFrame, Screen.VehicleInfo, Screen.TripsAndFaults, Screen.Settings, Screen.AppInfo,
         Screen.AppLogs, Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals, Screen.LogEntry, Screen.LogbookStats,
+        Screen.DataTransfer,
     )
 
     private fun navigateTo(route: String) {
@@ -190,5 +200,31 @@ class AppNavHostDeviceTest {
 
         assertEquals(LogType.OIL.name, navController.currentBackStackEntry?.arguments?.getString(LOG_STATS_TYPE_ARG))
         assertShows(Screen.LogbookStats)
+    }
+
+    @Test
+    fun theDataTransferPageTakesItsArgumentsFromTheRoute() {
+        showHost()
+
+        navigateTo(Screen.DataTransfer.routeFor(TransferMode.IMPORT, DataPart.TRIPS))
+
+        val arguments = navController.currentBackStackEntry?.arguments
+        assertEquals("import", arguments?.getString(TRANSFER_MODE_ARG))
+        assertEquals(DataPart.TRIPS.name, arguments?.getString(TRANSFER_PART_ARG))
+        assertEquals(false, arguments?.getBoolean(TRANSFER_PICK_ARG))
+        // Modus „Importieren“: der Knopf „Datei wählen“ steht da, nicht die Export-Knoepfe.
+        composeRule.onNodeWithTag(TRANSFER_PICK_TEST_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun theDataTransferPageOpensWithoutArgumentsAsAnExport() {
+        showHost()
+
+        navigateTo(Screen.DataTransfer.routeFor())
+
+        val arguments = navController.currentBackStackEntry?.arguments
+        assertEquals("export", arguments?.getString(TRANSFER_MODE_ARG))
+        assertEquals("", arguments?.getString(TRANSFER_PART_ARG))
+        assertShows(Screen.DataTransfer)
     }
 }

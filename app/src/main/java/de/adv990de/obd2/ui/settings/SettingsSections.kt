@@ -99,6 +99,14 @@ internal fun LazyListScope.infoSection(navController: NavController, crashVm: Cr
     }
     item {
         SettingsLinkRow(
+            title = stringResource(R.string.settings_data_transfer),
+            summary = stringResource(R.string.settings_data_transfer_summary),
+            onClick = { navController.navigate(Screen.DataTransfer.routeFor()) },
+        )
+        HorizontalDivider()
+    }
+    item {
+        SettingsLinkRow(
             title = stringResource(R.string.settings_app_logs),
             summary = stringResource(R.string.settings_app_logs_summary),
             onClick = { navController.navigate(Screen.AppLogs.route) },

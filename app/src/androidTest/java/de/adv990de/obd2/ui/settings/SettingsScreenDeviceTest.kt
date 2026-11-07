@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.settings
 
 import android.Manifest
 import androidx.compose.material3.Text
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.ui.components.FUEL_GAUGE_ROW_TEST_TAG
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
@@ -405,6 +407,14 @@ class SettingsScreenDeviceTest {
     }
 
     @Test
+    fun theDataTransferRow_isThere_andAtLeast64dpHigh() {
+        launchSettingsInNavHost()
+
+        scrollTo(str(R.string.settings_data_transfer_summary))
+        composeRule.onNodeWithText(str(R.string.settings_data_transfer)).assertIsDisplayed().assertHeightIsAtLeast(64.dp)
+    }
+
+    @Test
     fun linkRows_showASummary_andOpenTheirSubPage() {
         launchSettingsInNavHost()
 
@@ -412,6 +422,7 @@ class SettingsScreenDeviceTest {
             Triple(R.string.settings_gear_ratios, R.string.settings_gear_ratios_summary, Screen.GearSettings.route),
             Triple(R.string.settings_maintenance_title, R.string.settings_maintenance_summary, Screen.MaintenanceIntervals.route),
             Triple(R.string.settings_vehicle_info, R.string.settings_vehicle_info_summary, Screen.VehicleInfo.route),
+            Triple(R.string.settings_data_transfer, R.string.settings_data_transfer_summary, Screen.DataTransfer.route),
             Triple(R.string.settings_app_logs, R.string.settings_app_logs_summary, Screen.AppLogs.route),
             Triple(R.string.settings_app_info, R.string.settings_app_info_summary, Screen.AppInfo.route),
         )) {

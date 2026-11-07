@@ -17,6 +17,10 @@ import de.adv990de.obd2.ui.trips.TripsAndFaultsScreen
 import de.adv990de.obd2.ui.settings.AppLogsScreen
 import de.adv990de.obd2.ui.settings.GearSettingsScreen
 import de.adv990de.obd2.ui.settings.MaintenanceIntervalsScreen
+import de.adv990de.obd2.ui.transfer.DataTransferScreen
+import de.adv990de.obd2.ui.transfer.TRANSFER_MODE_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PART_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_ARG
 import de.adv990de.obd2.ui.settings.SettingsScreen
 import de.adv990de.obd2.ui.appinfo.AppInfoScreen
 import de.adv990de.obd2.ui.licenses.LicensesScreen
@@ -57,6 +61,15 @@ fun AppNavHost(navController: NavHostController) {
                 Screen.LogEntry.route,
                 arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L }),
             ) { LogEntryScreen(navController) }
+            // „Daten sichern und wiederherstellen“; alle Argumente sind optional (Abkuerzungen aus den Listen setzen sie).
+            composable(
+                Screen.DataTransfer.route,
+                arguments = listOf(
+                    navArgument(TRANSFER_MODE_ARG) { type = NavType.StringType; defaultValue = "export" },
+                    navArgument(TRANSFER_PART_ARG) { type = NavType.StringType; defaultValue = "" },
+                    navArgument(TRANSFER_PICK_ARG) { type = NavType.BoolType; defaultValue = false },
+                ),
+            ) { entry -> DataTransferScreen(navController, pick = entry.arguments?.getBoolean(TRANSFER_PICK_ARG) ?: false) }
             // Die Detailseite der Auswertung; die Art (FUEL, OIL oder COOLANT) steht in der Route.
             composable(
                 Screen.LogbookStats.route,

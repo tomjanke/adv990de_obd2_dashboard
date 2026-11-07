@@ -53,6 +53,12 @@ class ParentTabTest {
     }
 
     @Test
+    fun `the data transfer page belongs to the settings tab - under the route pattern the NavController reports`() {
+        assertEquals("data_transfer?mode={mode}&part={part}&pick={pick}", Screen.DataTransfer.route)
+        assertEquals(Screen.Settings, parentTab(Screen.DataTransfer.route))
+    }
+
+    @Test
     fun `every settings sub-page belongs to the Settings tab`() {
         for (route in listOf(
             Screen.VehicleInfo.route,
@@ -85,7 +91,7 @@ class ParentTabTest {
         Screen.Dashboard -> Screen.Dashboard
         Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry, Screen.LogbookStats -> Screen.TripsAndFaults
         Screen.Settings, Screen.VehicleInfo, Screen.AppInfo, Screen.AppLogs,
-        Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals -> Screen.Settings
+        Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals, Screen.DataTransfer -> Screen.Settings
     }
 
     @Test
@@ -93,7 +99,7 @@ class ParentTabTest {
         val all = listOf(
             Screen.Dashboard, Screen.TripsAndFaults, Screen.FreezeFrame, Screen.VehicleInfo,
             Screen.Settings, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
-            Screen.Licenses, Screen.LogEntry, Screen.LogbookStats, Screen.MaintenanceIntervals,
+            Screen.Licenses, Screen.LogEntry, Screen.LogbookStats, Screen.MaintenanceIntervals, Screen.DataTransfer,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))
     }
