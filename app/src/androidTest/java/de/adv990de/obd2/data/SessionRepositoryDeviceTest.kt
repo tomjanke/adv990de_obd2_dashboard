@@ -58,6 +58,22 @@ class SessionRepositoryDeviceTest {
         .use { it.moveToFirst(); it.getInt(0) }
 
     @Test
+    fun exportableSessionIdsAreTheTripsWithReadingsWithoutTheRunningOne() = runBlocking {
+        suspend fun trip(withReadings: Boolean): Long {
+            val id = db.sessionDao().insert(SessionEntity(startTime = 1_000, endTime = 2_000))
+            if (withReadings) db.sensorReadingDao().insert(SensorReadingEntity(sessionId = id, timestamp = 1_500, pidId = "010C", value = 1f, source = null))
+            return id
+        }
+        val withRows = trip(true)
+        trip(false)
+        val other = trip(true)
+        assertEquals(listOf(withRows, other), repo.exportableSessionIds())
+        val running = repo.startSession()
+        db.sensorReadingDao().insert(SensorReadingEntity(sessionId = running, timestamp = 1_600, pidId = "010C", value = 1f, source = null))
+        assertEquals(listOf(withRows, other), repo.exportableSessionIds())
+    }
+
+    @Test
     fun startSession_storesTheFaultCodesWithTheTrip_andTheyReadBackInAllThreeStates() = runBlocking {
         val withCodes = repo.startSession("VIN", listOf(DtcEntry("P0301", false), DtcEntry("P0420", true)))
         val noneFound = repo.startSession("VIN", emptyList())

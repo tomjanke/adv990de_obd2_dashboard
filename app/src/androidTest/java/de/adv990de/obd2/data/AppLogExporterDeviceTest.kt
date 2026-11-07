@@ -49,6 +49,15 @@ class AppLogExporterDeviceTest {
     }
 
     @Test
+    fun countAfterCountsEveryRowTheExportWritesNotOnlyTheThousandTheScreenShows() = runBlocking {
+        var last = 0L
+        for (i in 1..1_100) last = insert(i.toLong(), "INFO", "m")
+        assertEquals(1_100, exporter.count())
+        assertEquals(0, exporter.count(last))
+        assertEquals(1, exporter.count(last - 1))
+    }
+
+    @Test
     fun exportQuery_needsNoSortStep_soMemoryStaysConstant() {
         // ORDER BY id ist die Reihenfolge des Primaerschluessels (rowid): SQLite liest ab der Id aufsteigend, ohne temporaeren Sortierbaum.
         val plan = db.openHelper.readableDatabase
