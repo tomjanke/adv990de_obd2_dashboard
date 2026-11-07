@@ -12,6 +12,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -39,7 +40,13 @@ class LogbookImporter @Inject constructor(
 ) {
 
     suspend fun read(source: Uri, today: LocalDate): ImportPlan = withContext(Dispatchers.IO) {
-        val text = readText(source)
+        val input = context.contentResolver.openInputStream(source) ?: throw IOException("The chosen file could not be opened for reading")
+        input.use { plan(it, today) }
+    }
+
+    /** Wie [read], aber aus einem schon geoeffneten Strom (ein Eintrag eines Pakets); der Aufrufer schliesst ihn. Die Grenze [MAX_IMPORT_BYTES] gilt auch hier. */
+    suspend fun plan(stream: InputStream, today: LocalDate): ImportPlan = withContext(Dispatchers.IO) {
+        val text = readText(stream)
         val existing = repository.all()
         planImport(parseLogbookCsv(text, today), existing)
     }
@@ -51,19 +58,16 @@ class LogbookImporter @Inject constructor(
         return plan.toInsert.size
     }
 
-    private suspend fun readText(source: Uri): String {
-        val input = context.contentResolver.openInputStream(source) ?: throw IOException("The chosen file could not be opened for reading")
-        input.use { stream ->
-            val bytes = ByteArrayOutputStream()
-            val buffer = ByteArray(READ_BUFFER_BYTES)
-            while (true) {
-                currentCoroutineContext().ensureActive()
-                val read = stream.read(buffer)
-                if (read < 0) break
-                bytes.write(buffer, 0, read)
-                if (bytes.size() > MAX_IMPORT_BYTES) throw FileTooLargeException("The file is larger than ${MAX_IMPORT_BYTES / (1024 * 1024)} MiB")
-            }
-            return bytes.toString(Charsets.UTF_8.name())
+    private suspend fun readText(stream: InputStream): String {
+        val bytes = ByteArrayOutputStream()
+        val buffer = ByteArray(READ_BUFFER_BYTES)
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val read = stream.read(buffer)
+            if (read < 0) break
+            bytes.write(buffer, 0, read)
+            if (bytes.size() > MAX_IMPORT_BYTES) throw FileTooLargeException("The file is larger than ${MAX_IMPORT_BYTES / (1024 * 1024)} MiB")
         }
+        return bytes.toString(Charsets.UTF_8.name())
     }
 }

@@ -64,10 +64,13 @@ class TripImporter @Inject constructor(
 
     suspend fun read(source: Uri, nowMs: Long): TripImportPlan = withContext(Dispatchers.IO) {
         val input = context.contentResolver.openInputStream(source) ?: throw IOException("The chosen file could not be opened for reading")
+        input.use { plan(it, nowMs) }
+    }
+
+    /** Wie [read], aber aus einem schon geoeffneten Strom (ein Eintrag eines Pakets); der Aufrufer schliesst ihn. */
+    suspend fun plan(stream: InputStream, nowMs: Long): TripImportPlan = withContext(Dispatchers.IO) {
         val job = currentCoroutineContext()[Job]
-        val parsed = input.use { stream ->
-            readTripCsv(InputStreamReader(LimitedInputStream(stream, maxBytes), Charsets.UTF_8), nowMs, checkCancelled = { job?.ensureActive() })
-        }
+        val parsed = readTripCsv(InputStreamReader(LimitedInputStream(stream, maxBytes), Charsets.UTF_8), nowMs, checkCancelled = { job?.ensureActive() })
         currentCoroutineContext().ensureActive()
         planTripImport(parsed, repository.sessionSpans(), nowMs)
     }
