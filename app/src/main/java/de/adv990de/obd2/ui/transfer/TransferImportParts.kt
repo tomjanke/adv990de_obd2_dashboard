@@ -19,6 +19,7 @@ import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.RowError
 import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.transfer.DtcHistoryPlan
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.transfer.UnreadableReason
@@ -86,6 +87,23 @@ internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifie
                 Text(pluralStringResource(R.plurals.trip_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
             }
         }
+    }
+}
+
+/**
+ * Die Vorschau der Fehlerhistorie eines Imports: neue, aktualisierte und unveraenderte Codes (die Zahlen, die nicht null sind, ausser bei der ersten Zeile: ohne etwas Neues steht nur
+ * die Zeile der unveraenderten Codes), die ueber die Grenze von 200 fallen, und die abgelehnten Zeilen.
+ */
+@Composable
+internal fun DtcHistoryPreviewBody(plan: DtcHistoryPlan, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (plan.newCodes > 0) Text(pluralStringResource(R.plurals.transfer_dtc_new, plan.newCodes, plan.newCodes), style = MaterialTheme.typography.titleMedium)
+        if (plan.updatedCodes > 0) Text(pluralStringResource(R.plurals.transfer_dtc_updated, plan.updatedCodes, plan.updatedCodes))
+        if (plan.unchangedCodes > 0) Text(pluralStringResource(R.plurals.transfer_dtc_unchanged, plan.unchangedCodes, plan.unchangedCodes))
+        if (plan.droppedByCap > 0) {
+            Text(pluralStringResource(R.plurals.transfer_dtc_dropped, plan.droppedByCap, plan.droppedByCap), color = StatusColors.warningOn(MaterialTheme.colorScheme.surface))
+        }
+        if (plan.rejected > 0) Text(pluralStringResource(R.plurals.transfer_dtc_rejected, plan.rejected, plan.rejected), color = MaterialTheme.colorScheme.error)
     }
 }
 
@@ -161,6 +179,7 @@ internal fun PartResultLine(part: DataPart, outcome: PartOutcome, modifier: Modi
 private fun doneText(part: DataPart, count: Int): String = when (part) {
     DataPart.TRIPS -> pluralStringResource(R.plurals.trip_import_done, count, count)
     DataPart.LOGBOOK -> pluralStringResource(R.plurals.logbook_import_done, count, count)
+    DataPart.DTC_HISTORY -> pluralStringResource(R.plurals.transfer_done_codes, count, count)
     else -> count.toString()
 }
 
@@ -196,6 +215,9 @@ internal fun previewLogbookPlan(): ImportPlan {
     )
 }
 
+/** Vier neue, zwei aktualisierte und 17 unveraenderte Codes, einer ueber der Grenze, eine abgelehnte Zeile. */
+internal fun previewDtcPlan(): DtcHistoryPlan = DtcHistoryPlan(emptyList(), newCodes = 4, updatedCodes = 2, unchangedCodes = 17, droppedByCap = 1, rejected = 1)
+
 @Preview(name = "TripsPreviewBody (light)", showBackground = true)
 @Composable
 private fun PreviewTripsPreviewBodyLight() {
@@ -208,6 +230,12 @@ private fun PreviewTripsPreviewBodyLight() {
 @Composable
 private fun PreviewLogbookPreviewBodyDark() {
     PreviewTheme(dark = true) { LogbookPreviewBody(previewLogbookPlan(), Modifier.padding(16.dp)) }
+}
+
+@Preview(name = "DtcHistoryPreviewBody (dark)", showBackground = true)
+@Composable
+private fun PreviewDtcHistoryPreviewBodyDark() {
+    PreviewTheme(dark = true) { DtcHistoryPreviewBody(previewDtcPlan(), Modifier.padding(16.dp)) }
 }
 
 @Preview(name = "PartResultLine · failed (light)", showBackground = true)

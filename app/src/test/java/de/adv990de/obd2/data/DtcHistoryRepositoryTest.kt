@@ -144,4 +144,39 @@ class DtcHistoryRepositoryTest {
             entries,
         )
     }
+
+    // ── all / mergeFrom (Daten sichern und wiederherstellen) ──────────────────
+
+    @Test
+    fun `all reads the stored rows in table order`() = runTest {
+        coEvery { dao.getAll() } returns listOf(
+            DtcHistoryEntity(code = "P0301", firstSeen = 1_000L, lastSeen = 3_000L, lastWasPending = false),
+            DtcHistoryEntity(code = "P0420", firstSeen = 2_000L, lastSeen = 2_000L, lastWasPending = true),
+        )
+
+        assertEquals(listOf(DtcHistoryEntry("P0301", 1_000L, 3_000L, false), DtcHistoryEntry("P0420", 2_000L, 2_000L, true)), repo.all())
+    }
+
+    @Test
+    fun `mergeFrom hands the entries to one merge with the cap of 200`() = runTest {
+        coEvery { dao.mergeAll(any(), any()) } just Runs
+
+        repo.mergeFrom(listOf(DtcHistoryEntry("P0301", 1_000L, 3_000L, true)))
+
+        coVerify(exactly = 1) { dao.mergeAll(listOf(DtcHistoryEntity("P0301", 1_000L, 3_000L, true)), 200) }
+    }
+
+    @Test
+    fun `mergeFrom does not swallow a failure unlike record`() = runTest {
+        coEvery { dao.mergeAll(any(), any()) } throws IllegalStateException("disk full")
+
+        assertThrows(IllegalStateException::class.java) { kotlinx.coroutines.runBlocking { repo.mergeFrom(listOf(DtcHistoryEntry("P0301", 1_000L, 3_000L, true))) } }
+    }
+
+    @Test
+    fun `mergeFrom with nothing to merge writes nothing`() = runTest {
+        repo.mergeFrom(emptyList())
+
+        coVerify(exactly = 0) { dao.mergeAll(any(), any()) }
+    }
 }

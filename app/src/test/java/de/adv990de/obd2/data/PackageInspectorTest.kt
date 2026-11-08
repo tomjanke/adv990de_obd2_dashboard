@@ -44,7 +44,8 @@ class PackageInspectorTest {
     private val today = LocalDate.of(2026, 9, 21)
     private val sessionRepo = mockk<SessionRepository>()
     private val logRepo = mockk<VehicleLogRepository>()
-    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo))
+    private val dtcRepo = mockk<DtcHistoryRepository>()
+    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo), dtcRepo)
 
     private fun manifest(format: Int = 1, appId: String = "de.adv990de.obd2") = PackageManifest(format, appId, "1.0", nowMs, emptyMap()).toJson()
 
@@ -68,6 +69,7 @@ class PackageInspectorTest {
     private fun stubRepos() {
         coEvery { sessionRepo.sessionSpans() } returns emptyList()
         coEvery { logRepo.all() } returns emptyList()
+        coEvery { dtcRepo.all() } returns emptyList()
     }
 
     @Test
@@ -165,7 +167,7 @@ class PackageInspectorTest {
     @Test
     fun `parts this version does not know are not read`() = runTest {
         stubRepos()
-        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to "{}", "counters.json" to "{}", "dtc_history.csv" to "code\n"), nowMs, today)
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to "{}", "counters.json" to "{}"), nowMs, today)
         assertTrue(preview.parts.isEmpty())
     }
 
@@ -320,5 +322,61 @@ class PackageInspectorTest {
         val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, "P0301"))
         val preview = inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to "a,b,c\n1,2,3\n", "trips_meta.csv" to meta), nowMs, today)
         assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.TRIPS))
+    }
+
+    // --- Fehlerhistorie ---
+
+    private val dtcCsv = "code,first_seen,last_seen,last_was_pending\nP0301,${nowMs - 9_000},${nowMs - 3_000},0\nP0420,${nowMs - 8_000},${nowMs - 2_000},1\nbad,1,2,0\n"
+
+    @Test
+    fun `the fault history is planned against the current history and sits between trips and settings in import order`() = runTest {
+        stubRepos()
+        coEvery { dtcRepo.all() } returns listOf(DtcHistoryEntry("P0301", nowMs - 9_000, nowMs - 3_000, false))
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "dtc_history.csv" to dtcCsv, "trips.csv" to tripsCsv, "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY), preview.parts.keys.toList())
+        val plan = (preview.parts.getValue(DataPart.DTC_HISTORY) as PartPlan.DtcHistory).plan
+        assertEquals(1, plan.newCodes)
+        assertEquals(0, plan.updatedCodes)
+        assertEquals(1, plan.unchangedCodes)
+        assertEquals(1, plan.rejected)
+        assertEquals(listOf("P0420"), plan.entries.map { it.code })
+        assertTrue(preview.parts.getValue(DataPart.DTC_HISTORY).hasNews)
+    }
+
+    @Test
+    fun `a fault history that changes nothing has no news`() = runTest {
+        stubRepos()
+        coEvery { dtcRepo.all() } returns listOf(DtcHistoryEntry("P0301", nowMs - 9_000, nowMs - 3_000, false), DtcHistoryEntry("P0420", nowMs - 8_000, nowMs - 2_000, true))
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "dtc_history.csv" to dtcCsv), nowMs, today)
+
+        assertFalse(preview.parts.getValue(DataPart.DTC_HISTORY).hasNews)
+    }
+
+    @Test
+    fun `a fault history without the code column is unreadable and leaves the other parts`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "dtc_history.csv" to "first_seen,last_seen\n1,2\n", "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.DTC_HISTORY))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun `a failing read of the current history makes only the fault history unreadable`() = runTest {
+        stubRepos()
+        coEvery { dtcRepo.all() } throws java.io.IOException("disk")
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "dtc_history.csv" to dtcCsv, "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.UNREADABLE), preview.parts.getValue(DataPart.DTC_HISTORY))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun `a package without the fault history entry has no such part`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertFalse(DataPart.DTC_HISTORY in preview.parts)
     }
 }

@@ -41,8 +41,9 @@ class TransferImporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trips: TripImporter,
     private val logbook: LogbookImporter,
+    private val dtcHistory: DtcHistoryRepository,
 ) {
-    private val inspector = PackageInspector(trips, logbook)
+    private val inspector = PackageInspector(trips, logbook, dtcHistory)
 
     /** Die Grenze der Kopie eines Pakets; nur als Naht fuer Tests veraenderbar (eine Datei von 128 MiB baut kein Test). */
     internal var maxPackageBytes: Long = PackageFormat.MAX_TOTAL_BYTES
@@ -128,6 +129,7 @@ class TransferImporter @Inject constructor(
                     when (plan) {
                         is PartPlan.Trips -> trips.apply(plan.plan)
                         is PartPlan.Logbook -> logbook.apply(plan.plan)
+                        is PartPlan.DtcHistory -> { dtcHistory.mergeFrom(plan.plan.entries); plan.plan.newCodes + plan.plan.updatedCodes }
                         is PartPlan.Unreadable -> 0
                     },
                 )

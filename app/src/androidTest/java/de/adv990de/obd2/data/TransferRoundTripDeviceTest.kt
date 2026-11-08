@@ -20,6 +20,7 @@ import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.PartPlan
+import de.adv990de.obd2.transfer.hasNews
 import de.adv990de.obd2.transfer.toJson
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -338,5 +339,87 @@ class TransferRoundTripDeviceTest {
         recordedTrip(null, arrayOf(start, "010C", 1f, "ECU"))
         val file = saveRequest(setOf(DataPart.TRIPS), ExportFormat.PACKAGE, "no-details.zip")
         assertFalse(java.util.zip.ZipFile(file).use { z -> z.getEntry("trips_meta.csv") != null })
+    }
+
+    // ── Fehlerhistorie ──
+
+    @Inject lateinit var dtcHistory: DtcHistoryRepository
+
+    private fun historyEntry(code: String, firstAgo: Long, lastAgo: Long, pending: Boolean) =
+        DtcHistoryEntry(code, now - firstAgo * 3_600_000, now - lastAgo * 3_600_000, pending)
+
+    private fun clearHistory() {
+        db.openHelper.writableDatabase.execSQL("DELETE FROM dtc_history")
+    }
+
+    @Test
+    fun theFaultHistoryReadsBackWithCodesTimesAndFlag_andASecondRoundChangesNothing() = runBlocking {
+        val entries = listOf(historyEntry("P0301", 50, 10, false), historyEntry("P0420", 20, 20, true), historyEntry("U0100", 70, 5, false))
+        dtcHistory.mergeFrom(entries)
+        val before = dtcHistory.all()
+        val file = saveRequest(setOf(DataPart.DTC_HISTORY), ExportFormat.PACKAGE, "history.zip")
+        assertEquals(listOf("manifest.json", "dtc_history.csv"), java.util.zip.ZipFile(file).use { z -> z.entries().toList().map { it.name } })
+        clearHistory()
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        val plan = (preview.parts.getValue(DataPart.DTC_HISTORY) as PartPlan.DtcHistory).plan
+        assertEquals(3, plan.newCodes)
+        val result = importer.apply(preview, setOf(DataPart.DTC_HISTORY))
+
+        assertEquals(PartOutcome.Done(3), result.outcomes[DataPart.DTC_HISTORY])
+        assertEquals(before, dtcHistory.all())
+
+        val second = importer.inspect(Uri.fromFile(file), now, today)
+        val secondPlan = (second.parts.getValue(DataPart.DTC_HISTORY) as PartPlan.DtcHistory).plan
+        assertEquals(0, secondPlan.newCodes + secondPlan.updatedCodes)
+        assertEquals(3, secondPlan.unchangedCodes)
+        assertFalse(second.parts.getValue(DataPart.DTC_HISTORY).hasNews)
+        importer.apply(second, setOf(DataPart.DTC_HISTORY))
+        assertEquals(before, dtcHistory.all())
+    }
+
+    @Test
+    fun anExistingNewerHistoryStaysNewer_theImportMergesAndDoesNotOverwrite() = runBlocking {
+        dtcHistory.mergeFrom(listOf(historyEntry("P0301", 50, 10, false), historyEntry("P0420", 20, 20, true)))
+        val file = saveRequest(setOf(DataPart.DTC_HISTORY), ExportFormat.PACKAGE, "older.zip")
+        // Since the export the vehicle reported P0301 again (newer), and the history learnt a code the file does not know.
+        clearHistory()
+        dtcHistory.mergeFrom(listOf(historyEntry("P0301", 30, 1, true), historyEntry("P0500", 3, 3, false)))
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        importer.apply(preview, setOf(DataPart.DTC_HISTORY))
+
+        val byCode = dtcHistory.all().associateBy { it.code }
+        assertEquals("the newer last sighting stays, and so does its flag", now - 1 * 3_600_000, byCode.getValue("P0301").lastSeen)
+        assertTrue(byCode.getValue("P0301").lastWasPending)
+        assertEquals("the earlier first sighting of the file wins", now - 50 * 3_600_000, byCode.getValue("P0301").firstSeen)
+        assertTrue("a code only the file knows is added", "P0420" in byCode)
+        assertTrue("a code only the app knows stays", "P0500" in byCode)
+    }
+
+    @Test
+    fun aFailureWritingTheFaultHistoryLeavesItUntouched_andTheLogbookStands() = runBlocking {
+        dtcHistory.mergeFrom(listOf(historyEntry("P0301", 50, 10, false)))
+        val before = dtcHistory.all()
+        logbook.save(entry(LogType.FUEL, 1000, 30, amountMl = 12_345, full = true))
+        val file = saveRequest(setOf(DataPart.DTC_HISTORY, DataPart.LOGBOOK), ExportFormat.PACKAGE, "both.zip")
+        // The package holds P0420 and P9999 as well, but the table refuses P9999.
+        val extra = tempFile("extra.zip")
+        ZipOutputStream(FileOutputStream(extra)).use { z ->
+            java.util.zip.ZipFile(file).use { src -> src.entries().toList().filter { it.name != "dtc_history.csv" }.forEach { e -> z.putNextEntry(ZipEntry(e.name)); z.write(src.getInputStream(e).readBytes()); z.closeEntry() } }
+            z.putNextEntry(ZipEntry("dtc_history.csv"))
+            z.write("code,first_seen,last_seen,last_was_pending\nP0420,${now - 1_000},${now - 500},0\nP9999,${now - 1_000},${now - 500},0\n".toByteArray())
+            z.closeEntry()
+        }
+        wipe()
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_on_p9999 BEFORE INSERT ON dtc_history WHEN NEW.code = 'P9999' BEGIN SELECT RAISE(ABORT, 'boom'); END")
+
+        val preview = importer.inspect(Uri.fromFile(extra), now, today)
+        val result = importer.apply(preview, setOf(DataPart.DTC_HISTORY, DataPart.LOGBOOK))
+
+        assertTrue(result.outcomes.getValue(DataPart.DTC_HISTORY) is PartOutcome.Failed)
+        assertEquals("no half history", before, dtcHistory.all())
+        assertTrue(result.outcomes.getValue(DataPart.LOGBOOK) is PartOutcome.Done)
+        assertEquals(1, logbook.all().size)
     }
 }

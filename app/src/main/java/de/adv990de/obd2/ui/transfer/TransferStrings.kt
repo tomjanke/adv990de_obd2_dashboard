@@ -16,11 +16,12 @@ internal fun partLabelRes(part: DataPart): Int = when (part) {
     DataPart.APP_LOG -> R.string.transfer_part_app_log
 }
 
-/** Die Mengenform der Zahl einer Art oder `null`, wenn sie keine Menge hat (Einstellungen, Zaehler, in Phase 1 auch die Fehlerhistorie). */
+/** Die Mengenform der Zahl einer Art oder `null`, wenn sie keine Menge hat (Einstellungen, Zaehler). */
 internal fun partCountPluralRes(part: DataPart): Int? = when (part) {
     DataPart.TRIPS -> R.plurals.transfer_count_trips
     DataPart.LOGBOOK -> R.plurals.transfer_count_entries
     DataPart.APP_LOG -> R.plurals.transfer_count_lines
+    DataPart.DTC_HISTORY -> R.plurals.transfer_count_codes
     else -> null
 }
 

@@ -510,4 +510,51 @@ class DataTransferScreenDeviceTest {
         tag(TRANSFER_APP_LOG_IGNORED_TEST_TAG).performScrollTo().assertNotCutOff()
         tag(TRANSFER_CONFIRM_TEST_TAG).performScrollTo().assertIsDisplayed().assertHeightIsAtLeast(56.dp)
     }
+
+    // ── Fehlerhistorie ──
+
+    private val dtcPlan = PartPlan.DtcHistory(previewDtcPlan())
+
+    @Test
+    fun theFaultHistoryRowShowsItsCodes_andOneWithoutCodesSaysSo() {
+        showExport(exportUi(counts = ExportCounts(trips = 1, logbook = 1, appLog = 1, dtcHistory = 4)))
+
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_part_dtc_history), plural(R.plurals.transfer_count_codes, 4))).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun anEmptyFaultHistoryRowIsGreyedOut() {
+        showExport(exportUi(counts = ExportCounts(trips = 1, logbook = 1, appLog = 1, dtcHistory = 0)))
+
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_part_dtc_history), string(R.string.transfer_part_empty))).performScrollTo().assertIsDisplayed()
+        tag(transferPartRowTestTag(DataPart.DTC_HISTORY)).performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun thePreviewOfTheFaultHistoryShowsNewUpdatedUnchangedDroppedAndRejected() {
+        showImport(preview(linkedMapOf(DataPart.DTC_HISTORY to dtcPlan)))
+
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_new, 4)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_updated, 2)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_unchanged, 17)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_dropped, 1)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_rejected, 1)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun thePreviewOfAFaultHistoryThatChangesNothingNamesNoNewCodes() {
+        val plan = PartPlan.DtcHistory(de.adv990de.obd2.transfer.DtcHistoryPlan(emptyList(), 0, 0, 5, 0, 0))
+        showImport(preview(linkedMapOf(DataPart.DTC_HISTORY to plan), selected = emptySet()))
+
+        composeRule.onNodeWithText(plural(R.plurals.transfer_dtc_unchanged, 5)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_dtc_new, 0)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_dtc_dropped, 1)).assertCountEquals(0)
+    }
+
+    @Test
+    fun theResultNamesTheMergedCodes() {
+        showImport(TransferImportState.Done(TransferResult(linkedMapOf(DataPart.DTC_HISTORY to PartOutcome.Done(6)))))
+
+        composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_dtc_history), plural(R.plurals.transfer_done_codes, 6))).assertIsDisplayed()
+    }
 }

@@ -1,6 +1,7 @@
 package de.adv990de.obd2.data
 
 import de.adv990de.obd2.data.db.DtcHistoryDao
+import de.adv990de.obd2.data.db.entity.DtcHistoryEntity
 import de.adv990de.obd2.obd.model.DtcEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -9,7 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Upper bound of the table: a defective adapter that invents codes cannot grow it without bound. */
-private const val MAX_ENTRIES = 200
+private const val MAX_ENTRIES = de.adv990de.obd2.transfer.DTC_HISTORY_CAP
 
 /** Codes per delete statement — SQLite allows only 999 bound variables on API 26. */
 private const val DELETE_CHUNK_SIZE = 500
@@ -53,6 +54,18 @@ class DtcHistoryRepository @Inject constructor(
                 if (inner is CancellationException) throw inner
             }
         }
+    }
+
+    /** The whole history, newest sighting first (the export). */
+    suspend fun all(): List<DtcHistoryEntry> = dao.getAll().map { DtcHistoryEntry(it.code, it.firstSeen, it.lastSeen, it.lastWasPending) }
+
+    /**
+     * Merges [entries] of an import into the history in one transaction (all or nothing) and prunes to the newest [MAX_ENTRIES]. Unlike [record] a failure is thrown: an import has to
+     * say that it failed.
+     */
+    suspend fun mergeFrom(entries: List<DtcHistoryEntry>) {
+        if (entries.isEmpty()) return
+        dao.mergeAll(entries.map { DtcHistoryEntity(it.code, it.firstSeen, it.lastSeen, it.lastWasPending) }, MAX_ENTRIES)
     }
 
     /** Deletes the local records of [codes]; in chunks, duplicates ignored. */

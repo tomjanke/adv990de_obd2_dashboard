@@ -51,7 +51,8 @@ class TransferImporterTest {
     private val trips = mockk<TripImporter>()
     private val logbook = mockk<LogbookImporter>()
     private val context = mockk<Context>()
-    private val importer = TransferImporter(context, trips, logbook)
+    private val dtcHistory = mockk<DtcHistoryRepository>()
+    private val importer = TransferImporter(context, trips, logbook, dtcHistory)
 
     private val tripPlan = TripImportPlan(emptyList(), 0, 0, emptyList(), 0)
     private val logPlan = ImportPlan(emptyList(), 0, emptyList(), 0)
@@ -67,6 +68,46 @@ class TransferImporterTest {
         assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS), result.outcomes.keys.toList())
         assertEquals(PartOutcome.Done(2), result.outcomes[DataPart.LOGBOOK])
         assertEquals(PartOutcome.Done(3), result.outcomes[DataPart.TRIPS])
+    }
+
+    private val dtcPlan = de.adv990de.obd2.transfer.DtcHistoryPlan(
+        listOf(DtcHistoryEntry("P0301", 1_000L, 3_000L, true), DtcHistoryEntry("P0420", 2_000L, 2_000L, false)),
+        newCodes = 1, updatedCodes = 1, unchangedCodes = 4, droppedByCap = 0, rejected = 0,
+    )
+    private val all = TransferPreview(
+        FileKind.PACKAGE, false, false,
+        linkedMapOf(DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRIPS to PartPlan.Trips(tripPlan), DataPart.DTC_HISTORY to PartPlan.DtcHistory(dtcPlan)),
+    )
+
+    @Test
+    fun `the fault history is merged after the trips with the merged entries and counts new plus updated`() = runTest {
+        coEvery { logbook.apply(any()) } returns 2
+        coEvery { trips.apply(any()) } returns 3
+        coEvery { dtcHistory.mergeFrom(any()) } returns Unit
+        val result = importer.apply(all, setOf(DataPart.DTC_HISTORY, DataPart.TRIPS, DataPart.LOGBOOK))
+
+        coVerifyOrder { logbook.apply(any()); trips.apply(any()); dtcHistory.mergeFrom(dtcPlan.entries) }
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY), result.outcomes.keys.toList())
+        assertEquals(PartOutcome.Done(2), result.outcomes[DataPart.DTC_HISTORY])
+    }
+
+    @Test
+    fun `a failing fault history is reported as failed and the other parts stay done`() = runTest {
+        val boom = IllegalStateException("disk full")
+        coEvery { trips.apply(any()) } returns 3
+        coEvery { dtcHistory.mergeFrom(any()) } throws boom
+        val result = importer.apply(all, setOf(DataPart.DTC_HISTORY, DataPart.TRIPS))
+
+        assertEquals(PartOutcome.Done(3), result.outcomes[DataPart.TRIPS])
+        assertEquals(PartOutcome.Failed(boom), result.outcomes[DataPart.DTC_HISTORY])
+    }
+
+    @Test
+    fun `an unchosen fault history is not merged`() = runTest {
+        coEvery { trips.apply(any()) } returns 3
+        importer.apply(all, setOf(DataPart.TRIPS))
+
+        coVerify(exactly = 0) { dtcHistory.mergeFrom(any()) }
     }
 
     @Test
@@ -132,7 +173,7 @@ class TransferImporterTest {
     private val logRepo = mockk<VehicleLogRepository>()
     private val realContext = mockk<Context>()
     private val resolver = mockk<ContentResolver>()
-    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo))
+    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo), mockk<DtcHistoryRepository>())
 
     private val tripsCsv = "timestamp,pid,value,name,source,session\n${nowMs - 5_000},010C,1500.0,Engine RPM,ECU,1\n"
     private val logbookCsv = logbookCsvHeader() + logbookCsvLine(

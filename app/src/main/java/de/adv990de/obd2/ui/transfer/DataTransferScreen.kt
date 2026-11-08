@@ -414,6 +414,7 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
                 when (plan) {
                     is PartPlan.Trips -> TripsPreviewBody(plan.plan, meta = plan.meta)
                     is PartPlan.Logbook -> LogbookPreviewBody(plan.plan)
+                    is PartPlan.DtcHistory -> DtcHistoryPreviewBody(plan.plan)
                     is PartPlan.Unreadable -> UnreadablePartBody(plan.reason)
                 }
             }
@@ -496,6 +497,7 @@ private fun previewImportState(): TransferImportState.Preview {
         parts = linkedMapOf(
             DataPart.LOGBOOK to PartPlan.Logbook(previewLogbookPlan()),
             DataPart.TRIPS to PartPlan.Trips(previewTripPlan(duplicates = 4)),
+            DataPart.DTC_HISTORY to PartPlan.DtcHistory(previewDtcPlan()),
             DataPart.SETTINGS to PartPlan.Unreadable(UnreadableReason.FORMAT),
         ),
     )

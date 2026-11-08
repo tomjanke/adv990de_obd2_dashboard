@@ -36,6 +36,28 @@ abstract class DtcHistoryDao {
         touch(code, now, pending)
     }
 
+    /** Same order as [observeAll], read once (the export of the history). */
+    @Query("SELECT * FROM dtc_history ORDER BY lastSeen DESC, code ASC")
+    abstract suspend fun getAll(): List<DtcHistoryEntity>
+
+    /** Only moves `firstSeen` backward: a later first sighting never overwrites an earlier one. */
+    @Query("UPDATE dtc_history SET firstSeen = :first WHERE code = :code AND firstSeen > :first")
+    protected abstract suspend fun lowerFirstSeen(code: String, first: Long)
+
+    /**
+     * Merges [entries] (an import) in ONE transaction, then prunes to the [limit] newest codes: all or nothing. The same rule as `mergeDtcHistoryEntry` — `first` is the smaller, `last` the
+     * larger, the pending flag comes from the larger `last`, and an existing entry wins a tie ([touch] only moves `lastSeen` forward). No UPSERT (SQLite 3.18 on API 26).
+     */
+    @Transaction
+    open suspend fun mergeAll(entries: List<DtcHistoryEntity>, limit: Int) {
+        for (e in entries) {
+            insertIfAbsent(e)
+            lowerFirstSeen(e.code, e.firstSeen)
+            touch(e.code, e.lastSeen, e.lastWasPending)
+        }
+        pruneToNewest(limit)
+    }
+
     /** Callers pass at most 500 codes per call (the repository chunks): SQLite allows 999 bound variables on API 26. */
     @Query("DELETE FROM dtc_history WHERE code IN (:codes)")
     abstract suspend fun deleteByCodes(codes: List<String>)

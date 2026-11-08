@@ -30,6 +30,7 @@ data class TripMetaSummary(val withVin: Int, val withCodesRecorded: Int, val inv
 sealed interface PartPlan {
     data class Trips(val plan: TripImportPlan, val meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) : PartPlan
     data class Logbook(val plan: ImportPlan) : PartPlan
+    data class DtcHistory(val plan: DtcHistoryPlan) : PartPlan
     data class Unreadable(val reason: UnreadableReason) : PartPlan
 }
 
@@ -38,6 +39,7 @@ val PartPlan.hasNews: Boolean
     get() = when (this) {
         is PartPlan.Trips -> plan.trips.isNotEmpty()
         is PartPlan.Logbook -> plan.toInsert.isNotEmpty()
+        is PartPlan.DtcHistory -> plan.newCodes + plan.updatedCodes > 0
         is PartPlan.Unreadable -> false
     }
 

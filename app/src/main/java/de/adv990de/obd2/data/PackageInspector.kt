@@ -10,6 +10,8 @@ import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.transfer.PackageFormat.TRIPS_META
 import de.adv990de.obd2.transfer.parseTripMetaCsv
+import de.adv990de.obd2.transfer.parseDtcHistoryCsv
+import de.adv990de.obd2.transfer.planDtcHistoryMerge
 import java.io.InputStream
 import java.io.InputStreamReader
 import de.adv990de.obd2.transfer.UnreadableReason
@@ -21,7 +23,7 @@ import java.time.LocalDate
  * Liest die Teile eines geoeffneten Pakets zu Plaenen. Jeder Teil ist unabhaengig (D9): ein Fehler macht nur ihn [PartPlan.Unreadable], die anderen bleiben. Unbekannte Eintraege und
  * Teile, die diese Version noch nicht kennt ([DataPart.AVAILABLE]), bleiben unbeachtet.
  */
-internal class PackageInspector(private val trips: TripImporter, private val logbook: LogbookImporter) {
+internal class PackageInspector(private val trips: TripImporter, private val logbook: LogbookImporter, private val dtcHistory: DtcHistoryRepository) {
 
     suspend fun inspect(reader: PackageReader, nowMs: Long, today: LocalDate): TransferPreview {
         val manifest = reader.manifest() ?: throw TransferFileException(TransferFileException.Kind.NOT_A_BACKUP, "No valid manifest: not a backup of this app")
@@ -73,6 +75,7 @@ internal class PackageInspector(private val trips: TripImporter, private val log
             when (part) {
                 DataPart.TRIPS -> planTrips(reader, it, nowMs)
                 DataPart.LOGBOOK -> PartPlan.Logbook(logbook.plan(it, today))
+                DataPart.DTC_HISTORY -> PartPlan.DtcHistory(planDtcHistoryMerge(dtcHistory.all(), parseDtcHistoryCsv(InputStreamReader(it, Charsets.UTF_8), nowMs)))
                 else -> throw IllegalStateException("$part is not read in this version")
             }
         }

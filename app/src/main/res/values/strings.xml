@@ -712,6 +712,34 @@
         <item quantity="one">%1$d line</item>
         <item quantity="other">%1$d lines</item>
     </plurals>
+    <plurals name="transfer_count_codes">
+        <item quantity="one">%1$d code</item>
+        <item quantity="other">%1$d codes</item>
+    </plurals>
+    <plurals name="transfer_done_codes">
+        <item quantity="one">%1$d code merged</item>
+        <item quantity="other">%1$d codes merged</item>
+    </plurals>
+    <plurals name="transfer_dtc_new">
+        <item quantity="one">%1$d new code</item>
+        <item quantity="other">%1$d new codes</item>
+    </plurals>
+    <plurals name="transfer_dtc_updated">
+        <item quantity="one">%1$d code updated</item>
+        <item quantity="other">%1$d codes updated</item>
+    </plurals>
+    <plurals name="transfer_dtc_unchanged">
+        <item quantity="one">%1$d code unchanged</item>
+        <item quantity="other">%1$d codes unchanged</item>
+    </plurals>
+    <plurals name="transfer_dtc_dropped">
+        <item quantity="one">the oldest %1$d code falls beyond the limit of 200 codes</item>
+        <item quantity="other">the oldest %1$d codes fall beyond the limit of 200 codes</item>
+    </plurals>
+    <plurals name="transfer_dtc_rejected">
+        <item quantity="one">%1$d row rejected</item>
+        <item quantity="other">%1$d rows rejected</item>
+    </plurals>
     <string name="transfer_note_vin">The package contains your motorcycle\'s VIN.</string>
     <plurals name="transfer_trips_with_vin">
         <item quantity="one">%1$d drive with a VIN</item>

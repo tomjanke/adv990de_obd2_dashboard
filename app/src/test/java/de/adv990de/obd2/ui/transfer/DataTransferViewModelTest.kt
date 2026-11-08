@@ -64,7 +64,7 @@ class DataTransferViewModelTest {
     private val source = mockk<Uri>()
     private val target = mockk<Uri>()
     private val shareUri = mockk<Uri>()
-    private val fullCounts = ExportCounts(trips = 3, logbook = 2, appLog = 5)
+    private val fullCounts = ExportCounts(trips = 3, logbook = 2, appLog = 5, dtcHistory = 4)
 
     private val entry = LogEntry(
         type = LogType.FUEL, date = LocalDate.of(2026, 10, 2), odometerKm = 40_362, amountMl = 14_370,
@@ -220,8 +220,7 @@ class DataTransferViewModelTest {
     fun `canExport needs a non empty selection`() = runTest {
         val f = ready()
         assertTrue(f.vm.canExport.value)
-        f.vm.toggle(DataPart.TRIPS)
-        f.vm.toggle(DataPart.LOGBOOK)
+        DataPart.DEFAULT_EXPORT.forEach { f.vm.toggle(it) }
         runCurrent()
         assertFalse(f.vm.canExport.value)
     }

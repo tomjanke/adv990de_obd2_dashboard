@@ -11,6 +11,8 @@ import de.adv990de.obd2.transfer.PackageEntry
 import de.adv990de.obd2.transfer.PackageFormat
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.csvPartOf
+import de.adv990de.obd2.transfer.dtcHistoryCsvHeader
+import de.adv990de.obd2.transfer.dtcHistoryCsvLine
 import de.adv990de.obd2.transfer.toJson
 import de.adv990de.obd2.transfer.writePackage
 import kotlinx.coroutines.flow.first
@@ -50,6 +52,7 @@ class TransferExporter @Inject constructor(
     private val logbookExporter: LogbookExporter,
     private val appLogs: AppLogRepository,
     private val appLogExporter: AppLogExporter,
+    private val dtcHistory: DtcHistoryRepository,
 ) {
     private val files = CsvExportFiles(context)
 
@@ -60,6 +63,7 @@ class TransferExporter @Inject constructor(
         trips = sessions.exportableSessionIds().size,
         logbook = logbook.all().size,
         appLog = appLogs.logs.first().size,
+        dtcHistory = dtcHistory.all().size,
     )
 
     suspend fun share(request: ExportRequest): Uri {
@@ -130,6 +134,16 @@ class TransferExporter @Inject constructor(
             if (rows.isNotEmpty()) {
                 written[DataPart.LOGBOOK] = rows.size
                 body += PackageEntry(DataPart.LOGBOOK.packageEntry) { logbookExporter.writeEntries(it, rows) }
+            }
+        }
+        if (DataPart.DTC_HISTORY in chosen) {
+            val rows = dtcHistory.all()
+            if (rows.isNotEmpty()) {
+                written[DataPart.DTC_HISTORY] = rows.size
+                body += PackageEntry(DataPart.DTC_HISTORY.packageEntry) { out ->
+                    out.write(dtcHistoryCsvHeader())
+                    rows.forEach { out.write(dtcHistoryCsvLine(it)) }
+                }
             }
         }
         if (DataPart.APP_LOG in chosen) {

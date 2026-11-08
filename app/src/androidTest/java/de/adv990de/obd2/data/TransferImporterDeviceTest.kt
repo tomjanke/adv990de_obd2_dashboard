@@ -48,7 +48,7 @@ class TransferImporterDeviceTest {
     fun setup() {
         ctx = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).allowMainThreadQueries().build()
-        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())))
+        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())), DtcHistoryRepository(db.dtcHistoryDao(), AppLogRepository(db.appLogDao())))
         File(ctx.cacheDir, TRANSFER_IMPORT_CACHE_DIR).deleteRecursively()
     }
 

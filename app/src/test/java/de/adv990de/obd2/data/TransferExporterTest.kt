@@ -66,7 +66,8 @@ class TransferExporterTest {
     private val logbook = mockk<VehicleLogRepository>()
     private val appLogDao = mockk<AppLogDao>()
     private val appLogs = mockk<AppLogRepository>()
-    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao)).apply {
+    private val dtcRepo = mockk<DtcHistoryRepository>()
+    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao), dtcRepo).apply {
         appVersion = "9.9.9"
         clockMs = { 1_700_000_000_000L }
     }
@@ -75,6 +76,7 @@ class TransferExporterTest {
         LogEntry(type = LogType.FUEL, date = LocalDate.of(2026, 10, 1), odometerKm = 40_000, amountMl = 14_370, fullTank = true, costCents = 2_743, note = null, brand = null),
         LogEntry(type = LogType.TIRE_CHANGE, date = LocalDate.of(2026, 9, 20), odometerKm = 39_800, amountMl = null, fullTank = null, costCents = null, note = null, brand = "Test Brand"),
     )
+    private val historyRows = listOf(DtcHistoryEntry("P0301", 1_000L, 3_000L, false), DtcHistoryEntry("P0420", 2_000L, 2_000L, true))
     private val logRows = listOf(Triple(1_000L, "INFO", "Connecting to Test Adapter"), Triple(2_000L, "ERROR", "boom, \"quoted\""))
     private val readings = listOf(Triple(10L, "010C", 1500f), Triple(11L, "0105", 80f))
 
@@ -122,7 +124,8 @@ class TransferExporterTest {
         }
     }
 
-    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList()) {
+    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList(), history: List<DtcHistoryEntry> = emptyList()) {
+        coEvery { dtcRepo.all() } returns history
         coEvery { sessionDao.metaByIds(any()) } answers { meta.filter { it.id in firstArg<List<Long>>() } }
         every { sessionDao.observeIds() } returns flowOf(tripIds)
         coEvery { sessionDao.idsWithReadings() } returns tripIds
@@ -309,6 +312,54 @@ class TransferExporterTest {
     }
 
     @Test
+    fun `the fault history follows the logbook and precedes the app log and the manifest counts its codes`() = runTest {
+        stubData(history = historyRows)
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.APP_LOG, DataPart.DTC_HISTORY, DataPart.LOGBOOK, DataPart.TRIPS))
+
+        assertEquals(listOf("manifest.json", "trips.csv", "logbook.csv", "dtc_history.csv", "applog.csv"), zipNames(file.captured))
+        assertEquals(
+            "code,first_seen,last_seen,last_was_pending\nP0301,1000,3000,0\nP0420,2000,2000,1\n",
+            String(zipBytes(file.captured, "dtc_history.csv"), Charsets.UTF_8),
+        )
+        val manifest = parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!
+        assertEquals(2, manifest.parts[DataPart.DTC_HISTORY])
+    }
+
+    @Test
+    fun `an empty fault history is not written and not named in the manifest`() = runTest {
+        stubData(history = emptyList())
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.DTC_HISTORY, DataPart.LOGBOOK))
+
+        assertEquals(listOf("manifest.json", "logbook.csv"), zipNames(file.captured))
+        assertEquals(null, parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts[DataPart.DTC_HISTORY])
+    }
+
+    @Test
+    fun `a fault history that is not chosen is not written`() = runTest {
+        stubData(history = historyRows)
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.LOGBOOK))
+
+        assertEquals(listOf("manifest.json", "logbook.csv"), zipNames(file.captured))
+    }
+
+    @Test
+    fun `the fault history alone is a package, never a csv`() = runTest {
+        stubData(history = historyRows)
+        stubEnvironment()
+        try {
+            exporter.share(request(DataPart.DTC_HISTORY, format = ExportFormat.CSV))
+            fail("expected IllegalArgumentException")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test
     fun `parts this version does not know are not written`() = runTest {
         stubData()
         val file = slot<File>()
@@ -324,10 +375,13 @@ class TransferExporterTest {
         stubData(tripIds = listOf(1L, 2L, 3L), logCount = 5)
         coEvery { sessionDao.insert(any<SessionEntity>()) } returns 3L
         sessions.startSession()
+        coEvery { dtcRepo.all() } returns historyRows
         val counts = exporter.counts()
         assertEquals(2, counts.trips)
         assertEquals(2, counts.logbook)
         assertEquals(5, counts.appLog)
+        assertEquals(2, counts.dtcHistory)
+        assertEquals(2, counts.of(DataPart.DTC_HISTORY))
         assertEquals(2, counts.of(DataPart.TRIPS))
         assertEquals(5, counts.of(DataPart.APP_LOG))
         assertEquals(null, counts.of(DataPart.SETTINGS))
