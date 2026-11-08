@@ -281,13 +281,13 @@ class TransferRoundTripDeviceTest {
     @Test
     fun aPackageOfANewerAppIsReadForTheKnownPartsAndTheUnknownEntryIsIgnored() = runBlocking {
         val logbookCsv = "date,type,odometer_km,amount_ml,full_tank,cost_eur,note,brand\n${today.minusDays(3)},OIL,2000,300,,,,\n"
-        val uri = packageFile("newer.zip", 2, "logbook.csv" to logbookCsv, "future_things.json" to "{}", "settings.json" to "{}")
+        val uri = packageFile("newer.zip", 2, "logbook.csv" to logbookCsv, "future_things.json" to "{}")
 
         val preview = importer.inspect(uri, now, today)
 
         assertTrue(preview.newerFormat)
+        // settings.json ist seit Phase 3 ein bekannter Teil; nur der unbekannte Eintrag future_things.json wird uebergangen
         assertEquals("only what this version can read: the logbook", listOf(DataPart.LOGBOOK), preview.parts.keys.toList())
-        assertFalse(preview.parts.containsKey(DataPart.SETTINGS))
         importer.apply(preview, setOf(DataPart.LOGBOOK))
         assertEquals(1, countOf("vehicle_log"))
     }

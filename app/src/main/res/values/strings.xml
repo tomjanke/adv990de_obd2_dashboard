@@ -778,7 +778,7 @@
     <string name="transfer_counters_odometer_absent">No mileage estimate in the file</string>
     <string name="transfer_counters_decided_on_import">The final decision is made when importing.</string>
     <string name="transfer_done_counters">Counters applied</string>
-    <string name="transfer_done_counters_partial">%1$d applied, %2$d skipped</string>
+    <string name="transfer_done_counters_partial">Applied: %1$d, skipped: %2$d</string>
     <plurals name="transfer_settings_changes">
         <item quantity="one">%1$d of %2$d settings change</item>
         <item quantity="other">%1$d of %2$d settings change</item>
