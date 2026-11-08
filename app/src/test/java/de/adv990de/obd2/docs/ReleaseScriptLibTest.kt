@@ -162,4 +162,188 @@ class ReleaseScriptLibTest {
         assertEquals("/abs/a.jks", bash("expand_home '/abs/a.jks'", env = mapOf("HOME" to "/home/x")).out)
         assertEquals("rel/a~b.jks", bash("expand_home 'rel/a~b.jks'", env = mapOf("HOME" to "/home/x")).out)
     }
+
+    // ── Veroeffentlichen als GitHub-Release (--publish) ───────────────────
+
+    private val notesFile: String = """
+        # Release Notes — OBD Dashboard
+
+        ## Version 1.45.1 (versionCode 160)
+
+        Neuer Signaturschluessel.
+
+        ### Was sich aendert
+
+        - Eine Zeile.
+
+        ---
+
+        ## Version 1.45.10 (versionCode 170)
+
+        Nur ein Teilstring der anderen Version.
+
+        ---
+
+        ## Version 1.45.0 (versionCode 159)
+
+        Die letzte Version ohne Trennlinie am Ende.
+    """.trimIndent() + "\n"
+
+    private fun notes(): File = File(tmp, "RELEASE_NOTES.md").also { it.writeText(notesFile) }
+
+    @Test
+    fun `release_notes_section prints the body of one version without its heading and without the separator`() {
+        val r = bash("release_notes_section 1.45.1 '${notes()}'")
+        assertEquals(0, r.exit)
+        assertEquals("Neuer Signaturschluessel.\n\n### Was sich aendert\n\n- Eine Zeile.", r.out)
+    }
+
+    @Test
+    fun `release_notes_section matches the version exactly - 1_45_1 is not 1_45_10`() {
+        val r = bash("release_notes_section 1.45.10 '${notes()}'")
+        assertEquals("Nur ein Teilstring der anderen Version.", r.out)
+        assertFalse("Neuer Signaturschluessel" in r.out)
+    }
+
+    @Test
+    fun `release_notes_section reads the last section up to the end of the file`() {
+        assertEquals("Die letzte Version ohne Trennlinie am Ende.", bash("release_notes_section 1.45.0 '${notes()}'").out)
+    }
+
+    @Test
+    fun `release_notes_section fails and prints nothing when the version is not in the file`() {
+        val r = bash("release_notes_section 9.9.9 '${notes()}'")
+        assertTrue("Exit ${r.exit}", r.exit != 0)
+        assertEquals("", r.out)
+    }
+
+    @Test
+    fun `release_notes_section fails when the file does not exist`() {
+        val r = bash("release_notes_section 1.45.1 '${File(tmp, "fehlt.md")}'")
+        assertTrue(r.exit != 0)
+        assertEquals("", r.out)
+    }
+
+    @Test
+    fun `sha256_line has the format shasum -c reads - hash, two spaces, name`() {
+        assertEquals("ab12  OBD-Dashboard.apk", bash("sha256_line ab12 OBD-Dashboard.apk").out)
+    }
+
+    @Test
+    fun `the published file name is the fixed one the stable download link depends on`() {
+        assertEquals("OBD-Dashboard.apk", bash("printf '%s' \"\$RELEASE_ASSET_NAME\"").out)
+    }
+
+    @Test
+    fun `compose_release_notes carries the notes, the file name, the apk checksum and the certificate fingerprint`() {
+        val apk = "a".repeat(64)
+        val cert = "b".repeat(64)
+        val r = bash("compose_release_notes 1.45.1 '${notes()}' $apk $cert")
+        assertEquals(0, r.exit)
+        assertTrue("Notizen fehlen", "Neuer Signaturschluessel." in r.out)
+        assertTrue("Dateiname fehlt", "OBD-Dashboard.apk" in r.out)
+        assertTrue("APK-Pruefsumme fehlt", apk in r.out)
+        assertTrue("Zertifikat fehlt", cert in r.out)
+        assertTrue("englischer und deutscher Hinweis", "**English:**" in r.out && "**Deutsch:**" in r.out)
+        assertFalse("die Notizen einer anderen Version", "Teilstring" in r.out)
+        assertTrue("Die Ueberschrift der Version gehoert nicht in den Text (sie steht im Titel)", "## Version" !in r.out)
+    }
+
+    @Test
+    fun `compose_release_notes fails without text when the version has no notes - a release must not go out empty`() {
+        val r = bash("compose_release_notes 9.9.9 '${notes()}' ${"a".repeat(64)} ${"b".repeat(64)}")
+        assertTrue(r.exit != 0)
+        assertEquals("", r.out)
+    }
+
+    @Test
+    fun `compose_release_notes refuses a missing checksum or fingerprint`() {
+        assertTrue(bash("compose_release_notes 1.45.1 '${notes()}' '' ${"b".repeat(64)}").exit != 0)
+        assertTrue(bash("compose_release_notes 1.45.1 '${notes()}' ${"a".repeat(64)} ''").exit != 0)
+    }
+
+    @Test
+    fun `publish_confirmed accepts exactly the version in the environment`() {
+        assertEquals(0, bash("publish_confirmed 1.45.1", env = mapOf("RELEASE_PUBLISH_CONFIRM" to "1.45.1")).exit)
+    }
+
+    @Test
+    fun `publish_confirmed refuses anything else - empty, y, another version, padded, a prefix`() {
+        for (v in listOf("", "y", "yes", "1", "1.45", "1.45.10", "1.45.0", " 1.45.1", "1.45.1 ", "v1.45.1")) {
+            val r = bash("publish_confirmed 1.45.1", env = mapOf("RELEASE_PUBLISH_CONFIRM" to v))
+            assertTrue("'$v' darf nicht bestaetigen", r.exit != 0)
+        }
+    }
+
+    @Test
+    fun `publish_confirmed refuses without a terminal and without the environment variable`() {
+        val r = bash("unset RELEASE_PUBLISH_CONFIRM; publish_confirmed 1.45.1", stdin = "1.45.1\n")
+        assertTrue("eine Eingabe aus einer Pipe ist keine Bestaetigung", r.exit != 0)
+    }
+
+    private fun git(dir: File, vararg args: String): String {
+        val p = ProcessBuilder(listOf("git") + args).directory(dir).redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().readText().trim()
+        assertTrue("git haengt", p.waitFor(30, TimeUnit.SECONDS))
+        assertEquals("git ${args.toList()}: $out", 0, p.exitValue())
+        return out
+    }
+
+    @Test
+    fun `tag_revision gives the commit an annotated tag points to - not the tag object`() {
+        assumeTrue("git fehlt", File("/usr/bin/git").exists() || File("/bin/git").exists() || File("/opt/homebrew/bin/git").exists())
+        val repo = File(tmp, "repo").also { it.mkdirs() }
+        git(repo, "init", "-q")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "eins")
+        val first = git(repo, "rev-parse", "HEAD")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "tag", "-a", "v1.0.0", "-m", "Release 1.0.0")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "zwei")
+        assertEquals(first, bash("tag_revision v1.0.0 '$repo'").out)
+        assertTrue("Der Tag-Objekt-Hash ist nicht die Revision", git(repo, "rev-parse", "v1.0.0") != first)
+    }
+
+    @Test
+    fun `tag_revision fails and prints nothing for a tag that does not exist`() {
+        assumeTrue("git fehlt", File("/usr/bin/git").exists() || File("/bin/git").exists() || File("/opt/homebrew/bin/git").exists())
+        val repo = File(tmp, "repo2").also { it.mkdirs() }
+        git(repo, "init", "-q")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "eins")
+        val r = bash("tag_revision v9.9.9 '$repo'")
+        assertTrue(r.exit != 0)
+        assertEquals("", r.out)
+    }
+
+    // ── remote_tag_revision (Ausgabe von git ls-remote --tags) ────────────
+
+    private val lsRemote = listOf(
+        "1111111111111111111111111111111111111111\trefs/tags/v1.45.0",
+        "2222222222222222222222222222222222222222\trefs/tags/v1.45.0^{}",
+        "3333333333333333333333333333333333333333\trefs/tags/v1.45.10",
+        "4444444444444444444444444444444444444444\trefs/tags/v1.45.10^{}",
+        "5555555555555555555555555555555555555555\trefs/tags/v1.45.1",
+    ).joinToString("\n") + "\n"
+
+    @Test
+    fun `remote_tag_revision takes the commit of an annotated tag - the peeled line`() {
+        assertEquals("2".repeat(40), bash("remote_tag_revision v1.45.0", stdin = lsRemote).out)
+    }
+
+    @Test
+    fun `remote_tag_revision takes the line of a lightweight tag when there is no peeled one`() {
+        assertEquals("5".repeat(40), bash("remote_tag_revision v1.45.1", stdin = lsRemote).out)
+    }
+
+    @Test
+    fun `remote_tag_revision does not take a tag that only starts like the one asked for`() {
+        val r = bash("remote_tag_revision v1.45", stdin = lsRemote)
+        assertTrue(r.exit != 0)
+        assertEquals("", r.out)
+        assertEquals("4".repeat(40), bash("remote_tag_revision v1.45.10", stdin = lsRemote).out)
+    }
+
+    @Test
+    fun `remote_tag_revision fails when the remote knows no such tag - not pushed`() {
+        assertTrue(bash("remote_tag_revision v9.9.9", stdin = lsRemote).exit != 0)
+        assertTrue(bash("remote_tag_revision v1.45.1", stdin = "").exit != 0)
+    }
 }
