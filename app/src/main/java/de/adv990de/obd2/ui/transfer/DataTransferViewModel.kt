@@ -22,6 +22,7 @@ import de.adv990de.obd2.transfer.TransferResult
 import de.adv990de.obd2.transfer.csvPartOf
 import de.adv990de.obd2.transfer.effectiveFormat
 import de.adv990de.obd2.transfer.hasNews
+import de.adv990de.obd2.tripimport.TripFileException
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.ExportFeedback
 import kotlinx.coroutines.CancellationException
@@ -241,6 +242,13 @@ internal fun importFailureText(e: Exception): UiText = when (e) {
         },
     )
     is NotAPackageException -> UiText.StringResource(R.string.transfer_error_not_a_backup)
+    // Vor IllegalArgumentException: ein Fahrten-Export mit zu vielen Zeilen oder zerrissenen Fahrten ist ein Export, nur nicht lesbar; die Datei ohne Pflichtspalten bleibt "nicht erkannt".
+    is TripFileException -> UiText.StringResource(
+        when (e.kind) {
+            TripFileException.Kind.NOT_AN_EXPORT -> R.string.transfer_error_unrecognized
+            TripFileException.Kind.TOO_MANY_ROWS, TripFileException.Kind.SPLIT_TRIP -> R.string.transfer_error_trips_invalid
+        },
+    )
     is FileTooLargeException -> UiText.StringResource(R.string.transfer_error_too_large)
     is IllegalArgumentException -> UiText.StringResource(R.string.transfer_error_unrecognized)
     is IOException, is SecurityException -> UiText.StringResource(R.string.transfer_error_unreadable)

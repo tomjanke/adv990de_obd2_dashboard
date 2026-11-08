@@ -21,6 +21,7 @@ import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.TransferResult
 import de.adv990de.obd2.transfer.UnreadableReason
+import de.adv990de.obd2.tripimport.TripFileException
 import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.ui.UiText
 import io.mockk.coEvery
@@ -533,6 +534,9 @@ class DataTransferViewModelTest {
         assertEquals(res(R.string.transfer_error_applog_csv), failureOf(TransferFileException(TransferFileException.Kind.APP_LOG_NOT_IMPORTABLE, "x")))
         assertEquals(res(R.string.transfer_error_unrecognized), failureOf(TransferFileException(TransferFileException.Kind.UNRECOGNIZED, "x")))
         assertEquals(res(R.string.transfer_error_not_a_backup), failureOf(NotAPackageException("x")))
+        assertEquals(res(R.string.transfer_error_unrecognized), failureOf(TripFileException(TripFileException.Kind.NOT_AN_EXPORT, "x")))
+        assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.TOO_MANY_ROWS, "x")))
+        assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.SPLIT_TRIP, "x")))
         assertEquals(res(R.string.transfer_error_too_large), failureOf(FileTooLargeException("x")))
         assertEquals(res(R.string.transfer_error_unrecognized), failureOf(IllegalArgumentException("x")))
         assertEquals(res(R.string.transfer_error_unreadable), failureOf(IOException("x")))
