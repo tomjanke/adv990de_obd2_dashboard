@@ -297,6 +297,14 @@ class ReleaseScriptLibTest {
     }
 
     @Test
+    fun `confirmation_matches is true only for exactly the version - the check behind the typed input`() {
+        assertEquals(0, bash("confirmation_matches 1.45.1 1.45.1").exit)
+        for ((typed, version) in listOf("" to "1.45.1", "y" to "1.45.1", "1.45" to "1.45.1", "1.45.10" to "1.45.1", " 1.45.1" to "1.45.1", "1.45.1 " to "1.45.1", "" to "")) {
+            assertTrue("'$typed' gegen '$version'", bash("confirmation_matches '$typed' '$version'").exit != 0)
+        }
+    }
+
+    @Test
     fun `publish_confirmed refuses without a terminal and without the environment variable`() {
         val r = bash("unset RELEASE_PUBLISH_CONFIRM; publish_confirmed 1.45.1", stdin = "1.45.1\n")
         assertTrue("eine Eingabe aus einer Pipe ist keine Bestaetigung", r.exit != 0)

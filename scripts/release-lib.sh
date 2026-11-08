@@ -100,14 +100,17 @@ compose_release_notes() {
 publish_confirmed() {
     local version="$1" typed
     if [ -n "${RELEASE_PUBLISH_CONFIRM:-}" ]; then
-        [ "$RELEASE_PUBLISH_CONFIRM" = "$version" ]
+        confirmation_matches "$RELEASE_PUBLISH_CONFIRM" "$version"
         return
     fi
     [ -t 0 ] || return 1
     printf 'Oeffentlich und nicht rueckholbar. Zum Veroeffentlichen die Version %s tippen: ' "$version" >&2
     read -r typed || return 1
-    [ "$typed" = "$version" ]
+    confirmation_matches "$typed" "$version"
 }
+
+# Erfolg, wenn die Eingabe $1 genau die Version $2 ist (nicht leer, kein Praefix, keine Leerzeichen drumherum).
+confirmation_matches() { [ -n "$1" ] && [ "$1" = "$2" ]; }
 
 # Der Commit, auf den der Tag $1 im Verzeichnis $2 (Standard: hier) zeigt — bei einem annotierten Tag der Commit, nicht das Tag-Objekt.
 # Der Tag fehlt: Exit 1, nichts auf stdout.
