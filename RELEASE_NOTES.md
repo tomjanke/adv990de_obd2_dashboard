@@ -1,5 +1,19 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.1 (versionCode 160)
+
+**Neuer Signaturschlüssel.** Funktional ist diese Version gleich 1.45.0; geändert hat sich nur, womit die APK signiert ist.
+
+### Was sich ändert
+
+- **Neuer Schlüssel ohne Namen:** Die APK ist mit einem neuen Schlüssel signiert, dessen Zertifikat nur `CN=adv990de` trägt (kein Firmenname, keine Person). Der Fingerabdruck steht öffentlich in `scripts/release-cert.sha256` und im Installationsblock des GitHub-Releases.
+- **Ein Update von 1.45.0 ist nicht möglich:** Android spielt ein Update nur mit demselben Schlüssel ein, auch bei gleicher Paketkennung. Wer 1.45.0 mit dem alten Schlüssel installiert hat, geht so vor: in der alten App **„Daten sichern und wiederherstellen“ → Paket speichern** und die Datei außerhalb des Telefons ablegen, die App **deinstallieren**, 1.45.1 installieren, Berechtigungen (Bluetooth, Benachrichtigungen) neu erteilen, dann das Paket **einlesen**. Das Paket nimmt Fahrten, Logbuch, Einstellungen, Zähler und Fehlerhistorie mit. **Nicht dabei:** der gekoppelte Adapter (neu wählen), Berechtigungen und der Absturzbericht-Schalter.
+- **Ab dieser Version bleibt der Schlüssel:** Spätere Versionen werden mit demselben Schlüssel signiert und lassen sich über 1.45.1 einspielen.
+- **Release-Skript:** `scripts/release.sh --publish` legt das GitHub-Release an (feste Dateinamen `OBD-Dashboard.apk` und `OBD-Dashboard.apk.sha256`, Prüfsumme und Zertifikat im Text); `--publish --dry-run` prüft alles, ohne etwas anzulegen. Veröffentlicht wird nur nach einer ausdrücklichen Bestätigung der Version.
+- **Unverändert:** Funktionen, Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen und die Paketkennung. Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.45.0 (versionCode 159)
 
 **Daten sichern und wiederherstellen:** eine Seite statt fünf Dialogen, die jetzt auch Einstellungen, Zähler, Fehlerhistorie sowie FIN und Fehlercodes je Fahrt mitnimmt.
