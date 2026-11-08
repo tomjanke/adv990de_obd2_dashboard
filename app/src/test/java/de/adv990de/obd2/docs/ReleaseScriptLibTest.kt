@@ -206,6 +206,27 @@ class ReleaseScriptLibTest {
     }
 
     @Test
+    fun `release_notes_section does not find 1_45_1 when the file only has 1_45_10`() {
+        val only = File(tmp, "nur-zehn.md").also { it.writeText("## Version 1.45.10 (versionCode 170)\n\nNur die lange.\n") }
+        val r = bash("release_notes_section 1.45.1 '$only'")
+        assertTrue(r.exit != 0)
+        assertEquals("", r.out)
+    }
+
+    @Test
+    fun `release_notes_section stops at the next version heading even without a separator line`() {
+        val noSeparators = File(tmp, "ohne-trenner.md").also {
+            it.writeText("## Version 2.0.0 (versionCode 2)\n\nZwei.\n\n## Version 1.0.0 (versionCode 1)\n\nEins.\n")
+        }
+        assertEquals("Zwei.", bash("release_notes_section 2.0.0 '$noSeparators'").out)
+    }
+
+    @Test
+    fun `release_notes_section starts at the first line of text - no blank line first`() {
+        assertEquals("Neuer Signaturschluessel.", bash("release_notes_section 1.45.1 '${notes()}' | head -n 1").out)
+    }
+
+    @Test
     fun `release_notes_section reads the last section up to the end of the file`() {
         assertEquals("Die letzte Version ohne Trennlinie am Ende.", bash("release_notes_section 1.45.0 '${notes()}'").out)
     }
