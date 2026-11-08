@@ -101,4 +101,38 @@ class LogbookOdometerDeviceTest {
 
         assertEquals(0f, counterAt(40_000).gpsKm, 1e-4f)
     }
+
+    @Test
+    fun restoreSetsTheCounterAtOnceAndTheStoreHasItAfterwards() = runBlocking {
+        repository.save(entry(40_000))
+        counterAt(40_000)
+
+        odometer.restore(GpsOdometer(40_000, 6.5f))
+
+        assertEquals(GpsOdometer(40_000, 6.5f), odometer.current())
+        assertEquals(GpsOdometer(40_000, 6.5f), withTimeout(5_000) { appPreferences.gpsOdometer.first { it?.gpsKm == 6.5f } })
+    }
+
+    @Test
+    fun aRestoreBeforeTheLogReportsTheNewHighestReadingSurvivesTheLateReport() = runBlocking {
+        repository.save(entry(40_000))
+        counterAt(40_000)
+
+        odometer.restore(GpsOdometer(40_300, 7f))
+        repository.save(entry(40_300))
+
+        assertEquals(7f, counterAt(40_300).gpsKm, 1e-4f)
+        assertEquals(GpsOdometer(40_300, 7f), withTimeout(5_000) { appPreferences.gpsOdometer.first { it?.anchorKm == 40_300 } })
+    }
+
+    @Test
+    fun theTankCounterIsRestoredAtOnceAndStoredAfterwards() = runBlocking {
+        appPreferences.setFuelRangeFullKm(300)
+
+        fuel.restore(12.5f)
+
+        assertEquals(12.5f, fuel.currentKm()!!, 0f)
+        assertEquals(12.5f, withTimeout(5_000) { fuel.state.first { it?.kmSinceFill == 12.5f } }!!.kmSinceFill, 0f)
+        assertEquals(12.5f, withTimeout(5_000) { appPreferences.fuelKmSinceFill.first { it == 12.5f } }, 0f)
+    }
 }
