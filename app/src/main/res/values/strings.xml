@@ -712,4 +712,23 @@
         <item quantity="one">%1$d line</item>
         <item quantity="other">%1$d lines</item>
     </plurals>
+    <string name="transfer_note_vin">The package contains your motorcycle\'s VIN.</string>
+    <plurals name="transfer_trips_with_vin">
+        <item quantity="one">%1$d drive with a VIN</item>
+        <item quantity="other">%1$d drives with a VIN</item>
+    </plurals>
+    <plurals name="transfer_trips_with_codes">
+        <item quantity="one">fault codes recorded for %1$d drive</item>
+        <item quantity="other">fault codes recorded for %1$d drives</item>
+    </plurals>
+    <plurals name="transfer_trips_invalid_vin">
+        <item quantity="one">%1$d invalid VIN dropped</item>
+        <item quantity="other">%1$d invalid VINs dropped</item>
+    </plurals>
+    <plurals name="transfer_trips_orphan_meta">
+        <item quantity="one">%1$d detail row without a drive ignored</item>
+        <item quantity="other">%1$d detail rows without a drive ignored</item>
+    </plurals>
+    <string name="transfer_trips_meta_unreadable">The VIN and fault code details could not be read; the drives are imported without them.</string>
+    <string name="transfer_trips_some_unrecorded">Drives without these details show VIN and fault codes as not recorded.</string>
 </resources>

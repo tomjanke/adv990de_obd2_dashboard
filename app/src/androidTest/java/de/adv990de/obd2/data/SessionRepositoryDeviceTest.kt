@@ -6,7 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
+import de.adv990de.obd2.data.db.SessionMetaRow
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.transfer.TripMeta
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
@@ -85,6 +87,51 @@ class SessionRepositoryDeviceTest {
         assertEquals(emptyList<DtcEntry>(), decodeSessionDtcs(db.sessionDao().getById(noneFound)!!.dtcCodes))
         assertNull("nicht erfasst: null", db.sessionDao().getById(notRecorded)!!.dtcCodes)
         assertNull(decodeSessionDtcs(db.sessionDao().getById(notRecorded)!!.dtcCodes))
+    }
+
+    @Test
+    fun metaByIds_readsTheVinAndTheCodesOfTheAskedTripsOnly_in500IdsAtOnce() = runBlocking {
+        val withBoth = db.sessionDao().insert(SessionEntity(startTime = 1_000, vehicleVin = "TESTVIN0000000001", dtcCodes = "P0301,P0420?"))
+        val noneFound = db.sessionDao().insert(SessionEntity(startTime = 2_000, dtcCodes = ""))
+        val notRecorded = db.sessionDao().insert(SessionEntity(startTime = 3_000))
+        db.sessionDao().insert(SessionEntity(startTime = 4_000, vehicleVin = "TESTVIN0000000002"))
+
+        // Asked for 500 ids, among them the first two trips, but neither the third (not recorded) nor the fourth.
+        val rows = db.sessionDao().metaByIds((1L..500L).filter { it <= noneFound || it > notRecorded + 1 })
+
+        assertEquals(
+            setOf(SessionMetaRow(withBoth, "TESTVIN0000000001", "P0301,P0420?"), SessionMetaRow(noneFound, null, "")),
+            rows.toSet(),
+        )
+    }
+
+    @Test
+    fun tripMeta_keepsTheThreeStatesOfTheCodesApart_acrossMoreIdsThanOneQueryTakes() = runBlocking {
+        val withBoth = db.sessionDao().insert(SessionEntity(startTime = 1_000, vehicleVin = "TESTVIN0000000001", dtcCodes = "P0301,P0420?"))
+        val noneFound = db.sessionDao().insert(SessionEntity(startTime = 2_000, dtcCodes = ""))
+        val notRecorded = db.sessionDao().insert(SessionEntity(startTime = 3_000))
+
+        val meta = repo.tripMeta((1L..1_200L).toList())
+
+        assertEquals(TripMeta("TESTVIN0000000001", "P0301,P0420?"), meta[withBoth])
+        assertEquals(TripMeta(null, ""), meta[noneFound])
+        assertEquals(TripMeta(null, null), meta[notRecorded])
+        assertEquals(3, meta.size)
+    }
+
+    @Test
+    fun writeTripMetaCsv_writesOnlyTheTripsWithADetail_withTheNumbersOfTheTripsFile() = runBlocking {
+        val withBoth = db.sessionDao().insert(SessionEntity(startTime = 1_000, vehicleVin = "TESTVIN0000000001", dtcCodes = "P0301,P0420?"))
+        val notRecorded = db.sessionDao().insert(SessionEntity(startTime = 3_000))
+        val noneFound = db.sessionDao().insert(SessionEntity(startTime = 2_000, dtcCodes = ""))
+
+        val out = java.io.StringWriter()
+        repo.writeTripMetaCsv(out, listOf(withBoth, notRecorded, noneFound))
+
+        assertEquals(
+            "session,vin,dtcs_recorded,dtc_codes\n$withBoth,TESTVIN0000000001,1,\"P0301,P0420?\"\n$noneFound,,1,\n",
+            out.toString(),
+        )
     }
 
     @Test

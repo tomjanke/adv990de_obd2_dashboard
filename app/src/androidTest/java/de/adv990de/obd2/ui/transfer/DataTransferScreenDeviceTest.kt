@@ -281,6 +281,25 @@ class DataTransferScreenDeviceTest {
     }
 
     @Test
+    fun theVinHintShowsForTheTripsInAPackage() {
+        showExport(exportUi(selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK), format = ExportFormat.PACKAGE))
+        tag(TRANSFER_NOTE_VIN_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_vin)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theVinHintIsMissingForTheCsvOfTheTrips() {
+        showExport(exportUi(selection = setOf(DataPart.TRIPS), format = ExportFormat.CSV, csvAllowed = true))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_VIN_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theVinHintIsMissingWithoutTheTrips() {
+        showExport(exportUi(selection = setOf(DataPart.LOGBOOK, DataPart.APP_LOG)))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_VIN_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
     fun saveAndShareAreOffWithNothingToExport_andOtherwiseCallBack() {
         showExport(exportUi(selection = emptySet(), canExport = false))
         tag(TRANSFER_SAVE_TEST_TAG).performScrollTo().assertIsNotEnabled().performClick()

@@ -20,6 +20,7 @@ import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.RowError
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.transfer.UnreadableReason
 import de.adv990de.obd2.tripimport.ParsedTripFile
 import de.adv990de.obd2.tripimport.RejectedRow
@@ -28,6 +29,7 @@ import de.adv990de.obd2.tripimport.readTripCsv
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.logbook.messageRes
 import de.adv990de.obd2.ui.theme.PreviewTheme
+import de.adv990de.obd2.ui.theme.StatusColors
 import java.io.StringReader
 import java.time.LocalDate
 
@@ -38,11 +40,11 @@ internal const val MAX_LISTED_REJECTED_ROWS = 20
 internal const val MAX_LISTED_ROW_ERRORS = 20
 
 /**
- * Die Vorschau der Fahrten eines Imports (die Zahlen, die abgelehnten Zeilen) auf der Seite „Daten sichern und wiederherstellen“. Ein Rahmen ohne Scroll und ohne Hintergrund —
+ * Die Vorschau der Fahrten eines Imports (die Zahlen, [meta] = was `trips_meta.csv` zu FIN und Fehlercodes sagt, die abgelehnten Zeilen) auf der Seite „Daten sichern und wiederherstellen“. Ein Rahmen ohne Scroll und ohne Hintergrund —
  * der Aufrufer gibt ihn mit [modifier].
  */
 @Composable
-internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifier) {
+internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifier, meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) {
     val nothingNew = plan.trips.isEmpty()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (nothingNew) {
@@ -51,10 +53,24 @@ internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifie
             Text(pluralStringResource(R.plurals.trip_import_new, plan.trips.size, plan.trips.size), style = MaterialTheme.typography.titleMedium)
             Text(pluralStringResource(R.plurals.trip_import_readings, plan.readingCount, plan.readingCount))
             Text(stringResource(R.string.trip_import_range, formatDateTime(plan.trips.minOf { it.startMs }), formatDateTime(plan.trips.maxOf { it.endMs })))
+            if (meta.withVin > 0) Text(pluralStringResource(R.plurals.transfer_trips_with_vin, meta.withVin, meta.withVin))
+            if (meta.withCodesRecorded > 0) Text(pluralStringResource(R.plurals.transfer_trips_with_codes, meta.withCodesRecorded, meta.withCodesRecorded))
         }
         if (plan.duplicateTrips > 0) Text(pluralStringResource(R.plurals.trip_import_duplicates, plan.duplicateTrips, plan.duplicateTrips))
         if (plan.expiredTrips > 0) Text(pluralStringResource(R.plurals.trip_import_expired, plan.expiredTrips, plan.expiredTrips))
-        if (!nothingNew) Text(stringResource(R.string.trip_import_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Der Hinweis "nicht erfasst" nur, wenn mindestens eine neue Fahrt ohne FIN und ohne Fehlercodes kommt (die Datei allein, ohne Angaben, nennt keine).
+        val withoutDetails = plan.trips.count { it.vin == null && it.dtcCodes == null }
+        if (withoutDetails > 0) {
+            val allWithout = withoutDetails == plan.trips.size && !meta.unreadable
+            Text(
+                stringResource(if (allWithout) R.string.trip_import_note else R.string.transfer_trips_some_unrecorded),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (meta.invalidVins > 0) Text(pluralStringResource(R.plurals.transfer_trips_invalid_vin, meta.invalidVins, meta.invalidVins))
+        if (meta.orphanRows > 0) Text(pluralStringResource(R.plurals.transfer_trips_orphan_meta, meta.orphanRows, meta.orphanRows))
+        if (meta.unreadable) Text(stringResource(R.string.transfer_trips_meta_unreadable), color = StatusColors.warningOn(MaterialTheme.colorScheme.surface))
         // Die abgelehnten Zeilen stehen zuletzt: ihre Liste kann lang sein, der Hinweis soll davor stehen.
         if (plan.rejectedCount > 0) {
             Text(pluralStringResource(R.plurals.trip_import_rejected, plan.rejectedCount, plan.rejectedCount), color = MaterialTheme.colorScheme.error)

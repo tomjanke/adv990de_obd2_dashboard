@@ -85,9 +85,9 @@ class TransferRoundTripDeviceTest {
 
     private fun countOf(table: String): Int = db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { it.moveToFirst(); it.getInt(0) }
 
-    private suspend fun recordedTrip(vin: String?, vararg rows: Array<Any?>): Long {
+    private suspend fun recordedTrip(vin: String?, vararg rows: Array<Any?>, dtcCodes: String? = null): Long {
         val times = rows.map { it[0] as Long }
-        val id = db.sessionDao().insert(SessionEntity(startTime = times.min() - 1_000, endTime = times.max() + 1_000, vehicleVin = vin))
+        val id = db.sessionDao().insert(SessionEntity(startTime = times.min() - 1_000, endTime = times.max() + 1_000, vehicleVin = vin, dtcCodes = dtcCodes))
         for (row in rows) {
             db.sensorReadingDao().insert(
                 SensorReadingEntity(sessionId = id, timestamp = row[0] as Long, pidId = row[1] as String, value = (row[2] as Number).toFloat(), source = row[3] as String?),
@@ -280,5 +280,63 @@ class TransferRoundTripDeviceTest {
         assertFalse(preview.parts.containsKey(DataPart.SETTINGS))
         importer.apply(preview, setOf(DataPart.LOGBOOK))
         assertEquals(1, countOf("vehicle_log"))
+    }
+
+    // ── 7. FIN und Fehlercodes je Fahrt (trips_meta.csv) ──────────────────────
+
+    /** Die Fahrten in Zeitreihenfolge als (FIN, Fehlercodes). */
+    private fun tripDetails(): List<Pair<String?, String?>> = db.openHelper.readableDatabase
+        .query("SELECT vehicleVin, dtcCodes FROM sessions ORDER BY startTime")
+        .use { c -> generateSequence { if (c.moveToNext()) Pair(if (c.isNull(0)) null else c.getString(0), if (c.isNull(1)) null else c.getString(1)) else null }.toList() }
+
+    private suspend fun seedWithDetails() {
+        recordedTrip("TESTVIN0000000001", arrayOf(start, "010C", 1f, "ECU"), dtcCodes = "P0301,P0420?")
+        recordedTrip(null, arrayOf(start + 3_600_000, "010C", 2f, "ECU"), dtcCodes = "")
+        recordedTrip(null, arrayOf(start + 7_200_000, "010C", 3f, "ECU"), dtcCodes = null)
+        recordedTrip("TESTVIN0000000002", arrayOf(start + 10_800_000, "010C", 4f, "ECU"), dtcCodes = null)
+    }
+
+    @Test
+    fun theVinAndTheCodesSurviveTheRound_inAllThreeStates() = runBlocking {
+        seedWithDetails()
+        val before = tripDetails()
+        val file = saveRequest(setOf(DataPart.TRIPS), ExportFormat.PACKAGE, "details.zip")
+        assertTrue("the package carries trips_meta.csv", java.util.zip.ZipFile(file).use { z -> z.getEntry("trips_meta.csv") != null })
+        wipe()
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        val trips = preview.parts.getValue(DataPart.TRIPS) as PartPlan.Trips
+        assertEquals(2, trips.meta.withVin)
+        assertEquals(2, trips.meta.withCodesRecorded)
+        importer.apply(preview, setOf(DataPart.TRIPS))
+
+        assertEquals(listOf("TESTVIN0000000001" to "P0301,P0420?", null to "", null to null, "TESTVIN0000000002" to null), before)
+        assertEquals(before, tripDetails())
+    }
+
+    @Test
+    fun aSecondRoundOfTheSameFileChangesNoDetail_andTheTripsAlreadyThereKeepTheirs() = runBlocking {
+        seedWithDetails()
+        val file = saveRequest(setOf(DataPart.TRIPS), ExportFormat.PACKAGE, "details-twice.zip")
+        // The trips are still in the app, with a different VIN and no codes: the import must not touch them.
+        db.openHelper.writableDatabase.execSQL("UPDATE sessions SET vehicleVin = 'TESTVIN0000000009', dtcCodes = NULL")
+        val changed = tripDetails()
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        val trips = preview.parts.getValue(DataPart.TRIPS) as PartPlan.Trips
+        assertTrue(trips.plan.trips.isEmpty())
+        assertEquals(4, trips.plan.duplicateTrips)
+        assertEquals("the details of trips that are already there are dropped (three of the four trips have details)", 3, trips.meta.orphanRows)
+        importer.apply(preview, setOf(DataPart.TRIPS))
+
+        assertEquals(changed, tripDetails())
+        assertEquals(4, countOf("sessions"))
+    }
+
+    @Test
+    fun noDetailNoMetaFile() = runBlocking {
+        recordedTrip(null, arrayOf(start, "010C", 1f, "ECU"))
+        val file = saveRequest(setOf(DataPart.TRIPS), ExportFormat.PACKAGE, "no-details.zip")
+        assertFalse(java.util.zip.ZipFile(file).use { z -> z.getEntry("trips_meta.csv") != null })
     }
 }

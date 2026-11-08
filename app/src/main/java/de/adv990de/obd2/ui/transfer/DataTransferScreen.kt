@@ -81,6 +81,7 @@ internal const val TRANSFER_CSV_HINT_TEST_TAG = "transfer_csv_hint"
 internal const val TRANSFER_NOTE_APP_LOG_TEST_TAG = "transfer_note_app_log"
 internal const val TRANSFER_NOTE_NO_BACKUP_TEST_TAG = "transfer_note_no_backup"
 internal const val TRANSFER_NOTE_RECORDING_TEST_TAG = "transfer_note_recording"
+internal const val TRANSFER_NOTE_VIN_TEST_TAG = "transfer_note_vin"
 internal const val TRANSFER_SAVE_TEST_TAG = "transfer_save"
 internal const val TRANSFER_SHARE_TEST_TAG = "transfer_share"
 internal const val TRANSFER_PICK_TEST_TAG = "transfer_pick"
@@ -317,6 +318,10 @@ internal fun DataTransferExportContent(state: ExportUi, actions: ExportActions, 
         if (DataPart.TRIPS in state.selection) {
             Note(stringResource(R.string.transfer_note_recording_excluded), Modifier.testTag(TRANSFER_NOTE_RECORDING_TEST_TAG))
         }
+        // Das Paket traegt die FIN je Fahrt (trips_meta.csv); die CSV der Fahrten nicht.
+        if (DataPart.TRIPS in state.selection && state.format == ExportFormat.PACKAGE) {
+            Note(stringResource(R.string.transfer_note_vin), Modifier.testTag(TRANSFER_NOTE_VIN_TEST_TAG))
+        }
         Note(stringResource(R.string.transfer_note_no_backup), Modifier.testTag(TRANSFER_NOTE_NO_BACKUP_TEST_TAG))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -407,7 +412,7 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
             }
             Column(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 8.dp)) {
                 when (plan) {
-                    is PartPlan.Trips -> TripsPreviewBody(plan.plan)
+                    is PartPlan.Trips -> TripsPreviewBody(plan.plan, meta = plan.meta)
                     is PartPlan.Logbook -> LogbookPreviewBody(plan.plan)
                     is PartPlan.Unreadable -> UnreadablePartBody(plan.reason)
                 }

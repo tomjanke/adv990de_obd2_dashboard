@@ -21,6 +21,8 @@ import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.RowError
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.transfer.TripMeta
+import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.tripimport.RejectedRow
 import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.tripimport.readTripCsv
@@ -60,8 +62,8 @@ class TransferImportPartsDeviceTest {
     }
 
     // Der Baustein scrollt nicht selbst (die Seite tut es): im Test steht er in einer scrollbaren Spalte, und Pruefungen auf spaetere Zeilen scrollen erst hin.
-    private fun showTrips(plan: TripImportPlan) {
-        composeRule.setContent { Column(Modifier.verticalScroll(rememberScrollState())) { TripsPreviewBody(plan) } }
+    private fun showTrips(plan: TripImportPlan, meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) {
+        composeRule.setContent { Column(Modifier.verticalScroll(rememberScrollState())) { TripsPreviewBody(plan, meta = meta) } }
         composeRule.waitForIdle()
     }
 
@@ -126,6 +128,72 @@ class TransferImportPartsDeviceTest {
         composeRule.onNodeWithText(string(R.string.trip_import_nothing_new)).assertIsDisplayed()
         composeRule.onNodeWithText(plural(R.plurals.trip_import_duplicates, 13)).performScrollTo().assertIsDisplayed()
         composeRule.onAllNodesWithText(string(R.string.trip_import_note)).assertCountEquals(0)
+    }
+
+    // ── FIN und Fehlercodes je Fahrt (trips_meta.csv) ───────────────────────────
+
+    private val vin = "TESTVIN0000000001"
+
+    /** Die ersten Fahrten des Plans mit den Angaben aus [metas], die uebrigen ohne. */
+    private fun planWithMeta(trips: Int, vararg metas: TripMeta): TripImportPlan {
+        val base = plan(trips = trips, rows = 3, duplicates = 0)
+        return base.copy(trips = base.trips.mapIndexed { i, t -> t.withMeta(metas.getOrNull(i)) })
+    }
+
+    @Test
+    fun theTripsWithAVinAndWithRecordedCodesAreCounted_andNoNoteWhenEveryTripHasDetails() {
+        val plan = planWithMeta(2, TripMeta(vin, "P0301"), TripMeta(vin, ""))
+        showTrips(plan, TripMetaSummary(withVin = 2, withCodesRecorded = 2, invalidVins = 0, orphanRows = 0, unreadable = false))
+
+        composeRule.onNodeWithText(plural(R.plurals.transfer_trips_with_vin, 2)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_trips_with_codes, 2)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trip_import_note)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(string(R.string.transfer_trips_some_unrecorded)).assertCountEquals(0)
+    }
+
+    @Test
+    fun theNotRecordedNoteStaysWhenNoTripHasDetails() {
+        showTrips(planWithMeta(2), TripMetaSummary(0, 0, 0, 0, false))
+
+        composeRule.onNodeWithText(string(R.string.trip_import_note)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.transfer_trips_some_unrecorded)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_trips_with_vin, 0)).assertCountEquals(0)
+    }
+
+    @Test
+    fun aNoteAppearsWhenOnlySomeTripsHaveDetails() {
+        showTrips(planWithMeta(2, TripMeta(vin, null)), TripMetaSummary(withVin = 1, withCodesRecorded = 0, invalidVins = 0, orphanRows = 0, unreadable = false))
+
+        composeRule.onNodeWithText(plural(R.plurals.transfer_trips_with_vin, 1)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_trips_some_unrecorded)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trip_import_note)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_trips_with_codes, 0)).assertCountEquals(0)
+    }
+
+    @Test
+    fun invalidVinsAndOrphanRowsHaveALineEach() {
+        showTrips(planWithMeta(1, TripMeta(null, "")), TripMetaSummary(withVin = 0, withCodesRecorded = 1, invalidVins = 3, orphanRows = 2, unreadable = false))
+
+        composeRule.onNodeWithText(plural(R.plurals.transfer_trips_invalid_vin, 3)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_trips_orphan_meta, 2)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun anUnreadableMetaFileShowsAWarning_andTheNoteForTripsWithoutDetails() {
+        showTrips(planWithMeta(2), TripMetaSummary(0, 0, 0, 0, unreadable = true))
+
+        composeRule.onNodeWithText(string(R.string.transfer_trips_meta_unreadable)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_trips_some_unrecorded)).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trip_import_note)).assertCountEquals(0)
+    }
+
+    @Test
+    fun withoutAMetaFileNothingAboutDetailsIsShown() {
+        showTrips(plan(trips = 1, duplicates = 0))
+
+        composeRule.onAllNodesWithText(string(R.string.transfer_trips_meta_unreadable)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_trips_invalid_vin, 1)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.transfer_trips_orphan_meta, 1)).assertCountEquals(0)
     }
 
     // ── Logbuch ──────────────────────────────────────────────────────────────
