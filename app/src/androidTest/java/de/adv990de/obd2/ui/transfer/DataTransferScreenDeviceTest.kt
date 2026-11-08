@@ -237,6 +237,49 @@ class DataTransferScreenDeviceTest {
         composeRule.onNodeWithText(string(R.string.transfer_note_app_log)).assertIsDisplayed()
     }
 
+    private fun assertNoBackupHintOnExport(selection: Set<DataPart>) {
+        showExport(exportUi(selection = selection, canExport = selection.isNotEmpty()))
+        tag(TRANSFER_NOTE_NO_BACKUP_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_no_backup)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theNoBackupHintIsOnTheExportViewWithTheDefaultSelection() = assertNoBackupHintOnExport(DataPart.DEFAULT_EXPORT)
+
+    @Test
+    fun theNoBackupHintIsOnTheExportViewWithOnlyTheAppLog() = assertNoBackupHintOnExport(setOf(DataPart.APP_LOG))
+
+    @Test
+    fun theNoBackupHintIsOnTheExportViewWithNothingChosen() = assertNoBackupHintOnExport(emptySet())
+
+    private fun assertNoExportHintsOnImport(state: TransferImportState) {
+        showImport(state)
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_NO_BACKUP_TEST_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_RECORDING_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun noExportHintIsOnTheImportViewBeforeAFileIsChosen() = assertNoExportHintsOnImport(TransferImportState.Idle)
+
+    @Test
+    fun noExportHintIsOnTheImportViewWhileReading() = assertNoExportHintsOnImport(TransferImportState.Working)
+
+    @Test
+    fun noExportHintIsOnTheImportViewInThePreview() = assertNoExportHintsOnImport(preview(linkedMapOf(DataPart.LOGBOOK to logbookPlan, DataPart.TRIPS to tripPlan)))
+
+    @Test
+    fun theRecordingHintShowsOnlyWhileTheTripsAreChosen() {
+        showExport(exportUi(selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK)))
+        tag(TRANSFER_NOTE_RECORDING_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_recording_excluded)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theRecordingHintIsMissingWithoutTheTrips() {
+        showExport(exportUi(selection = setOf(DataPart.LOGBOOK, DataPart.APP_LOG)))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_RECORDING_TEST_TAG).assertCountEquals(0)
+    }
+
     @Test
     fun saveAndShareAreOffWithNothingToExport_andOtherwiseCallBack() {
         showExport(exportUi(selection = emptySet(), canExport = false))

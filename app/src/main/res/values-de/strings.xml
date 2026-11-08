@@ -684,6 +684,8 @@
     <string name="transfer_format_csv">CSV</string>
     <string name="transfer_format_csv_hint">CSV geht nur für genau eines von Fahrten, Logbuch oder App-Log.</string>
     <string name="transfer_note_app_log">Der App-Log enthält den Namen deines Adapters und Fehlermeldungen.</string>
+    <string name="transfer_note_no_backup">Die App sichert nichts von selbst. Löschst du die App-Daten oder die App, sind Fahrten, Logbuch und Einstellungen weg. Bewahre die Datei außerhalb des Telefons auf.</string>
+    <string name="transfer_note_recording_excluded">Die laufende Aufzeichnung ist nicht dabei.</string>
     <string name="transfer_nothing_to_export">Nichts zu exportieren.</string>
     <string name="transfer_saved">Gespeichert.</string>
     <string name="transfer_import_hint">Liest ein Paket oder eine CSV-Datei aus einem früheren Export.</string>

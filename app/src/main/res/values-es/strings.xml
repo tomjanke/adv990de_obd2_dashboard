@@ -705,6 +705,8 @@
     <string name="transfer_format_csv">CSV</string>
     <string name="transfer_format_csv_hint">CSV sirve solo para uno de: viajes, bitácora o registro de la app.</string>
     <string name="transfer_note_app_log">El registro de la app contiene el nombre de tu adaptador y mensajes de error.</string>
+    <string name="transfer_note_no_backup">La app no hace copias de seguridad por sí sola. Si borras los datos de la app o la app, se pierden los viajes, la bitácora y los ajustes. Guarda el archivo fuera del teléfono.</string>
+    <string name="transfer_note_recording_excluded">La grabación en curso no se incluye.</string>
     <string name="transfer_nothing_to_export">Nada que exportar.</string>
     <string name="transfer_saved">Guardado.</string>
     <string name="transfer_import_hint">Lee un paquete o un archivo CSV de una exportación anterior.</string>

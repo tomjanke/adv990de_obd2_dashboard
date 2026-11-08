@@ -684,6 +684,8 @@
     <string name="transfer_format_csv">CSV</string>
     <string name="transfer_format_csv_hint">CSV works for exactly one of drives, logbook or app log.</string>
     <string name="transfer_note_app_log">The app log contains your adapter\'s name and error messages.</string>
+    <string name="transfer_note_no_backup">The app does not back anything up by itself. If you delete the app data or the app, drives, logbook and settings are gone. Keep the file somewhere other than this phone.</string>
+    <string name="transfer_note_recording_excluded">The recording in progress is not included.</string>
     <string name="transfer_nothing_to_export">Nothing to export.</string>
     <string name="transfer_saved">Saved.</string>
     <string name="transfer_import_hint">Reads a package or a CSV file from an earlier export.</string>
