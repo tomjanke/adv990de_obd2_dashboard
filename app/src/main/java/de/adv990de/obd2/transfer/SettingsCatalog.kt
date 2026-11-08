@@ -149,7 +149,8 @@ object SettingsCatalog {
         is Long -> raw
         is Short -> raw.toLong()
         is Byte -> raw.toLong()
-        is Number -> raw.toDouble().takeIf { it.isFinite() && it == Math.rint(it) && Math.abs(it) < 9.0e15 }?.toLong()
+        // ein endliches, ganzzahliges Double jenseits von +-9e15 wird auf diese Grenze gesetzt: es liegt in jeder Spanne und bei jeder Auswahl ausserhalb (OUT_OF_RANGE/NOT_AN_OPTION), nicht "falscher Typ"
+        is Number -> raw.toDouble().takeIf { it.isFinite() && it == Math.rint(it) }?.coerceIn(-9.0e15, 9.0e15)?.toLong()
         else -> null
     }
 }

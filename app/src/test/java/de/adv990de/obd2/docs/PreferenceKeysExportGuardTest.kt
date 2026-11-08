@@ -25,6 +25,17 @@ class PreferenceKeysExportGuardTest {
             .flatMap { f -> keyCall.findAll(f.readText()).map { it.groupValues[1] } }
             .toSet()
 
+    private val anyKeyCall = Regex("""\b(?:string|int|boolean|float|long|double|stringSet)PreferencesKey\(""")
+
+    /** Dateien mit einem Schluessel-Aufruf, dessen Name kein Zeichenketten-Literal ist (eine Konstante bliebe fuer den Schutz unsichtbar). */
+    private fun nonLiteralCalls(root: File = mainRoot): List<String> =
+        root.walkTopDown().filter { it.extension == "kt" }.mapNotNull { f ->
+            val text = f.readText()
+            val all = anyKeyCall.findAll(text).count()
+            val literal = keyCall.findAll(text).count()
+            if (all != literal) "${f.name}: $all Aufrufe, davon $literal mit Literal" else null
+        }.toList()
+
     private val template = Regex("""\$\{[^}]*}""")
 
     /** Die Schluessel, die der Katalog fuer einen Quelltext-Namen fuehren muss: der Name selbst, bei einer Familie jede Ausprägung je Wartungsart. */
@@ -60,6 +71,28 @@ class PreferenceKeysExportGuardTest {
         val all = covered()
         val twice = all.groupBy { it }.filter { it.value.size > 1 }.keys.sorted()
         assertTrue("Schluessel mehrfach im Katalog (exported, counterKeys, excluded): $twice", twice.isEmpty())
+    }
+
+    @Test
+    fun `every key is declared with a string literal, a constant would hide it from the guard`() {
+        val offenders = nonLiteralCalls()
+        assertTrue(
+            "Schluessel nur als Zeichenketten-Literal deklarieren (sonst sieht der Schutz ihn nicht): $offenders",
+            offenders.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `a key declared through a constant is flagged`() {
+        val dir = java.nio.file.Files.createTempDirectory("guard").toFile()
+        try {
+            File(dir, "Fine.kt").writeText("""val a = intPreferencesKey("fine")""")
+            assertTrue(nonLiteralCalls(dir).isEmpty())
+            File(dir, "Hidden.kt").writeText("""val k = stringPreferencesKey(KEY_NAME)""")
+            assertEquals(listOf("Hidden.kt: 1 Aufrufe, davon 0 mit Literal"), nonLiteralCalls(dir))
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 
     @Test

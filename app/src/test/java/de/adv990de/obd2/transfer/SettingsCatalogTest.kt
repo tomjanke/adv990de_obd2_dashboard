@@ -24,6 +24,17 @@ class SettingsCatalogTest {
     private val maintenanceKeys = MAINTENANCE_TYPES.map { "maintenance_interval_${it.name.lowercase()}_km" }
 
     @Test
+    fun `a whole number far beyond the range is out of range, not a wrong type`() {
+        assertInvalid(SettingReject.OUT_OF_RANGE, "rpm_blink_threshold", 1e300)
+        assertInvalid(SettingReject.OUT_OF_RANGE, "rpm_blink_threshold", -1e16)
+        assertInvalid(SettingReject.OUT_OF_RANGE, "fuel_range_full_km", 1e16)
+        assertInvalid(SettingReject.NOT_AN_OPTION, "obd_watchdog_timeout_seconds", 1e300)
+        assertInvalid(SettingReject.WRONG_TYPE, "rpm_blink_threshold", 12.5)
+        assertInvalid(SettingReject.WRONG_TYPE, "rpm_blink_threshold", Double.NaN)
+        assertInvalid(SettingReject.WRONG_TYPE, "rpm_blink_threshold", Double.POSITIVE_INFINITY)
+    }
+
+    @Test
     fun `the catalog holds the 36 settings in the order of the file`() {
         val expected = listOf(
             "theme", "use_imperial", "hide_nav_on_drive", "use_gps_speed", "rpm_dynamic_threshold", "rpm_blink_threshold",
