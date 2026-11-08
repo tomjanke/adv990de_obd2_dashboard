@@ -151,10 +151,20 @@ class FuelRepository @Inject constructor(
     }
 
     /** Setzt die Anzeige auf "voll" zurueck (nach dem Tanken) und schreibt sofort. Gewinnt gegen ein noch ausstehendes Laden. */
-    fun reset() {
-        odometer.value = Odometer(loaded = true, km = 0f)
-        persist(0f)
+    fun reset() = restore(0f)
+
+    /**
+     * Setzt den Zaehler auf [km] (Wiederherstellen aus einem Paket) und schreibt sofort; gewinnt wie [reset] gegen ein noch ausstehendes Laden. Ein unbrauchbarer Wert (negativ, NaN,
+     * unendlich) aendert nichts.
+     */
+    fun restore(km: Float) {
+        if (!km.isFinite() || km < 0f) return
+        odometer.value = Odometer(loaded = true, km = km)
+        persist(km)
     }
+
+    /** Der Stand im Speicher (er hinkt dem DataStore nie hinterher, dieser dem Speicher bis [PERSIST_STEP_KM]); `null`, solange der Zaehler nicht geladen ist. */
+    fun currentKm(): Float? = odometer.value.takeIf { it.loaded }?.km
 
     /**
      * Hebt die Anzeige nach einer **Teilbetankung** an: zieht [km] vom Zaehler ab (nie unter 0 — voller als voll gibt es nicht) und schreibt sofort, wie [reset]. Eine unbrauchbare Strecke

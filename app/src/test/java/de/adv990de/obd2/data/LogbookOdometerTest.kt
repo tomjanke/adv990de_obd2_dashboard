@@ -168,4 +168,63 @@ class LogbookOdometerTest {
 
         assertEquals(GpsOdometer(40_000, 10f), f.odometer.counter.first())
     }
+
+    // --- restore / current (Daten wiederherstellen) ---
+
+    @Test
+    fun `restore sets the state and writes at once, current reads the memory`() = runTest(UnconfinedTestDispatcher()) {
+        val writes = mutableListOf<Pair<Int, Float>>()
+        val f = fixture(stored = GpsOdometer(40_000, 10f)) { a, k -> writes += a to k }
+
+        f.odometer.restore(GpsOdometer(40_000, 3.25f))
+
+        assertEquals(GpsOdometer(40_000, 3.25f), f.odometer.current())
+        assertEquals(GpsOdometer(40_000, 3.25f), f.odometer.counter.first())
+        assertEquals(listOf(40_000 to 3.25f), writes)
+    }
+
+    @Test
+    fun `current is null while nothing is ready`() = runTest(UnconfinedTestDispatcher()) {
+        val f = fixture(stored = null, maxKm = null)
+
+        assertNull(f.odometer.current())
+    }
+
+    @Test
+    fun `unusable values never reach the writer`() = runTest(UnconfinedTestDispatcher()) {
+        val writes = mutableListOf<Pair<Int, Float>>()
+        val f = fixture(stored = GpsOdometer(40_000, 10f)) { a, k -> writes += a to k }
+
+        for (bad in listOf(GpsOdometer(-1, 1f), GpsOdometer(1_000_000, 1f), GpsOdometer(40_000, -1f), GpsOdometer(40_000, Float.NaN), GpsOdometer(40_000, Float.POSITIVE_INFINITY))) {
+            f.odometer.restore(bad)
+        }
+
+        assertEquals(GpsOdometer(40_000, 10f), f.odometer.current())
+        assertEquals(emptyList<Pair<Int, Float>>(), writes)
+        coVerify(exactly = 0) { f.prefs.setGpsOdometer(any(), any()) }
+    }
+
+    @Test
+    fun `restore before the log reports the new highest reading ends at the restored counter`() = runTest(UnconfinedTestDispatcher()) {
+        val writes = mutableListOf<Pair<Int, Float>>()
+        val f = fixture(stored = GpsOdometer(40_000, 10f)) { a, k -> writes += a to k }
+
+        f.odometer.restore(GpsOdometer(40_300, 7f))
+        f.maxKm.value = 40_300
+
+        assertEquals(GpsOdometer(40_300, 7f), f.odometer.current())
+        assertEquals("zuletzt geschrieben: der wiederhergestellte Stand", 40_300 to 7f, writes.last())
+    }
+
+    @Test
+    fun `restore after the log reported the new highest reading ends at the restored counter`() = runTest(UnconfinedTestDispatcher()) {
+        val writes = mutableListOf<Pair<Int, Float>>()
+        val f = fixture(stored = GpsOdometer(40_000, 10f)) { a, k -> writes += a to k }
+
+        f.maxKm.value = 40_300
+        f.odometer.restore(GpsOdometer(40_300, 7f))
+
+        assertEquals(GpsOdometer(40_300, 7f), f.odometer.current())
+        assertEquals(40_300 to 7f, writes.last())
+    }
 }

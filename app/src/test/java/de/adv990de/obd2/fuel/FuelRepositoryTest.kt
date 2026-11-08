@@ -282,6 +282,64 @@ class FuelRepositoryTest {
         assertEquals(0f, repo.state.value!!.kmSinceFill, 0f)
     }
 
+    // --- restore / currentKm (Daten wiederherstellen) ---
+
+    @Test
+    fun `restore sets the counter and writes it at once`() = runTest {
+        val repo = repo(prefs(range = 200, km = 10f))
+
+        repo.restore(42.5f)
+        runCurrent()
+
+        assertEquals(FuelGaugeState(200, 42.5f), repo.state.value)
+        assertEquals(listOf(42.5f), written)
+    }
+
+    @Test
+    fun `a restore before the stored counter arrives wins over the late value`() = runTest {
+        val stored = MutableSharedFlow<Float>()
+        val prefs = fakeAppPreferences(fuelRangeFullKm = 200).also(::stubWrites)
+        every { prefs.fuelKmSinceFill } returns stored
+        val repo = repo(prefs)
+        runCurrent()
+
+        repo.restore(42.5f)
+        runCurrent()
+        stored.emit(100f)
+        runCurrent()
+
+        assertEquals(42.5f, repo.state.value!!.kmSinceFill, 0f)
+        assertEquals(42.5f, repo.currentKm()!!, 0f)
+    }
+
+    @Test
+    fun `an unusable restore changes nothing and writes nothing`() = runTest {
+        val repo = repo(prefs(range = 200, km = 10f))
+
+        for (bad in listOf(-1f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)) repo.restore(bad)
+        runCurrent()
+
+        assertEquals(10f, repo.currentKm()!!, 0f)
+        assertEquals(emptyList<Float>(), written)
+    }
+
+    @Test
+    fun `currentKm is null before the counter is loaded and the state in memory afterwards`() = runTest {
+        val stored = MutableSharedFlow<Float>()
+        val prefs = fakeAppPreferences(fuelRangeFullKm = 200).also(::stubWrites)
+        every { prefs.fuelKmSinceFill } returns stored
+        val repo = repo(prefs)
+        runCurrent()
+        assertNull(repo.currentKm())
+
+        stored.emit(100f)
+        runCurrent()
+        repo.addDistance(0.05f)
+
+        assertEquals("der Stand im Speicher, nicht der gespeicherte (noch nicht geschriebene) Wert", 100.05f, repo.currentKm()!!, 1e-4f)
+        assertEquals(emptyList<Float>(), written)
+    }
+
     // --- F5: die Reichweite aus dem Logbuch und der Cache fuer das erste Bild ---
 
     private val day = java.time.LocalDate.of(2026, 1, 1)

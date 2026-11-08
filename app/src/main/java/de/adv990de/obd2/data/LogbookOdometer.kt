@@ -3,6 +3,7 @@ package de.adv990de.obd2.data
 import de.adv990de.obd2.di.ApplicationScope
 import de.adv990de.obd2.fuel.FuelDistanceSink
 import de.adv990de.obd2.logbook.GpsOdometer
+import de.adv990de.obd2.logbook.MAX_ODOMETER_KM
 import de.adv990de.obd2.logbook.OdometerCounter
 import de.adv990de.obd2.logbook.shouldPersistOdometer
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -73,6 +75,19 @@ class LogbookOdometer @Inject constructor(
         val current = state.value.counter ?: return
         if (current != persisted) persist(current)
     }
+
+    /**
+     * Stellt den Zaehler aus einem Paket wieder her und schreibt ihn sofort. Pruft selbst (der Schreiber faengt nur [IOException], ein `require` des Setters wuerde den Scope beenden):
+     * Anker 0..[MAX_ODOMETER_KM], Kilometer endlich und >= 0, sonst Rueckkehr ohne Wirkung. Zum Rennen mit der Meldung des Logbuchs s. [OdometerCounter.withRestored].
+     */
+    fun restore(value: GpsOdometer) {
+        if (value.anchorKm !in 0..MAX_ODOMETER_KM || !value.gpsKm.isFinite() || value.gpsKm < 0f) return
+        state.update { it.withRestored(value) }
+        persist(value)
+    }
+
+    /** Der Zaehler im Speicher (`null`, solange er nicht bereit ist oder das Logbuch keinen Eintrag hat). */
+    fun current(): GpsOdometer? = state.value.counter
 
     private fun update(transform: (OdometerCounter) -> OdometerCounter) {
         val counter = state.updateAndGet(transform).counter ?: return

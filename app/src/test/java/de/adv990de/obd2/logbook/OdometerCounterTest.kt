@@ -145,4 +145,67 @@ class OdometerCounterTest {
     fun `the persist step is half a kilometre`() {
         assertEquals(0.5f, ODOMETER_PERSIST_STEP_KM, 0f)
     }
+
+    // --- withRestored (Daten wiederherstellen) ---
+
+    private val readyAt40000 = start.withStored(GpsOdometer(40_000, 5f)).withLoggedMax(40_000)
+
+    @Test
+    fun `a restored counter of the current reading replaces the counter at once`() {
+        val r = readyAt40000.withRestored(GpsOdometer(40_000, 12.5f))
+
+        assertEquals(GpsOdometer(40_000, 12.5f), r.counter)
+    }
+
+    @Test
+    fun `a restored counter whose reading the log has not reported yet is kept and wins over the late report`() {
+        val r = readyAt40000.withRestored(GpsOdometer(40_300, 7f)).withLoggedMax(40_300)
+
+        assertEquals(GpsOdometer(40_300, 7f), r.counter)
+    }
+
+    @Test
+    fun `the restored counter and kilometres counted afterwards add up`() {
+        val r = readyAt40000.withRestored(GpsOdometer(40_300, 7f)).withLoggedMax(40_300).withDistance(1f)
+
+        assertEquals(GpsOdometer(40_300, 8f), r.counter)
+    }
+
+    @Test
+    fun `another reading than the restored one discards the note, a later report does not resurrect it`() {
+        val r = readyAt40000.withRestored(GpsOdometer(40_300, 7f)).withLoggedMax(40_500).withLoggedMax(40_300)
+
+        assertEquals(GpsOdometer(40_300, 0f), r.counter)
+    }
+
+    @Test
+    fun `without any entry afterwards the note is discarded`() {
+        val r = readyAt40000.withRestored(GpsOdometer(40_300, 7f)).withLoggedMax(null).withLoggedMax(40_300)
+
+        assertEquals(GpsOdometer(40_300, 0f), r.counter)
+    }
+
+    @Test
+    fun `before it is ready the restored counter wins over the stored one and the kilometres counted meanwhile are added`() {
+        val r = start.withRestored(GpsOdometer(40_000, 12f)).withDistance(0.5f)
+            .withStored(GpsOdometer(40_000, 99f)).withLoggedMax(40_000)
+
+        assertEquals(GpsOdometer(40_000, 12.5f), r.counter)
+    }
+
+    @Test
+    fun `before it is ready a restored counter of another reading is dropped when the highest reading arrives`() {
+        val r = start.withRestored(GpsOdometer(41_000, 12f)).withStored(GpsOdometer(40_000, 3f)).withLoggedMax(40_000)
+
+        assertEquals(GpsOdometer(40_000, 3f), r.counter)
+    }
+
+    @Test
+    fun `an unusable restored value changes nothing`() {
+        for (bad in listOf(-0.1f, Float.NaN, Float.POSITIVE_INFINITY)) {
+            val r = readyAt40000.withRestored(GpsOdometer(40_000, bad))
+
+            assertEquals(bad.toString(), readyAt40000, r)
+        }
+    }
 }

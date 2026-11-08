@@ -18,6 +18,8 @@ internal data class OdometerCounter(
     private val loggedMax: Int? = null,
     private val pendingKm: Float = 0f,
     val counter: GpsOdometer? = null,
+    /** Ein wiederhergestellter Zaehler, dessen Stand das Logbuch noch nicht gemeldet hat (s. [withRestored]). */
+    private val restoredPending: GpsOdometer? = null,
 ) {
     val ready: Boolean get() = storedKnown && maxKnown
 
@@ -28,11 +30,24 @@ internal data class OdometerCounter(
     /** Der hoechste Kilometerstand im Logbuch ist [max] (`null` ohne Eintrag). */
     fun withLoggedMax(max: Int?): OdometerCounter {
         if (!maxKnown) return copy(maxKnown = true, loggedMax = max).settledIfReady()
+        val pending = restoredPending
         return when {
-            max == null -> copy(loggedMax = null, counter = null)
-            counter?.anchorKm == max -> copy(loggedMax = max)
-            else -> copy(loggedMax = max, counter = GpsOdometer(max, 0f))
+            max == null -> copy(loggedMax = null, counter = null, restoredPending = null)
+            pending != null && pending.anchorKm == max -> copy(loggedMax = max, counter = pending, restoredPending = null)
+            counter?.anchorKm == max -> copy(loggedMax = max, restoredPending = null)
+            else -> copy(loggedMax = max, counter = GpsOdometer(max, 0f), restoredPending = null)
         }
+    }
+
+    /**
+     * Ein aus einem Paket wiederhergestellter Zaehler. Gehoert er zum jetzigen hoechsten Stand, gilt er sofort. Sonst wird er **gemerkt**: nach dem Import der Logbuch-Eintraege meldet
+     * [VehicleLogRepository.maxOdometerKm] den neuen hoechsten Stand asynchron, und ohne den Merker finge der Zaehler dann bei 0 neu an (ein Rennen, das nur manchmal auftraete). Trifft ein
+     * Stand ein, der dem gemerkten entspricht, gilt dieser; jeder andere Stand verwirft den Merker. Ein unbrauchbarer Zaehler (negativ, nicht endlich) aendert nichts.
+     */
+    fun withRestored(value: GpsOdometer): OdometerCounter = when {
+        !value.gpsKm.isFinite() || value.gpsKm < 0f -> this
+        ready && loggedMax == value.anchorKm -> copy(counter = value, restoredPending = null)
+        else -> copy(restoredPending = value)
     }
 
     /** [km] gefahrene Kilometer; unbrauchbare Werte (0, negativ, nicht endlich) zaehlen nichts. */
@@ -48,8 +63,9 @@ internal data class OdometerCounter(
     private fun settledIfReady(): OdometerCounter {
         if (!ready) return this
         val max = loggedMax
-        val km = (stored?.takeIf { it.anchorKm == max }?.gpsKm ?: 0f) + pendingKm
-        return copy(counter = max?.let { GpsOdometer(it, km) }, pendingKm = 0f)
+        val base = restoredPending?.takeIf { it.anchorKm == max } ?: stored?.takeIf { it.anchorKm == max }
+        val km = (base?.gpsKm ?: 0f) + pendingKm
+        return copy(counter = max?.let { GpsOdometer(it, km) }, pendingKm = 0f, restoredPending = null)
     }
 }
 
