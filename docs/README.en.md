@@ -4,7 +4,7 @@ Detailed version in English · [Deutsche Fassung](README.de.md) · [Short versio
 
 **OBD Dashboard** is an Android app that shows **ride and OBD data** live as a dashboard. I wrote it first of all for my **KTM 990 Adventure** (hence the repository name `adv990de_obd2_dashboard`). The OBD data come through an OBD2 adapter (ELM327 over classic Bluetooth), the ride data (speed, altitude, gradient, heading) from the phone's GPS and pressure sensor. It reads live sensor data, shows fault codes (DTCs), stores drive sessions locally and visualises configurable dashboards in Jetpack Compose.
 
-> Current version: **1.45.1** (versionCode 160) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
+> Current version: **1.45.2** (versionCode 161) · minSdk **26** (Android 8.0) · targetSdk **37** (Android 17) · compileSdk **37**
 
 ---
 
@@ -196,7 +196,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM unit tests (3594 tests, < 30 seconds)
+# JVM unit tests (3609 tests, < 30 seconds)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented tests (need a device/emulator)
@@ -205,8 +205,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test layer | Frameworks | Count |
 |---|---|---|
-| JVM unit tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3594 |
-| Compose UI tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 943 (navigation (every route of the host), gearbox settings, dashboard, logbook (list, entry page, dialogs, export, analysis, maintenance intervals), bar chart, charge/discharge bar, RPM digits in the bar, alarm band with dashboard alarms, "missing values" band with dashboard states, alarm notification, alarm settings, terrain tile, preview banner, RpmBar, dashboard edge, slot picker, slot accessibility, touch targets, licence page, status bar icons, fuel gauge with range setting, DTC, settings, theme picker, choice setting, confirm-delete dialog, empty state, undo snackbar, swipe-to-delete row, device row, app logs with export, app info, freeze frame, gear ratio field, vehicle info, history with drive details and drive import, drives switcher, RPM threshold section, settings rows, permission gate, live value tile, live value text, bottom nav, section label, sparkline, UiText) |
+| JVM unit tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3609 |
+| Compose UI tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 950 (navigation (every route of the host), gearbox settings, dashboard, logbook (list, entry page, dialogs, export, analysis, maintenance intervals), bar chart, charge/discharge bar, RPM digits in the bar, alarm band with dashboard alarms, "missing values" band with dashboard states, alarm notification, alarm settings, terrain tile, preview banner, RpmBar, dashboard edge, slot picker, slot accessibility, touch targets, licence page, status bar icons, fuel gauge with range setting, DTC, settings, theme picker, choice setting, confirm-delete dialog, empty state, undo snackbar, swipe-to-delete row, device row, app logs with export, app info, freeze frame, gear ratio field, vehicle info, history with drive details and drive import, drives switcher, RPM threshold section, settings rows, permission gate, live value tile, live value text, bottom nav, section label, sparkline, UiText) |
 | Room integration tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 84 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase migration 1→2→3→4→5→6, database bootstrap with foreign keys, SessionRepository, drive import) |
 | End-to-end through the ECU simulator | real `ObdRepository` + `SimulatorObdConnection` | 7 (session, discovery, reading stream, dashboard) |
 | Service tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, notification channel, end of session, remembered service type) |
@@ -476,8 +476,8 @@ See [`RELEASE_NOTES.md`](../RELEASE_NOTES.md) — chronological changes since ve
 |---|---|
 | `README.md`, `docs/README.en.md`, `docs/README.de.md` | The short version (English and German) and the detailed versions in English and German; the two detailed ones have the same structure (`ReadmeParityTest`), the version is only stated there |
 | `app/src/main/` | Production code |
-| `app/src/test/` | JVM unit tests (3594) |
-| `app/src/androidTest/` | Instrumented tests (943, Hilt + Compose + Room) |
+| `app/src/test/` | JVM unit tests (3609) |
+| `app/src/androidTest/` | Instrumented tests (950, Hilt + Compose + Room) |
 | `app/schemas/` | **In the repo** — Room schema exports for migration tests |
 | `docs/qa/` | The measured test coverage (`coverage.md`) and the battery baseline for F12 (`2026-10-19-battery-baseline.md`; the recurring, tested script is under `scripts/battery_baseline.py`) — the recorded drives (CSV) are not in the repo |
 | *(not in the repository)* | Plans, specifications, QA report, decision log and evaluations of recorded drives with their analysis scripts are in a private folder next to the repository (in references `<intern>`); the folders `plans/` and `superpowers/` under `docs/` are in the `.gitignore` so that plans created there do not end up in the repository by accident |

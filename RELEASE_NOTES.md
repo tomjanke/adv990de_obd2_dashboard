@@ -1,5 +1,18 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.2 (versionCode 161)
+
+**Beim Einlesen einer Datei zeigt die App jetzt, welche Datei es war und warum es scheiterte.** Anlass: eine Meldung „Die Datei wurde nicht erkannt“ ließ sich nicht aufklären, weil weder der Dateiname noch die Ursache irgendwo standen.
+
+### Was sich ändert
+
+- **Dateiname in der Fehlermeldung:** Scheitert das Einlesen, steht der Name der gewählten Datei („Datei: …“) über dem Grund. So fällt eine falsch gewählte Datei (anderer Ordner, ähnlicher Name) sofort auf. Den Ordner nennt die App nicht: der Systemdialog gibt keinen verlässlichen Pfad heraus.
+- **Ursache im App-Log:** Ein Fehler beim Prüfen oder Schreiben steht jetzt als eine WARN-Zeile im App-Log („Import check failed for 'name.zip': …“ mit Klasse und Meldung). Bisher blieb eine nicht lesbare Datei dort ohne Spur; nur gescheiterte Teile beim Schreiben wurden protokolliert.
+- **„Nicht erkannt“ nur noch für unbekannte Dateien:** Jeder andere Lesefehler (ein nie geschlossenes Anführungszeichen, zu viele Zeilen im Logbuch, ein Fehler im Programm) heißt jetzt „Die Datei ließ sich nicht lesen“. Vorher erschien auch ein Programmfehler als „nicht erkannt“ und schickte den Nutzer auf die falsche Spur.
+- **Unverändert:** Funktionen, Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen, Paketkennung und Signaturschlüssel (ein Update von 1.45.1 ist möglich). Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.45.1 (versionCode 160)
 
 **Neuer Signaturschlüssel.** Funktional ist diese Version gleich 1.45.0; geändert hat sich nur, womit die APK signiert ist.
