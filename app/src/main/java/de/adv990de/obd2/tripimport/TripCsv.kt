@@ -4,6 +4,7 @@ import de.adv990de.obd2.data.CANCELLATION_CHECK_ROWS
 import de.adv990de.obd2.data.CsvRecord
 import de.adv990de.obd2.data.CsvRecordReader
 import de.adv990de.obd2.obd.model.ValueSource
+import de.adv990de.obd2.transfer.TripMeta
 import java.io.Reader
 
 /**
@@ -12,7 +13,7 @@ import java.io.Reader
  * 1.34.0 (dort ist die ganze Datei eine Fahrt); `name` und jede unbekannte Spalte werden ignoriert (der Name folgt aus der PID).
  *
  * Die Datei kennt weder Beginn noch Ende einer Fahrt noch FIN oder Fehlercodes: Beginn und Ende einer Fahrt sind der kleinste und der groesste Zeitstempel ihrer
- * Zeilen, FIN und Fehlercodes bleiben leer (`null` = "nicht erfasst" — nie "keine gefunden").
+ * Zeilen, FIN und Fehlercodes bleiben leer (`null` = "nicht erfasst" — nie "keine gefunden"); aus einem Paket kommen sie von `trips_meta.csv` (`ParsedTrip.withMeta`).
  */
 const val TRIP_COLUMN_TIMESTAMP = "timestamp"
 const val TRIP_COLUMN_PID = "pid"
@@ -82,7 +83,19 @@ class TripRows internal constructor(
 }
 
 /** Eine Fahrt der Datei: [sourceId] ist ihre Nummer in der Datei (die der Quell-App, nicht die der neuen), [startMs] und [endMs] der kleinste und groesste Zeitstempel. */
-class ParsedTrip(val sourceId: String, val startMs: Long, val endMs: Long, val rows: TripRows)
+class ParsedTrip(
+    val sourceId: String,
+    val startMs: Long,
+    val endMs: Long,
+    val rows: TripRows,
+    /** Die FIN aus `trips_meta.csv` eines Pakets; `null` = keine erfasst (die CSV allein kennt sie nicht). */
+    val vin: String? = null,
+    /** Die Fehlercodes bei Beginn im gespeicherten Format (`SessionDtcs.kt`): `null` = nicht erfasst, `""` = gelesen und keine Codes. */
+    val dtcCodes: String? = null,
+) {
+    /** Dieselbe Fahrt mit den Angaben aus [meta]; ohne Angaben ([meta] `null`) bleibt alles unveraendert. */
+    fun withMeta(meta: TripMeta?): ParsedTrip = if (meta == null) this else ParsedTrip(sourceId, startMs, endMs, rows, meta.vin, meta.dtcCodes)
+}
 
 /** Was die Datei enthaelt: die Fahrten in Dateireihenfolge, die abgelehnten Zeilen ([rejected] nur die ersten [MAX_KEPT_REJECTED_ROWS], [rejectedCount] alle) und die Zahl der gueltigen Zeilen. */
 class ParsedTripFile(val trips: List<ParsedTrip>, val rejected: List<RejectedRow>, val rejectedCount: Int, val rowCount: Int)

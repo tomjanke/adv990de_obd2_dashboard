@@ -11,6 +11,9 @@ import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.SensorValue
+import de.adv990de.obd2.transfer.TripMeta
+import de.adv990de.obd2.transfer.tripMetaCsvHeader
+import de.adv990de.obd2.transfer.tripMetaCsvLine
 import de.adv990de.obd2.tripimport.ParsedTrip
 import de.adv990de.obd2.tripimport.SessionSpan
 import kotlinx.coroutines.CancellationException
@@ -36,6 +39,9 @@ internal const val SESSION_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
 
 /** So viele Messwerte schreibt der Import je Aufruf an die Datenbank (die Entitaeten entstehen erst hier, nie fuer die ganze Datei auf einmal). */
 private const val IMPORT_CHUNK_ROWS = 1_000
+
+/** So viele Fahrt-Nummern je Abfrage der Angaben (SQLite: 999 gebundene Variablen auf API 26). */
+private const val META_CHUNK_IDS = 500
 
 @Singleton
 class SessionRepository @Inject constructor(
@@ -166,14 +172,14 @@ class SessionRepository @Inject constructor(
     /**
      * Schreibt die Fahrten einer Import-Datei als **neue** Fahrten, **alles oder nichts**: eine Transaktion um alle Fahrten und alle Messwerte — ein Fehler oder der Abbruch des
      * Aufrufers (die Pruefung zwischen den Bloecken wirft) laesst die Datenbank unveraendert. Jede Fahrt bekommt eine neue Id; Beginn und Ende sind der kleinste und der groesste
-     * Zeitstempel ihrer Zeilen, FIN und Fehlercodes bleiben `null` (nicht erfasst). Die Messwerte gehen in Bloecken zu [IMPORT_CHUNK_ROWS] an die Datenbank, in der Reihenfolge der
+     * Zeitstempel ihrer Zeilen; FIN und Fehlercodes kommen aus [ParsedTrip.vin] und [ParsedTrip.dtcCodes] (aus der CSV allein `null` = nicht erfasst) und stehen im selben Insert. Die Messwerte gehen in Bloecken zu [IMPORT_CHUNK_ROWS] an die Datenbank, in der Reihenfolge der
      * Datei (die Reihenfolge der Aufzeichnung, die der Export wieder liest). **Preis der einen Transaktion:** die Datenbank ist waehrend des Schreibens (bei 100 000 Zeilen einige
      * Sekunden) fuer andere Schreiber gesperrt — schreibt gerade die Aufzeichnung einer laufenden Fahrt, wartet sie so lange.
      */
     suspend fun importTrips(trips: List<ParsedTrip>) = withContext(Dispatchers.IO) {
         db.withTransaction {
             for (trip in trips) {
-                val sessionId = db.sessionDao().insert(SessionEntity(startTime = trip.startMs, endTime = trip.endMs))
+                val sessionId = db.sessionDao().insert(SessionEntity(startTime = trip.startMs, endTime = trip.endMs, vehicleVin = trip.vin, dtcCodes = trip.dtcCodes))
                 var from = 0
                 while (from < trip.rows.size) {
                     currentCoroutineContext().ensureActive()
@@ -272,6 +278,30 @@ class SessionRepository @Inject constructor(
     suspend fun exportableSessionIds(): List<Long> {
         val active = _activeSessionId.value
         return db.sessionDao().idsWithReadings().filter { it != active }.sorted()
+    }
+
+    /**
+     * Die FIN und die Fehlercodes der Fahrten [ids] (nur Fahrten, die es gibt), in Bloecken zu [META_CHUNK_IDS]: SQLite erlaubt auf API 26 nur 999 gebundene Variablen. Eine Fahrt ohne
+     * Angabe steht mit einer leeren [TripMeta] in der Antwort; wer nur die mit Angabe braucht, fragt [TripMeta.isEmpty].
+     */
+    suspend fun tripMeta(ids: List<Long>): Map<Long, TripMeta> = withContext(Dispatchers.IO) {
+        val result = HashMap<Long, TripMeta>()
+        for (chunk in ids.chunked(META_CHUNK_IDS)) {
+            currentCoroutineContext().ensureActive()
+            for (row in db.sessionDao().metaByIds(chunk)) result[row.id] = TripMeta(row.vehicleVin, row.dtcCodes)
+        }
+        result
+    }
+
+    /** `trips_meta.csv` des Pakets: nur Fahrten **mit** Angabe (FIN oder Codes), in der Reihenfolge von [ids]; die Nummer ist dieselbe wie in `trips.csv`. */
+    internal suspend fun writeTripMetaCsv(writer: Writer, ids: List<Long>) {
+        val meta = tripMeta(ids)
+        writer.write(tripMetaCsvHeader())
+        for (id in ids) {
+            val entry = meta[id] ?: continue
+            if (entry.isEmpty) continue
+            writer.write(tripMetaCsvLine(id.toString(), entry))
+        }
     }
 
     private fun requireTripsToExport(sessionIds: List<Long>) = require(sessionIds.isNotEmpty()) { "There is no trip to export" }

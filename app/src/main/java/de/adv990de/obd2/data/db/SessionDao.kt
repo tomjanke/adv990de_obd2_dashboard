@@ -6,6 +6,9 @@ import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.tripimport.SessionSpan
 import kotlinx.coroutines.flow.Flow
 
+/** Die FIN und die Fehlercodes einer Fahrt (der Export des Pakets, `trips_meta.csv`). */
+data class SessionMetaRow(val id: Long, val vehicleVin: String?, val dtcCodes: String?)
+
 @Dao
 interface SessionDao {
     @Insert suspend fun insert(session: SessionEntity): Long
@@ -34,6 +37,10 @@ interface SessionDao {
             "FROM sessions",
     )
     suspend fun spans(): List<SessionSpan>
+
+    /** At most 500 ids per call (the repository chunks): SQLite allows only 999 bound variables on API 26. */
+    @Query("SELECT id, vehicleVin, dtcCodes FROM sessions WHERE id IN (:ids)")
+    suspend fun metaByIds(ids: List<Long>): List<SessionMetaRow>
 
     /** Callers pass at most a few dozen ids (the repository chunks): SQLite allows only 999 bound variables on API 26. */
     @Query("DELETE FROM sessions WHERE id IN (:ids)") suspend fun deleteByIds(ids: List<Long>)

@@ -7,6 +7,7 @@ import de.adv990de.obd2.data.db.SensorReadingDao
 import de.adv990de.obd2.data.db.SessionDao
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.transfer.TripMeta
 import de.adv990de.obd2.tripimport.ParsedTrip
 import de.adv990de.obd2.tripimport.SessionSpan
 import de.adv990de.obd2.tripimport.readTripCsv
@@ -113,6 +114,25 @@ class SessionRepositoryImportTest {
             written[0],
         )
         assertEquals(listOf(101L, 101L), written[1].map { it.sessionId })
+    }
+
+    @Test
+    fun `the VIN and the fault codes of a trip go into the same insert as the trip`() = runTest {
+        val metas = listOf(TripMeta("TESTVIN0000000001", "P0301,P0420?"), TripMeta(null, ""), TripMeta(null, null))
+        val parsed = trips(Triple("7", t0, 2), Triple("8", t0 + 100_000, 2), Triple("9", t0 + 200_000, 2)).mapIndexed { i, t -> t.withMeta(metas[i]) }
+
+        repo.importTrips(parsed)
+
+        assertEquals(listOf("TESTVIN0000000001", null, null), inserted.map { it.vehicleVin })
+        assertEquals(listOf<String?>("P0301,P0420?", "", null), inserted.map { it.dtcCodes })
+    }
+
+    @Test
+    fun `a trip without meta stays not recorded - never none found`() = runTest {
+        repo.importTrips(trips(Triple("7", t0, 2)).map { it.withMeta(null) })
+
+        assertEquals(null, inserted.single().dtcCodes)
+        assertEquals(null, inserted.single().vehicleVin)
     }
 
     @Test

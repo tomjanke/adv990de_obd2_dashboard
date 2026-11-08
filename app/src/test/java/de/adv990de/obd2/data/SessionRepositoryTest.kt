@@ -11,7 +11,9 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.SessionDao
 import de.adv990de.obd2.data.db.SensorReadingDao
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
+import de.adv990de.obd2.data.db.SessionMetaRow
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.transfer.TripMeta
 import de.adv990de.obd2.obd.model.DtcEntry
 import de.adv990de.obd2.obd.model.PidDefinition
 import de.adv990de.obd2.obd.model.SensorValue
@@ -845,5 +847,50 @@ class SessionRepositoryTest {
         assertTrue("cancelled", job.isCancelled)
         assertTrue("stopped long before the end, read $index of ${rows.size}", index < 5_000)
         verify(exactly = 1) { cursor.close() }
+    }
+
+    @Test
+    fun `tripMeta reads the VIN and the codes of the trips in chunks of at most 500 ids`() = runTest {
+        val asked = ArrayList<List<Long>>()
+        coEvery { sessionDao.metaByIds(any()) } coAnswers {
+            val ids = firstArg<List<Long>>()
+            asked += ids
+            ids.filter { it % 2 == 0L }.map { SessionMetaRow(it, "TESTVIN0000000001", "P0301") }
+        }
+
+        val meta = repo.tripMeta((1L..1_200L).toList())
+
+        assertEquals(listOf(500, 500, 200), asked.map { it.size })
+        assertEquals((1L..1_200L).toList(), asked.flatten())
+        assertEquals(600, meta.size)
+        assertEquals(TripMeta("TESTVIN0000000001", "P0301"), meta.getValue(2L))
+        assertFalse(1L in meta)
+    }
+
+    @Test
+    fun `tripMeta of no ids asks nothing`() = runTest {
+        assertTrue(repo.tripMeta(emptyList()).isEmpty())
+        coVerify(exactly = 0) { sessionDao.metaByIds(any()) }
+    }
+
+    @Test
+    fun `writeTripMetaCsv writes only trips with a detail, in the order of the ids`() = runTest {
+        coEvery { sessionDao.metaByIds(any()) } returns listOf(
+            SessionMetaRow(3L, null, null),
+            SessionMetaRow(9L, "TESTVIN0000000001", null),
+            SessionMetaRow(5L, null, ""),
+            SessionMetaRow(1L, "TESTVIN0000000002", "P0301,P0420?"),
+        )
+
+        val out = java.io.StringWriter()
+        repo.writeTripMetaCsv(out, listOf(9L, 3L, 1L, 5L, 4L))
+
+        assertEquals(
+            "session,vin,dtcs_recorded,dtc_codes\n" +
+                "9,TESTVIN0000000001,0,\n" +
+                "1,TESTVIN0000000002,1,\"P0301,P0420?\"\n" +
+                "5,,1,\n",
+            out.toString(),
+        )
     }
 }
