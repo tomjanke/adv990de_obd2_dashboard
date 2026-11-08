@@ -62,6 +62,7 @@ import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openDataTransfer
 import de.adv990de.obd2.ui.transfer.TransferMode
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import java.time.LocalDate
@@ -149,14 +150,14 @@ internal fun LogbookScreen(
                     // Abkuerzungen auf die Seite „Daten sichern und wiederherstellen“: Exportieren mit dem Logbuch vorgewaehlt (CSV; ohne sichtbaren Eintrag gibt es nichts zu exportieren),
                     // Importieren mit dem Dateidialog gleich offen (immer moeglich).
                     IconButton(
-                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.LOGBOOK)) },
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.LOGBOOK)) },
                         enabled = hasEntries,
                         modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_EXPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Download, contentDescription = stringResource(R.string.logbook_cd_export))
                     }
                     IconButton(
-                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
                         modifier = Modifier.size(RowButtonSize).testTag(LOGBOOK_IMPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Upload, contentDescription = stringResource(R.string.logbook_cd_import))

@@ -79,4 +79,15 @@ class TransferShortcutsSourceTest {
         assertTrue(history.contains("ExportFeedbackEffects( feedback = vm.exportFeedback,"))
         assertTrue("nach dem Umbau gibt es kein „gespeichert“ mehr in der Liste", history.contains("savedMessage = null"))
     }
+
+    @Test
+    fun `every way into the transfer page goes through one helper that launches single top`() {
+        val settings = source("ui/settings/SettingsSections.kt")
+        for ((name, text) in listOf("HistoryScreen" to history, "LogbookScreen" to logbook, "AppLogsScreen" to appLogs, "SettingsSections" to settings)) {
+            assertTrue("$name oeffnet die Seite ueber openDataTransfer", text.contains("openDataTransfer(Screen.DataTransfer.routeFor("))
+            assertFalse("$name navigiert nicht selbst zur Seite", text.contains("navigate(Screen.DataTransfer"))
+        }
+        val helper = source("ui/navigation/DataTransferNavigation.kt")
+        assertTrue("ein zweiter Tipp legt keinen zweiten Eintrag an", helper.contains("navigate(route) { launchSingleTop = true }"))
+    }
 }

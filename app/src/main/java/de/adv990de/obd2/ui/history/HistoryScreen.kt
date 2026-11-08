@@ -62,6 +62,7 @@ import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openDataTransfer
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
@@ -136,7 +137,7 @@ fun HistoryScreen(
                     // Abkuerzung auf die Seite „Daten sichern und wiederherstellen“, Exportieren mit den Fahrten vorgewaehlt (CSV). Gleiche Voraussetzung wie der Papierkorb
                     // daneben: mindestens eine abgeschlossene, sichtbare Fahrt (die laufende Aufzeichnung ist nicht dabei).
                     IconButton(
-                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.TRIPS)) },
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.TRIPS)) },
                         enabled = canExportAll,
                         modifier = Modifier.size(RowButtonSize).testTag(HISTORY_EXPORT_TEST_TAG),
                     ) {
@@ -144,7 +145,7 @@ fun HistoryScreen(
                     }
                     // Abkuerzung auf dieselbe Seite im Modus Importieren, der Dateidialog oeffnet sich dort gleich: immer moeglich, auch ohne Fahrten in der Liste.
                     IconButton(
-                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
                         modifier = Modifier.size(RowButtonSize).testTag(HISTORY_IMPORT_TEST_TAG),
                     ) {
                         Icon(AppIcons.Upload, contentDescription = stringResource(R.string.history_cd_import))

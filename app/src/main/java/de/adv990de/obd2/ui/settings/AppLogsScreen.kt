@@ -44,6 +44,7 @@ import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.formatDateTimeSeconds
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openDataTransfer
 import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
@@ -82,7 +83,7 @@ fun AppLogsScreen(
                     // Shortcut to the page "Daten sichern und wiederherstellen" with the app log chosen (CSV). 56 dp touch target (glove-friendly); disabled while there is
                     // nothing to export — which includes the undo window of a delete-all, when the list is already hidden.
                     IconButton(
-                        onClick = { navController.navigate(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.APP_LOG)) },
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.APP_LOG)) },
                         enabled = logs.isNotEmpty(),
                         modifier = Modifier.size(56.dp),
                     ) {

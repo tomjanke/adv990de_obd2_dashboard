@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openDataTransfer
 
 /*
  * Die drei unteren Gruppen der Einstellungsseite, aus `SettingsScreen` herausgeloest (die Datei war 558 Zeilen lang). Reine Verschiebung:
@@ -101,7 +102,7 @@ internal fun LazyListScope.infoSection(navController: NavController, crashVm: Cr
         SettingsLinkRow(
             title = stringResource(R.string.settings_data_transfer),
             summary = stringResource(R.string.settings_data_transfer_summary),
-            onClick = { navController.navigate(Screen.DataTransfer.routeFor()) },
+            onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor()) },
         )
         HorizontalDivider()
     }

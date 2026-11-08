@@ -44,12 +44,14 @@ import de.adv990de.obd2.ui.SHORTCUT_TARGET_TEST_TAG
 import de.adv990de.obd2.ui.ShortcutNavHost
 import de.adv990de.obd2.ui.assertTransferTarget
 import de.adv990de.obd2.ui.formatDateTime
+import de.adv990de.obd2.ui.navigation.Screen
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.spyk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -651,6 +653,23 @@ class HistoryScreenTest {
         composeRule.onNodeWithTag(HISTORY_IMPORT_TEST_TAG).performClick()
 
         assertOnTransferPage(mode = "import", part = "", pick = true)
+    }
+
+    @Test
+    fun aDoubleTapOnTheImportShortcut_leavesExactlyOneTransferPage() {
+        launchHistoryScreen()
+        waitForText("WP0ZZZ99ZTS392124")
+
+        // Without the clock running, the list is still under the finger after the first tap, like the 700 ms of the crossfade in the app.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(HISTORY_IMPORT_TEST_TAG).performClick()
+        composeRule.onNodeWithTag(HISTORY_IMPORT_TEST_TAG).performClick()
+        composeRule.mainClock.autoAdvance = true
+
+        assertOnTransferPage(mode = "import", part = "", pick = true)
+        composeRule.runOnUiThread {
+            assertEquals(1, navController.currentBackStack.value.count { it.destination.route == Screen.DataTransfer.route })
+        }
     }
 
     // ── Min/Max je Fahrt im Detail-Dialog (F11) ───────────────────────────────
