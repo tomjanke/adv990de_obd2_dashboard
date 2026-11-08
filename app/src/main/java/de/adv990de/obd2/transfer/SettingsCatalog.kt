@@ -120,7 +120,7 @@ object SettingsCatalog {
             if ((kind.zeroMeansUnset && n == 0L) || n in kind.range.first.toLong()..kind.range.last.toLong()) valid(n.toInt())
             else invalid(SettingReject.OUT_OF_RANGE)
         } ?: invalid(SettingReject.WRONG_TYPE)
-        is SettingKind.FloatIn -> if (raw !is Number || raw is Boolean) invalid(SettingReject.WRONG_TYPE) else {
+        is SettingKind.FloatIn -> if (raw !is Number) invalid(SettingReject.WRONG_TYPE) else {
             val f = raw.toDouble().toFloat()
             if (f.isFinite() && ((kind.zeroAllowed && f == 0f) || f in kind.range)) valid(f) else invalid(SettingReject.OUT_OF_RANGE)
         }
