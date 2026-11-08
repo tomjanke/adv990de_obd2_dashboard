@@ -33,7 +33,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
@@ -50,11 +49,10 @@ import de.adv990de.obd2.data.VehicleLogRepository
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogFilter
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.ui.SHORTCUT_TARGET_TEST_TAG
+import de.adv990de.obd2.ui.ShortcutNavHost
 import de.adv990de.obd2.ui.assertTransferTarget
 import de.adv990de.obd2.ui.navigation.Screen
-import de.adv990de.obd2.ui.transfer.TRANSFER_MODE_ARG
-import de.adv990de.obd2.ui.transfer.TRANSFER_PART_ARG
-import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_ARG
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -117,19 +115,13 @@ class LogbookScreenDeviceTest {
     private fun launch() {
         composeRule.setContent {
             navController = rememberNavController()
-            NavHost(navController, startDestination = "logbook") {
-                composable("logbook") { LogbookScreen(navController) }
-                composable(Screen.LogEntry.route, arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L })) { Text(ENTRY_MARKER) }
-                composable(Screen.LogbookStats.route, arguments = listOf(navArgument(LOG_STATS_TYPE_ARG) { type = NavType.StringType })) { Text(STATS_MARKER) }
-                composable(
-                    Screen.DataTransfer.route,
-                    arguments = listOf(
-                        navArgument(TRANSFER_MODE_ARG) { type = NavType.StringType; defaultValue = "export" },
-                        navArgument(TRANSFER_PART_ARG) { type = NavType.StringType; defaultValue = "" },
-                        navArgument(TRANSFER_PICK_ARG) { type = NavType.BoolType; defaultValue = false },
-                    ),
-                ) { Text(TRANSFER_MARKER) }
-            }
+            ShortcutNavHost(
+                navController,
+                extraDestinations = {
+                    composable(Screen.LogEntry.route, arguments = listOf(navArgument(LOG_ENTRY_ID_ARG) { type = NavType.LongType; defaultValue = 0L })) { Text(ENTRY_MARKER) }
+                    composable(Screen.LogbookStats.route, arguments = listOf(navArgument(LOG_STATS_TYPE_ARG) { type = NavType.StringType })) { Text(STATS_MARKER) }
+                },
+            ) { LogbookScreen(it) }
         }
         composeRule.waitForIdle()
     }
@@ -719,7 +711,7 @@ class LogbookScreenDeviceTest {
 
     private fun assertOnTransferPage(mode: String, part: String, pick: Boolean) {
         composeRule.waitForIdle()
-        composeRule.onNodeWithText(TRANSFER_MARKER).assertIsDisplayed()
+        composeRule.onNodeWithTag(SHORTCUT_TARGET_TEST_TAG).assertIsDisplayed()
         composeRule.runOnUiThread { assertTransferTarget(navController, mode, part, pick) }
     }
 
@@ -748,7 +740,7 @@ class LogbookScreenDeviceTest {
         composeRule.onNodeWithTag(LOGBOOK_EXPORT_TEST_TAG).assertIsNotEnabled().performClick()
 
         composeRule.waitForIdle()
-        composeRule.onAllNodesWithText(TRANSFER_MARKER).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(SHORTCUT_TARGET_TEST_TAG).assertCountEquals(0)
     }
 
     @Test
@@ -763,6 +755,5 @@ class LogbookScreenDeviceTest {
     private companion object {
         const val ENTRY_MARKER = "LOGBOOK_ENTRY_PAGE_MARKER"
         const val STATS_MARKER = "LOGBOOK_STATS_PAGE_MARKER"
-        const val TRANSFER_MARKER = "LOGBOOK_TRANSFER_PAGE_MARKER"
     }
 }

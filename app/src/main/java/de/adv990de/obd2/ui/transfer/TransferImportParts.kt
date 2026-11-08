@@ -38,8 +38,8 @@ internal const val MAX_LISTED_REJECTED_ROWS = 20
 internal const val MAX_LISTED_ROW_ERRORS = 20
 
 /**
- * Die Vorschau der Fahrten eines Imports (die Zahlen, die abgelehnten Zeilen): der gemeinsame Baustein der Seite „Daten sichern und wiederherstellen“ und des alten Dialogs der
- * Fahrten-Liste. Ein Rahmen ohne Scroll und ohne Hintergrund — der Aufrufer gibt ihn mit [modifier].
+ * Die Vorschau der Fahrten eines Imports (die Zahlen, die abgelehnten Zeilen) auf der Seite „Daten sichern und wiederherstellen“. Ein Rahmen ohne Scroll und ohne Hintergrund —
+ * der Aufrufer gibt ihn mit [modifier].
  */
 @Composable
 internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifier) {
@@ -73,7 +73,7 @@ internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifie
     }
 }
 
-/** Die Vorschau des Logbuchs eines Imports, wie [TripsPreviewBody] der gemeinsame Baustein von Seite und altem Dialog. */
+/** Die Vorschau des Logbuchs eines Imports, gebaut wie [TripsPreviewBody]. */
 @Composable
 internal fun LogbookPreviewBody(plan: ImportPlan, modifier: Modifier = Modifier) {
     val nothingNew = plan.toInsert.isEmpty()

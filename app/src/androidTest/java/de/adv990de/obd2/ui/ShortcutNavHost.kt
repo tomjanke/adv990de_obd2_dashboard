@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavHostController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,10 +24,14 @@ internal const val SHORTCUT_TARGET_TEST_TAG = "shortcut_target"
  * A tiny nav host for the tests of the export and import shortcuts in the lists: the list under test is the start destination, and the route of the data transfer page
  * (declared with the same arguments and defaults as in `AppNavHost`) shows only a marker. The real page is not composed here — its own tests cover it; what a shortcut
  * promises is the **route and its arguments**, and those are read from the back stack entry ([assertTransferTarget]). The test builds the [navController] with
- * `rememberNavController()` itself and keeps it.
+ * `rememberNavController()` itself and keeps it. [extraDestinations] adds further placeholder pages (e.g. the entry page of the logbook).
  */
 @Composable
-internal fun ShortcutNavHost(navController: NavHostController, start: @Composable (NavHostController) -> Unit) {
+internal fun ShortcutNavHost(
+    navController: NavHostController,
+    extraDestinations: NavGraphBuilder.() -> Unit = {},
+    start: @Composable (NavHostController) -> Unit,
+) {
     NavHost(navController, startDestination = "shortcut_start") {
         composable("shortcut_start") { start(navController) }
         composable(
@@ -37,6 +42,7 @@ internal fun ShortcutNavHost(navController: NavHostController, start: @Composabl
                 navArgument(TRANSFER_PICK_ARG) { type = NavType.BoolType; defaultValue = false },
             ),
         ) { Box { Text("transfer page", Modifier.testTag(SHORTCUT_TARGET_TEST_TAG)) } }
+        extraDestinations()
     }
 }
 
