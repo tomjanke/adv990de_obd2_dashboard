@@ -40,3 +40,6 @@ fun decodeSessionDtcs(text: String?): List<DtcEntry>? {
         if (DTC_CODE.matches(code)) DtcEntry(code = code, isPending = pending) else null
     }
 }
+
+/** Ist [code] ein Fehlercode im Format, das `DtcParser` erzeugt (`[PCBU][0-9A-F]{4}`)? Eine Regel fuer die Fahrten und die Fehlerhistorie. */
+internal fun isValidDtcCode(code: String): Boolean = DTC_CODE.matches(code)
