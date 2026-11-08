@@ -31,6 +31,13 @@ sealed interface PartPlan {
     data class Trips(val plan: TripImportPlan, val meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) : PartPlan
     data class Logbook(val plan: ImportPlan) : PartPlan
     data class DtcHistory(val plan: DtcHistoryPlan) : PartPlan
+    data class Settings(val plan: SettingsPlan) : PartPlan
+
+    /**
+     * Die Zaehler der Datei: [values] geprueft, [rejectedKeys] die abgelehnten Schluessel, [predictedMaxKm] der hoechste Logbuch-Stand, mit dem der Import rechnet (der gespeicherte oder der der
+     * Datei, je nachdem, was hoeher ist), und [decision] die **Vorhersage** zur Kilometer-Schaetzung — endgueltig entschieden wird beim Einlesen.
+     */
+    data class Counters(val values: CounterValues, val rejectedKeys: List<String>, val decision: OdometerDecision, val predictedMaxKm: Int?) : PartPlan
     data class Unreadable(val reason: UnreadableReason) : PartPlan
 }
 
@@ -40,6 +47,8 @@ val PartPlan.hasNews: Boolean
         is PartPlan.Trips -> plan.trips.isNotEmpty()
         is PartPlan.Logbook -> plan.toInsert.isNotEmpty()
         is PartPlan.DtcHistory -> plan.newCodes + plan.updatedCodes > 0
+        is PartPlan.Settings -> plan.changes.isNotEmpty()
+        is PartPlan.Counters -> values.fuelKmSinceFill != null || decision == OdometerDecision.APPLY
         is PartPlan.Unreadable -> false
     }
 

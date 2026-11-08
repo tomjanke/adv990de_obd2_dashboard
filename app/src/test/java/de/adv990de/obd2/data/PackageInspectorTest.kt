@@ -18,9 +18,17 @@ import de.adv990de.obd2.transfer.tripMetaCsvLine
 import de.adv990de.obd2.tripimport.SessionSpan
 import de.adv990de.obd2.transfer.UnreadableReason
 import de.adv990de.obd2.transfer.hasNews
+import de.adv990de.obd2.transfer.CounterValues
+import de.adv990de.obd2.transfer.OdometerDecision
+import de.adv990de.obd2.transfer.SettingReject
+import de.adv990de.obd2.transfer.countersToJson
+import de.adv990de.obd2.transfer.sampleSettings
+import de.adv990de.obd2.transfer.settingsToJson
 import de.adv990de.obd2.transfer.toJson
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,7 +53,8 @@ class PackageInspectorTest {
     private val sessionRepo = mockk<SessionRepository>()
     private val logRepo = mockk<VehicleLogRepository>()
     private val dtcRepo = mockk<DtcHistoryRepository>()
-    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo), dtcRepo)
+    private val settingsTransfer = mockk<SettingsTransfer>()
+    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo), dtcRepo, settingsTransfer, logRepo)
 
     private fun manifest(format: Int = 1, appId: String = "de.adv990de.obd2") = PackageManifest(format, appId, "1.0", nowMs, emptyMap()).toJson()
 
@@ -70,7 +79,12 @@ class PackageInspectorTest {
         coEvery { sessionRepo.sessionSpans() } returns emptyList()
         coEvery { logRepo.all() } returns emptyList()
         coEvery { dtcRepo.all() } returns emptyList()
+        coEvery { settingsTransfer.snapshot() } returns defaultSettings
+        every { logRepo.maxOdometerKm } returns flowOf(null)
     }
+
+    /** Der Stand der "App": sampleSettings mit zwei abweichenden Werten, damit "aendert sich" und "gleich" beide vorkommen. */
+    private val defaultSettings: Map<String, Any> = sampleSettings() + mapOf("theme" to "system", "use_imperial" to false)
 
     @Test
     fun `a package with trips and logbook gives both plans in import order`() = runTest {
@@ -161,13 +175,6 @@ class PackageInspectorTest {
     fun `unknown entries and path tricks are ignored`() = runTest {
         stubRepos()
         val preview = inspector.inspect(zip("manifest.json" to manifest(), "../trips.csv" to tripsCsv, "evil/logbook.csv" to logbookCsv, "notes.txt" to "x"), nowMs, today)
-        assertTrue(preview.parts.isEmpty())
-    }
-
-    @Test
-    fun `parts this version does not know are not read`() = runTest {
-        stubRepos()
-        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to "{}", "counters.json" to "{}"), nowMs, today)
         assertTrue(preview.parts.isEmpty())
     }
 
@@ -378,5 +385,144 @@ class PackageInspectorTest {
         val preview = inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to logbookCsv), nowMs, today)
 
         assertFalse(DataPart.DTC_HISTORY in preview.parts)
+    }
+
+    // --- Einstellungen ---
+
+    private fun settingsPlan(preview: de.adv990de.obd2.transfer.TransferPreview) = (preview.parts.getValue(DataPart.SETTINGS) as PartPlan.Settings).plan
+
+    @Test
+    fun `settings are planned against the current state, only differing values change`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to settingsToJson(sampleSettings())), nowMs, today)
+
+        val plan = settingsPlan(preview)
+        assertEquals(listOf("theme", "use_imperial"), plan.changes.map { it.spec.key })
+        assertEquals(listOf<Any>("amber", true), plan.changes.map { it.to })
+        assertEquals(listOf<Any?>("system", false), plan.changes.map { it.from })
+        assertEquals(sampleSettings().size - 2, plan.unchanged)
+        assertEquals(sampleSettings().size, plan.total)
+        assertTrue(preview.parts.getValue(DataPart.SETTINGS).hasNews)
+    }
+
+    @Test
+    fun `rejected and unknown settings are listed and never part of the changes`() = runTest {
+        stubRepos()
+        val json = """{"format":1,"values":{"theme":"purple","use_imperial":true,"rpm_blink_threshold":99999,"device_address":"AA:BB","future_key":1}}"""
+        val plan = settingsPlan(inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to json), nowMs, today))
+
+        assertEquals(listOf("use_imperial"), plan.changes.map { it.spec.key })
+        assertEquals(listOf("theme" to SettingReject.UNKNOWN_VALUE, "rpm_blink_threshold" to SettingReject.OUT_OF_RANGE), plan.rejected.map { it.key to it.reason })
+        assertEquals(listOf("device_address", "future_key"), plan.unknownKeys)
+    }
+
+    @Test
+    fun `settings equal to the current state have no news`() = runTest {
+        stubRepos()
+        coEvery { settingsTransfer.snapshot() } returns sampleSettings()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to settingsToJson(sampleSettings())), nowMs, today)
+
+        assertFalse(preview.parts.getValue(DataPart.SETTINGS).hasNews)
+    }
+
+    @Test
+    fun `a broken settings file is unreadable and leaves the other parts`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to "{not json", "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.SETTINGS))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun `settings without a values object are unreadable`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "settings.json" to """{"format":1}"""), nowMs, today)
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.SETTINGS))
+    }
+
+    // --- Zaehler ---
+
+    private fun countersPlan(preview: de.adv990de.obd2.transfer.TransferPreview) = preview.parts.getValue(DataPart.COUNTERS) as PartPlan.Counters
+
+    private val counters = countersToJson(CounterValues(12.5f, 1000, 4.25f))
+
+    @Test
+    fun `the predicted highest mileage comes from the logbook of the file, which makes the anchor match`() = runTest {
+        stubRepos()
+        val plan = countersPlan(inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to logbookCsv, "counters.json" to counters), nowMs, today))
+
+        assertEquals(1000, plan.predictedMaxKm)
+        assertEquals(OdometerDecision.APPLY, plan.decision)
+        assertEquals(12.5f, plan.values.fuelKmSinceFill)
+        assertEquals(emptyList<String>(), plan.rejectedKeys)
+    }
+
+    @Test
+    fun `the predicted highest mileage is the larger of the stored one and the one of the file`() = runTest {
+        stubRepos()
+        every { logRepo.maxOdometerKm } returns flowOf(5000)
+        val plan = countersPlan(inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to logbookCsv, "counters.json" to counters), nowMs, today))
+
+        assertEquals(5000, plan.predictedMaxKm)
+        assertEquals(OdometerDecision.SKIP_ANCHOR_MISMATCH, plan.decision)
+    }
+
+    @Test
+    fun `counters without a logbook use the stored highest mileage`() = runTest {
+        stubRepos()
+        every { logRepo.maxOdometerKm } returns flowOf(1000)
+        val plan = countersPlan(inspector.inspect(zip("manifest.json" to manifest(), "counters.json" to counters), nowMs, today))
+
+        assertEquals(1000, plan.predictedMaxKm)
+        assertEquals(OdometerDecision.APPLY, plan.decision)
+    }
+
+    @Test
+    fun `counters without any logbook entry anywhere skip the estimate`() = runTest {
+        stubRepos()
+        val plan = countersPlan(inspector.inspect(zip("manifest.json" to manifest(), "counters.json" to counters), nowMs, today))
+
+        assertEquals(null, plan.predictedMaxKm)
+        assertEquals(OdometerDecision.SKIP_NO_LOGBOOK, plan.decision)
+    }
+
+    @Test
+    fun `an unreadable logbook of the file does not feed the prediction`() = runTest {
+        stubRepos()
+        every { logRepo.maxOdometerKm } returns flowOf(2000)
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to "a,b\n1,2\n", "counters.json" to counters), nowMs, today)
+
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Unreadable)
+        assertEquals(2000, countersPlan(preview).predictedMaxKm)
+    }
+
+    @Test
+    fun `a counters file with a rejected pair names the keys and has no odometer`() = runTest {
+        stubRepos()
+        val json = """{"format":1,"fuel_km_since_fill":3.5,"logbook_gps_anchor_km":1000}"""
+        val plan = countersPlan(inspector.inspect(zip("manifest.json" to manifest(), "counters.json" to json), nowMs, today))
+
+        assertEquals(listOf("logbook_gps_anchor_km"), plan.rejectedKeys)
+        assertEquals(OdometerDecision.ABSENT, plan.decision)
+        assertEquals(3.5f, plan.values.fuelKmSinceFill)
+        assertTrue(plan.hasNews)
+    }
+
+    @Test
+    fun `a broken counters file is unreadable`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "counters.json" to "[]"), nowMs, today)
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.COUNTERS))
+    }
+
+    @Test
+    fun `settings and counters come last in import order, behind the fault history`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(
+            zip("manifest.json" to manifest(), "counters.json" to counters, "dtc_history.csv" to dtcCsv, "settings.json" to settingsToJson(sampleSettings()), "trips.csv" to tripsCsv, "logbook.csv" to logbookCsv),
+            nowMs, today,
+        )
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS), preview.parts.keys.toList())
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -18,9 +19,18 @@ import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.RowError
+import de.adv990de.obd2.transfer.CounterValues
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.DtcHistoryPlan
+import de.adv990de.obd2.transfer.OdometerDecision
 import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.transfer.PartPlan
+import de.adv990de.obd2.transfer.SettingReject
+import de.adv990de.obd2.transfer.SettingsGroup
+import de.adv990de.obd2.transfer.RejectedSetting
+import de.adv990de.obd2.transfer.SettingChange
+import de.adv990de.obd2.transfer.SettingsCatalog
+import de.adv990de.obd2.transfer.SettingsPlan
 import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.transfer.UnreadableReason
 import de.adv990de.obd2.tripimport.ParsedTripFile
@@ -107,6 +117,85 @@ internal fun DtcHistoryPreviewBody(plan: DtcHistoryPlan, modifier: Modifier = Mo
     }
 }
 
+/** Der Name einer Gruppe der Einstellungen in der Vorschau. */
+@androidx.annotation.StringRes
+internal fun settingsGroupLabelRes(group: SettingsGroup): Int = when (group) {
+    SettingsGroup.DISPLAY -> R.string.transfer_group_display
+    SettingsGroup.DASHBOARD -> R.string.transfer_group_dashboard
+    SettingsGroup.CONNECTION -> R.string.transfer_group_connection
+    SettingsGroup.ALARMS -> R.string.transfer_group_alarms
+    SettingsGroup.VEHICLE_FUEL -> R.string.transfer_group_vehicle_fuel
+    SettingsGroup.MAINTENANCE -> R.string.transfer_group_maintenance
+    SettingsGroup.GEAR -> R.string.transfer_group_gear
+}
+
+@androidx.annotation.StringRes
+internal fun settingRejectRes(reason: SettingReject): Int = when (reason) {
+    SettingReject.WRONG_TYPE -> R.string.transfer_reject_wrong_type
+    SettingReject.OUT_OF_RANGE -> R.string.transfer_reject_out_of_range
+    SettingReject.NOT_AN_OPTION -> R.string.transfer_reject_not_an_option
+    SettingReject.UNKNOWN_VALUE -> R.string.transfer_reject_unknown_value
+}
+
+/** Hoechstens so viele abgelehnte Einstellungen nennt die Vorschau einzeln. */
+internal const val MAX_LISTED_REJECTED_SETTINGS = 20
+
+/**
+ * Die Vorschau der Einstellungen eines Imports: „n von m Einstellungen aendern sich“, je Gruppe mit Aenderungen eine Zeile, die abgelehnten Eintraege (Schluessel und Grund, hoechstens
+ * [MAX_LISTED_REJECTED_SETTINGS]) und die unbekannten.
+ */
+@Composable
+internal fun SettingsPreviewBody(plan: SettingsPlan, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(pluralStringResource(R.plurals.transfer_settings_changes, plan.changes.size, plan.changes.size, plan.total), style = MaterialTheme.typography.titleMedium)
+        SettingsGroup.entries.forEach { group ->
+            val n = plan.changesBy(group)
+            if (n > 0) Text(stringResource(R.string.transfer_part_row, stringResource(settingsGroupLabelRes(group)), n.toString()), modifier = Modifier.padding(start = 8.dp))
+        }
+        if (plan.rejected.isNotEmpty()) {
+            Text(pluralStringResource(R.plurals.transfer_settings_rejected, plan.rejected.size, plan.rejected.size), color = MaterialTheme.colorScheme.error)
+            plan.rejected.take(MAX_LISTED_REJECTED_SETTINGS).forEach { row ->
+                Text(
+                    stringResource(R.string.transfer_reject_row, row.key, stringResource(settingRejectRes(row.reason))),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            if (plan.rejected.size > MAX_LISTED_REJECTED_SETTINGS) {
+                val more = plan.rejected.size - MAX_LISTED_REJECTED_SETTINGS
+                Text(pluralStringResource(R.plurals.trip_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+        if (plan.unknownKeys.isNotEmpty()) Text(pluralStringResource(R.plurals.transfer_settings_unknown, plan.unknownKeys.size, plan.unknownKeys.size))
+    }
+}
+
+/** Die Vorschau der Zaehler: der Tankzaehler, die Zeile zur Kilometer-Schaetzung je Entscheidung (eine Vorhersage: endgueltig entscheidet das Einlesen) und abgelehnte Schluessel. */
+@Composable
+internal fun CountersPreviewBody(plan: PartPlan.Counters, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        plan.values.fuelKmSinceFill?.let { km ->
+            Text(stringResource(R.string.transfer_counters_fuel, "%.1f".format(LocalLocale.current.platformLocale, km)), style = MaterialTheme.typography.titleMedium)
+        }
+        Text(
+            stringResource(
+                when (plan.decision) {
+                    OdometerDecision.APPLY -> R.string.transfer_counters_odometer_apply
+                    OdometerDecision.SKIP_ANCHOR_MISMATCH -> R.string.transfer_counters_odometer_skip_anchor
+                    OdometerDecision.SKIP_NO_LOGBOOK -> R.string.transfer_counters_odometer_skip_no_logbook
+                    OdometerDecision.ABSENT -> R.string.transfer_counters_odometer_absent
+                },
+            ),
+        )
+        if (plan.decision != OdometerDecision.ABSENT) {
+            Text(stringResource(R.string.transfer_counters_decided_on_import), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (plan.rejectedKeys.isNotEmpty()) {
+            Text(pluralStringResource(R.plurals.transfer_settings_rejected, plan.rejectedKeys.size, plan.rejectedKeys.size), color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
 /** Die Vorschau des Logbuchs eines Imports, gebaut wie [TripsPreviewBody]. */
 @Composable
 internal fun LogbookPreviewBody(plan: ImportPlan, modifier: Modifier = Modifier) {
@@ -165,7 +254,7 @@ internal fun UnreadablePartBody(reason: UnreadableReason, modifier: Modifier = M
 internal fun PartResultLine(part: DataPart, outcome: PartOutcome, modifier: Modifier = Modifier) {
     val name = stringResource(partLabelRes(part))
     when (outcome) {
-        is PartOutcome.Done -> Text(stringResource(R.string.transfer_result_done, name, doneText(part, outcome.count)), modifier = modifier)
+        is PartOutcome.Done -> Text(stringResource(R.string.transfer_result_done, name, doneText(part, outcome)), modifier = modifier)
         // Der technische Grund (die Meldung des Systems) steht nicht in der Oberflaeche: ein fester, lokalisierter Satz (der Grund bleibt in `PartOutcome.Failed.cause`).
         is PartOutcome.Failed -> Text(
             stringResource(R.string.transfer_result_done, name, stringResource(R.string.transfer_error_write)),
@@ -176,11 +265,17 @@ internal fun PartResultLine(part: DataPart, outcome: PartOutcome, modifier: Modi
 }
 
 @Composable
-private fun doneText(part: DataPart, count: Int): String = when (part) {
-    DataPart.TRIPS -> pluralStringResource(R.plurals.trip_import_done, count, count)
-    DataPart.LOGBOOK -> pluralStringResource(R.plurals.logbook_import_done, count, count)
-    DataPart.DTC_HISTORY -> pluralStringResource(R.plurals.transfer_done_codes, count, count)
-    else -> count.toString()
+private fun doneText(part: DataPart, outcome: PartOutcome.Done): String {
+    val count = outcome.count
+    return when (part) {
+        DataPart.TRIPS -> pluralStringResource(R.plurals.trip_import_done, count, count)
+        DataPart.LOGBOOK -> pluralStringResource(R.plurals.logbook_import_done, count, count)
+        DataPart.DTC_HISTORY -> pluralStringResource(R.plurals.transfer_done_codes, count, count)
+        DataPart.SETTINGS -> pluralStringResource(R.plurals.transfer_done_settings, count, count)
+        DataPart.COUNTERS ->
+            if (outcome.skipped == 0) stringResource(R.string.transfer_done_counters) else stringResource(R.string.transfer_done_counters_partial, count, outcome.skipped)
+        DataPart.APP_LOG -> count.toString()
+    }
 }
 
 // region — Previews
@@ -217,6 +312,36 @@ internal fun previewLogbookPlan(): ImportPlan {
 
 /** Vier neue, zwei aktualisierte und 17 unveraenderte Codes, einer ueber der Grenze, eine abgelehnte Zeile. */
 internal fun previewDtcPlan(): DtcHistoryPlan = DtcHistoryPlan(emptyList(), newCodes = 4, updatedCodes = 2, unchangedCodes = 17, droppedByCap = 1, rejected = 1)
+
+internal fun previewSettingsPlan(): SettingsPlan {
+    fun change(key: String, to: Any) = SettingChange(SettingsCatalog.spec(key)!!, null, to)
+    return SettingsPlan(
+        changes = listOf(change("theme", "amber"), change("use_imperial", true), change("alarm_coolant_warning_c", 110), change("fuel_range_full_km", 280), change("gear_ratio_1", 2.5f)),
+        unchanged = 29,
+        rejected = listOf(RejectedSetting("rpm_blink_threshold", SettingReject.OUT_OF_RANGE), RejectedSetting("slot_pids", SettingReject.UNKNOWN_VALUE)),
+        unknownKeys = listOf("future_key"),
+    )
+}
+
+internal fun previewCountersPlan(decision: OdometerDecision = OdometerDecision.APPLY): PartPlan.Counters =
+    PartPlan.Counters(CounterValues(12.5f, 40_362, 4.2f), rejectedKeys = emptyList(), decision = decision, predictedMaxKm = 40_362)
+
+@Preview(name = "SettingsPreviewBody (light)", showBackground = true)
+@Composable
+private fun PreviewSettingsPreviewBodyLight() {
+    PreviewTheme(dark = false) { SettingsPreviewBody(previewSettingsPlan(), Modifier.padding(16.dp)) }
+}
+
+@Preview(name = "CountersPreviewBody (dark)", showBackground = true)
+@Composable
+private fun PreviewCountersPreviewBodyDark() {
+    PreviewTheme(dark = true) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            CountersPreviewBody(previewCountersPlan())
+            CountersPreviewBody(previewCountersPlan(OdometerDecision.SKIP_ANCHOR_MISMATCH))
+        }
+    }
+}
 
 @Preview(name = "TripsPreviewBody (light)", showBackground = true)
 @Composable

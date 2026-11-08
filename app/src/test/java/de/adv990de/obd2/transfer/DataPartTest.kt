@@ -43,11 +43,11 @@ class DataPartTest {
     fun theDefaultExportNeverHoldsTheAppLogAndIsAvailable() {
         assertFalse(DataPart.APP_LOG in DataPart.DEFAULT_EXPORT)
         assertTrue(DataPart.AVAILABLE.containsAll(DataPart.DEFAULT_EXPORT))
-        assertEquals(setOf(DataPart.TRIPS, DataPart.LOGBOOK, DataPart.DTC_HISTORY), DataPart.DEFAULT_EXPORT)
+        assertEquals(setOf(DataPart.TRIPS, DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS, DataPart.DTC_HISTORY), DataPart.DEFAULT_EXPORT)
     }
 
     @Test
-    fun phaseTwoOffersTripsLogbookFaultHistoryAndAppLog() {
-        assertEquals(setOf(DataPart.TRIPS, DataPart.LOGBOOK, DataPart.DTC_HISTORY, DataPart.APP_LOG), DataPart.AVAILABLE)
+    fun phaseThreeOffersAllSixParts() {
+        assertEquals(DataPart.entries.toSet(), DataPart.AVAILABLE)
     }
 }

@@ -3,12 +3,19 @@ package de.adv990de.obd2.data
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import de.adv990de.obd2.fuel.FuelRepository
+import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.ImportPlan
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.logbookCsvHeader
 import de.adv990de.obd2.logbook.logbookCsvLine
+import de.adv990de.obd2.transfer.CounterValues
 import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.transfer.OdometerDecision
+import de.adv990de.obd2.transfer.SettingChange
+import de.adv990de.obd2.transfer.SettingsCatalog
+import de.adv990de.obd2.transfer.SettingsPlan
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PartOutcome
@@ -21,7 +28,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -52,7 +62,11 @@ class TransferImporterTest {
     private val logbook = mockk<LogbookImporter>()
     private val context = mockk<Context>()
     private val dtcHistory = mockk<DtcHistoryRepository>()
-    private val importer = TransferImporter(context, trips, logbook, dtcHistory)
+    private val settingsTransfer = mockk<SettingsTransfer>()
+    private val fuel = mockk<FuelRepository>()
+    private val odometer = mockk<LogbookOdometer>()
+    private val logEntries = mockk<VehicleLogRepository>()
+    private val importer = TransferImporter(context, trips, logbook, dtcHistory, settingsTransfer, fuel, odometer, logEntries)
 
     private val tripPlan = TripImportPlan(emptyList(), 0, 0, emptyList(), 0)
     private val logPlan = ImportPlan(emptyList(), 0, emptyList(), 0)
@@ -173,7 +187,7 @@ class TransferImporterTest {
     private val logRepo = mockk<VehicleLogRepository>()
     private val realContext = mockk<Context>()
     private val resolver = mockk<ContentResolver>()
-    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo), mockk<DtcHistoryRepository>())
+    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo), mockk<DtcHistoryRepository>(), mockk<SettingsTransfer>(), mockk<FuelRepository>(), mockk<LogbookOdometer>(), logRepo)
 
     private val tripsCsv = "timestamp,pid,value,name,source,session\n${nowMs - 5_000},010C,1500.0,Engine RPM,ECU,1\n"
     private val logbookCsv = logbookCsvHeader() + logbookCsvLine(
@@ -319,5 +333,138 @@ class TransferImporterTest {
         real.inspect(serve(packageBytes(entries = arrayOf("logbook.csv" to logbookCsv))), nowMs, today)
         assertTrue(!stale.exists())
         assertTrue(fresh.exists())
+    }
+
+    // --- Einstellungen und Zaehler (Phase 3) ---
+
+    private fun change(key: String, to: Any) = SettingChange(SettingsCatalog.spec(key)!!, null, to)
+    private val settingsPlan = SettingsPlan(listOf(change("theme", "amber"), change("use_imperial", true)), unchanged = 3, rejected = emptyList(), unknownKeys = listOf("x"))
+    private val counters = CounterValues(12.5f, 1000, 4.25f)
+
+    private fun counterPlan(decision: OdometerDecision, values: CounterValues = counters, rejected: List<String> = emptyList()) =
+        PartPlan.Counters(values, rejected, decision, predictedMaxKm = 1000)
+
+    private fun everything(counterPlan: PartPlan.Counters = counterPlan(OdometerDecision.APPLY)) = TransferPreview(
+        FileKind.PACKAGE, false, false,
+        linkedMapOf(
+            DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRIPS to PartPlan.Trips(tripPlan), DataPart.DTC_HISTORY to PartPlan.DtcHistory(dtcPlan),
+            DataPart.SETTINGS to PartPlan.Settings(settingsPlan), DataPart.COUNTERS to counterPlan,
+        ),
+    )
+
+    private val allParts = setOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS)
+
+    private fun stubAllApply(highest: Int? = 1000) {
+        coEvery { logbook.apply(any()) } returns 2
+        coEvery { trips.apply(any()) } returns 3
+        coEvery { dtcHistory.mergeFrom(any()) } returns Unit
+        coEvery { settingsTransfer.apply(any()) } returns Unit
+        every { logEntries.maxOdometerKm } returns flowOf(highest)
+        every { fuel.restore(any()) } returns Unit
+        every { odometer.restore(any()) } returns Unit
+    }
+
+    @Test
+    fun `the parts are written in the order logbook, trips, fault history, settings, counters`() = runTest {
+        stubAllApply()
+        val result = importer.apply(everything(), allParts)
+
+        coVerifyOrder {
+            logbook.apply(any()); trips.apply(any()); dtcHistory.mergeFrom(any()); settingsTransfer.apply(any())
+            logEntries.maxOdometerKm; fuel.restore(12.5f); odometer.restore(GpsOdometer(1000, 4.25f))
+        }
+        assertEquals(DataPart.IMPORT_ORDER, result.outcomes.keys.toList())
+    }
+
+    @Test
+    fun `settings apply only the changed values by key and report the count and the skipped ones`() = runTest {
+        stubAllApply()
+        val applied = slot<Map<String, Any>>()
+        coEvery { settingsTransfer.apply(capture(applied)) } returns Unit
+        val result = importer.apply(everything(), setOf(DataPart.SETTINGS))
+
+        assertEquals(mapOf<String, Any>("theme" to "amber", "use_imperial" to true), applied.captured)
+        assertEquals(PartOutcome.Done(count = 2, skipped = 1), result.outcomes[DataPart.SETTINGS])
+    }
+
+    @Test
+    fun `a failing settings write is reported as failed and the other parts still run`() = runTest {
+        stubAllApply()
+        val boom = IllegalStateException("disk")
+        coEvery { settingsTransfer.apply(any()) } throws boom
+        val result = importer.apply(everything(), allParts)
+
+        assertEquals(PartOutcome.Failed(boom), result.outcomes[DataPart.SETTINGS])
+        assertEquals(PartOutcome.Done(3), result.outcomes[DataPart.TRIPS])
+        assertEquals(PartOutcome.Done(count = 2), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `the anchor rule is decided at apply time against the logbook after its import`() = runTest {
+        stubAllApply(highest = 1234)   // the preview predicted 1000 (APPLY), but the highest stored mileage is now 1234
+        val result = importer.apply(everything(), allParts)
+
+        verify(exactly = 1) { fuel.restore(12.5f) }
+        verify(exactly = 0) { odometer.restore(any()) }
+        assertEquals(PartOutcome.Done(count = 1, skipped = 1), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `a matching anchor takes the estimate over and counts both counters`() = runTest {
+        stubAllApply(highest = 1000)
+        val result = importer.apply(everything(counterPlan(OdometerDecision.SKIP_ANCHOR_MISMATCH)), setOf(DataPart.COUNTERS))
+
+        verify(exactly = 1) { odometer.restore(GpsOdometer(1000, 4.25f)) }
+        assertEquals(PartOutcome.Done(count = 2, skipped = 0), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `without any logbook entry the estimate is skipped, the fuel counter still comes`() = runTest {
+        stubAllApply(highest = null)
+        val result = importer.apply(everything(), setOf(DataPart.COUNTERS))
+
+        verify(exactly = 1) { fuel.restore(12.5f) }
+        verify(exactly = 0) { odometer.restore(any()) }
+        assertEquals(PartOutcome.Done(count = 1, skipped = 1), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `a file without an estimate restores only the fuel counter and skips nothing`() = runTest {
+        stubAllApply()
+        val onlyFuel = counterPlan(OdometerDecision.ABSENT, CounterValues(7f, null, null))
+        val result = importer.apply(everything(onlyFuel), setOf(DataPart.COUNTERS))
+
+        verify(exactly = 1) { fuel.restore(7f) }
+        verify(exactly = 0) { odometer.restore(any()) }
+        assertEquals(PartOutcome.Done(count = 1, skipped = 0), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `counters of a file with a rejected pair count the rejection as skipped`() = runTest {
+        stubAllApply()
+        val rejected = counterPlan(OdometerDecision.ABSENT, CounterValues(7f, null, null), rejected = listOf("logbook_gps_anchor_km"))
+        val result = importer.apply(everything(rejected), setOf(DataPart.COUNTERS))
+
+        assertEquals(PartOutcome.Done(count = 1, skipped = 1), result.outcomes[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `unchosen settings and counters are not written`() = runTest {
+        stubAllApply()
+        importer.apply(everything(), setOf(DataPart.TRIPS))
+
+        coVerify(exactly = 0) { settingsTransfer.apply(any()) }
+        verify(exactly = 0) { fuel.restore(any()) }
+        verify(exactly = 0) { odometer.restore(any()) }
+    }
+
+    @Test
+    fun `a failing fuel restore marks the counters as failed`() = runTest {
+        stubAllApply()
+        val boom = IllegalStateException("x")
+        every { fuel.restore(any()) } throws boom
+        val result = importer.apply(everything(), setOf(DataPart.COUNTERS))
+
+        assertEquals(PartOutcome.Failed(boom), result.outcomes[DataPart.COUNTERS])
     }
 }

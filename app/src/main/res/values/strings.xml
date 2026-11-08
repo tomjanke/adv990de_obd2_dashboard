@@ -759,4 +759,40 @@
     </plurals>
     <string name="transfer_trips_meta_unreadable">The VIN and fault code details could not be read; the drives are imported without them.</string>
     <string name="transfer_trips_some_unrecorded">Drives without these details show VIN and fault codes as not recorded.</string>
+    <string name="transfer_group_display">Display</string>
+    <string name="transfer_group_dashboard">Dashboard tiles</string>
+    <string name="transfer_group_connection">Connection and recording</string>
+    <string name="transfer_group_alarms">Alarms</string>
+    <string name="transfer_group_vehicle_fuel">Vehicle and tank</string>
+    <string name="transfer_group_maintenance">Maintenance</string>
+    <string name="transfer_group_gear">Gearbox</string>
+    <string name="transfer_reject_wrong_type">wrong type</string>
+    <string name="transfer_reject_out_of_range">out of range</string>
+    <string name="transfer_reject_not_an_option">not an allowed value</string>
+    <string name="transfer_reject_unknown_value">unknown value</string>
+    <string name="transfer_reject_row">%1$s: %2$s</string>
+    <string name="transfer_counters_fuel">Tank counter: %1$s km</string>
+    <string name="transfer_counters_odometer_apply">Mileage estimate is taken over</string>
+    <string name="transfer_counters_odometer_skip_anchor">Mileage estimate skipped: it belongs to a different logbook mileage</string>
+    <string name="transfer_counters_odometer_skip_no_logbook">Mileage estimate skipped: the logbook has no entry</string>
+    <string name="transfer_counters_odometer_absent">No mileage estimate in the file</string>
+    <string name="transfer_counters_decided_on_import">The final decision is made when importing.</string>
+    <string name="transfer_done_counters">Counters applied</string>
+    <string name="transfer_done_counters_partial">%1$d applied, %2$d skipped</string>
+    <plurals name="transfer_settings_changes">
+        <item quantity="one">%1$d of %2$d settings change</item>
+        <item quantity="other">%1$d of %2$d settings change</item>
+    </plurals>
+    <plurals name="transfer_settings_rejected">
+        <item quantity="one">%1$d entry skipped (invalid)</item>
+        <item quantity="other">%1$d entries skipped (invalid)</item>
+    </plurals>
+    <plurals name="transfer_settings_unknown">
+        <item quantity="one">%1$d unknown entry ignored</item>
+        <item quantity="other">%1$d unknown entries ignored</item>
+    </plurals>
+    <plurals name="transfer_done_settings">
+        <item quantity="one">%1$d setting applied</item>
+        <item quantity="other">%1$d settings applied</item>
+    </plurals>
 </resources>

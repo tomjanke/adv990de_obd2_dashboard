@@ -4,15 +4,19 @@ import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.BuildConfig
+import de.adv990de.obd2.fuel.FuelRepository
 import de.adv990de.obd2.logbook.logbookFileName
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.PackageEntry
 import de.adv990de.obd2.transfer.PackageFormat
 import de.adv990de.obd2.transfer.PackageManifest
+import de.adv990de.obd2.transfer.CounterValues
+import de.adv990de.obd2.transfer.countersToJson
 import de.adv990de.obd2.transfer.csvPartOf
 import de.adv990de.obd2.transfer.dtcHistoryCsvHeader
 import de.adv990de.obd2.transfer.dtcHistoryCsvLine
+import de.adv990de.obd2.transfer.settingsToJson
 import de.adv990de.obd2.transfer.toJson
 import de.adv990de.obd2.transfer.writePackage
 import kotlinx.coroutines.flow.first
@@ -53,6 +57,9 @@ class TransferExporter @Inject constructor(
     private val appLogs: AppLogRepository,
     private val appLogExporter: AppLogExporter,
     private val dtcHistory: DtcHistoryRepository,
+    private val settings: SettingsTransfer,
+    private val fuel: FuelRepository,
+    private val odometer: LogbookOdometer,
 ) {
     private val files = CsvExportFiles(context)
 
@@ -135,6 +142,20 @@ class TransferExporter @Inject constructor(
                 written[DataPart.LOGBOOK] = rows.size
                 body += PackageEntry(DataPart.LOGBOOK.packageEntry) { logbookExporter.writeEntries(it, rows) }
             }
+        }
+        if (DataPart.SETTINGS in chosen) {
+            val values = settings.snapshot()
+            written[DataPart.SETTINGS] = values.size
+            val json = settingsToJson(values)
+            body += PackageEntry(DataPart.SETTINGS.packageEntry) { it.write(json) }
+        }
+        if (DataPart.COUNTERS in chosen) {
+            // P10: der Stand im Speicher, nicht der DataStore (der hinkt dem wachsenden Zaehler bis 0,2 bzw. 0,5 km hinterher).
+            val estimate = odometer.current()
+            val values = CounterValues(fuel.currentKm(), estimate?.anchorKm, estimate?.gpsKm)
+            written[DataPart.COUNTERS] = listOf(values.fuelKmSinceFill, values.gpsAnchorKm, values.gpsKm).count { it != null }
+            val json = countersToJson(values)
+            body += PackageEntry(DataPart.COUNTERS.packageEntry) { it.write(json) }
         }
         if (DataPart.DTC_HISTORY in chosen) {
             val rows = dtcHistory.all()

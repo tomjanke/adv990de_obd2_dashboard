@@ -12,12 +12,17 @@ import de.adv990de.obd2.data.db.SessionDao
 import de.adv990de.obd2.data.db.SessionMetaRow
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.fuel.FuelRepository
+import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.PackageFormat
+import de.adv990de.obd2.transfer.parseCountersJson
 import de.adv990de.obd2.transfer.parseManifest
+import de.adv990de.obd2.transfer.parseSettingsJson
+import de.adv990de.obd2.transfer.sampleSettings
 import io.mockk.CapturingSlot
 import io.mockk.Runs
 import io.mockk.clearAllMocks
@@ -67,7 +72,10 @@ class TransferExporterTest {
     private val appLogDao = mockk<AppLogDao>()
     private val appLogs = mockk<AppLogRepository>()
     private val dtcRepo = mockk<DtcHistoryRepository>()
-    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao), dtcRepo).apply {
+    private val settings = mockk<SettingsTransfer>()
+    private val fuel = mockk<FuelRepository>()
+    private val odometer = mockk<LogbookOdometer>()
+    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao), dtcRepo, settings, fuel, odometer).apply {
         appVersion = "9.9.9"
         clockMs = { 1_700_000_000_000L }
     }
@@ -122,6 +130,12 @@ class TransferExporterTest {
             every { getString(2) } answers { logRows[index].third }
             every { close() } just Runs
         }
+    }
+
+    private fun stubSettingsAndCounters(fuelKm: Float? = 12.5f, odo: GpsOdometer? = GpsOdometer(40_000, 4.25f)) {
+        coEvery { settings.snapshot() } returns sampleSettings()
+        every { fuel.currentKm() } returns fuelKm
+        every { odometer.current() } returns odo
     }
 
     private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList(), history: List<DtcHistoryEntry> = emptyList()) {
@@ -359,15 +373,6 @@ class TransferExporterTest {
         }
     }
 
-    @Test
-    fun `parts this version does not know are not written`() = runTest {
-        stubData()
-        val file = slot<File>()
-        stubEnvironment(captured = file)
-        exporter.share(request(DataPart.LOGBOOK, DataPart.SETTINGS))
-        assertEquals(listOf("manifest.json", "logbook.csv"), zipNames(file.captured))
-    }
-
     // --- counts ---
 
     @Test
@@ -557,5 +562,73 @@ class TransferExporterTest {
             }
         }
         assertTrue(exportedFiles().isEmpty())
+    }
+
+    // --- Phase 3: Einstellungen und Zaehler ---
+
+    @Test
+    fun `the package holds settings and counters between the logbook and the fault history, in the fixed order`() = runTest {
+        stubData(history = historyRows, meta = listOf(SessionMetaRow(2L, "TESTVIN0000000001", "P0301")))
+        stubSettingsAndCounters()
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.APP_LOG, DataPart.COUNTERS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.LOGBOOK, DataPart.TRIPS))
+
+        assertEquals(
+            listOf("manifest.json", "trips.csv", "trips_meta.csv", "logbook.csv", "settings.json", "counters.json", "dtc_history.csv", "applog.csv"),
+            zipNames(file.captured),
+        )
+    }
+
+    @Test
+    fun `settings json is the catalog file of the effective settings and the manifest counts them`() = runTest {
+        stubData()
+        stubSettingsAndCounters()
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.SETTINGS))
+
+        assertEquals(listOf("manifest.json", "settings.json"), zipNames(file.captured))
+        val parsed = parseSettingsJson(String(zipBytes(file.captured, "settings.json"), Charsets.UTF_8))
+        assertEquals(sampleSettings(), parsed.valid)
+        val manifest = parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!
+        assertEquals(mapOf(DataPart.SETTINGS to sampleSettings().size), manifest.parts)
+    }
+
+    @Test
+    fun `counters json reads the memory state of both counters`() = runTest {
+        stubData()
+        stubSettingsAndCounters()
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.COUNTERS))
+
+        val values = parseCountersJson(String(zipBytes(file.captured, "counters.json"), Charsets.UTF_8)).values
+        assertEquals(12.5f, values.fuelKmSinceFill)
+        assertEquals(40_000, values.gpsAnchorKm)
+        assertEquals(4.25f, values.gpsKm)
+        val manifest = parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!
+        assertEquals(mapOf(DataPart.COUNTERS to 3), manifest.parts)
+    }
+
+    @Test
+    fun `counters json has no odometer keys when there is no estimate and no fuel key when the counter is not loaded`() = runTest {
+        stubData()
+        stubSettingsAndCounters(fuelKm = null, odo = null)
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.COUNTERS, DataPart.LOGBOOK))
+
+        assertEquals("{\"format\":1}", String(zipBytes(file.captured, "counters.json"), Charsets.UTF_8))
+        assertEquals(0, parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts[DataPart.COUNTERS])
+    }
+
+    @Test
+    fun `settings and counters are always exportable, they have no count`() = runTest {
+        stubData(tripIds = emptyList(), logEntries = emptyList(), logCount = 0)
+        val counts = exporter.counts()
+        assertEquals(null, counts.of(DataPart.SETTINGS))
+        assertEquals(null, counts.of(DataPart.COUNTERS))
+        assertFalse(counts.isEmpty(DataPart.SETTINGS) || counts.isEmpty(DataPart.COUNTERS))
     }
 }

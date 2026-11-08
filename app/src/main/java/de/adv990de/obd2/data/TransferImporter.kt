@@ -3,7 +3,12 @@ package de.adv990de.obd2.data
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import de.adv990de.obd2.fuel.FuelRepository
+import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.transfer.OdometerDecision
+import de.adv990de.obd2.transfer.SettingsPlan
+import de.adv990de.obd2.transfer.decideOdometer
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.NotAPackageException
 import de.adv990de.obd2.transfer.PackageFormat
@@ -17,6 +22,7 @@ import de.adv990de.obd2.transfer.detectFileKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -42,8 +48,12 @@ class TransferImporter @Inject constructor(
     private val trips: TripImporter,
     private val logbook: LogbookImporter,
     private val dtcHistory: DtcHistoryRepository,
+    private val settings: SettingsTransfer,
+    private val fuel: FuelRepository,
+    private val odometer: LogbookOdometer,
+    private val logEntries: VehicleLogRepository,
 ) {
-    private val inspector = PackageInspector(trips, logbook, dtcHistory)
+    private val inspector = PackageInspector(trips, logbook, dtcHistory, settings, logEntries)
 
     /** Die Grenze der Kopie eines Pakets; nur als Naht fuer Tests veraenderbar (eine Datei von 128 MiB baut kein Test). */
     internal var maxPackageBytes: Long = PackageFormat.MAX_TOTAL_BYTES
@@ -125,14 +135,14 @@ class TransferImporter @Inject constructor(
             val plan = preview.parts[part] ?: continue
             if (plan is PartPlan.Unreadable) continue
             outcomes[part] = try {
-                PartOutcome.Done(
-                    when (plan) {
-                        is PartPlan.Trips -> trips.apply(plan.plan)
-                        is PartPlan.Logbook -> logbook.apply(plan.plan)
-                        is PartPlan.DtcHistory -> { dtcHistory.mergeFrom(plan.plan.entries); plan.plan.newCodes + plan.plan.updatedCodes }
-                        is PartPlan.Unreadable -> 0
-                    },
-                )
+                when (plan) {
+                    is PartPlan.Trips -> PartOutcome.Done(trips.apply(plan.plan))
+                    is PartPlan.Logbook -> PartOutcome.Done(logbook.apply(plan.plan))
+                    is PartPlan.DtcHistory -> { dtcHistory.mergeFrom(plan.plan.entries); PartOutcome.Done(plan.plan.newCodes + plan.plan.updatedCodes) }
+                    is PartPlan.Settings -> applySettings(plan.plan)
+                    is PartPlan.Counters -> applyCounters(plan)
+                    is PartPlan.Unreadable -> PartOutcome.Done(0)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -140,5 +150,34 @@ class TransferImporter @Inject constructor(
             }
         }
         return TransferResult(outcomes)
+    }
+
+    /** Nur die geaenderten Werte, ueber die oeffentlichen Setter (P8: mit Zurueckrollen bei einem Fehler); abgelehnte und unbekannte Schluessel zaehlen als uebersprungen. */
+    private suspend fun applySettings(plan: SettingsPlan): PartOutcome.Done {
+        settings.apply(plan.changes.associate { it.spec.key to it.to })
+        return PartOutcome.Done(count = plan.changes.size, skipped = plan.rejected.size + plan.unknownKeys.size)
+    }
+
+    /**
+     * Die Anker-Regel wird **hier** entschieden, nicht in der Vorschau: der hoechste Logbuch-Stand wird nach dem Logbuch-Teil frisch gelesen ([DataPart.IMPORT_ORDER] stellt die Reihenfolge
+     * sicher). Geschrieben wird nur ueber [FuelRepository] und [LogbookOdometer], nie an ihnen vorbei.
+     */
+    private suspend fun applyCounters(plan: PartPlan.Counters): PartOutcome.Done {
+        val decision = decideOdometer(plan.values, logEntries.maxOdometerKm.first())
+        var count = 0
+        var skipped = 0
+        plan.values.fuelKmSinceFill?.let { fuel.restore(it); count++ }
+        val anchor = plan.values.gpsAnchorKm
+        val km = plan.values.gpsKm
+        if (decision == OdometerDecision.APPLY && anchor != null && km != null) {
+            odometer.restore(GpsOdometer(anchor, km))
+            count++
+        } else if (decision != OdometerDecision.ABSENT) {
+            skipped++
+        }
+        // Abgelehnte Schluessel der Datei: der Tankzaehler als ein Eintrag, der Anker mit den Kilometern als ein weiterer.
+        if ("fuel_km_since_fill" in plan.rejectedKeys) skipped++
+        if (plan.rejectedKeys.any { it != "fuel_km_since_fill" }) skipped++
+        return PartOutcome.Done(count, skipped)
     }
 }

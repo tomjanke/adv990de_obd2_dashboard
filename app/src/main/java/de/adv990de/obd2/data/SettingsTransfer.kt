@@ -13,7 +13,7 @@ import javax.inject.Inject
  * Pruefung stehen rein in `transfer/SettingsCatalog` und `SettingsFile`; hier steht die Bindung Schluessel → Lesen → Schreiben (jede Zeile ein Eintrag von [bindings], ein Test
  * haelt die Schluessel gleich denen des Katalogs).
  */
-internal class SettingsTransfer @Inject constructor(private val prefs: AppPreferences) {
+class SettingsTransfer @Inject constructor(private val prefs: AppPreferences) {
 
     /** Die **wirksamen** Werte (P9) in Katalogreihenfolge: Standardwerte eingeschlossen, ein nicht festgelegtes Wartungsintervall als 0. */
     suspend fun snapshot(): Map<String, Any> {

@@ -415,6 +415,8 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
                     is PartPlan.Trips -> TripsPreviewBody(plan.plan, meta = plan.meta)
                     is PartPlan.Logbook -> LogbookPreviewBody(plan.plan)
                     is PartPlan.DtcHistory -> DtcHistoryPreviewBody(plan.plan)
+                    is PartPlan.Settings -> SettingsPreviewBody(plan.plan)
+                    is PartPlan.Counters -> CountersPreviewBody(plan)
                     is PartPlan.Unreadable -> UnreadablePartBody(plan.reason)
                 }
             }
@@ -498,7 +500,8 @@ private fun previewImportState(): TransferImportState.Preview {
             DataPart.LOGBOOK to PartPlan.Logbook(previewLogbookPlan()),
             DataPart.TRIPS to PartPlan.Trips(previewTripPlan(duplicates = 4)),
             DataPart.DTC_HISTORY to PartPlan.DtcHistory(previewDtcPlan()),
-            DataPart.SETTINGS to PartPlan.Unreadable(UnreadableReason.FORMAT),
+            DataPart.SETTINGS to PartPlan.Settings(previewSettingsPlan()),
+            DataPart.COUNTERS to previewCountersPlan(),
         ),
     )
     return TransferImportState.Preview(preview, selected = setOf(DataPart.LOGBOOK, DataPart.TRIPS))

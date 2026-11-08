@@ -16,8 +16,8 @@ enum class DataPart(val importable: Boolean, val packageEntry: String) {
         /** Reihenfolge beim Einlesen (D9): der Kilometer-Anker der Zähler hängt am Logbuch. */
         val IMPORT_ORDER: List<DataPart> = listOf(LOGBOOK, TRIPS, DTC_HISTORY, SETTINGS, COUNTERS)
 
-        /** Teile, die diese Version kann; jede Phase erweitert die Menge (Phase 1: Fahrten, Logbuch, App-Log; Phase 2: Fehlerhistorie), die Oberfläche zeigt nur sie. */
-        val AVAILABLE: Set<DataPart> = setOf(TRIPS, LOGBOOK, DTC_HISTORY, APP_LOG)
+        /** Teile, die diese Version kann (seit Phase 3 alle sechs); die Oberfläche zeigt nur sie. */
+        val AVAILABLE: Set<DataPart> = entries.toSet()
 
         /** Vorgewählt von der Einstellungsseite (D5): alles Verfügbare außer dem App-Log. */
         val DEFAULT_EXPORT: Set<DataPart> get() = AVAILABLE - APP_LOG

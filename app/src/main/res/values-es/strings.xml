@@ -794,4 +794,44 @@
     </plurals>
     <string name="transfer_trips_meta_unreadable">No se pudieron leer los datos del VIN y de los códigos de avería; los viajes se importan sin ellos.</string>
     <string name="transfer_trips_some_unrecorded">Los viajes sin estos datos muestran el VIN y los códigos de avería como no registrados.</string>
+    <string name="transfer_group_display">Pantalla</string>
+    <string name="transfer_group_dashboard">Mosaicos del panel</string>
+    <string name="transfer_group_connection">Conexión y grabación</string>
+    <string name="transfer_group_alarms">Alarmas</string>
+    <string name="transfer_group_vehicle_fuel">Vehículo y depósito</string>
+    <string name="transfer_group_maintenance">Mantenimiento</string>
+    <string name="transfer_group_gear">Caja de cambios</string>
+    <string name="transfer_reject_wrong_type">tipo incorrecto</string>
+    <string name="transfer_reject_out_of_range">fuera del rango permitido</string>
+    <string name="transfer_reject_not_an_option">valor no permitido</string>
+    <string name="transfer_reject_unknown_value">valor desconocido</string>
+    <string name="transfer_reject_row">%1$s: %2$s</string>
+    <string name="transfer_counters_fuel">Contador del depósito: %1$s km</string>
+    <string name="transfer_counters_odometer_apply">Se incorpora la estimación de kilometraje</string>
+    <string name="transfer_counters_odometer_skip_anchor">Estimación de kilometraje omitida: pertenece a otro kilometraje de la bitácora</string>
+    <string name="transfer_counters_odometer_skip_no_logbook">Estimación de kilometraje omitida: la bitácora no tiene entradas</string>
+    <string name="transfer_counters_odometer_absent">Sin estimación de kilometraje en el archivo</string>
+    <string name="transfer_counters_decided_on_import">La decisión final se toma al importar.</string>
+    <string name="transfer_done_counters">Contadores incorporados</string>
+    <string name="transfer_done_counters_partial">%1$d incorporados, %2$d omitidos</string>
+    <plurals name="transfer_settings_changes">
+        <item quantity="one">%1$d de %2$d ajuste cambia</item>
+        <item quantity="many">%1$d de %2$d ajustes cambian</item>
+        <item quantity="other">%1$d de %2$d ajustes cambian</item>
+    </plurals>
+    <plurals name="transfer_settings_rejected">
+        <item quantity="one">%1$d entrada omitida (no válida)</item>
+        <item quantity="many">%1$d entradas omitidas (no válidas)</item>
+        <item quantity="other">%1$d entradas omitidas (no válidas)</item>
+    </plurals>
+    <plurals name="transfer_settings_unknown">
+        <item quantity="one">%1$d entrada desconocida ignorada</item>
+        <item quantity="many">%1$d entradas desconocidas ignoradas</item>
+        <item quantity="other">%1$d entradas desconocidas ignoradas</item>
+    </plurals>
+    <plurals name="transfer_done_settings">
+        <item quantity="one">%1$d ajuste incorporado</item>
+        <item quantity="many">%1$d ajustes incorporados</item>
+        <item quantity="other">%1$d ajustes incorporados</item>
+    </plurals>
 </resources>

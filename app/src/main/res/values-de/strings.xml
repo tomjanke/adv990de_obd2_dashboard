@@ -759,4 +759,40 @@
     </plurals>
     <string name="transfer_trips_meta_unreadable">Die Angaben zu FIN und Fehlercodes ließen sich nicht lesen; die Fahrten kommen ohne sie.</string>
     <string name="transfer_trips_some_unrecorded">Fahrten ohne diese Angaben zeigen FIN und Fehlercodes als nicht erfasst.</string>
+    <string name="transfer_group_display">Anzeige</string>
+    <string name="transfer_group_dashboard">Dashboard-Belegung</string>
+    <string name="transfer_group_connection">Verbindung und Aufzeichnung</string>
+    <string name="transfer_group_alarms">Alarme</string>
+    <string name="transfer_group_vehicle_fuel">Fahrzeug und Tank</string>
+    <string name="transfer_group_maintenance">Wartung</string>
+    <string name="transfer_group_gear">Getriebe</string>
+    <string name="transfer_reject_wrong_type">falscher Typ</string>
+    <string name="transfer_reject_out_of_range">außerhalb des erlaubten Bereichs</string>
+    <string name="transfer_reject_not_an_option">kein erlaubter Wert</string>
+    <string name="transfer_reject_unknown_value">unbekannter Wert</string>
+    <string name="transfer_reject_row">%1$s: %2$s</string>
+    <string name="transfer_counters_fuel">Tankzähler: %1$s km</string>
+    <string name="transfer_counters_odometer_apply">Kilometer-Schätzung wird übernommen</string>
+    <string name="transfer_counters_odometer_skip_anchor">Kilometer-Schätzung übersprungen: sie gehört zu einem anderen Logbuch-Stand</string>
+    <string name="transfer_counters_odometer_skip_no_logbook">Kilometer-Schätzung übersprungen: das Logbuch hat keinen Eintrag</string>
+    <string name="transfer_counters_odometer_absent">Keine Kilometer-Schätzung in der Datei</string>
+    <string name="transfer_counters_decided_on_import">Die endgültige Entscheidung fällt beim Importieren.</string>
+    <string name="transfer_done_counters">Zähler übernommen</string>
+    <string name="transfer_done_counters_partial">%1$d übernommen, %2$d übersprungen</string>
+    <plurals name="transfer_settings_changes">
+        <item quantity="one">%1$d von %2$d Einstellung ändert sich</item>
+        <item quantity="other">%1$d von %2$d Einstellungen ändern sich</item>
+    </plurals>
+    <plurals name="transfer_settings_rejected">
+        <item quantity="one">%1$d Eintrag übersprungen (ungültig)</item>
+        <item quantity="other">%1$d Einträge übersprungen (ungültig)</item>
+    </plurals>
+    <plurals name="transfer_settings_unknown">
+        <item quantity="one">%1$d unbekannter Eintrag ignoriert</item>
+        <item quantity="other">%1$d unbekannte Einträge ignoriert</item>
+    </plurals>
+    <plurals name="transfer_done_settings">
+        <item quantity="one">%1$d Einstellung übernommen</item>
+        <item quantity="other">%1$d Einstellungen übernommen</item>
+    </plurals>
 </resources>

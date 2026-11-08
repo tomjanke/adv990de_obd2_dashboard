@@ -177,12 +177,12 @@ class DataTransferViewModelTest {
     }
 
     @Test
-    fun `parts without a count drop out of the selection when the counts arrive`() = runTest {
+    fun `empty parts drop out of the selection when the counts arrive, settings and counters have no count and stay`() = runTest {
         val f = fixture(counts = ExportCounts(trips = 0, logbook = 2, appLog = 0))
         // Vor den Mengen: alles Vorgewaehlte steht noch da.
         assertEquals(DataPart.DEFAULT_EXPORT, f.vm.selection.value)
         runCurrent()
-        assertEquals(setOf(DataPart.LOGBOOK), f.vm.selection.value)
+        assertEquals(setOf(DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS), f.vm.selection.value)
     }
 
     // ── Format ────────────────────────────────────────────────────────────────
@@ -247,13 +247,15 @@ class DataTransferViewModelTest {
         runCurrent()
         val request = slot<ExportRequest>()
         coVerify { f.exporter.share(capture(request)) }
-        assertEquals(setOf(DataPart.LOGBOOK), request.captured.parts)
+        assertEquals(setOf(DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS), request.captured.parts)
         assertEquals("the page learned the new counts", 0, f.vm.counts.value?.trips)
     }
 
     @Test
     fun `share reports nothing to export when every chosen part is empty`() = runTest {
         val f = ready()
+        f.vm.toggle(DataPart.SETTINGS)
+        f.vm.toggle(DataPart.COUNTERS)
         coEvery { f.exporter.counts() } returns ExportCounts(trips = 0, logbook = 0, appLog = 0)
         f.vm.share()
         runCurrent()
@@ -286,6 +288,8 @@ class DataTransferViewModelTest {
     @Test
     fun `saveTo drops an empty part and reports nothing when none is left`() = runTest {
         val f = ready()
+        f.vm.toggle(DataPart.SETTINGS)
+        f.vm.toggle(DataPart.COUNTERS)
         coEvery { f.exporter.counts() } returns ExportCounts(trips = 0, logbook = 0, appLog = 0)
         f.vm.saveTo(target)
         runCurrent()
@@ -371,6 +375,8 @@ class DataTransferViewModelTest {
         assertFalse(f.vm.exporting.value)
         coVerify(exactly = 4) { f.exporter.share(any()) }
 
+        f.vm.toggle(DataPart.SETTINGS)
+        f.vm.toggle(DataPart.COUNTERS)
         coEvery { f.exporter.counts() } returns ExportCounts(trips = 0, logbook = 0, appLog = 0)
         f.vm.share()
         runCurrent()
