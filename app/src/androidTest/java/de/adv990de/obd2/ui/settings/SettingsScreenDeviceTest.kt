@@ -24,9 +24,11 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import dagger.hilt.android.testing.BindValue
@@ -38,6 +40,9 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.transfer.TRANSFER_MODE_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PART_ARG
+import de.adv990de.obd2.ui.transfer.TRANSFER_PICK_ARG
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.first
@@ -378,6 +383,15 @@ class SettingsScreenDeviceTest {
             NavHost(navController = navController, startDestination = Screen.Settings.route) {
                 composable(Screen.Settings.route) { SettingsScreen(navController = navController) }
                 for (route in SUB_PAGE_ROUTES) composable(route) { Text("DESTINATION:$route") }
+                // The transfer page has optional arguments (the row opens it with the defaults); the pattern is its route.
+                composable(
+                    Screen.DataTransfer.route,
+                    arguments = listOf(
+                        navArgument(TRANSFER_MODE_ARG) { type = NavType.StringType; defaultValue = "export" },
+                        navArgument(TRANSFER_PART_ARG) { type = NavType.StringType; defaultValue = "" },
+                        navArgument(TRANSFER_PICK_ARG) { type = NavType.BoolType; defaultValue = false },
+                    ),
+                ) { Text("DESTINATION:${Screen.DataTransfer.route}") }
             }
         }
         composeRule.waitForIdle()
