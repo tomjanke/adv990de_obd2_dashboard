@@ -99,3 +99,6 @@ __pycache__/
 # Neu angelegte Dateien hier (z. B. von den Superpowers-Skills) sollen nicht versehentlich im oeffentlichen Repository landen.
 docs/plans/
 docs/superpowers/
+
+# Lokale Dateien, die nie ins Repository gehoeren: hier liegen die Suchmuster fuer ForbiddenTermsTest (sie duerfen selbst nicht im Repository stehen).
+/local/
