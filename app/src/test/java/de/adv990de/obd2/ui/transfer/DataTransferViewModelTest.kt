@@ -739,6 +739,21 @@ class DataTransferViewModelTest {
     }
 
     @Test
+    fun `a name lookup that fails does not leave the name of an earlier file on the failure`() = runTest {
+        val f = ready()
+        coEvery { f.importer.displayName(any()) } returns "first.zip"
+        f.vm.pickImport(source)
+        runCurrent()
+        f.vm.dismissImport()
+        coEvery { f.importer.displayName(any()) } throws IOException("no name")
+        f.vm.pickImport(source)
+        runCurrent()
+        val failed = f.vm.importState.value as TransferImportState.Failed
+        assertEquals(null, failed.fileName)
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import check failed: IOException: no name") }
+    }
+
+    @Test
     fun `a failure while writing is logged with the name of the chosen file`() = runTest {
         val f = ready()
         coEvery { f.importer.displayName(any()) } returns "backup.zip"
