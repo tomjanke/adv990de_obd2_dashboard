@@ -3,6 +3,7 @@ package de.adv990de.obd2.ui.components
 import android.net.Uri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,10 +41,10 @@ class ExportFeedback {
     }
 
     /** „Teilen“: [export] schreibt die Datei und liefert ihre [Uri]; bei Erfolg steht sie in [shareUri]. */
-    fun launchShare(scope: CoroutineScope, export: suspend () -> Uri) = launchGuarded(scope) { _shareUri.value = export() }
+    fun launchShare(scope: CoroutineScope, export: suspend () -> Uri): Job = launchGuarded(scope) { _shareUri.value = export() }
 
     /** „Speichern“: [export] schreibt in die gewaehlte Datei; erst danach, bei Erfolg, kommt [onSaved]. */
-    fun launchSave(scope: CoroutineScope, onSaved: () -> Unit, export: suspend () -> Unit) = launchGuarded(scope) {
+    fun launchSave(scope: CoroutineScope, onSaved: () -> Unit, export: suspend () -> Unit): Job = launchGuarded(scope) {
         export()
         onSaved()
     }
@@ -60,7 +61,7 @@ class ExportFeedback {
         _nothingToExport.value = false
     }
 
-    private fun launchGuarded(scope: CoroutineScope, block: suspend () -> Unit) {
+    private fun launchGuarded(scope: CoroutineScope, block: suspend () -> Unit): Job =
         scope.launch {
             _error.value = null
             try {
@@ -71,5 +72,4 @@ class ExportFeedback {
                 _error.value = e.message ?: e.javaClass.simpleName
             }
         }
-    }
 }

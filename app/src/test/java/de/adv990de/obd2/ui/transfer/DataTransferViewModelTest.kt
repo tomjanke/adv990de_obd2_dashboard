@@ -303,6 +303,80 @@ class DataTransferViewModelTest {
     }
 
     @Test
+    fun `a second share while one runs does nothing and the exporting flag follows the export`() = runTest {
+        val f = ready()
+        val gate = CompletableDeferred<Uri>()
+        coEvery { f.exporter.share(any()) } coAnswers { gate.await() }
+        assertFalse(f.vm.exporting.value)
+
+        f.vm.share()
+        f.vm.share()
+        runCurrent()
+        assertTrue(f.vm.exporting.value)
+        f.vm.share()
+        f.vm.saveTo(target)
+        runCurrent()
+        coVerify(exactly = 1) { f.exporter.share(any()) }
+        coVerify(exactly = 0) { f.exporter.save(any(), any()) }
+
+        gate.complete(shareUri)
+        runCurrent()
+        assertFalse(f.vm.exporting.value)
+        assertEquals(shareUri, f.vm.exportFeedback.shareUri.value)
+    }
+
+    @Test
+    fun `a second save while one runs does nothing`() = runTest {
+        val f = ready()
+        val gate = CompletableDeferred<Unit>()
+        coEvery { f.exporter.save(any(), any()) } coAnswers { gate.await() }
+
+        f.vm.saveTo(target)
+        f.vm.saveTo(target)
+        runCurrent()
+        f.vm.saveTo(target)
+        f.vm.share()
+        runCurrent()
+        coVerify(exactly = 1) { f.exporter.save(any(), any()) }
+        coVerify(exactly = 0) { f.exporter.share(any()) }
+
+        gate.complete(Unit)
+        runCurrent()
+        assertFalse(f.vm.exporting.value)
+        assertTrue(f.vm.saved.value)
+    }
+
+    @Test
+    fun `an export can start again after it ended, failed, was cancelled or found nothing`() = runTest {
+        val f = ready()
+        f.vm.share()
+        runCurrent()
+        assertFalse(f.vm.exporting.value)
+
+        coEvery { f.exporter.share(any()) } throws IOException("disk full")
+        f.vm.share()
+        runCurrent()
+        assertFalse("after a failure", f.vm.exporting.value)
+
+        coEvery { f.exporter.share(any()) } throws CancellationException("gone")
+        f.vm.share()
+        runCurrent()
+        assertFalse("after a cancellation", f.vm.exporting.value)
+
+        coEvery { f.exporter.share(any()) } returns shareUri
+        f.vm.share()
+        runCurrent()
+        assertFalse(f.vm.exporting.value)
+        coVerify(exactly = 4) { f.exporter.share(any()) }
+
+        coEvery { f.exporter.counts() } returns ExportCounts(trips = 0, logbook = 0, appLog = 0)
+        f.vm.share()
+        runCurrent()
+        assertTrue(f.vm.exportFeedback.nothingToExport.value)
+        assertFalse("after finding nothing", f.vm.exporting.value)
+    }
+
+    @Test
     fun `a cancelled save is never an error`() = runTest {
         val f = ready()
         coEvery { f.exporter.save(any(), any()) } throws CancellationException("gone")

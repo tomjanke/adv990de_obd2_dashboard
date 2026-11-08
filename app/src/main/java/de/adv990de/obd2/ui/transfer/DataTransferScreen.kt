@@ -101,6 +101,8 @@ internal data class ExportUi(
     val format: ExportFormat,
     val csvAllowed: Boolean,
     val canExport: Boolean,
+    /** Ein Export laeuft: „Speichern“ und „Teilen“ sind aus (ein Doppeltipp startete sonst zwei). */
+    val exporting: Boolean = false,
 )
 
 internal class ExportActions(
@@ -133,6 +135,7 @@ internal fun DataTransferScreen(navController: NavController, pick: Boolean = fa
     val format by vm.format.collectAsStateWithLifecycle()
     val csvAllowed by vm.csvAllowed.collectAsStateWithLifecycle()
     val canExport by vm.canExport.collectAsStateWithLifecycle()
+    val exporting by vm.exporting.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -188,7 +191,7 @@ internal fun DataTransferScreen(navController: NavController, pick: Boolean = fa
             TransferModeSwitch(mode, onSelect = vm::setMode)
             when (mode) {
                 TransferMode.EXPORT -> DataTransferExportContent(
-                    state = ExportUi(counts, selection, format, csvAllowed, canExport),
+                    state = ExportUi(counts, selection, format, csvAllowed, canExport, exporting),
                     actions = ExportActions(
                         onToggle = vm::toggle,
                         onFormat = vm::setFormat,
@@ -311,12 +314,12 @@ internal fun DataTransferExportContent(state: ExportUi, actions: ExportActions, 
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = actions.onSave,
-                enabled = state.canExport,
+                enabled = state.canExport && !state.exporting,
                 modifier = Modifier.weight(1f).heightIn(min = ControlMinHeight).testTag(TRANSFER_SAVE_TEST_TAG),
             ) { Text(stringResource(R.string.history_export_save)) }
             OutlinedButton(
                 onClick = actions.onShare,
-                enabled = state.canExport,
+                enabled = state.canExport && !state.exporting,
                 modifier = Modifier.weight(1f).heightIn(min = ControlMinHeight).testTag(TRANSFER_SHARE_TEST_TAG),
             ) { Text(stringResource(R.string.history_export_share)) }
         }

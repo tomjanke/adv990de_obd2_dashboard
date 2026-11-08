@@ -157,18 +157,35 @@ class DataTransferViewModel @Inject constructor(
         return ExportRequest(parts, effectiveFormat(parts, _wantedFormat.value))
     }
 
-    fun share() {
+    private val _exporting = MutableStateFlow(false)
+
+    /** Wahr, solange ein Export laeuft (Mengen lesen, Datei schreiben); die Seite sperrt „Teilen“ und „Speichern“ so lange, ein zweiter Aufruf tut nichts. */
+    val exporting: StateFlow<Boolean> = _exporting.asStateFlow()
+
+    /**
+     * Fuehrt [block] als den einen laufenden Export aus: ein Aufruf, waehrend einer laeuft, tut nichts (ein Doppeltipp legte sonst zwei Dateien an und oeffnete das Teilen-Menue
+     * zweimal). Das Flag wird vor dem Start gesetzt (der Aufruf kommt auf dem Main-Thread) und in jedem Fall wieder frei: Ende, Fehler, Abbruch, nichts zu exportieren.
+     */
+    private fun exportOnce(block: suspend () -> Unit) {
+        if (_exporting.value) return
+        _exporting.value = true
         viewModelScope.launch {
-            val request = freshRequest() ?: return@launch
-            exportFeedback.launchShare(viewModelScope) { exporter.share(request) }
+            try {
+                block()
+            } finally {
+                _exporting.value = false
+            }
         }
     }
 
-    fun saveTo(target: Uri) {
-        viewModelScope.launch {
-            val request = freshRequest() ?: return@launch
-            exportFeedback.launchSave(viewModelScope, onSaved = { _saved.value = true }) { exporter.save(target, request) }
-        }
+    fun share() = exportOnce {
+        val request = freshRequest() ?: return@exportOnce
+        exportFeedback.launchShare(viewModelScope) { exporter.share(request) }.join()
+    }
+
+    fun saveTo(target: Uri) = exportOnce {
+        val request = freshRequest() ?: return@exportOnce
+        exportFeedback.launchSave(viewModelScope, onSaved = { _saved.value = true }) { exporter.save(target, request) }.join()
     }
 
     /** Der Name, den der Dateidialog vorschlaegt, passend zur aktuellen Wahl. */
