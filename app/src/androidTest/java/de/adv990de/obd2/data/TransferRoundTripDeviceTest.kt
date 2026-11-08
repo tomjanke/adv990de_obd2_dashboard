@@ -1,0 +1,284 @@
+package de.adv990de.obd2.data
+
+import android.content.Context
+import android.database.sqlite.SQLiteException
+import android.net.Uri
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import dagger.hilt.android.testing.BindValue
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import de.adv990de.obd2.data.db.AppDatabase
+import de.adv990de.obd2.data.db.entity.SensorReadingEntity
+import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.logbook.LogEntry
+import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.transfer.DataPart
+import de.adv990de.obd2.transfer.ExportFormat
+import de.adv990de.obd2.transfer.FileKind
+import de.adv990de.obd2.transfer.PackageManifest
+import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.transfer.PartPlan
+import de.adv990de.obd2.transfer.toJson
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.io.FileOutputStream
+import java.time.LocalDate
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import javax.inject.Inject
+
+/**
+ * Daten sichern und wiederherstellen als Ganzes gegen die echte (In-Memory-)Datenbank und echte Dateien: Paket schreiben, Daten loeschen, Paket einlesen — dieselben Fahrten in derselben
+ * Reihenfolge und dieselben Logbucheintraege; die CSV je Art ist **byte-gleich** der des bisherigen Exports und wieder einlesbar; ein zweiter Import derselben Datei aendert nichts; ein
+ * Fehler mitten im Schreiben eines Teils laesst diesen Teil unberuehrt und die anderen stehen; alte CSV-Dateien und das Paket einer neueren App werden gelesen. Der Systemdialog bleibt
+ * aussen vor (echte `file:`-Uris).
+ */
+@HiltAndroidTest
+@RunWith(AndroidJUnit4::class)
+class TransferRoundTripDeviceTest {
+
+    @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
+
+    @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository()
+
+    @Inject lateinit var db: AppDatabase
+    @Inject lateinit var sessions: SessionRepository
+    @Inject lateinit var logbook: VehicleLogRepository
+    @Inject lateinit var logbookExporter: LogbookExporter
+    @Inject lateinit var appLogExporter: AppLogExporter
+    @Inject lateinit var appLog: AppLogRepository
+    @Inject lateinit var exporter: TransferExporter
+    @Inject lateinit var importer: TransferImporter
+
+    private val ctx: Context = ApplicationProvider.getApplicationContext()
+    private val files = ArrayList<File>()
+    private val now = System.currentTimeMillis()
+    private val today = LocalDate.now()
+
+    // Zwei Tage zurueck: innerhalb der 90 Tage der Aufbewahrung und weit genug von „jetzt“.
+    private val start = now - 2L * 24 * 3_600_000
+
+    @Before
+    fun setup() {
+        hiltRule.inject()
+        File(ctx.cacheDir, "exports").deleteRecursively()
+        File(ctx.cacheDir, TRANSFER_IMPORT_CACHE_DIR).deleteRecursively()
+    }
+
+    @After
+    fun teardown() {
+        files.forEach { it.delete() }
+    }
+
+    private fun tempFile(name: String) = File(ctx.cacheDir, name).also { it.delete(); files += it }
+
+    private fun countOf(table: String): Int = db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { it.moveToFirst(); it.getInt(0) }
+
+    private suspend fun recordedTrip(vin: String?, vararg rows: Array<Any?>): Long {
+        val times = rows.map { it[0] as Long }
+        val id = db.sessionDao().insert(SessionEntity(startTime = times.min() - 1_000, endTime = times.max() + 1_000, vehicleVin = vin))
+        for (row in rows) {
+            db.sensorReadingDao().insert(
+                SensorReadingEntity(sessionId = id, timestamp = row[0] as Long, pidId = row[1] as String, value = (row[2] as Number).toFloat(), source = row[3] as String?),
+            )
+        }
+        return id
+    }
+
+    /** Alle Messwerte aller Fahrten in Fahrten-Reihenfolge (Id), je Fahrt in der Aufzeichnungsreihenfolge, ohne Ids. */
+    private fun allReadings(): List<List<Any?>> = db.openHelper.readableDatabase
+        .query("SELECT r.timestamp, r.pidId, r.value, r.source FROM sensor_readings r JOIN sessions s ON s.id = r.sessionId ORDER BY s.id, r.id")
+        .use { c -> generateSequence { if (c.moveToNext()) listOf(c.getLong(0), c.getString(1), c.getFloat(2), if (c.isNull(3)) null else c.getString(3)) else null }.toList() }
+
+    private fun entry(type: LogType, km: Int, daysAgo: Long, amountMl: Int? = null, full: Boolean? = null, cost: Int? = null, brand: String? = null) =
+        LogEntry(type = type, date = today.minusDays(daysAgo), odometerKm = km, amountMl = amountMl, fullTank = full, costCents = cost, note = null, brand = brand)
+
+    private suspend fun seed() {
+        recordedTrip(
+            "TESTVIN0000000001",
+            arrayOf(start, "010C", 1612.5f, "ECU"), arrayOf(start + 1_000, "010D", 52.25f, "GPS"), arrayOf(start + 2_000, "GEAR", 3, "DERIVED"),
+            arrayOf(start + 500, "0105", 79, null), // ein Zeitsprung rueckwaerts und eine Zeile ohne Herkunft: Reihenfolge und fehlende Herkunft bleiben
+        )
+        recordedTrip(null, arrayOf(start + 3_600_000, "0142", 13.7f, "ECU"), arrayOf(start + 3_601_000, "VALUES_STATE", -1, "DERIVED"))
+        logbook.save(entry(LogType.FUEL, 1000, 30, amountMl = 12_345, full = true, cost = 2_150))
+        logbook.save(entry(LogType.FUEL, 1400, 20, amountMl = 6_000, full = false))
+        logbook.save(entry(LogType.OIL, 1450, 10, amountMl = 250))
+        logbook.save(entry(LogType.TIRE_CHANGE, 1500, 5, brand = "Muster Tour"))
+        appLog.log(LogLevel.INFO, "test line, with a comma")
+    }
+
+    private suspend fun wipe() {
+        sessions.deleteSessions(sessions.exportableSessionIds())
+        logbook.delete(logbook.all().map { it.id })
+    }
+
+    private suspend fun saveRequest(parts: Set<DataPart>, format: ExportFormat, name: String): File {
+        val file = tempFile(name)
+        exporter.save(Uri.fromFile(file), ExportRequest(parts, format))
+        return file
+    }
+
+    private fun logbookKey(e: LogEntry) = e.copy(id = 0)
+
+    private fun packageFile(name: String, manifestFormat: Int = 1, vararg entries: Pair<String, String>): Uri {
+        val f = tempFile(name)
+        ZipOutputStream(FileOutputStream(f)).use { z ->
+            z.putNextEntry(ZipEntry("manifest.json"))
+            z.write(PackageManifest(manifestFormat, "de.adv990de.obd2", "9.9", now, emptyMap()).toJson().toByteArray())
+            z.closeEntry()
+            for ((n, t) in entries) { z.putNextEntry(ZipEntry(n)); z.write(t.toByteArray()); z.closeEntry() }
+        }
+        return Uri.fromFile(f)
+    }
+
+    // ── 1. Runde hin und zurueck ──────────────────────────────────────────────
+
+    @Test
+    fun aPackageWrittenAndReadBackRestoresTheSameTripsInTheSameOrderAndTheSameLogbook() = runBlocking {
+        seed()
+        val readingsBefore = allReadings()
+        val logbookBefore = logbook.all().map(::logbookKey)
+        val file = saveRequest(setOf(DataPart.TRIPS, DataPart.LOGBOOK, DataPart.APP_LOG), ExportFormat.PACKAGE, "round-trip.zip")
+        wipe()
+        assertEquals(0, countOf("sessions"))
+        assertEquals(0, countOf("vehicle_log"))
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        assertEquals(FileKind.PACKAGE, preview.kind)
+        assertEquals("the app log is in the package and ignored", true, preview.ignoredAppLog)
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS), preview.parts.keys.toList())
+        val result = importer.apply(preview, setOf(DataPart.LOGBOOK, DataPart.TRIPS))
+
+        assertEquals(PartOutcome.Done(4), result.outcomes.getValue(DataPart.LOGBOOK))
+        assertEquals(PartOutcome.Done(2), result.outcomes.getValue(DataPart.TRIPS))
+        assertEquals("same readings, same order, missing sources stay missing", readingsBefore, allReadings())
+        assertEquals(logbookBefore.sortedBy { it.odometerKm }, logbook.all().map(::logbookKey).sortedBy { it.odometerKm })
+        assertEquals("the app log is not touched by an import", 1, countOf("app_log"))
+    }
+
+    // ── 2. CSV je Art: byte-gleich dem bisherigen Export, wieder einlesbar ────
+
+    @Test
+    fun theCsvPerKindIsByteIdenticalToTheFileOfTheOldExportAndReadsBack() = runBlocking {
+        seed()
+        val ids = sessions.exportableSessionIds()
+
+        val tripsNew = saveRequest(setOf(DataPart.TRIPS), ExportFormat.CSV, "trips-new.csv")
+        val tripsOld = tempFile("trips-old.csv").also { sessions.saveSessionsCsv(ids, Uri.fromFile(it)) }
+        assertArrayEquals(tripsOld.readBytes(), tripsNew.readBytes())
+
+        val logbookNew = saveRequest(setOf(DataPart.LOGBOOK), ExportFormat.CSV, "logbook-new.csv")
+        val logbookOld = tempFile("logbook-old.csv").also { logbookExporter.saveCsv(Uri.fromFile(it)) }
+        assertArrayEquals(logbookOld.readBytes(), logbookNew.readBytes())
+
+        val logNew = saveRequest(setOf(DataPart.APP_LOG), ExportFormat.CSV, "applog-new.csv")
+        val logOld = tempFile("applog-old.csv").also { appLogExporter.saveCsv(Uri.fromFile(it)) }
+        assertArrayEquals(logOld.readBytes(), logNew.readBytes())
+
+        wipe()
+        val tripsPreview = importer.inspect(Uri.fromFile(tripsNew), now, today)
+        assertEquals(FileKind.TRIPS_CSV, tripsPreview.kind)
+        assertEquals(2, (tripsPreview.parts.getValue(DataPart.TRIPS) as PartPlan.Trips).plan.trips.size)
+        val logbookPreview = importer.inspect(Uri.fromFile(logbookNew), now, today)
+        assertEquals(FileKind.LOGBOOK_CSV, logbookPreview.kind)
+        assertEquals(4, (logbookPreview.parts.getValue(DataPart.LOGBOOK) as PartPlan.Logbook).plan.toInsert.size)
+    }
+
+    // ── 3. Zweiter Import derselben Datei aendert nichts ──────────────────────
+
+    @Test
+    fun aSecondImportOfTheSameFileChangesNothing() = runBlocking {
+        seed()
+        val file = saveRequest(setOf(DataPart.TRIPS, DataPart.LOGBOOK), ExportFormat.PACKAGE, "twice.zip")
+        wipe()
+        val parts = setOf(DataPart.LOGBOOK, DataPart.TRIPS)
+        importer.apply(importer.inspect(Uri.fromFile(file), now, today), parts)
+        val sessionsAfterFirst = countOf("sessions")
+        val readingsAfterFirst = countOf("sensor_readings")
+        val logbookAfterFirst = countOf("vehicle_log")
+
+        val second = importer.inspect(Uri.fromFile(file), now, today)
+
+        assertTrue((second.parts.getValue(DataPart.TRIPS) as PartPlan.Trips).plan.trips.isEmpty())
+        assertEquals(2, (second.parts.getValue(DataPart.TRIPS) as PartPlan.Trips).plan.duplicateTrips)
+        assertTrue((second.parts.getValue(DataPart.LOGBOOK) as PartPlan.Logbook).plan.toInsert.isEmpty())
+        importer.apply(second, parts)
+        assertEquals(sessionsAfterFirst, countOf("sessions"))
+        assertEquals(readingsAfterFirst, countOf("sensor_readings"))
+        assertEquals(logbookAfterFirst, countOf("vehicle_log"))
+    }
+
+    // ── 4. Fehler mitten im Schreiben eines Teils ─────────────────────────────
+
+    @Test
+    fun aFailureInTheMiddleOfWritingOnePartLeavesThatPartUntouchedAndTheOtherPartStands() = runBlocking {
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_on_boom BEFORE INSERT ON sensor_readings WHEN NEW.pidId = 'BOOM' BEGIN SELECT RAISE(ABORT, 'boom'); END")
+        val untouched = recordedTrip(null, arrayOf(start - 100_000_000, "010C", 1f, "ECU"))
+        val tripsCsv = "timestamp,pid,value,name,source,session\n" +
+            "$start,010C,1.0,RPM,ECU,1\n${start + 1_000},010C,2.0,RPM,ECU,1\n" +
+            "${start + 5_000_000},010C,3.0,RPM,ECU,2\n${start + 5_001_000},BOOM,4.0,RPM,ECU,2\n${start + 5_002_000},010C,5.0,RPM,ECU,2\n"
+        val logbookCsv = "date,type,odometer_km,amount_ml,full_tank,cost_eur,note,brand\n${today.minusDays(3)},OIL,2000,300,,,,\n"
+        val uri = packageFile("boom.zip", 1, "trips.csv" to tripsCsv, "logbook.csv" to logbookCsv)
+
+        val preview = importer.inspect(uri, now, today)
+        val result = importer.apply(preview, setOf(DataPart.LOGBOOK, DataPart.TRIPS))
+
+        assertEquals(PartOutcome.Done(1), result.outcomes.getValue(DataPart.LOGBOOK))
+        val failed = result.outcomes.getValue(DataPart.TRIPS)
+        assertTrue("trips failed, got $failed", failed is PartOutcome.Failed && failed.cause is SQLiteException)
+        assertEquals("the logbook part stands", 1, countOf("vehicle_log"))
+        assertEquals("the trips part is rolled back as a whole", listOf(untouched), db.openHelper.readableDatabase.query("SELECT id FROM sessions").use { c -> generateSequence { if (c.moveToNext()) c.getLong(0) else null }.toList() })
+        assertEquals(1, countOf("sensor_readings"))
+    }
+
+    // ── 5. Alte Fahrten- und Logbuch-CSV ──────────────────────────────────────
+
+    @Test
+    fun oldCsvFilesAreStillRead_theTripsFileBeforeSourceAndSession_theLogbookFileWithSevenColumns() = runBlocking {
+        val oldTrips = tempFile("old-trips.csv").also { it.writeText("timestamp,pid,value\n$start,010C,1500.0\n${start + 1_000},010C,1600.0\n") }
+        val oldLogbook = tempFile("old-logbook.csv").also {
+            it.writeText("date,type,odometer_km,amount_ml,full_tank,cost_eur,note\n${today.minusDays(4)},FUEL,1000,12000,1,25.50,\n")
+        }
+
+        val tripsPlan = importer.inspect(Uri.fromFile(oldTrips), now, today)
+        val logbookPlan = importer.inspect(Uri.fromFile(oldLogbook), now, today)
+        val result = importer.apply(tripsPlan, setOf(DataPart.TRIPS))
+        importer.apply(logbookPlan, setOf(DataPart.LOGBOOK))
+
+        assertEquals(FileKind.TRIPS_CSV, tripsPlan.kind)
+        assertEquals(FileKind.LOGBOOK_CSV, logbookPlan.kind)
+        assertEquals(PartOutcome.Done(1), result.outcomes.getValue(DataPart.TRIPS))
+        assertEquals(listOf(listOf(start, "010C", 1500f, null), listOf(start + 1_000, "010C", 1600f, null)), allReadings())
+        val entry = logbook.all().single()
+        assertEquals(LogType.FUEL, entry.type)
+        assertEquals(2_550, entry.costCents)
+        assertEquals(null, entry.brand)
+    }
+
+    // ── 6. Paket einer neueren App ────────────────────────────────────────────
+
+    @Test
+    fun aPackageOfANewerAppIsReadForTheKnownPartsAndTheUnknownEntryIsIgnored() = runBlocking {
+        val logbookCsv = "date,type,odometer_km,amount_ml,full_tank,cost_eur,note,brand\n${today.minusDays(3)},OIL,2000,300,,,,\n"
+        val uri = packageFile("newer.zip", 2, "logbook.csv" to logbookCsv, "future_things.json" to "{}", "settings.json" to "{}")
+
+        val preview = importer.inspect(uri, now, today)
+
+        assertTrue(preview.newerFormat)
+        assertEquals("only what this version can read: the logbook", listOf(DataPart.LOGBOOK), preview.parts.keys.toList())
+        assertFalse(preview.parts.containsKey(DataPart.SETTINGS))
+        importer.apply(preview, setOf(DataPart.LOGBOOK))
+        assertEquals(1, countOf("vehicle_log"))
+    }
+}
