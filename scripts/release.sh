@@ -108,7 +108,7 @@ if [ "$MODE_PUBLISH" -eq 1 ]; then
     # Der Tag existiert, ist gepusht und zeigt bei origin auf denselben Commit wie lokal.
     LOCAL_REV="$(tag_revision "$TAG" "$ROOT")" || fail "Der Tag $TAG existiert lokal nicht (erst taggen)"
     REMOTE_REV="$(git ls-remote --tags origin "refs/tags/$TAG*" | remote_tag_revision "$TAG")" \
-        || fail "Der Tag $TAG ist bei origin nicht vorhanden (erst pushen: git push origin main $TAG)"
+        || fail "Der Tag $TAG ist bei origin nicht vorhanden (erst Tag und main zusammen pushen, Befehl am Ende eines normalen Laufs)"
     [ "$LOCAL_REV" = "$REMOTE_REV" ] || fail "Der Tag $TAG zeigt bei origin auf $REMOTE_REV, lokal auf $LOCAL_REV"
     echo "Tag $TAG zeigt lokal und bei origin auf $LOCAL_REV"
 
