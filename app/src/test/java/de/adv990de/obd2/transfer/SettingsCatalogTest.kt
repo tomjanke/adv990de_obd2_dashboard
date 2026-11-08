@@ -204,6 +204,17 @@ class SettingsCatalogTest {
         assertInvalid(SettingReject.NOT_AN_OPTION, "obd_watchdog_timeout_seconds", Long.MIN_VALUE)
     }
 
+    @Test
+    fun `zero is only valid for an integer range that says so`() {
+        // im Katalog hat nur der Blinkgrenzwert eine Spanne mit 0 darin; die Regel selbst pruefen eigene Arten
+        val strict = SettingSpec("x", SettingsGroup.DISPLAY, SettingKind.IntIn(5..10))
+        val unset = SettingSpec("x", SettingsGroup.DISPLAY, SettingKind.IntIn(5..10, zeroMeansUnset = true))
+        assertEquals(SettingCheck.Invalid(SettingReject.OUT_OF_RANGE), SettingsCatalog.validate(strict, 0))
+        assertEquals(SettingCheck.Valid(0), SettingsCatalog.validate(unset, 0))
+        assertEquals(SettingCheck.Invalid(SettingReject.OUT_OF_RANGE), SettingsCatalog.validate(unset, 4))
+        assertEquals(SettingCheck.Valid(5), SettingsCatalog.validate(strict, 5))
+    }
+
     // ── FloatIn ───────────────────────────────────────────────────────────
 
     @Test
