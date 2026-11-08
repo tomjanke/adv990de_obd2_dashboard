@@ -1,7 +1,6 @@
 package de.adv990de.obd2.transfer
 
 import de.adv990de.obd2.data.AppPreferences
-import de.adv990de.obd2.logbook.MAINTENANCE_TYPES
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,56 +11,21 @@ import org.junit.Test
 /** `settings.json`: schreiben in Katalogreihenfolge, lesen mit Pruefung je Wert, Plan gegen den jetzigen Stand. */
 class SettingsFileTest {
 
-    /** Ein Satz Werte, der **von den Standardwerten abweicht**, einer je Schluessel des Katalogs. */
-    private fun sample(): Map<String, Any> = buildMap {
-        put("theme", "amber")
-        put("use_imperial", true)
-        put("hide_nav_on_drive", true)
-        put("use_gps_speed", true)
-        put("rpm_dynamic_threshold", true)
-        put("rpm_blink_threshold", 9_000)
-        put("slot_pids", "010C,0142,TERRAIN,")
-        put("show_all_bt_devices", true)
-        put("log_only_dtc_sessions", true)
-        put("obd_watchdog_timeout_seconds", 60)
-        put("reconnect_base_delay_seconds", 30)
-        put("alarm_voltage_enabled", false)
-        put("alarm_coolant_enabled", false)
-        put("alarm_faults_enabled", false)
-        put("alarm_voltage_notice_dv", 128)
-        put("alarm_voltage_warning_dv", 118)
-        put("alarm_coolant_notice_c", 98)
-        put("alarm_coolant_warning_c", 110)
-        put("fuel_range_full_km", 280)
-        put("fuel_reserve_km", 40)
-        put("fuel_tank_capacity_dl", 205)
-        MAINTENANCE_TYPES.forEachIndexed { i, t -> put("maintenance_interval_${t.name.lowercase()}_km", 500 * (i + 1)) }
-        put("wheel_circumference_mm", 2060f)
-        put("primary_ratio", 1.9143f)
-        put("secondary_ratio", 2.8125f)
-        put("gear_ratio_1", 2.9167f)
-        put("gear_ratio_2", 2.1333f)
-        put("gear_ratio_3", 1.6667f)
-        put("gear_ratio_4", 1.35f)
-        put("gear_ratio_5", 0f)
-        put("gear_ratio_6", 1.04f)
-    }
-
     @Test
     fun `the sample covers the catalog`() {
-        assertEquals(SettingsCatalog.exported.map { it.key }, sample().keys.toList().let { k -> SettingsCatalog.exported.map { it.key }.filter { it in k } })
-        assertEquals(36, sample().size)
+        assertEquals(SettingsCatalog.exported.map { it.key }, sampleSettings().keys.toList().let { k -> SettingsCatalog.exported.map { it.key }.filter { it in k } })
+        assertEquals(36, sampleSettings().size)
     }
 
     @Test
     fun `every kind survives the round trip, a float stays the same float`() {
-        val values = sample()
+        val values = sampleSettings()
         val parsed = parseSettingsJson(settingsToJson(values))
         assertEquals(emptyList<RejectedSetting>(), parsed.rejected)
         assertEquals(emptyList<String>(), parsed.unknownKeys)
         assertEquals(values, parsed.valid)
-        assertEquals(1.9143f, parsed.valid["primary_ratio"])
-        assertEquals(2.9167f, parsed.valid["gear_ratio_1"])
+        assertEquals(1.8571f, parsed.valid["primary_ratio"])
+        assertEquals(2.9168f, parsed.valid["gear_ratio_1"])
         assertEquals(0f, parsed.valid["gear_ratio_5"])
         assertEquals(205, parsed.valid["fuel_tank_capacity_dl"])
     }
@@ -79,7 +43,7 @@ class SettingsFileTest {
 
     @Test
     fun `the file names format 1 and writes the keys in the order of the catalog`() {
-        val text = settingsToJson(sample())
+        val text = settingsToJson(sampleSettings())
         val json = JSONObject(text)
         assertEquals(1, json.getInt("format"))
         val written = Regex("\"([a-z0-9_]+)\":").findAll(text.substringAfter("\"values\"")).map { it.groupValues[1] }.toList()
