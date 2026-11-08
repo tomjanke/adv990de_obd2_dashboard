@@ -162,6 +162,18 @@ class SettingsTransferTest {
     }
 
     @Test
+    fun `a key that was only half written is put back too`() = runTest {
+        val prefs = freshPrefs()
+        SettingsTransfer(prefs).apply(mapOf("slot_pids" to "0142,010B,TERRAIN,010C"))
+        val spy = spyk(prefs)
+        var calls = 0
+        // der dritte Platz scheitert: die Plaetze 0 und 1 sind dann schon geschrieben, das Zurueckschreiben ruft denselben Setter wieder
+        coEvery { spy.setSlotPid(2, any()) } coAnswers { if (calls++ == 0) throw IOException("half") else prefs.setSlotPid(firstArg(), secondArg()) }
+        thrown<IOException> { SettingsTransfer(spy).apply(mapOf("slot_pids" to "010C,010D,0105,0142")) }
+        assertEquals(listOf("0142", "010B", "TERRAIN", "010C"), prefs.slotPids.first())
+    }
+
+    @Test
     fun `a value a setter refuses rolls everything back`() = runTest {
         val prefs = freshPrefs()
         val before = SettingsTransfer(prefs).snapshot()
