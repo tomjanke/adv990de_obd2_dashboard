@@ -32,6 +32,10 @@ Debug build on a Pixel 8 Pro, landscape. **The values come from the built-in ECU
 - **No warranty** (Apache License 2.0), use at your own risk. Not affiliated with ELM Electronics, KTM or any other vehicle manufacturer.
 - **Privacy:** drives, logbook and settings stay on the device unless you export them. The only network use is the optional outside temperature (rounded location sent to Open-Meteo); no crash reports unless the app was built with a Sentry key.
 
+**Download**
+
+The APK is published as a [GitHub release](https://github.com/tomjanke/adv990de_obd2_dashboard/releases/latest): `OBD-Dashboard.apk` with a checksum file. How to install and check it: [detailed README](docs/README.en.md#download).
+
 **Build**
 
 ```bash
@@ -68,6 +72,10 @@ You need JDK 21 (JetBrains) and the Android SDK with platform 37 — details in 
 - **Nicht während der Fahrt bedienen.** Gang, Tankanzeige, Reichweite, die Öltemperatur-Leiste und die Wartungsfälligkeit sind Schätzungen, keine Messwerte.
 - **Keine Gewähr** (Apache License 2.0), Nutzung auf eigene Verantwortung. Keine Verbindung zu ELM Electronics, KTM oder einem anderen Fahrzeughersteller.
 - **Datenschutz:** Fahrten, Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie exportieren. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo); keine Absturzberichte, wenn die App nicht mit einem Sentry-Schlüssel gebaut wurde.
+
+**Herunterladen**
+
+Die APK gibt es als [GitHub-Release](https://github.com/tomjanke/adv990de_obd2_dashboard/releases/latest): `OBD-Dashboard.apk` mit einer Prüfsummen-Datei. Wie man sie installiert und prüft: [ausführliches README](docs/README.de.md#herunterladen).
 
 **Bauen**
 

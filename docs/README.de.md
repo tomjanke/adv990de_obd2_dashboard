@@ -20,6 +20,25 @@ Ausführliche Fassung auf Deutsch · [English version](README.en.md) · [Kurzfas
 - **Keine Gewähr:** Lizenz Apache 2.0 (s. „Lizenz“), Nutzung auf eigene Verantwortung. Die App steht in keiner Verbindung zu ELM Electronics, KTM oder einem anderen Fahrzeughersteller; „ELM327“ nennt hier nur die Art des Adapters.
 - **Datenschutz:** Fahrten, Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie selbst exportieren oder teilen. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo, s. „Berechtigungen“); ohne Sentry-Schlüssel beim Bauen sendet sie keine Absturzberichte.
 
+## Herunterladen
+
+Die fertige APK gibt es als **GitHub-Release**: [neueste Version](https://github.com/tomjanke/adv990de_obd2_dashboard/releases/latest). Die Dateien heißen bei jeder Version gleich, deshalb bleiben diese beiden Links stabil und zeigen immer auf die neueste:
+
+```text
+https://github.com/tomjanke/adv990de_obd2_dashboard/releases/latest/download/OBD-Dashboard.apk
+https://github.com/tomjanke/adv990de_obd2_dashboard/releases/latest/download/OBD-Dashboard.apk.sha256
+```
+
+- **Installieren:** `OBD-Dashboard.apk` auf dem Telefon öffnen; Android fragt einmal, ob die Installation aus dieser Quelle erlaubt sein soll. Die App aktualisiert sich nicht selbst: für ein Update das neuere Release laden und darüber installieren (das geht, solange der Signaturschlüssel derselbe bleibt). Die Voraussetzungen stehen unter „Auf einen Blick“.
+- **Download prüfen** (beide Dateien im selben Ordner):
+
+```bash
+shasum -a 256 -c OBD-Dashboard.apk.sha256
+```
+
+- **Signatur:** Die APK ist mit einem Schlüssel signiert, dessen Zertifikat nur `CN=adv990de` trägt. Der SHA-256-Fingerabdruck des Zertifikats ist `3af5a6af749022a94dd56820fa25cd31eed44e19636177e1a82a4f907dd080fe`; derselbe Wert steht in `scripts/release-cert.sha256`. Prüfen lässt er sich mit `apksigner verify --print-certs OBD-Dashboard.apk` (Build-Tools des Android SDK).
+- **Erprobt** ist die App nur auf einem Pixel 8 Pro (Android 17). Was sich mit jeder Version ändert, steht in den [Release Notes](../RELEASE_NOTES.md).
+
 ## Screenshots
 
 Aufgenommen mit der Debug-App auf einem Pixel 8 Pro im Querformat (Cockpit-Schema Orange). **Die Werte kommen vom eingebauten ECU-Simulator „OBD Sim“ und aus erfundenen Logbuch-Einträgen — nicht von einem Fahrzeug.** Der Gang zeigt „–“, weil der Simulator kein GPS hat.
@@ -177,7 +196,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3571 Tests, < 30 Sekunden)
+# JVM Unit Tests (3579 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -186,7 +205,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3571 |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3579 |
 | Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 943 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details und Fahrten-Import, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 84 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository, Fahrten-Import) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
@@ -303,6 +322,15 @@ einem noch nicht committeten Bump gebaut, seine eingebettete Revision war nicht 
 (uiautomator: Start, Reiter, Beenden-Dialog, App-Info mit Version und Build, Logcat ohne Absturz; er prüft keinen echten Adapter und läuft im Hoch- wie im Querformat). Mit `--simulator` (Debug-Build, Berechtigungen erteilt; Paket dann `de.adv990de.obd2.debug`) prüft er zusätzlich den Datenfluss gegen den ECU-Simulator: verbinden, Werte im Dashboard, „Trennen“ und danach kein Reconnect.
 **Taggen und Pushen bleiben Handarbeit** nach dem Smoke-Test: `git tag -a vX.Y.Z -m "Release X.Y.Z (versionCode N)" && git push origin main vX.Y.Z`. Der Test `ReleaseDocsConsistencyTest` hält Version und versionCode in `build.gradle.kts`, den beiden ausführlichen READMEs und
 `RELEASE_NOTES.md` zusammen.
+
+**Veröffentlichen** (öffentlich und nicht rückholbar) ist ein eigener Schritt **nach** Tag, Push und Smoke-Test; die `gh`-CLI muss angemeldet sein:
+
+```bash
+scripts/release.sh --publish --dry-run
+RELEASE_PUBLISH_CONFIRM=X.Y.Z scripts/release.sh --publish
+```
+
+`--publish` baut nichts, sondern nimmt das APK des letzten Laufs. Es prüft vorab, dass der Tag lokal und bei `origin` auf denselben Commit zeigt, dass die im APK eingebettete Revision die des Tags ist (HEAD darf weiter sein), dass Prüfsumme und Zertifikat zu Archiv und Fingerabdruck passen und dass es zum Tag noch kein Release gibt. Dann legt es `OBD-Dashboard.apk` und `OBD-Dashboard.apk.sha256` unter diesen festen Namen an (Text: der Abschnitt der Version aus `RELEASE_NOTES.md` plus ein Installationsblock mit Prüfsumme und Fingerabdruck), lädt die Dateien wieder herunter und vergleicht die Prüfsumme. Ohne `RELEASE_PUBLISH_CONFIRM` verlangt es die getippte Version; `--dry-run` zeigt Dateien, Text und den `gh`-Befehl und legt nichts an.
 
 ---
 
@@ -449,7 +477,7 @@ Siehe [`RELEASE_NOTES.md`](../RELEASE_NOTES.md) — chronologische Änderungen s
 |---|---|
 | `README.md`, `docs/README.en.md`, `docs/README.de.md` | Die Kurzfassung (Englisch und Deutsch) und die ausführlichen Fassungen auf Englisch und Deutsch; die beiden ausführlichen haben dieselbe Gliederung (`ReadmeParityTest`), die Version steht nur dort |
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3571) |
+| `app/src/test/` | JVM-Unit-Tests (3579) |
 | `app/src/androidTest/` | Instrumented Tests (943, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
