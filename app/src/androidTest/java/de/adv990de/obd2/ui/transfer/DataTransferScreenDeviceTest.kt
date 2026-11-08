@@ -37,6 +37,7 @@ import de.adv990de.obd2.data.ExportCounts
 import de.adv990de.obd2.logbook.ImportPlan
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
+import de.adv990de.obd2.transfer.OdometerDecision
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.PartPlan
@@ -556,5 +557,92 @@ class DataTransferScreenDeviceTest {
         showImport(TransferImportState.Done(TransferResult(linkedMapOf(DataPart.DTC_HISTORY to PartOutcome.Done(6)))))
 
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_dtc_history), plural(R.plurals.transfer_done_codes, 6))).assertIsDisplayed()
+    }
+
+    // ── Einstellungen und Zaehler ──
+
+    private val settingsPlan = PartPlan.Settings(previewSettingsPlan())
+
+    private fun settingsChangesText(changes: Int, total: Int) = composeRule.activity.resources.getQuantityString(R.plurals.transfer_settings_changes, changes, changes, total)
+
+    @Test
+    fun theRowsOfSettingsAndCountersAreJustTheirNames_andAlwaysSelectable() {
+        showExport(exportUi(counts = ExportCounts(trips = 0, logbook = 0, appLog = 0, dtcHistory = 0), selection = setOf(DataPart.SETTINGS)))
+
+        composeRule.onNodeWithText(string(R.string.transfer_part_settings)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_counters)).performScrollTo().assertIsDisplayed()
+        tag(transferPartRowTestTag(DataPart.SETTINGS)).performScrollTo().assertIsEnabled().assertIsOn()
+        tag(transferPartRowTestTag(DataPart.COUNTERS)).performScrollTo().assertIsEnabled().assertIsOff().performClick()
+        assertEquals(listOf(DataPart.COUNTERS), toggled)
+    }
+
+    private fun settingsPreviewShowsGroupsRejectionsAndUnknown() {
+        showImport(preview(linkedMapOf(DataPart.SETTINGS to settingsPlan)))
+
+        composeRule.onNodeWithText(settingsChangesText(5, 36)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_display), "2")).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_alarms), "1")).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_vehicle_fuel), "1")).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_gear), "1")).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_connection), "0")).assertCountEquals(0)
+        composeRule.onAllNodesWithText(string(R.string.transfer_part_row, string(R.string.transfer_group_maintenance), "0")).assertCountEquals(0)
+        composeRule.onNodeWithText(plural(R.plurals.transfer_settings_rejected, 2)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_reject_row, "rpm_blink_threshold", string(R.string.transfer_reject_out_of_range))).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_reject_row, "slot_pids", string(R.string.transfer_reject_unknown_value))).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.transfer_settings_unknown, 1)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun thePreviewOfTheSettingsShowsGroupsRejectionsAndUnknown_inPortrait() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        settingsPreviewShowsGroupsRejectionsAndUnknown()
+    }
+
+    @Test
+    fun thePreviewOfTheSettingsShowsGroupsRejectionsAndUnknown_inLandscape() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        settingsPreviewShowsGroupsRejectionsAndUnknown()
+    }
+
+    private fun counterPlan(decision: OdometerDecision) = PartPlan.Counters(previewCountersPlan().values, emptyList(), decision, 40_362)
+
+    private fun assertCountersLine(decision: OdometerDecision, line: Int) {
+        showImport(preview(linkedMapOf(DataPart.COUNTERS to counterPlan(decision))))
+
+        composeRule.onNodeWithText(string(R.string.transfer_counters_fuel, "%.1f".format(java.util.Locale.getDefault(), 12.5f))).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(line)).performScrollTo().assertIsDisplayed()
+        // Die Zeile "endgueltig beim Importieren" steht bei jeder Entscheidung ausser "nicht in der Datei".
+        composeRule.onAllNodesWithText(string(R.string.transfer_counters_decided_on_import)).assertCountEquals(if (decision == OdometerDecision.ABSENT) 0 else 1)
+    }
+
+    @Test
+    fun theCountersPreviewTakesTheEstimateOver() = assertCountersLine(OdometerDecision.APPLY, R.string.transfer_counters_odometer_apply)
+
+    @Test
+    fun theCountersPreviewSkipsAForeignAnchor() = assertCountersLine(OdometerDecision.SKIP_ANCHOR_MISMATCH, R.string.transfer_counters_odometer_skip_anchor)
+
+    @Test
+    fun theCountersPreviewSkipsWithoutALogbook() = assertCountersLine(OdometerDecision.SKIP_NO_LOGBOOK, R.string.transfer_counters_odometer_skip_no_logbook)
+
+    @Test
+    fun theCountersPreviewSaysThereIsNoEstimateInTheFile() = assertCountersLine(OdometerDecision.ABSENT, R.string.transfer_counters_odometer_absent)
+
+    @Test
+    fun theResultNamesTheSettingsAndTheCounters_withAndWithoutSkipped() {
+        showImport(
+            TransferImportState.Done(
+                TransferResult(linkedMapOf(DataPart.SETTINGS to PartOutcome.Done(count = 5, skipped = 2), DataPart.COUNTERS to PartOutcome.Done(count = 1, skipped = 1))),
+            ),
+        )
+
+        composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_settings), plural(R.plurals.transfer_done_settings, 5))).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_counters), string(R.string.transfer_done_counters_partial, 1, 1))).assertIsDisplayed()
+    }
+
+    @Test
+    fun theResultSaysCountersApplied_whenNothingWasSkipped() {
+        showImport(TransferImportState.Done(TransferResult(linkedMapOf(DataPart.COUNTERS to PartOutcome.Done(count = 2)))))
+
+        composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_counters), string(R.string.transfer_done_counters))).assertIsDisplayed()
     }
 }

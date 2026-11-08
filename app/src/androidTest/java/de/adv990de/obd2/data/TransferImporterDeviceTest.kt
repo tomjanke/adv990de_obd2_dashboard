@@ -17,6 +17,7 @@ import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.toJson
 import kotlinx.coroutines.runBlocking
+import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -48,7 +49,7 @@ class TransferImporterDeviceTest {
     fun setup() {
         ctx = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).allowMainThreadQueries().build()
-        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())), DtcHistoryRepository(db.dtcHistoryDao(), AppLogRepository(db.appLogDao())))
+        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())), DtcHistoryRepository(db.dtcHistoryDao(), AppLogRepository(db.appLogDao())), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), VehicleLogRepository(db.vehicleLogDao()))
         File(ctx.cacheDir, TRANSFER_IMPORT_CACHE_DIR).deleteRecursively()
     }
 

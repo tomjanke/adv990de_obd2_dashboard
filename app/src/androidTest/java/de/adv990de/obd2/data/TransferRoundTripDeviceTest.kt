@@ -11,18 +11,24 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.fuel.FuelRepository
 import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.FileKind
+import de.adv990de.obd2.transfer.OdometerDecision
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.hasNews
 import de.adv990de.obd2.transfer.toJson
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -61,6 +67,9 @@ class TransferRoundTripDeviceTest {
     @Inject lateinit var appLog: AppLogRepository
     @Inject lateinit var exporter: TransferExporter
     @Inject lateinit var importer: TransferImporter
+    @Inject lateinit var prefs: AppPreferences
+    @Inject lateinit var fuel: FuelRepository
+    @Inject lateinit var odometer: LogbookOdometer
 
     private val ctx: Context = ApplicationProvider.getApplicationContext()
     private val files = ArrayList<File>()
@@ -421,5 +430,93 @@ class TransferRoundTripDeviceTest {
         assertEquals("no half history", before, dtcHistory.all())
         assertTrue(result.outcomes.getValue(DataPart.LOGBOOK) is PartOutcome.Done)
         assertEquals(1, logbook.all().size)
+    }
+
+    // ── Einstellungen und Zaehler (Phase 3) ───────────────────────────────────
+
+    /** Wartet (mit Zeitgrenze) bis [read] den erwarteten Wert liefert: der Zaehler schreibt gedrosselt, und das Logbuch meldet seinen hoechsten Stand asynchron. */
+    private suspend fun <T> eventually(expected: T, read: suspend () -> T) {
+        try {
+            withTimeout(5_000) { while (read() != expected) delay(25) }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            assertEquals("did not settle", expected, read())
+        }
+    }
+
+    private suspend fun changeSettings() {
+        prefs.setTheme("amber")
+        prefs.setUseImperial(true)
+        prefs.setSlotPid(0, "0105")
+        prefs.setSlotPid(2, "TERRAIN")
+        prefs.setAlarmCoolantWarningC(110)
+        prefs.setWheelCircumferenceMm(2060f)
+        prefs.setMaintenanceInterval(LogType.CHAIN_SMALL, 700)
+        prefs.setFuelRangeFullKm(280)
+        prefs.setFuelTankCapacityDl(205)
+    }
+
+    private suspend fun backToDefaults() {
+        prefs.setTheme("system")
+        prefs.setUseImperial(false)
+        prefs.setSlotPid(0, "010C")
+        prefs.setSlotPid(2, "")
+        prefs.setAlarmCoolantWarningC(100)
+        prefs.setWheelCircumferenceMm(2096f)
+        prefs.setMaintenanceInterval(LogType.CHAIN_SMALL, 0)
+        prefs.setFuelRangeFullKm(0)
+        prefs.setFuelTankCapacityDl(0)
+    }
+
+    @Test
+    fun settingsAndCountersComeBackAfterEverythingWasResetAndTheTankCounterShowsAtOnce() = runBlocking {
+        seed()
+        changeSettings()
+        val settingsBefore = SettingsTransfer(prefs).snapshot()
+        fuel.restore(12.5f)
+        odometer.restore(GpsOdometer(1500, 4.25f))
+        eventually(GpsOdometer(1500, 4.25f)) { odometer.current() }
+        val file = saveRequest(setOf(DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS), ExportFormat.PACKAGE, "settings-counters.zip")
+
+        backToDefaults()
+        fuel.restore(0f)
+        wipe()
+        eventually(null) { odometer.current() }
+        assertTrue("the reset really changed something", SettingsTransfer(prefs).snapshot() != settingsBefore)
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS), preview.parts.keys.toList())
+        assertEquals(OdometerDecision.APPLY, (preview.parts.getValue(DataPart.COUNTERS) as PartPlan.Counters).decision)
+        val result = importer.apply(preview, setOf(DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS))
+
+        assertTrue(result.outcomes.values.all { it is PartOutcome.Done })
+        assertEquals("settings equal the state before", settingsBefore, SettingsTransfer(prefs).snapshot())
+        assertEquals("the state in memory shows the counter at once", 12.5f, fuel.currentKm())
+        eventually(GpsOdometer(1500, 4.25f)) { odometer.current() }
+        eventually(12.5f) { prefs.fuelKmSinceFill.first() }
+        eventually(GpsOdometer(1500, 4.25f)) { prefs.gpsOdometer.first() }
+    }
+
+    @Test
+    fun anAnchorThatDoesNotMatchTheLogbookSkipsTheEstimateButTheTankCounterComes() = runBlocking {
+        seed()
+        fuel.restore(0f)
+        val counters = """{"format":1,"fuel_km_since_fill":7.5,"logbook_gps_anchor_km":40000,"logbook_gps_km":3.0}"""
+        val file = packageFile("anchor.zip", 1, "logbook.csv" to logbookExporterCsv(), "counters.json" to counters)
+        wipe()
+        eventually(null) { odometer.current() }
+
+        val preview = importer.inspect(file, now, today)
+        val result = importer.apply(preview, setOf(DataPart.LOGBOOK, DataPart.COUNTERS))
+
+        assertEquals(PartOutcome.Done(count = 1, skipped = 1), result.outcomes.getValue(DataPart.COUNTERS))
+        assertEquals(7.5f, fuel.currentKm())
+        eventually(false) { odometer.current()?.anchorKm == 40_000 }
+        eventually(7.5f) { prefs.fuelKmSinceFill.first() }
+    }
+
+    private suspend fun logbookExporterCsv(): String {
+        val f = tempFile("logbook-for-anchor.csv")
+        logbookExporter.saveCsv(Uri.fromFile(f))
+        return f.readText()
     }
 }
