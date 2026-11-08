@@ -25,7 +25,6 @@ import de.adv990de.obd2.tripimport.ParsedTripFile
 import de.adv990de.obd2.tripimport.RejectedRow
 import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.tripimport.readTripCsv
-import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.logbook.messageRes
 import de.adv990de.obd2.ui.theme.PreviewTheme
@@ -127,17 +126,18 @@ internal fun UnreadablePartBody(reason: UnreadableReason, modifier: Modifier = M
     )
 }
 
-/** Eine Zeile des Ergebnisses: „Fahrten: 9 Fahrten importiert“ bzw. „Logbuch: fehlgeschlagen (Grund)“ in der Fehlerfarbe. */
+/** Eine Zeile des Ergebnisses: „Fahrten: 9 Fahrten importiert“ bzw. „Logbuch: Das Speichern ist fehlgeschlagen …“ in der Fehlerfarbe. */
 @Composable
 internal fun PartResultLine(part: DataPart, outcome: PartOutcome, modifier: Modifier = Modifier) {
     val name = stringResource(partLabelRes(part))
     when (outcome) {
         is PartOutcome.Done -> Text(stringResource(R.string.transfer_result_done, name, doneText(part, outcome.count)), modifier = modifier)
-        is PartOutcome.Failed -> {
-            val cause = outcome.cause
-            val reason = (if (cause is Exception) importFailureText(cause) else UiText.DynamicString(cause.message ?: cause.javaClass.simpleName)).asString()
-            Text(stringResource(R.string.transfer_result_failed, name, reason), color = MaterialTheme.colorScheme.error, modifier = modifier)
-        }
+        // Der technische Grund (die Meldung des Systems) steht nicht in der Oberflaeche: ein fester, lokalisierter Satz (der Grund bleibt in `PartOutcome.Failed.cause`).
+        is PartOutcome.Failed -> Text(
+            stringResource(R.string.transfer_result_done, name, stringResource(R.string.transfer_error_write)),
+            color = MaterialTheme.colorScheme.error,
+            modifier = modifier,
+        )
     }
 }
 

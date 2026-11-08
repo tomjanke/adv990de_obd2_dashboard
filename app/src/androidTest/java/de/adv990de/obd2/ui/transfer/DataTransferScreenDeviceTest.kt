@@ -278,7 +278,7 @@ class DataTransferScreenDeviceTest {
     }
 
     @Test
-    fun thePreviewShowsEveryPartLikeTheOldDialog_withTheNumbersAndTheRejectedRows() {
+    fun thePreviewShowsEveryPart_withTheNumbersAndTheRejectedRows() {
         showImport(preview(linkedMapOf(DataPart.LOGBOOK to logbookPlan, DataPart.TRIPS to tripPlan)))
 
         composeRule.onNodeWithText(plural(R.plurals.logbook_import_new, 98)).assertIsDisplayed()
@@ -347,7 +347,7 @@ class DataTransferScreenDeviceTest {
     }
 
     @Test
-    fun theResultShowsEachPart_theFailedOneWithItsReason() {
+    fun theResultShowsEachPart_theFailedOneWithAFixedSentence() {
         showImport(
             TransferImportState.Done(
                 TransferResult(linkedMapOf(DataPart.LOGBOOK to PartOutcome.Done(98), DataPart.TRIPS to PartOutcome.Failed(IOException()))),
@@ -356,7 +356,7 @@ class DataTransferScreenDeviceTest {
 
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_logbook), plural(R.plurals.logbook_import_done, 98))).assertIsDisplayed()
         composeRule.onNodeWithText(
-            string(R.string.transfer_result_failed, string(R.string.transfer_part_trips), string(R.string.transfer_error_unreadable)),
+            string(R.string.transfer_result_done, string(R.string.transfer_part_trips), string(R.string.transfer_error_write)),
         ).assertIsDisplayed()
         tag(TRANSFER_CLOSE_TEST_TAG).assertHeightIsAtLeast(56.dp).performClick()
         assertEquals(1, dismisses)

@@ -684,6 +684,8 @@
     <string name="transfer_error_unrecognized">No se reconoció el archivo (ni un paquete ni una exportación CSV de esta app).</string>
     <string name="transfer_error_too_large">El archivo es demasiado grande.</string>
     <string name="transfer_error_unreadable">No se pudo leer el archivo.</string>
+    <string name="transfer_error_trips_invalid">Los viajes de este archivo no se pueden leer: demasiadas filas o las filas de un viaje no están juntas.</string>
+    <string name="transfer_error_write">No se pudo guardar. No se importó nada de esta parte.</string>
     <string name="settings_data_transfer">Copia y restauración</string>
     <string name="settings_data_transfer_summary">Exportar, compartir e importar tus datos</string>
     <string name="transfer_title">Copia y restauración</string>
@@ -717,7 +719,6 @@
     <string name="transfer_part_unreadable_too_large">Esta parte es demasiado grande.</string>
     <string name="transfer_part_unreadable_io">No se pudo leer esta parte.</string>
     <string name="transfer_result_done">%1$s: %2$s</string>
-    <string name="transfer_result_failed">%1$s: error (%2$s)</string>
     <plurals name="transfer_count_trips">
         <item quantity="one">%1$d viaje</item>
         <item quantity="many">%1$d viajes</item>

@@ -663,6 +663,8 @@
     <string name="transfer_error_unrecognized">Die Datei wurde nicht erkannt (weder ein Paket noch ein CSV-Export dieser App).</string>
     <string name="transfer_error_too_large">Die Datei ist zu groß.</string>
     <string name="transfer_error_unreadable">Die Datei ließ sich nicht lesen.</string>
+    <string name="transfer_error_trips_invalid">Die Fahrten in dieser Datei lassen sich nicht einlesen: zu viele Zeilen oder die Zeilen einer Fahrt stehen nicht beisammen.</string>
+    <string name="transfer_error_write">Das Speichern ist fehlgeschlagen. Von diesem Teil wurde nichts übernommen.</string>
     <string name="settings_data_transfer">Daten sichern und wiederherstellen</string>
     <string name="settings_data_transfer_summary">Daten exportieren, teilen und einlesen</string>
     <string name="transfer_title">Daten sichern und wiederherstellen</string>
@@ -696,7 +698,6 @@
     <string name="transfer_part_unreadable_too_large">Dieser Teil ist zu groß.</string>
     <string name="transfer_part_unreadable_io">Dieser Teil ließ sich nicht lesen.</string>
     <string name="transfer_result_done">%1$s: %2$s</string>
-    <string name="transfer_result_failed">%1$s: fehlgeschlagen (%2$s)</string>
     <plurals name="transfer_count_trips">
         <item quantity="one">%1$d Fahrt</item>
         <item quantity="other">%1$d Fahrten</item>

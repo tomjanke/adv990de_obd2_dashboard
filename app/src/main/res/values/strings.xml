@@ -663,6 +663,8 @@
     <string name="transfer_error_unrecognized">The file was not recognised (neither a package nor a CSV export of this app).</string>
     <string name="transfer_error_too_large">The file is too large.</string>
     <string name="transfer_error_unreadable">The file could not be read.</string>
+    <string name="transfer_error_trips_invalid">The drives in this file cannot be read: too many rows, or the rows of a drive are not together.</string>
+    <string name="transfer_error_write">Saving failed. Nothing of this part was imported.</string>
     <string name="settings_data_transfer">Back up and restore</string>
     <string name="settings_data_transfer_summary">Export, share and import your data</string>
     <string name="transfer_title">Back up and restore</string>
@@ -696,7 +698,6 @@
     <string name="transfer_part_unreadable_too_large">This part is too large.</string>
     <string name="transfer_part_unreadable_io">This part could not be read.</string>
     <string name="transfer_result_done">%1$s: %2$s</string>
-    <string name="transfer_result_failed">%1$s: failed (%2$s)</string>
     <plurals name="transfer_count_trips">
         <item quantity="one">%1$d drive</item>
         <item quantity="other">%1$d drives</item>

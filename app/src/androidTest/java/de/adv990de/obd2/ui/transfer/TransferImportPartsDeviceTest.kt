@@ -196,7 +196,7 @@ class TransferImportPartsDeviceTest {
     // ── Ergebniszeile eines Teils ────────────────────────────────────────────
 
     @Test
-    fun aFailedPartWithADynamicCause_showsItsMessage_andTheDoneOnesTheirCount() {
+    fun aFailedPart_showsAFixedLocalisedSentenceNotTheSystemMessage_andTheDoneOnesTheirCount() {
         composeRule.setContent {
             Column {
                 PartResultLine(DataPart.LOGBOOK, PartOutcome.Done(98))
@@ -206,6 +206,7 @@ class TransferImportPartsDeviceTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_logbook), plural(R.plurals.logbook_import_done, 98))).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.transfer_result_failed, string(R.string.transfer_part_trips), "odd failure")).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_trips), string(R.string.transfer_error_write))).assertIsDisplayed()
+        composeRule.onNodeWithText("odd failure", substring = true).assertDoesNotExist()
     }
 }
