@@ -6,9 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.ExportCounts
 import de.adv990de.obd2.data.ExportRequest
 import de.adv990de.obd2.data.FileTooLargeException
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.TransferExporter
 import de.adv990de.obd2.data.TransferImporter
 import de.adv990de.obd2.transfer.DataPart
@@ -18,6 +20,7 @@ import de.adv990de.obd2.transfer.PackageFormat
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
+import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.TransferResult
 import de.adv990de.obd2.transfer.csvPartOf
 import de.adv990de.obd2.transfer.effectiveFormat
@@ -64,6 +67,7 @@ sealed interface TransferImportState {
 class DataTransferViewModel @Inject constructor(
     private val exporter: TransferExporter,
     private val importer: TransferImporter,
+    private val appLog: AppLogRepository,
     savedState: SavedStateHandle,
 ) : ViewModel() {
 
@@ -232,6 +236,7 @@ class DataTransferViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val result = importer.apply(state.preview, state.selected)
+                logFailedParts(result)
                 _importState.value = TransferImportState.Done(result)
                 refreshCounts()
             } catch (e: CancellationException) {
@@ -240,6 +245,16 @@ class DataTransferViewModel @Inject constructor(
             } catch (e: Exception) {
                 _importState.value = TransferImportState.Failed(importFailureText(e))
             }
+        }
+    }
+
+    /** Die Oberflaeche nennt nur einen festen Satz; die Ursache eines gescheiterten Teils steht als eine WARN-Zeile je Teil im App-Log (Klassenname und Meldung, nichts sonst). */
+    private suspend fun logFailedParts(result: TransferResult) {
+        for ((part, outcome) in result.outcomes) {
+            if (outcome !is PartOutcome.Failed) continue
+            val cause = outcome.cause
+            val detail = cause.message?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+            appLog.log(LogLevel.WARN, "Import of part ${part.name} failed: ${cause.javaClass.simpleName}$detail")
         }
     }
 

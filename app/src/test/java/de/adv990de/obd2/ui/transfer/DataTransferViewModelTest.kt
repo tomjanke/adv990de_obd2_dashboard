@@ -3,9 +3,11 @@ package de.adv990de.obd2.ui.transfer
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import de.adv990de.obd2.R
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.ExportCounts
 import de.adv990de.obd2.data.ExportRequest
 import de.adv990de.obd2.data.FileTooLargeException
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.TransferExporter
 import de.adv990de.obd2.data.TransferImporter
 import de.adv990de.obd2.logbook.ImportPlan
@@ -75,7 +77,7 @@ class DataTransferViewModelTest {
         parts = linkedMapOf(DataPart.LOGBOOK to logbookNews, DataPart.TRIPS to tripsNoNews),
     )
 
-    private class Fixture(val exporter: TransferExporter, val importer: TransferImporter, val vm: DataTransferViewModel)
+    private class Fixture(val exporter: TransferExporter, val importer: TransferImporter, val vm: DataTransferViewModel, val appLog: AppLogRepository)
 
     private fun fixture(args: Map<String, Any?> = emptyMap(), counts: ExportCounts = fullCounts): Fixture {
         val exporter = mockk<TransferExporter>()
@@ -86,8 +88,9 @@ class DataTransferViewModelTest {
         val importer = mockk<TransferImporter>()
         coEvery { importer.inspect(any(), any(), any()) } returns preview
         coEvery { importer.apply(any(), any()) } returns TransferResult(mapOf(DataPart.LOGBOOK to PartOutcome.Done(1)))
-        val vm = DataTransferViewModel(exporter, importer, SavedStateHandle(args))
-        return Fixture(exporter, importer, vm)
+        val appLog = mockk<AppLogRepository>(relaxed = true)
+        val vm = DataTransferViewModel(exporter, importer, appLog, SavedStateHandle(args))
+        return Fixture(exporter, importer, vm, appLog)
     }
 
     private fun TestScope.ready(args: Map<String, Any?> = emptyMap(), counts: ExportCounts = fullCounts): Fixture =
@@ -624,5 +627,50 @@ class DataTransferViewModelTest {
         val f = ready()
         coVerify(exactly = 1) { f.exporter.counts() }
         assertNotNull(f.vm.counts.value)
+    }
+
+    // ── Ursache eines gescheiterten Teils im App-Log ──────────────────────────
+
+    private fun TestScope.importAndConfirm(result: TransferResult? = null, failure: Throwable? = null): Fixture {
+        val f = ready()
+        if (result != null) coEvery { f.importer.apply(any(), any()) } returns result
+        if (failure != null) coEvery { f.importer.apply(any(), any()) } throws failure
+        f.vm.pickImport(source)
+        runCurrent()
+        f.vm.confirmImport()
+        runCurrent()
+        return f
+    }
+
+    @Test
+    fun `a failed part writes exactly one warning with the part and the class of the cause`() = runTest {
+        val result = TransferResult(
+            linkedMapOf(
+                DataPart.LOGBOOK to PartOutcome.Done(1),
+                DataPart.TRIPS to PartOutcome.Failed(IOException("disk full")),
+            ),
+        )
+        val f = importAndConfirm(result)
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import of part TRIPS failed: IOException: disk full") }
+        coVerify(exactly = 1) { f.appLog.log(any(), any()) }
+    }
+
+    @Test
+    fun `a failed part without a message is logged with the class alone`() = runTest {
+        val f = importAndConfirm(TransferResult(mapOf(DataPart.LOGBOOK to PartOutcome.Failed(IllegalStateException()))))
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import of part LOGBOOK failed: IllegalStateException") }
+    }
+
+    @Test
+    fun `a successful import writes nothing to the log`() = runTest {
+        val f = importAndConfirm()
+        coVerify(exactly = 0) { f.appLog.log(any(), any()) }
+    }
+
+    @Test
+    fun `a cancelled import writes nothing to the log`() = runTest {
+        val f = importAndConfirm(failure = CancellationException("gone"))
+        coVerify(exactly = 0) { f.appLog.log(any(), any()) }
+        assertEquals(TransferImportState.Idle, f.vm.importState.value)
     }
 }
