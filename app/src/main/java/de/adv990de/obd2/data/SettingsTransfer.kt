@@ -37,6 +37,8 @@ class SettingsTransfer @Inject constructor(private val prefs: AppPreferences) {
         } catch (e: Throwable) {
             withContext(NonCancellable) {
                 for (binding in bindings) {
+                    // nur, was der Import angefasst hat: ein anderer Schluessel behaelt seinen Standard (statt zu einem expliziten Wert zu werden) und eine gleichzeitige Aenderung des Nutzers bleibt
+                    if (binding.key !in values) continue
                     try {
                         binding.write(prefs, before.getValue(binding.key))
                     } catch (second: Exception) {

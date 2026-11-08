@@ -8,6 +8,7 @@ import de.adv990de.obd2.transfer.parseSettingsJson
 import de.adv990de.obd2.transfer.sampleSettings
 import de.adv990de.obd2.transfer.settingsToJson
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.spyk
 import kotlinx.coroutines.CancellationException
@@ -159,6 +160,18 @@ class SettingsTransferTest {
         coEvery { spy.setPrimaryRatio(any()) } throws IOException("boom")
         thrown<IOException> { SettingsTransfer(spy).apply(mapOf("theme" to "green", "fuel_range_full_km" to 0, "use_imperial" to false, "primary_ratio" to 2.0f)) }
         assertEquals(old, SettingsTransfer(prefs).snapshot())
+    }
+
+    @Test
+    fun `the rollback writes only the keys the import touched, not the whole snapshot`() = runTest {
+        val prefs = freshPrefs()
+        val spy = spyk(prefs)
+        coEvery { spy.setGearRatio(2, any()) } throws IOException("boom")
+        thrown<IOException> { SettingsTransfer(spy).apply(mapOf("theme" to "dark", "gear_ratio_3" to 1.5f)) }
+        // ein Schluessel, der nicht in der Datei stand, wird weder geschrieben noch beim Zurueckrollen angefasst (sonst wuerde sein Standard zu einem expliziten Wert)
+        coVerify(exactly = 0) { spy.setUseImperial(any()) }
+        coVerify(exactly = 0) { spy.setFuelRangeFullKm(any()) }
+        assertEquals("system", SettingsTransfer(prefs).snapshot()["theme"])
     }
 
     @Test
