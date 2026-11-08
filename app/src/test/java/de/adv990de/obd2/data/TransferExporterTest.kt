@@ -9,6 +9,7 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.SensorReadingDao
 import de.adv990de.obd2.data.db.SessionDao
+import de.adv990de.obd2.data.db.SessionMetaRow
 import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
 import de.adv990de.obd2.logbook.LogEntry
@@ -121,7 +122,8 @@ class TransferExporterTest {
         }
     }
 
-    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size) {
+    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList()) {
+        coEvery { sessionDao.metaByIds(any()) } answers { meta.filter { it.id in firstArg<List<Long>>() } }
         every { sessionDao.observeIds() } returns flowOf(tripIds)
         coEvery { sessionDao.idsWithReadings() } returns tripIds
         every { sensorReadingDao.getBySessionCursor(any()) } answers { tripCursor() }
@@ -219,6 +221,51 @@ class TransferExporterTest {
         assertEquals("9.9.9", manifest.appVersion)
         assertEquals(1_700_000_000_000L, manifest.createdMs)
         assertEquals(mapOf(DataPart.TRIPS to 2, DataPart.LOGBOOK to 2, DataPart.APP_LOG to 2), manifest.parts)
+    }
+
+    @Test
+    fun `trips_meta csv follows trips csv and carries the VIN and codes of the trips with a detail`() = runTest {
+        stubData(meta = listOf(SessionMetaRow(2L, "TESTVIN0000000001", "P0301,P0420?"), SessionMetaRow(1L, null, null)))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRIPS, DataPart.LOGBOOK))
+
+        assertEquals(listOf("manifest.json", "trips.csv", "trips_meta.csv", "logbook.csv"), zipNames(file.captured))
+        assertEquals(
+            "session,vin,dtcs_recorded,dtc_codes\n2,TESTVIN0000000001,1,\"P0301,P0420?\"\n",
+            String(zipBytes(file.captured, "trips_meta.csv"), Charsets.UTF_8),
+        )
+    }
+
+    @Test
+    fun `trips_meta csv is not written when no trip has a detail`() = runTest {
+        stubData(meta = listOf(SessionMetaRow(1L, null, null), SessionMetaRow(2L, null, null)))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRIPS))
+
+        assertEquals(listOf("manifest.json", "trips.csv"), zipNames(file.captured))
+    }
+
+    @Test
+    fun `trips_meta csv is not written when the trips are not chosen`() = runTest {
+        stubData(meta = listOf(SessionMetaRow(2L, "TESTVIN0000000001", "P0301")))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.LOGBOOK))
+
+        assertEquals(listOf("manifest.json", "logbook.csv"), zipNames(file.captured))
+    }
+
+    @Test
+    fun `the csv of the trips does not carry the meta file`() = runTest {
+        stubData(meta = listOf(SessionMetaRow(2L, "TESTVIN0000000001", "P0301")))
+        stubEnvironment()
+        exporter.share(request(DataPart.TRIPS, format = ExportFormat.CSV))
+
+        val file = exportedFiles().single()
+        assertTrue(file.name.startsWith("session_all_"))
+        assertFalse(file.readText().contains("TESTVIN"))
     }
 
     @Test

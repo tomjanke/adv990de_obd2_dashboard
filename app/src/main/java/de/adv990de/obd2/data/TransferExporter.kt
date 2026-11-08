@@ -119,6 +119,10 @@ class TransferExporter @Inject constructor(
             if (ids.isNotEmpty()) {
                 written[DataPart.TRIPS] = ids.size
                 body += PackageEntry(DataPart.TRIPS.packageEntry) { sessions.writeTripsCsv(it, ids) }
+                // trips_meta.csv (FIN und Fehlercodes je Fahrt) gehoert zu den Fahrten und steht nur da, wenn mindestens eine Fahrt eine Angabe hat.
+                val withDetail = sessions.tripMeta(ids).filterValues { !it.isEmpty }.keys
+                val metaIds = ids.filter { it in withDetail }
+                if (metaIds.isNotEmpty()) body += PackageEntry(PackageFormat.TRIPS_META) { sessions.writeTripMetaCsv(it, metaIds) }
             }
         }
         if (DataPart.LOGBOOK in chosen) {
