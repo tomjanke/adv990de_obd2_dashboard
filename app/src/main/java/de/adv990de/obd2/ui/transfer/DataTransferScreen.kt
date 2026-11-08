@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -92,6 +93,7 @@ internal const val TRANSFER_NOTHING_TEST_TAG = "transfer_import_nothing"
 internal const val TRANSFER_NEWER_FORMAT_TEST_TAG = "transfer_newer_format"
 internal const val TRANSFER_APP_LOG_IGNORED_TEST_TAG = "transfer_app_log_ignored"
 internal const val TRANSFER_WORKING_TEST_TAG = "transfer_working"
+internal const val TRANSFER_FAILED_FILE_TEST_TAG = "transfer_failed_file"
 
 /** Glove-friendly touch height of segments and buttons; a part row is a setting row (64 dp). */
 private val ControlMinHeight = 56.dp
@@ -373,6 +375,17 @@ internal fun DataTransferImportContent(state: TransferImportState, actions: Impo
                 CloseButton(actions.onDismiss)
             }
             is TransferImportState.Failed -> {
+                // Der Name der gewaehlten Datei steht ueber dem Grund: ein falsch gewaehltes Archiv (anderer Ordner, aehnlicher Name) faellt so sofort auf.
+                state.fileName?.let { name ->
+                    Text(
+                        stringResource(R.string.transfer_error_file, name),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag(TRANSFER_FAILED_FILE_TEST_TAG),
+                    )
+                }
                 Text(state.text.asString(), color = MaterialTheme.colorScheme.error)
                 CloseButton(actions.onDismiss)
             }

@@ -87,6 +87,7 @@ class DataTransferViewModelTest {
         every { exporter.suggestedFileName(any()) } returns "name.zip"
         val importer = mockk<TransferImporter>()
         coEvery { importer.inspect(any(), any(), any()) } returns preview
+        coEvery { importer.displayName(any()) } returns null
         coEvery { importer.apply(any(), any()) } returns TransferResult(mapOf(DataPart.LOGBOOK to PartOutcome.Done(1)))
         val appLog = mockk<AppLogRepository>(relaxed = true)
         val vm = DataTransferViewModel(exporter, importer, appLog, SavedStateHandle(args))
@@ -620,7 +621,7 @@ class DataTransferViewModelTest {
         assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.TOO_MANY_ROWS, "x")))
         assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.SPLIT_TRIP, "x")))
         assertEquals(res(R.string.transfer_error_too_large), failureOf(FileTooLargeException("x")))
-        assertEquals(res(R.string.transfer_error_unrecognized), failureOf(IllegalArgumentException("x")))
+        assertEquals(res(R.string.transfer_error_unreadable), failureOf(IllegalArgumentException("x")))
         assertEquals(res(R.string.transfer_error_unreadable), failureOf(IOException("x")))
         assertEquals(res(R.string.transfer_error_unreadable), failureOf(SecurityException("x")))
         assertEquals(UiText.DynamicString("odd"), failureOf(IllegalStateException("odd")))
@@ -677,5 +678,127 @@ class DataTransferViewModelTest {
         val f = importAndConfirm(failure = CancellationException("gone"))
         coVerify(exactly = 0) { f.appLog.log(any(), any()) }
         assertEquals(TransferImportState.Idle, f.vm.importState.value)
+    }
+
+    // ── Fehler beim Pruefen: Dateiname und App-Log ────────────────────────────
+
+    private fun TestScope.pickFailing(e: Exception, fileName: String?): Fixture {
+        val f = ready()
+        coEvery { f.importer.displayName(any()) } returns fileName
+        coEvery { f.importer.inspect(any(), any(), any()) } throws e
+        f.vm.pickImport(source)
+        runCurrent()
+        return f
+    }
+
+    @Test
+    fun `a failed check writes one warning with the file name, the class and the message`() = runTest {
+        val f = pickFailing(IllegalArgumentException("Required column missing: pid"), "obd-dashboard_20261108T101003123Z.zip")
+        coVerify(exactly = 1) {
+            f.appLog.log(LogLevel.WARN, "Import check failed for 'obd-dashboard_20261108T101003123Z.zip': IllegalArgumentException: Required column missing: pid")
+        }
+        coVerify(exactly = 1) { f.appLog.log(any(), any()) }
+    }
+
+    @Test
+    fun `a failed check without a file name writes the line without the name`() = runTest {
+        val f = pickFailing(IOException("gone"), null)
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import check failed: IOException: gone") }
+    }
+
+    @Test
+    fun `a failed check without a message is logged with the class alone`() = runTest {
+        val f = pickFailing(IllegalStateException(), "a.csv")
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import check failed for 'a.csv': IllegalStateException") }
+    }
+
+    @Test
+    fun `the failed state carries the file name and the text`() = runTest {
+        val f = pickFailing(TransferFileException(TransferFileException.Kind.UNRECOGNIZED, "x"), "photo.csv")
+        assertEquals(TransferImportState.Failed(res(R.string.transfer_error_unrecognized), "photo.csv"), f.vm.importState.value)
+    }
+
+    @Test
+    fun `a failed check without a file name leaves the name empty in the state`() = runTest {
+        val f = pickFailing(IOException("gone"), null)
+        assertEquals(null, (f.vm.importState.value as TransferImportState.Failed).fileName)
+    }
+
+    @Test
+    fun `the name of an earlier file does not stay on a later failure`() = runTest {
+        val f = ready()
+        coEvery { f.importer.displayName(any()) } returns "first.zip"
+        f.vm.pickImport(source)
+        runCurrent()
+        coEvery { f.importer.displayName(any()) } returns null
+        coEvery { f.importer.inspect(any(), any(), any()) } throws IOException("gone")
+        f.vm.dismissImport()
+        f.vm.pickImport(source)
+        runCurrent()
+        assertEquals(null, (f.vm.importState.value as TransferImportState.Failed).fileName)
+    }
+
+    @Test
+    fun `a failure while writing is logged with the name of the chosen file`() = runTest {
+        val f = ready()
+        coEvery { f.importer.displayName(any()) } returns "backup.zip"
+        coEvery { f.importer.apply(any(), any()) } throws IllegalStateException("boom")
+        f.vm.pickImport(source)
+        runCurrent()
+        f.vm.confirmImport()
+        runCurrent()
+        coVerify(exactly = 1) { f.appLog.log(LogLevel.WARN, "Import failed for 'backup.zip': IllegalStateException: boom") }
+        assertEquals(TransferImportState.Failed(UiText.DynamicString("boom"), "backup.zip"), f.vm.importState.value)
+    }
+
+    @Test
+    fun `a cancelled check writes nothing to the log and ends idle`() = runTest {
+        val f = pickFailing(CancellationException("gone"), "a.zip")
+        coVerify(exactly = 0) { f.appLog.log(any(), any()) }
+        assertEquals(TransferImportState.Idle, f.vm.importState.value)
+    }
+
+    @Test
+    fun `a successful check writes nothing to the log`() = runTest {
+        val f = ready()
+        f.vm.pickImport(source)
+        runCurrent()
+        coVerify(exactly = 0) { f.appLog.log(any(), any()) }
+    }
+
+    @Test
+    fun `only the files the app does not know are reported as not recognised`() {
+        val unrecognised = res(R.string.transfer_error_unrecognized)
+        assertEquals(unrecognised, failureOf(TransferFileException(TransferFileException.Kind.UNRECOGNIZED, "x")))
+        assertEquals(unrecognised, failureOf(TripFileException(TripFileException.Kind.NOT_AN_EXPORT, "x")))
+        // everything else that is an IllegalArgumentException (a parser, a require in the code) says the file could not be read
+        assertEquals(res(R.string.transfer_error_unreadable), failureOf(IllegalArgumentException("A quoted field starting in line 3 is never closed")))
+        assertEquals(res(R.string.transfer_error_unreadable), failureOf(IllegalArgumentException()))
+        assertTrue(failureOf(IllegalArgumentException("x")) != unrecognised)
+    }
+
+    // ── Die Log-Zeile selbst ──────────────────────────────────────────────────
+
+    @Test
+    fun `the log line is one line with the file name in quotes`() {
+        assertEquals("Import check failed for 'a.zip': IOException: gone", importFailureLogLine("Import check failed", "a.zip", IOException("gone")))
+    }
+
+    @Test
+    fun `the log line omits a blank file name and a blank message`() {
+        assertEquals("Import check failed: IOException", importFailureLogLine("Import check failed", "  ", IOException("   ")))
+        assertEquals("Import check failed: IOException", importFailureLogLine("Import check failed", null, IOException()))
+    }
+
+    @Test
+    fun `the log line cuts a long file name at 80 characters and flattens line breaks`() {
+        val line = importFailureLogLine("Import check failed", "x".repeat(120) + ".zip", IllegalArgumentException("one\ntwo   three"))
+        assertEquals("Import check failed for '${"x".repeat(80)}': IllegalArgumentException: one two three", line)
+    }
+
+    @Test
+    fun `the log line cuts a long message at 200 characters`() {
+        val line = importFailureLogLine("Import failed", null, IllegalStateException("m".repeat(500)))
+        assertEquals("Import failed: IllegalStateException: ${"m".repeat(200)}", line)
     }
 }

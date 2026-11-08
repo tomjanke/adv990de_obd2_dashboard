@@ -13,6 +13,7 @@ import de.adv990de.obd2.data.FileTooLargeException
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.TransferExporter
 import de.adv990de.obd2.data.TransferImporter
+import de.adv990de.obd2.obd.compactForLog
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.NotAPackageException
@@ -54,7 +55,8 @@ sealed interface TransferImportState {
     data object Working : TransferImportState
     data class Preview(val preview: TransferPreview, val selected: Set<DataPart>) : TransferImportState
     data class Done(val result: TransferResult) : TransferImportState
-    data class Failed(val text: UiText) : TransferImportState
+    /** [fileName]: der Name der gewaehlten Datei, soweit das System ihn nennt (sonst `null`); die Meldung zeigt ihn an, damit eine falsch gewaehlte Datei auffaellt. */
+    data class Failed(val text: UiText, val fileName: String? = null) : TransferImportState
 }
 
 /**
@@ -201,12 +203,17 @@ class DataTransferViewModel @Inject constructor(
 
     // ── Import ──
 
+    /** Der Name der zuletzt gewaehlten Datei (fuer die Fehlermeldung und das App-Log); `null`, wenn das System keinen nennt. */
+    private var importFileName: String? = null
+
     /** Die gewaehlte Datei erkennen und lesen (nichts wird geschrieben); waehrend gearbeitet wird, zaehlt ein zweiter Aufruf nicht. */
     fun pickImport(source: Uri) {
         if (_importState.value is TransferImportState.Working) return
         _importState.value = TransferImportState.Working
+        importFileName = null
         viewModelScope.launch {
             try {
+                importFileName = importer.displayName(source)
                 val preview = importer.inspect(source, nowMs(), today())
                 val withNews = preview.parts.filterValues { it.hasNews }.keys
                 _importState.value = TransferImportState.Preview(preview, withNews.toSet())
@@ -214,7 +221,7 @@ class DataTransferViewModel @Inject constructor(
                 _importState.value = TransferImportState.Idle
                 throw e
             } catch (e: Exception) {
-                _importState.value = TransferImportState.Failed(importFailureText(e))
+                fail(e, "Import check failed")
             }
         }
     }
@@ -243,9 +250,18 @@ class DataTransferViewModel @Inject constructor(
                 _importState.value = TransferImportState.Idle
                 throw e
             } catch (e: Exception) {
-                _importState.value = TransferImportState.Failed(importFailureText(e))
+                fail(e, "Import failed")
             }
         }
+    }
+
+    /**
+     * Ein Fehler beim Pruefen oder Schreiben: die Oberflaeche zeigt den Text samt Dateiname, das App-Log bekommt die Ursache (eine WARN-Zeile, [importFailureLogLine]). Der Zustand
+     * wird zuerst gesetzt, das Schreiben ins Log kann warten. Ohne diese Zeile bliebe ein Fehler beim Pruefen der Datei am fertigen Release-Build unsichtbar.
+     */
+    private suspend fun fail(e: Exception, what: String) {
+        _importState.value = TransferImportState.Failed(importFailureText(e), importFileName)
+        appLog.log(LogLevel.WARN, importFailureLogLine(what, importFileName, e))
     }
 
     /** Die Oberflaeche nennt nur einen festen Satz; die Ursache eines gescheiterten Teils steht als eine WARN-Zeile je Teil im App-Log (Klassenname und Meldung, nichts sonst). */
@@ -282,7 +298,19 @@ internal fun importFailureText(e: Exception): UiText = when (e) {
         },
     )
     is FileTooLargeException -> UiText.StringResource(R.string.transfer_error_too_large)
-    is IllegalArgumentException -> UiText.StringResource(R.string.transfer_error_unrecognized)
+    // Jede uebrige IllegalArgumentException (ein kaputtes Anfuehrungszeichen, zu viele Zeilen im Logbuch, ein `require` im Code) ist "nicht lesbar", nicht "nicht erkannt": wer sagt, die Datei
+    // sei unbekannt, obwohl der Fehler im Programm liegt, schickt den Nutzer auf die falsche Spur. Die Ursache steht im App-Log.
+    is IllegalArgumentException -> UiText.StringResource(R.string.transfer_error_unreadable)
     is IOException, is SecurityException -> UiText.StringResource(R.string.transfer_error_unreadable)
     else -> UiText.DynamicString(e.message ?: e.javaClass.simpleName)
 }
+
+/** Die Log-Zeile eines gescheiterten Imports, eine Zeile: `Import check failed for 'name.zip': IllegalArgumentException: Meldung` (ohne Dateiname ohne den Teil `for '…'`; Name und Meldung gekuerzt). */
+internal fun importFailureLogLine(what: String, fileName: String?, e: Exception): String {
+    val file = fileName?.takeIf { it.isNotBlank() }?.let { " for '${it.compactForLog(MAX_LOGGED_FILE_NAME_CHARS)}'" }.orEmpty()
+    val detail = e.message?.takeIf { it.isNotBlank() }?.let { ": ${it.compactForLog(MAX_LOGGED_MESSAGE_CHARS)}" }.orEmpty()
+    return "$what$file: ${e.javaClass.simpleName}$detail"
+}
+
+private const val MAX_LOGGED_FILE_NAME_CHARS = 80
+private const val MAX_LOGGED_MESSAGE_CHARS = 200

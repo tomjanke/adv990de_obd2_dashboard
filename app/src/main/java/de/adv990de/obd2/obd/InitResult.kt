@@ -17,5 +17,5 @@ internal fun connectedLogMessage(deviceName: String, init: InitResult?): String 
     if (init == null) "Connected to $deviceName"
     else "Connected to $deviceName (ATZ: '${init.resetAnswer.compactForLog()}', ${init.resetMillis} ms)"
 
-/** Eine Adapterantwort fuer eine Log-Zeile: Zeilenumbrueche und Mehrfach-Leerzeichen werden eins, hoechstens 40 Zeichen. */
-internal fun String.compactForLog(): String = trim().replace(WHITESPACE, " ").take(40)
+/** Ein Text fuer eine Log-Zeile (eine Adapterantwort, ein Dateiname): Zeilenumbrueche und Mehrfach-Leerzeichen werden eins, hoechstens [maxChars] Zeichen (Standard 40). */
+internal fun String.compactForLog(maxChars: Int = 40): String = trim().replace(WHITESPACE, " ").take(maxChars)

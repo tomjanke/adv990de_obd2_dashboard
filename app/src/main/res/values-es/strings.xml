@@ -686,6 +686,7 @@
     <string name="transfer_error_unreadable">No se pudo leer el archivo.</string>
     <string name="transfer_error_trips_invalid">Los viajes de este archivo no se pueden leer: demasiadas filas o las filas de un viaje no están juntas.</string>
     <string name="transfer_error_write">No se pudo guardar. No se importó nada de esta parte.</string>
+    <string name="transfer_error_file">Archivo: %1$s</string>
     <string name="settings_data_transfer">Copia y restauración</string>
     <string name="settings_data_transfer_summary">Exportar, compartir e importar tus datos</string>
     <string name="transfer_title">Copia y restauración</string>

@@ -2,6 +2,7 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.fuel.FuelRepository
 import de.adv990de.obd2.logbook.GpsOdometer
@@ -66,6 +67,23 @@ class TransferImporter @Inject constructor(
             FileKind.APP_LOG_CSV -> throw TransferFileException(TransferFileException.Kind.APP_LOG_NOT_IMPORTABLE, "The app log can be exported, not imported")
             FileKind.UNKNOWN -> throw TransferFileException(TransferFileException.Kind.UNRECOGNIZED, "The file is neither a backup nor a csv file of this app")
             FileKind.PACKAGE -> inspectPackage(source, nowMs, today)
+        }
+    }
+
+    /**
+     * Der Name der gewaehlten Datei, wie ihn der Dateidialog des Systems kennt (`OpenableColumns.DISPLAY_NAME`); `null`, wenn die Quelle keinen nennt oder die Abfrage scheitert.
+     * Nur fuer Meldung und App-Log: der Ordner ist ueber eine `content://`-Uri nicht verlaesslich zu erfahren und wird nicht genannt. Wirft nie (ausser beim Abbruch des Aufrufers).
+     */
+    suspend fun displayName(source: Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.query(source, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column)?.takeIf { it.isNotBlank() } else null
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
         }
     }
 

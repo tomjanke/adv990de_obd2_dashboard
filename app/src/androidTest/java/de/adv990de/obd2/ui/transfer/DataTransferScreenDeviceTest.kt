@@ -483,6 +483,39 @@ class DataTransferScreenDeviceTest {
     }
 
     @Test
+    fun aFailureShowsTheNameOfTheChosenFileAboveTheReason() {
+        showImport(TransferImportState.Failed(UiText.StringResource(R.string.transfer_error_unrecognized), "photo.csv"))
+
+        tag(TRANSFER_FAILED_FILE_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_error_file, "photo.csv")).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_error_unrecognized)).assertIsDisplayed()
+        val file = tag(TRANSFER_FAILED_FILE_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val reason = composeRule.onNodeWithText(string(R.string.transfer_error_unrecognized)).fetchSemanticsNode().boundsInRoot
+        assertTrue("the file name stands above the reason", file.bottom <= reason.top + 1f)
+    }
+
+    @Test
+    fun aFailureWithoutAFileNameShowsNoFileLine() {
+        showImport(TransferImportState.Failed(UiText.StringResource(R.string.transfer_error_unreadable), null))
+
+        composeRule.onNodeWithText(string(R.string.transfer_error_unreadable)).assertIsDisplayed()
+        tag(TRANSFER_FAILED_FILE_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun aVeryLongFileNameTakesAtMostTwoLinesAndTheCloseStaysReachable() {
+        showImport(TransferImportState.Failed(UiText.StringResource(R.string.transfer_error_unreadable), "x".repeat(300) + ".zip"), fontScale = 1.3f, width = 360)
+
+        val node = tag(TRANSFER_FAILED_FILE_TEST_TAG)
+        node.assertIsDisplayed()
+        val result = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        val action = node.fetchSemanticsNode().config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action
+        assertTrue("der Knoten hat keinen Text", action != null && action(result))
+        assertTrue("at most two lines, was ${result.first().lineCount}", result.first().lineCount <= 2)
+        tag(TRANSFER_CLOSE_TEST_TAG).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun aFailureWithADynamicText_isShownAsIs() {
         showImport(TransferImportState.Failed(UiText.DynamicString("odd failure")))
 

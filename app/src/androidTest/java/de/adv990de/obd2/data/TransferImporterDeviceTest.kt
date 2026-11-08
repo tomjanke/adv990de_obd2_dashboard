@@ -2,6 +2,7 @@ package de.adv990de.obd2.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -20,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -148,5 +150,33 @@ class TransferImporterDeviceTest {
             assertEquals(TransferFileException.Kind.NOT_A_BACKUP, e.kind)
         }
         assertTrue(copies().isEmpty())
+    }
+
+    // ── Der Name der gewaehlten Datei ────────────────────────────────────────
+
+    /** Eine Datei hinter einer `content://`-Uri, so wie sie der Dateidialog liefert: ueber den FileProvider der App (Ordner `exports/` im Cache). */
+    private fun contentFile(name: String): Uri {
+        val f = File(File(ctx.cacheDir, "exports").apply { mkdirs() }, name).also { it.writeText("x"); files += it }
+        return FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", f)
+    }
+
+    @Test
+    fun theDisplayNameOfAContentUriIsTheNameOfTheFile() = runBlocking {
+        assertEquals("obd-dashboard_test.zip", importer.displayName(contentFile("obd-dashboard_test.zip")))
+    }
+
+    @Test
+    fun aNameWithSpacesAndUmlautsComesBackAsItIs() = runBlocking {
+        assertEquals("Sicherung Müller (1).zip", importer.displayName(contentFile("Sicherung Müller (1).zip")))
+    }
+
+    @Test
+    fun aFileUriHasNoDisplayNameAndThatIsNotAnError() = runBlocking {
+        assertNull(importer.displayName(file("plain_file.csv", "x")))
+    }
+
+    @Test
+    fun aContentUriOfAnUnknownProviderGivesNullAndNeverThrows() = runBlocking {
+        assertNull(importer.displayName(Uri.parse("content://de.adv990de.obd2.does.not.exist/some/file.zip")))
     }
 }

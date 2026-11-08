@@ -665,6 +665,7 @@
     <string name="transfer_error_unreadable">Die Datei ließ sich nicht lesen.</string>
     <string name="transfer_error_trips_invalid">Die Fahrten in dieser Datei lassen sich nicht einlesen: zu viele Zeilen oder die Zeilen einer Fahrt stehen nicht beisammen.</string>
     <string name="transfer_error_write">Das Speichern ist fehlgeschlagen. Von diesem Teil wurde nichts übernommen.</string>
+    <string name="transfer_error_file">Datei: %1$s</string>
     <string name="settings_data_transfer">Daten sichern und wiederherstellen</string>
     <string name="settings_data_transfer_summary">Daten exportieren, teilen und einlesen</string>
     <string name="transfer_title">Daten sichern und wiederherstellen</string>

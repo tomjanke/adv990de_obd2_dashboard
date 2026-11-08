@@ -665,6 +665,7 @@
     <string name="transfer_error_unreadable">The file could not be read.</string>
     <string name="transfer_error_trips_invalid">The drives in this file cannot be read: too many rows, or the rows of a drive are not together.</string>
     <string name="transfer_error_write">Saving failed. Nothing of this part was imported.</string>
+    <string name="transfer_error_file">File: %1$s</string>
     <string name="settings_data_transfer">Back up and restore</string>
     <string name="settings_data_transfer_summary">Export, share and import your data</string>
     <string name="transfer_title">Back up and restore</string>
