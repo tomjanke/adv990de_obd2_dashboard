@@ -1,5 +1,29 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.0 (versionCode 159)
+
+**Daten sichern und wiederherstellen:** eine Seite statt fünf Dialogen, die jetzt auch Einstellungen, Zähler, Fehlerhistorie sowie FIN und Fehlercodes je Fahrt mitnimmt.
+
+### Was sich ändert
+
+- **Neue Seite:** Einstellungen → Info & Wartung → „Daten sichern und wiederherstellen“, mit dem Umschalter Exportieren · Importieren. Die Export- und Import-Symbole in Fahrten, Logbuch und App-Logs bleiben als Abkürzungen (sie öffnen dieselbe Seite mit vorgewählter Art); die fünf bisherigen Export- und Import-Dialoge entfallen.
+- **Paket (ZIP) mit bis zu sechs Teilen:** Fahrten, Logbuch, Einstellungen, Zähler, Fehlerhistorie und App-Log (der App-Log nur beim Export). Wer nur eine Art von Fahrten, Logbuch oder App-Log wählt, kann stattdessen die einzelne CSV speichern — dieselbe Datei wie bisher, weiter für Excel gedacht. Alle bisherigen Export-Dateien bleiben einlesbar.
+- **FIN und Fehlercodes je Fahrt** gehen im Paket mit (`trips_meta.csv`); die CSV trägt sie weiterhin nicht. **Die FIN ist personenbezogen** — die Datei nicht weitergeben. Fahrten, die schon in der App sind, bekommen sie nachträglich nicht.
+- **Einstellungen:** 36 Einstellungen gehen mit (Farbschema, Einheiten, Kachelbelegung, Alarme, Reichweite, Tankinhalt, Reserve, Wartungsintervalle, Getriebe u. a.). **Nicht dabei:** der gekoppelte Adapter, der Absturzbericht-Schalter, die „schon gefragt“-Merker und Berechtigungen. Jeder Wert wird streng geprüft (nichts wird gerundet oder geraten); schlägt das Schreiben fehl, werden die berührten Einstellungen zurückgesetzt.
+- **Zähler:** die Tankanzeige und der geschätzte Kilometerstand des Logbuchs. Der Kilometerzähler des Logbuchs gilt nur, wenn sein Anker zum höchsten Logbuch-Stand nach dem Import passt.
+- **Fehlerhistorie** wird zusammengeführt: der früheste Erstfund bleibt, höchstens 200 Codes.
+- **Vorschau vor dem Schreiben,** je Teil mit Kästchen; jeder Teil wird ganz oder gar nicht geschrieben, ein gescheiterter Teil stoppt die anderen nicht. Die Fehlertexte nennen keine Grenzzahlen; die Ursache steht im App-Log.
+- **Hinweise im Export:** die App sichert nichts von selbst (App-Daten löschen vernichtet Fahrten, Logbuch und Einstellungen — die Datei außerhalb des Telefons aufbewahren); die laufende Aufzeichnung ist nicht dabei; der App-Log enthält den Namen des Adapters.
+- **Rückgängig-Fenster:** ein Eintrag, der vor weniger als 10 Sekunden gelöscht wurde, kann im Export noch stehen.
+- **Sprachen:** alle neuen Texte in Deutsch, Englisch und Spanisch (die spanischen von Claude übersetzt, nicht muttersprachlich gegengelesen).
+- **Unverändert:** Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen. Das Fahrzeug bleibt rein lesend.
+
+### Gut zu wissen
+
+Die Systemdialoge zum Speichern, Öffnen und Teilen sind nicht am Gerät durchgespielt (sie lassen sich im Test nicht bedienen); die Obergrenzen für Paketgrößen sind nicht gemessen; ein echter Umzug von einer Installation auf eine andere ist nur als Rundlauf im Test belegt.
+
+---
+
 ## Version 1.44.20 (versionCode 158)
 
 Fahrten lassen sich jetzt **aus einer Export-Datei importieren**, zum Beispiel beim Umzug von einer anderen Installation.
