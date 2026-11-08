@@ -20,8 +20,11 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -95,7 +98,8 @@ class DataTransferScreenDeviceTest {
         format: ExportFormat = ExportFormat.PACKAGE,
         csvAllowed: Boolean = false,
         canExport: Boolean = true,
-    ) = ExportUi(counts, selection, format, csvAllowed, canExport)
+        exporting: Boolean = false,
+    ) = ExportUi(counts, selection, format, csvAllowed, canExport, exporting)
 
     /** Die Seite scrollt wie in der App: im Test ein `verticalScroll`, damit jeder Knoten erreichbar ist. */
     private fun showExport(state: ExportUi, fontScale: Float = 1f, width: Int? = null) = composeRule.setContent {
@@ -123,8 +127,13 @@ class DataTransferScreenDeviceTest {
         val action = fetchSemanticsNode().config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action
         assertTrue("der Knoten hat keinen Text", action != null && action(result))
         val layout = result.first()
-        assertFalse("Text abgeschnitten (Breite)", layout.didOverflowWidth)
-        assertFalse("Text abgeschnitten (Hoehe)", layout.didOverflowHeight)
+        // didOverflowWidth compares with the width the paragraph was laid out in (the maximum), not with the box: a short text in a wide slot would count as cut off.
+        // What matters is that no line reaches beyond the box and the last line ends inside it.
+        val what = "'${layout.layoutInput.text.text.take(40)}' size=${layout.size} lines=${layout.lineCount}"
+        for (line in 0 until layout.lineCount) {
+            assertTrue("Text abgeschnitten (Breite, Zeile $line): $what", layout.getLineRight(line) <= layout.size.width + 1f)
+        }
+        assertTrue("Text abgeschnitten (Hoehe): $what", layout.getLineBottom(layout.lineCount - 1) <= layout.size.height + 1f)
         return this
     }
 
@@ -282,7 +291,9 @@ class DataTransferScreenDeviceTest {
         showImport(preview(linkedMapOf(DataPart.LOGBOOK to logbookPlan, DataPart.TRIPS to tripPlan)))
 
         composeRule.onNodeWithText(plural(R.plurals.logbook_import_new, 98)).assertIsDisplayed()
-        composeRule.onNodeWithText(plural(R.plurals.logbook_import_rejected, 2)).performScrollTo().assertIsDisplayed()
+        // Both parts have two unreadable rows, so the sentence stands twice (once per part).
+        composeRule.onAllNodesWithText(plural(R.plurals.logbook_import_rejected, 2)).assertCountEquals(2)
+        composeRule.onAllNodesWithText(plural(R.plurals.logbook_import_rejected, 2))[0].performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(plural(R.plurals.trip_import_new, 9)).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_import_row, 17, string(R.string.trip_import_bad_value, "timestamp"))).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(plural(R.plurals.trip_import_duplicates, 4)).performScrollTo().assertIsDisplayed()
@@ -290,12 +301,49 @@ class DataTransferScreenDeviceTest {
 
     @Test
     fun aPartShowsItsBoxAsTheSelectionSays_andATapToggles() {
-        showImport(preview(linkedMapOf(DataPart.LOGBOOK to logbookPlan, DataPart.TRIPS to tripPlan), selected = setOf(DataPart.LOGBOOK)))
+        val initial = preview(linkedMapOf(DataPart.LOGBOOK to logbookPlan, DataPart.TRIPS to tripPlan), selected = setOf(DataPart.LOGBOOK))
+        composeRule.setContent {
+            PreviewTheme(dark = false) {
+                Scaffolded(1f, null) {
+                    // A real selection behind the page, like the ViewModel: a tap changes what the boxes show.
+                    val holder = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(initial) }
+                    val actions = ImportActions(
+                        onPick = {},
+                        onToggle = { part ->
+                            toggled += part
+                            val now = holder.value
+                            holder.value = now.copy(selected = if (part in now.selected) now.selected - part else now.selected + part)
+                        },
+                        onConfirm = {},
+                        onDismiss = {},
+                    )
+                    DataTransferImportContent(holder.value, actions)
+                }
+            }
+        }
 
-        tag(transferImportPartTestTag(DataPart.LOGBOOK)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.transfer_part_logbook)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.transfer_part_trips)).performScrollTo().performClick()
+        // The tag sits on the column around a part; the box is the toggleable row with the name of the part.
+        fun box(part: DataPart) = composeRule.onNode(isToggleable() and hasText(string(partLabelRes(part))))
+        box(DataPart.LOGBOOK).assertIsDisplayed().assertIsOn()
+        box(DataPart.TRIPS).performScrollTo().assertIsOff()
+        box(DataPart.TRIPS).performClick()
         assertEquals(listOf(DataPart.TRIPS), toggled)
+        box(DataPart.TRIPS).assertIsOn()
+        box(DataPart.LOGBOOK).performScrollTo().assertIsOn().performClick()
+        box(DataPart.LOGBOOK).assertIsOff()
+        box(DataPart.TRIPS).assertIsOn()
+    }
+
+    @Test
+    fun bothExportButtonsAreOffWhileAnExportRuns_andOnOtherwise() {
+        showExport(exportUi(exporting = true))
+        tag(TRANSFER_SAVE_TEST_TAG).performScrollTo().assertIsNotEnabled().performClick()
+        tag(TRANSFER_SHARE_TEST_TAG).performScrollTo().assertIsNotEnabled().performClick()
+        assertEquals(0, saves + shares)
+        // The size stays: a disabled button is still a 56 dp target.
+        val density = Density(composeRule.activity)
+        tag(TRANSFER_SAVE_TEST_TAG).assertHeightIsAtLeast(56.dp).assertTouchTargetAtLeast56(density)
+        tag(TRANSFER_SHARE_TEST_TAG).assertHeightIsAtLeast(56.dp).assertTouchTargetAtLeast56(density)
     }
 
     @Test
