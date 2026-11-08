@@ -34,6 +34,7 @@ fun countersToJson(values: CounterValues): String {
  * fehlt oder scheitert einer, werden beide verworfen (die vorhandenen Schluessel stehen in `rejectedKeys`). `IllegalArgumentException`: kein JSON-Objekt.
  */
 fun parseCountersJson(text: String): ParsedCounters {
+    require(jsonDepthWithin(text)) { "not a counters file: nested too deeply" }
     val root = try {
         JSONObject(text)
     } catch (e: JSONException) {

@@ -32,6 +32,7 @@ fun settingsToJson(values: Map<String, Any>): String {
 
 /** `IllegalArgumentException`: kein JSON-Objekt oder kein Objekt `values`. Ein neueres `format` wird gelesen (das Warnen ist Sache des Importers). */
 fun parseSettingsJson(text: String): ParsedSettings {
+    require(jsonDepthWithin(text)) { "not a settings file: nested too deeply" }
     val root = try {
         JSONObject(text)
     } catch (e: JSONException) {
