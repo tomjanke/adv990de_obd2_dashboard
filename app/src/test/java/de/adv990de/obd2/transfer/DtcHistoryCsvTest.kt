@@ -94,6 +94,16 @@ class DtcHistoryCsvTest {
     }
 
     @Test
+    fun `a later duplicate row that does not dominate still merges with the earlier one`() {
+        val parsed = parse(
+            "P0301,${now - 9 * day},${now - day},1",
+            "P0301,${now - 5 * day},${now - 3 * day},0",
+        )
+
+        assertEquals(listOf(DtcHistoryEntry("P0301", now - 9 * day, now - day, true)), parsed.entries)
+    }
+
+    @Test
     fun `a missing code column is an error`() {
         assertThrows(IllegalArgumentException::class.java) { parseDtcHistoryCsv(StringReader("first_seen,last_seen\n1,2\n"), now) }
         assertThrows(IllegalArgumentException::class.java) { parseDtcHistoryCsv(StringReader(""), now) }
