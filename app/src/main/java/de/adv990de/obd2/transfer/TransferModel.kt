@@ -20,9 +20,15 @@ class TransferFileException(val kind: Kind, message: String) : IllegalArgumentEx
 /** Warum ein Teil eines Pakets nicht gelesen werden konnte (die anderen Teile sind davon unabhaengig). */
 enum class UnreadableReason { FORMAT, TOO_LARGE, UNREADABLE }
 
+/**
+ * Was `trips_meta.csv` zu den **neuen** Fahrten sagt: [withVin] und [withCodesRecorded] zaehlen Fahrten, [invalidVins] verworfene FIN (die Fahrt bleibt), [orphanRows] Zeilen ohne neue
+ * Fahrt (nicht in `trips.csv` oder die Fahrt ist schon in der App oder zu alt: verworfen), [unreadable] = die Datei liess sich nicht lesen (die Fahrten kommen ohne Angaben).
+ */
+data class TripMetaSummary(val withVin: Int, val withCodesRecorded: Int, val invalidVins: Int, val orphanRows: Int, val unreadable: Boolean)
+
 /** Was ein Import je Teil tun wuerde (die Vorschau); nichts davon ist schon geschrieben. */
 sealed interface PartPlan {
-    data class Trips(val plan: TripImportPlan) : PartPlan
+    data class Trips(val plan: TripImportPlan, val meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) : PartPlan
     data class Logbook(val plan: ImportPlan) : PartPlan
     data class Unreadable(val reason: UnreadableReason) : PartPlan
 }

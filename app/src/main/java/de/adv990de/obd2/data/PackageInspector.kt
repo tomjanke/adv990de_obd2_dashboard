@@ -7,6 +7,11 @@ import de.adv990de.obd2.transfer.PackageReader
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
+import de.adv990de.obd2.transfer.TripMetaSummary
+import de.adv990de.obd2.transfer.PackageFormat.TRIPS_META
+import de.adv990de.obd2.transfer.parseTripMetaCsv
+import java.io.InputStream
+import java.io.InputStreamReader
 import de.adv990de.obd2.transfer.UnreadableReason
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
@@ -33,11 +38,40 @@ internal class PackageInspector(private val trips: TripImporter, private val log
         )
     }
 
+    /**
+     * Die Fahrten und, wenn das Paket `trips_meta.csv` hat, deren FIN und Fehlercodes — je Fahrt ueber die Nummer aus `trips.csv` zugeordnet. Eine unlesbare Meta-Datei verwirft nur
+     * sich selbst ([TripMetaSummary.unreadable]); die Fahrten bleiben planbar.
+     */
+    private suspend fun planTrips(reader: PackageReader, stream: InputStream, nowMs: Long): PartPlan.Trips {
+        val plan = trips.plan(stream, nowMs)
+        if (!reader.has(TRIPS_META)) return PartPlan.Trips(plan)
+        val parsed = try {
+            val metaStream = reader.openEntry(TRIPS_META) ?: throw IOException("entry $TRIPS_META vanished")
+            metaStream.use { parseTripMetaCsv(InputStreamReader(it, Charsets.UTF_8)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return PartPlan.Trips(plan, TripMetaSummary(0, 0, 0, 0, unreadable = true))
+        }
+        val withMeta = plan.trips.map { it.withMeta(parsed.byTrip[it.sourceId]) }
+        val accepted = plan.trips.map { it.sourceId }.toSet()
+        return PartPlan.Trips(
+            plan.copy(trips = withMeta),
+            TripMetaSummary(
+                withVin = withMeta.count { it.vin != null },
+                withCodesRecorded = withMeta.count { it.dtcCodes != null },
+                invalidVins = parsed.invalidVins,
+                orphanRows = parsed.byTrip.keys.count { it !in accepted },
+                unreadable = false,
+            ),
+        )
+    }
+
     private suspend fun readPart(reader: PackageReader, part: DataPart, nowMs: Long, today: LocalDate): PartPlan = try {
         val stream = reader.openEntry(part.packageEntry) ?: throw IOException("entry ${part.packageEntry} vanished")
         stream.use {
             when (part) {
-                DataPart.TRIPS -> PartPlan.Trips(trips.plan(it, nowMs))
+                DataPart.TRIPS -> planTrips(reader, it, nowMs)
                 DataPart.LOGBOOK -> PartPlan.Logbook(logbook.plan(it, today))
                 else -> throw IllegalStateException("$part is not read in this version")
             }

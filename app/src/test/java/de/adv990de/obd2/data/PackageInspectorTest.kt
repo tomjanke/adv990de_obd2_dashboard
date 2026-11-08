@@ -11,6 +11,11 @@ import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PackageReader
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
+import de.adv990de.obd2.transfer.TripMeta
+import de.adv990de.obd2.transfer.TripMetaSummary
+import de.adv990de.obd2.transfer.tripMetaCsvHeader
+import de.adv990de.obd2.transfer.tripMetaCsvLine
+import de.adv990de.obd2.tripimport.SessionSpan
 import de.adv990de.obd2.transfer.UnreadableReason
 import de.adv990de.obd2.transfer.hasNews
 import de.adv990de.obd2.transfer.toJson
@@ -196,5 +201,124 @@ class PackageInspectorTest {
                 assertEquals("format=$bad", TransferFileException.Kind.NOT_A_BACKUP, e.kind)
             }
         }
+    }
+
+    // --- trips_meta.csv ---
+
+    private val vin = "TESTVIN0000000001"
+
+    /** Zwei Fahrten (Nummern 1 und 2, weit auseinander) in einer `trips.csv`. */
+    private val twoTripsCsv = tripsCsv + "${nowMs - 500_000},010C,1700.0,Engine RPM,ECU,2\n${nowMs - 499_000},010C,1800.0,Engine RPM,ECU,2\n"
+
+    private fun tripsOf(preview: de.adv990de.obd2.transfer.TransferPreview) = preview.parts.getValue(DataPart.TRIPS) as PartPlan.Trips
+
+    @Test
+    fun `the details of a trip are attached by the trip number and not by the order`() = runTest {
+        stubRepos()
+        // The meta file lists the trips in the opposite order.
+        val meta = tripMetaCsvHeader() + tripMetaCsvLine("2", TripMeta(null, "")) + tripMetaCsvLine("1", TripMeta(vin, "P0301,P0420?"))
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to twoTripsCsv, "trips_meta.csv" to meta), nowMs, today))
+
+        assertEquals(listOf("1", "2"), trips.plan.trips.map { it.sourceId })
+        assertEquals(vin, trips.plan.trips[0].vin)
+        assertEquals("P0301,P0420?", trips.plan.trips[0].dtcCodes)
+        assertEquals(null, trips.plan.trips[1].vin)
+        assertEquals("", trips.plan.trips[1].dtcCodes)
+        assertEquals(TripMetaSummary(withVin = 1, withCodesRecorded = 2, invalidVins = 0, orphanRows = 0, unreadable = false), trips.meta)
+    }
+
+    @Test
+    fun `without a meta file the trips have no details and nothing is flagged`() = runTest {
+        stubRepos()
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv), nowMs, today))
+
+        assertEquals(null, trips.plan.trips.single().vin)
+        assertEquals(null, trips.plan.trips.single().dtcCodes)
+        assertEquals(TripMetaSummary(0, 0, 0, 0, false), trips.meta)
+    }
+
+    @Test
+    fun `a row for a trip that is not in trips csv is an orphan`() = runTest {
+        stubRepos()
+        val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, null)) + tripMetaCsvLine("99", TripMeta(vin, "P0301"))
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv, "trips_meta.csv" to meta), nowMs, today))
+
+        assertEquals(1, trips.meta.orphanRows)
+        assertEquals(1, trips.meta.withVin)
+        assertEquals(0, trips.meta.withCodesRecorded)
+    }
+
+    @Test
+    fun `the details of a trip that is already in the app are an orphan and are not applied`() = runTest {
+        // Trip 1 touches an existing trip (same time), trip 2 does not.
+        coEvery { sessionRepo.sessionSpans() } returns listOf(SessionSpan(nowMs - 6_000, nowMs - 3_000))
+        coEvery { logRepo.all() } returns emptyList()
+        val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, "P0301")) + tripMetaCsvLine("2", TripMeta(null, ""))
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to twoTripsCsv, "trips_meta.csv" to meta), nowMs, today))
+
+        assertEquals(listOf("2"), trips.plan.trips.map { it.sourceId })
+        assertEquals(1, trips.plan.duplicateTrips)
+        assertEquals(1, trips.meta.orphanRows)
+        assertEquals(0, trips.meta.withVin)
+        assertEquals(1, trips.meta.withCodesRecorded)
+        assertEquals("", trips.plan.trips.single().dtcCodes)
+    }
+
+    @Test
+    fun `an invalid VIN is counted and the trip is kept without it`() = runTest {
+        stubRepos()
+        val meta = "session,vin,dtcs_recorded,dtc_codes\n1,TESTVIN000000001,1,P0301\n"
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv, "trips_meta.csv" to meta), nowMs, today))
+
+        assertEquals(1, trips.plan.trips.size)
+        assertEquals(null, trips.plan.trips.single().vin)
+        assertEquals("P0301", trips.plan.trips.single().dtcCodes)
+        assertEquals(1, trips.meta.invalidVins)
+        assertEquals(0, trips.meta.withVin)
+    }
+
+    @Test
+    fun `a meta file without the session column is unreadable and the trips are still planned`() = runTest {
+        stubRepos()
+        val trips = tripsOf(inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv, "trips_meta.csv" to "vin,dtcs_recorded\n$vin,1\n"), nowMs, today))
+
+        assertEquals(1, trips.plan.trips.size)
+        assertEquals(null, trips.plan.trips.single().vin)
+        assertEquals(null, trips.plan.trips.single().dtcCodes)
+        assertTrue(trips.meta.unreadable)
+    }
+
+    @Test
+    fun `a meta file above its limit is unreadable and the trips are still planned`() = runTest {
+        stubRepos()
+        val file = tmp.newFile()
+        ZipOutputStream(FileOutputStream(file)).use { z ->
+            z.putNextEntry(ZipEntry("manifest.json")); z.write(manifest().toByteArray()); z.closeEntry()
+            z.putNextEntry(ZipEntry("trips.csv")); z.write(tripsCsv.toByteArray()); z.closeEntry()
+            val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, "P0301"))
+            z.putNextEntry(ZipEntry("trips_meta.csv")); z.write(meta.toByteArray()); z.closeEntry()
+        }
+        val reader = PackageReader.open(file, limitOf = { if (it == "trips_meta.csv") 10L else 1_000_000L })
+        val trips = tripsOf(inspector.inspect(reader, nowMs, today))
+
+        assertEquals(1, trips.plan.trips.size)
+        assertTrue(trips.meta.unreadable)
+        assertEquals(null, trips.plan.trips.single().vin)
+    }
+
+    @Test
+    fun `a meta file without trips csv is not a part of its own`() = runTest {
+        stubRepos()
+        val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, "P0301"))
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "trips_meta.csv" to meta), nowMs, today)
+        assertTrue(preview.parts.isEmpty())
+    }
+
+    @Test
+    fun `broken trips stay unreadable whatever the meta file says`() = runTest {
+        stubRepos()
+        val meta = tripMetaCsvHeader() + tripMetaCsvLine("1", TripMeta(vin, "P0301"))
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to "a,b,c\n1,2,3\n", "trips_meta.csv" to meta), nowMs, today)
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.TRIPS))
     }
 }
