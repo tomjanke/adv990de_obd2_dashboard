@@ -184,9 +184,9 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_USE_GPS_SPEED] = enabled }
     }
 
-    /** Ob die Hintergrund-Standort-Eskalation dem Nutzer schon einmal angeboten wurde. Verhindert,
-     *  dass der System-Dialog bei jedem Settings-Besuch erneut aufpoppt, solange die Berechtigung
-     *  nicht erteilt ist. */
+    /** Ob die Hintergrund-Standort-Eskalation dem Nutzer schon einmal angeboten und von ihm **beantwortet** wurde (seit der Erklaerung vor der
+     *  System-Anfrage: mit „Weiter“ oder „Nicht jetzt“, nicht schon beim Zeigen). Verhindert, dass die Erklaerung und der System-Dialog bei jedem
+     *  Settings-Besuch erneut aufpoppen, solange die Berechtigung nicht erteilt ist. */
     val backgroundLocationPrompted: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_BACKGROUND_LOCATION_PROMPTED] ?: false
     }

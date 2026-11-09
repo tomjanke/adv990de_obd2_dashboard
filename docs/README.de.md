@@ -346,7 +346,7 @@ Die übrigen sind „normale“ Berechtigungen ohne Dialog.
 | `BLUETOOTH` | ≤30 | Legacy-Bluetooth (`BLUETOOTH_ADMIN` entfiel mit dem BLE-Scan) |
 | `ACCESS_FINE_LOCATION` | alle | Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt) und Standort für die Außentemperatur; für Bluetooth wird kein Standort gebraucht |
 | `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen); genügt allein für die Außentemperatur |
-| `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde: hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
+| `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde, und erst nach einem Erklärungsdialog in der App (was genutzt wird, wozu, dass es auf dem Telefon bleibt, dass es freiwillig ist): hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
 | `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification und Alarm-Benachrichtigungen (optional: ohne sie läuft der Dienst und zeigt das Dashboard die Alarme, nur die Benachrichtigungen fehlen; die Einstellungen weisen darauf hin) |
 | `FOREGROUND_SERVICE` | alle | Foreground Service (normale Berechtigung, kein Dialog) |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 (normale Berechtigung) |

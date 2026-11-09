@@ -96,15 +96,23 @@ fun SettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    // Play-Richtlinie "Prominent Disclosure": VOR der System-Anfrage steht eine Erklaerung. Hier wird sie nur gezeigt, die Anfrage laeuft erst
+    // als Antwort "Weiter"; rememberSaveable, damit eine Drehung sie nicht verschluckt (BackgroundDisclosureWiringSourceTest).
+    var showBackgroundDisclosure by rememberSaveable { mutableStateOf(false) }
+
     @SuppressLint("InlinedApi")
+    fun answerBackgroundDisclosure(choice: BackgroundDisclosureChoice) {
+        showBackgroundDisclosure = false
+        val outcome = backgroundDisclosureOutcome(choice)
+        if (outcome.markPrompted) displayVm.setBackgroundLocationPrompted(true)
+        if (outcome.requestPermission) backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    }
+
     fun escalateToBackgroundLocationIfNeeded() {
         if (shouldEscalateToBackgroundLocation(
                 backgroundLocationPrompted, Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
             )
-        ) {
-            displayVm.setBackgroundLocationPrompted(true)
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
+        ) showBackgroundDisclosure = true
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -118,13 +126,9 @@ fun SettingsScreen(
         locationPermission.refresh()
     }
 
-    // Ergebnis wird bewusst nicht ausgewertet (gleiches Muster wie backgroundLocationLauncher):
-    // hideNavOnDrive folgt immer dem Schalter. Die Berechtigung braucht nur die Aussentemperatur in
-    // der Zeile, die statt des ausgeblendeten Hauptmenues erscheint — ohne sie fehlt dort einfach
-    // die Temperatur, Datum und Uhrzeit bleiben. FINE und COARSE zusammen angefragt: ab Android 12
-    // waehlt der Nutzer im System-Dialog "Genau" oder "Ungefaehr", beides genuegt fuers Wetter.
-    // Ausgeloest ausschliesslich von LaunchedEffect(hideNavOnDrive) weiter unten (Toggle UND
-    // Catch-up fuer schon laenger eingeschaltete Nutzer laufen darueber gemeinsam).
+    // Ergebnis wird bewusst nicht ausgewertet (wie backgroundLocationLauncher): hideNavOnDrive folgt immer dem Schalter; ohne die Berechtigung
+    // fehlt nur die Aussentemperatur in der Zeile. FINE und COARSE zusammen: ab Android 12 waehlt der Nutzer "Genau" oder "Ungefaehr", beides
+    // genuegt fuers Wetter. Ausgeloest nur von LaunchedEffect(hideNavOnDrive) weiter unten (Toggle UND Catch-up).
     val weatherLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { locationPermission.refresh() }
@@ -138,20 +142,10 @@ fun SettingsScreen(
         if (useGpsSpeed) escalateToBackgroundLocationIfNeeded()
     }
 
-    // Holt, nach demselben Muster wie der useGpsSpeed-Effect oben, Nutzer nach, deren
-    // hideNavOnDrive-Schalter aus einer frueheren Version (vor dieser Wetter-Funktion) bereits an
-    // ist und die den weatherLocationLauncher-Prompt sonst nie zu sehen bekaemen: hideNavOnDrive
-    // kommt genauso asynchron aus dem DataStore und ist bei der ersten Komposition noch der
-    // Default (false), der Effect laeuft also erneut, sobald der echte (persistierte) Wert
-    // eintrifft. Einziger Aufrufpunkt fuer diese Anfrage — der Switch unten ruft
-    // weatherLocationLauncher nicht mehr direkt aus onCheckedChange, sonst wuerde ein Toggle-auf-an
-    // sie zusammen mit diesem Effect doppelt auslösen.
-    //
-    // weatherLocationPrompted (seit 2026-09-27) ist der Einmal-Guard, der genau dieser Katch-up-
-    // Logik fehlte: ohne ihn fragte dieser Effect bei JEDEM Settings-Besuch/jeder Rotation erneut
-    // an, solange der Schalter an und die Berechtigung noch verweigert war (der Effect laeuft bei
-    // jeder frischen Komposition mit hideNavOnDrive==true neu, nicht nur beim Toggle). Check-and-
-    // set exakt wie escalateToBackgroundLocationIfNeeded()/backgroundLocationPrompted oben.
+    // Wie der useGpsSpeed-Effect oben: holt Nutzer nach, deren hideNavOnDrive-Schalter aus einer frueheren Version schon an ist (der Wert kommt
+    // asynchron aus dem DataStore, der Effect laeuft erneut, sobald er eintrifft). Einziger Aufrufpunkt dieser Anfrage — der Switch ruft
+    // weatherLocationLauncher nicht direkt, sonst loeste ein Toggle sie zusammen mit diesem Effect doppelt aus. weatherLocationPrompted (seit
+    // 2026-09-27) ist der Einmal-Guard: ohne ihn fragte der Effect bei JEDEM Settings-Besuch und jeder Rotation erneut (Check-and-set wie oben).
     LaunchedEffect(hideNavOnDrive) {
         if (shouldRequestLocationForWeather(
                 alreadyPrompted = weatherLocationPrompted,
@@ -396,5 +390,11 @@ fun SettingsScreen(
             )
             infoSection(navController, crashVm)
         }
+    }
+    if (showBackgroundDisclosure) {
+        BackgroundLocationDisclosureDialog(
+            onContinue = { answerBackgroundDisclosure(BackgroundDisclosureChoice.CONTINUE) },
+            onNotNow = { answerBackgroundDisclosure(BackgroundDisclosureChoice.NOT_NOW) },
+        )
     }
 }

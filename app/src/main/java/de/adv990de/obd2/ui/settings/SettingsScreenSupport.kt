@@ -73,6 +73,17 @@ internal fun shouldEscalateToBackgroundLocation(
 ): Boolean = !alreadyPrompted &&
     LocationPermissions.needsBackgroundLocationRequest(sdkInt, backgroundLocationGranted)
 
+/** Die zwei Antworten auf die Erklaerung vor der Anfrage nach dem Hintergrund-Standort (Play-Richtlinie "Prominent Disclosure").
+ *  Es gibt genau diese zwei: Wegtippen und Zurueck behandelt der Dialog als [NOT_NOW], nie als Zustimmung. */
+internal enum class BackgroundDisclosureChoice { CONTINUE, NOT_NOW }
+
+/** Was auf eine Antwort folgt: [markPrompted] — jede Antwort merkt sich, dass gefragt wurde (hoechstens einmal je Installation, `backgroundLocationPrompted`);
+ *  [requestPermission] — nur "Weiter" loest die System-Anfrage aus. Rein, damit der Grundsatz "nie ohne Zustimmung anfragen" ohne Compose pruefbar ist. */
+internal data class BackgroundDisclosureOutcome(val markPrompted: Boolean, val requestPermission: Boolean)
+
+internal fun backgroundDisclosureOutcome(choice: BackgroundDisclosureChoice): BackgroundDisclosureOutcome =
+    BackgroundDisclosureOutcome(markPrompted = true, requestPermission = choice == BackgroundDisclosureChoice.CONTINUE)
+
 /** Whether turning the hideNavOnDrive switch should also ask for location: the row shown in place
  *  of the hidden nav bar (`AmbientStatusRow`) looks up the outside temperature for the current
  *  position, and fine OR coarse location is enough for that. Deliberately NOT a gate like

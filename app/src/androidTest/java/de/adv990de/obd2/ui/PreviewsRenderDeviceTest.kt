@@ -130,7 +130,7 @@ class PreviewsRenderDeviceTest {
 
     private companion object {
         /** Die Zahl der `@Preview`-Funktionen in `app/src/main` — `CodeHygieneSourceTest` haelt sie gleich. */
-        const val PREVIEW_COUNT = 145
+        const val PREVIEW_COUNT = 147
 
         /** Vorschauen von Fenster-Composables (`AlertDialog`): ihre Wurzel in der Activity ist leer, der Inhalt liegt im Dialog-Fenster. */
         val WINDOW_PREVIEWS = setOf(
@@ -144,6 +144,7 @@ class PreviewsRenderDeviceTest {
             "PreviewLogbookWarningsDialogLight", "PreviewLogbookGaugeDialogDark",
             "PreviewLogbookGaugeCreditDialogDark", "PreviewLogbookGaugeCreditDialogLight",
             "PreviewMaintenanceIntervalDialogLight", "PreviewMaintenanceIntervalDialogDark",
+            "PreviewBackgroundLocationDisclosureDialogLight", "PreviewBackgroundLocationDisclosureDialogDark",
         )
     }
 }
