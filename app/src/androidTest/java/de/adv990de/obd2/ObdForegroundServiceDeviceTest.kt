@@ -44,14 +44,14 @@ class ObdForegroundServiceDeviceTest {
     /**
      * Ein Foreground-Service vom Typ `connectedDevice` verlangt neben
      * FOREGROUND_SERVICE_CONNECTED_DEVICE mindestens eine der Bluetooth-Berechtigungen —
-     * sonst wirft `startForeground()` eine SecurityException.
+     * sonst wirft `startForeground()` eine SecurityException. Der Typ `location` braucht den (genauen oder ungefaehren) Standort;
+     * der Hintergrund-Standort wird bewusst NICHT erteilt: so laeuft der Typ im echten Betrieb (seit 2026-11-10).
      */
     @get:Rule(order = 1)
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
     )
 
     /**

@@ -58,7 +58,8 @@ class AppPreferences @Inject constructor(
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         private val KEY_CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
-        private val KEY_BACKGROUND_LOCATION_PROMPTED = booleanPreferencesKey("background_location_prompted")
+        // Nicht mehr gelesen (seit 2026-11-10: kein Hintergrund-Standort mehr), aber bei Nutzern noch im DataStore: `background_location_prompted`.
+        // Diesen Namen nicht mit anderer Bedeutung wiederverwenden.
         private val KEY_WEATHER_LOCATION_PROMPTED = booleanPreferencesKey("weather_location_prompted")
         private val KEY_USE_IMPERIAL      = booleanPreferencesKey("use_imperial")
         private val KEY_THEME             = stringPreferencesKey("theme")
@@ -184,21 +185,9 @@ class AppPreferences @Inject constructor(
         dataStore.edit { it[KEY_USE_GPS_SPEED] = enabled }
     }
 
-    /** Ob die Hintergrund-Standort-Eskalation dem Nutzer schon einmal angeboten und von ihm **beantwortet** wurde (seit der Erklaerung vor der
-     *  System-Anfrage: mit „Weiter“ oder „Nicht jetzt“, nicht schon beim Zeigen). Verhindert, dass die Erklaerung und der System-Dialog bei jedem
-     *  Settings-Besuch erneut aufpoppen, solange die Berechtigung nicht erteilt ist. */
-    val backgroundLocationPrompted: Flow<Boolean> = data.map { prefs ->
-        prefs[KEY_BACKGROUND_LOCATION_PROMPTED] ?: false
-    }
-
-    suspend fun setBackgroundLocationPrompted(value: Boolean) {
-        dataStore.edit { it[KEY_BACKGROUND_LOCATION_PROMPTED] = value }
-    }
-
     /** Ob die Standortanfrage fuer die Aussentemperatur (hideNavOnDrive-Schalter) schon einmal
-     *  gezeigt wurde. Verhindert, wie [backgroundLocationPrompted], dass der System-Dialog bei
-     *  jedem Settings-Besuch/jeder Rotation erneut aufpoppt, solange weder FINE noch COARSE
-     *  erteilt ist. */
+     *  gezeigt wurde. Verhindert, dass der System-Dialog bei jedem Settings-Besuch/jeder
+     *  Rotation erneut aufpoppt, solange weder FINE noch COARSE erteilt ist. */
     val weatherLocationPrompted: Flow<Boolean> = data.map { prefs ->
         prefs[KEY_WEATHER_LOCATION_PROMPTED] ?: false
     }

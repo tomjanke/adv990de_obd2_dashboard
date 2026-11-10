@@ -35,11 +35,10 @@
          angefragt. Fuer Bluetooth wird kein Standort gebraucht (kein BLE-Scan seit 1.24.9). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Haelt die GPS-Geschwindigkeit auch im Hintergrund am Leben, wenn ObdForegroundService
-         laeuft (foregroundServiceType unten) und der Nutzer diese zusaetzliche Berechtigung
-         erteilt hat — ohne sie liefert Android einer Komponente ohne sichtbare Activity keine
-         Standort-Updates. -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Bewusst KEIN ACCESS_BACKGROUND_LOCATION: Die GPS-Geschwindigkeit laeuft bei Display aus oder einer anderen App davor weiter, weil
+         ObdForegroundService den Typ `location` traegt (foregroundServiceType unten; am Pixel 8 Pro geprueft: mit dem Typ bleibt die
+         Standort-Anmeldung nach Home aktiv, ohne ihn wird sie inaktiv). Der Typ wird nur angefordert, wenn die Einstellung an und ein
+         Standort erteilt ist (ObdServiceController); lehnt Android einen Start ab, steht es im App-Log. -->
 
     <!-- Wetterabfrage (Open-Meteo, s. weather/OpenMeteoApi.kt) — normale Berechtigung, kein
          Laufzeit-Dialog. Faktisch bringt sie schon io.sentry:sentry-android-core mit (dessen

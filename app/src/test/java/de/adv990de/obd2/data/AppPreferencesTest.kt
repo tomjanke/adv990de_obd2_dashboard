@@ -283,20 +283,6 @@ class AppPreferencesTest {
         assertEquals(true, prefs.useGpsSpeed.first())
     }
 
-    // ── backgroundLocationPrompted ───────────────────────────────────────────
-
-    @Test
-    fun `backgroundLocationPrompted defaults to false`() = runTest {
-        assertEquals(false, makePreferences().backgroundLocationPrompted.first())
-    }
-
-    @Test
-    fun `setBackgroundLocationPrompted persists value`() = runTest {
-        val prefs = makePreferences()
-        prefs.setBackgroundLocationPrompted(true)
-        assertEquals(true, prefs.backgroundLocationPrompted.first())
-    }
-
     // ── weatherLocationPrompted ───────────────────────────────────────────────
 
     @Test

@@ -24,7 +24,6 @@ internal fun fakeAppPreferences(
     hideNavOnDrive: Boolean = false,
     crashReportsEnabled: Boolean = true,
     useGpsSpeed: Boolean = false,
-    backgroundLocationPrompted: Boolean = false,
     weatherLocationPrompted: Boolean = false,
     useImperial: Boolean = false,
     theme: String = AppPreferences.THEME_SYSTEM,
@@ -52,7 +51,6 @@ internal fun fakeAppPreferences(
     every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
     every { this@mockk.crashReportsEnabled } returns flowOf(crashReportsEnabled)
     every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
-    every { this@mockk.backgroundLocationPrompted } returns flowOf(backgroundLocationPrompted)
     every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)
     every { this@mockk.useImperial } returns flowOf(useImperial)
     every { this@mockk.theme } returns flowOf(theme)

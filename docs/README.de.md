@@ -60,7 +60,7 @@ Aufgenommen mit der Debug-App auf einem Pixel 8 Pro im Querformat (Cockpit-Schem
 - **DTCs lesen** (Diagnostic Trouble Codes, nur lesend — die App schreibt nie ins Fahrzeug) mit menschenlesbaren Beschreibungen (37 häufige Codes, deutsch, englisch und spanisch; jeder andere Code zeigt „Unbekannter Fehlercode“ neben dem Code) und **lokaler Fehlerhistorie** (erstmals/zuletzt gesehen, auch offline; einzeln oder komplett löschbar mit 10 s „Rückgängig“)
 - **Freeze Frame** — Sensorwerte zum Zeitpunkt eines gespeicherten Fehlers
 - **Fahrzeug-Info** — die Fahrgestellnummer (VIN, 17 Zeichen, via Mode 09 PID 02, aus CAN-, K-Line- und J1850-Antworten dekodiert; liefert das Fahrzeug keine, steht dort „Kein VIN verfügbar“). ECU-Name und Kalibrier-IDs werden nicht gelesen.
-- **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft mit erteilter Hintergrund-Berechtigung auch weiter, wenn die App minimiert ist
+- **Geschwindigkeit per GPS** als Rückfallebene, wenn das Fahrzeug PID 010D nicht liefert — bei Motorrädern der Normalfall; läuft auch weiter, wenn die App minimiert ist oder der Bildschirm aus ist (Dienst-Typ `location`, ohne Hintergrund-Standort)
 - **Virtuelle Ganganzeige** — errechnet den eingelegten Gang aus Motordrehzahl und Geschwindigkeit (Hysterese gegen Flackern), konfigurierbar über einen eigenen Getriebe-Einstellungsbildschirm (Radumfang, Primär-/Sekundärübersetzung, Übersetzung je Gang)
 - **Drehzahl als Zahl im Balken** — links im Drehzahlbalken steht die Drehzahl in ganzen Umdrehungen (wie die Drehzahl-Kachel, in der Schrift der Statuszeile, rund 26 sp), hell auf einem dunklen Fenster: in jedem Farbschema gut lesbar, auch auf dem roten Balken. Das Fenster verdeckt in der Mitte die ersten Segmente (im Querformat rund vier, im Hochformat rund zehn), oben und unten bleibt ein Streifen des Balkens sichtbar. Ohne Verbindung, bei „keine aktuellen Werte“ und während der Start-Animation steht keine Zahl da — die Animation zeigt eine Bewegung, keine Drehzahl.
 - **Simulierte Öltemperatur-Leiste** — Farbstreifen (16 dp hoch, mit einer Ölkanne davor) unter der Drehzahl-Anzeige, der aus der Kühlmitteltemperatur abschätzt, ob das Motoröl wahrscheinlich noch kalt ist (Rot, ≤ 75 °C), sich aufwärmt (Gelb) oder Betriebstemperatur hat (Grün: seit 10 Minuten über 80 °C, kurze Einbrüche unter 78 °C bis zu 2 Minuten werden toleriert); solange der 10-Minuten-Timer läuft, färbt sich der gelbe Streifen anteilig von links nach rechts grün (grüner Anteil = verstrichene Zeit); grau ohne Verbindung
@@ -196,7 +196,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 ## Tests
 
 ```bash
-# JVM Unit Tests (3609 Tests, < 30 Sekunden)
+# JVM Unit Tests (3600 Tests, < 30 Sekunden)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumented Tests (benötigen Gerät/Emulator)
@@ -205,8 +205,8 @@ Output: `app/build/outputs/apk/release/app-release.apk`
 
 | Test-Layer | Frameworks | Anzahl |
 |---|---|---|
-| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3609 |
-| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 950 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details und Fahrten-Import, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
+| JVM Unit Tests | JUnit 4 + MockK + kotlinx-coroutines-test | 3600 |
+| Compose UI Tests | androidx.compose.ui.test + Espresso 3.7.0 + Hilt (`HiltTestRunner`) | 949 (Navigation (jede Route des Hosts), Getriebe-Einstellungen, Dashboard, Logbuch (Liste, Eintragsseite, Dialoge, Export, Auswertung, Wartungsintervalle), Balkendiagramm, Lade-/Entlade-Balken, Drehzahl-Ziffern im Balken, Alarmband samt Dashboard-Alarme, Band „fehlende Werte“ samt Dashboard-Zuständen, Alarm-Benachrichtigung, Alarm-Einstellungen, Gelände-Kachel, Preview Banner, RpmBar, Dashboard-Rand, Slot Picker, Slot-Barrierefreiheit, Touch-Ziele, Lizenzseite, Statusleisten-Symbole, Tankanzeige samt Reichweiten-Einstellung, DTC, Settings, Theme Picker, Choice Setting, Confirm Delete Dialog, Empty State, Undo Snackbar, Swipe To Delete Row, Device Row, App Logs samt Export, App Info, Freeze Frame, Gear Ratio Field, Vehicle Info, History samt Fahrt-Details und Fahrten-Import, Fahrten-Umschalter, Rpm Threshold Section, Settings Rows, Permission Gate, Live Value Tile, Live Value Text, Bottom Nav, Section Label, Sparkline, UiText) |
 | Room Integration Tests | Room in-memory + `androidx.test.ext.junit` + `MigrationTestHelper` | 84 (AppLogDao, SensorReadingDao, SessionDao, DtcHistoryDao, VehicleLogDao, AppDatabase-Migration 1→2→3→4→5→6, Datenbank-Bootstrap mit Foreign Keys, SessionRepository, Fahrten-Import) |
 | End-to-End über den ECU-Simulator | echtes `ObdRepository` + `SimulatorObdConnection` | 7 (Session, Discovery, Messwert-Strom, Dashboard) |
 | Service Tests | `HiltAndroidRule` + `GrantPermissionRule` | 10 (ObdForegroundService, Benachrichtigungskanal, Sitzungsende, gemerkter Dienst-Typ) |
@@ -285,7 +285,7 @@ app/src/main/java/de/adv990de/obd2/
 Die zentrale Repository-Schicht ist als Hilt-`@Singleton` markiert. Foreground-Service und alle ViewModels teilen sich die gleiche Instanz, kein Service-Binding nötig.
 
 ### Foreground Service hält Verbindung
-`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification (Antippen öffnet die App, „Trennen“ beendet die Sitzung). Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; der Dienst hält nur den Prozess am Leben. Deshalb gilt: **die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht.** Wird die App aus der Übersicht weggewischt oder die Activity wirklich beendet (nicht nur für eine Drehung neu erzeugt), trennt die App und beendet den Dienst — wie „Beenden“; „Zurück“ am Root ab Android 12 schickt die App nur in den Hintergrund, die Aufzeichnung läuft weiter. Start, Stopp und Beenden der Sitzung liegen in einer Klasse (`ObdServiceController`); lehnt Android den Dienststart ab (ab API 31 im Hintergrund), bleibt die Verbindung bestehen und das App-Log nennt den Grund (QS-Bericht B1/B4).
+`ObdForegroundService` läuft mit `foregroundServiceType="connectedDevice|location"` und einer persistenten Notification (Antippen öffnet die App, „Trennen“ beendet die Sitzung). Die Verbindung überlebt, wenn der User die App in den Hintergrund schickt — Aufzeichnung läuft dabei weiter. Der Typ `location` wird nur angefordert, wenn „Geschwindigkeit per GPS“ an und ein Standort erteilt ist; mit ihm läuft die GPS-Geschwindigkeit auch bei ausgeschaltetem Bildschirm weiter, **ohne** die Berechtigung „Immer zulassen“ (am Pixel 8 Pro geprüft: mit dem Typ bleibt die Standort-Anmeldung nach „Home“ aktiv, ohne ihn wird sie inaktiv). Polling, Aufzeichnung und Reconnect hängen am Dashboard-ViewModel, nicht am Dienst; der Dienst hält nur den Prozess am Leben. Deshalb gilt: **die Sitzung (Verbindung + Dienst + Benachrichtigung) lebt genau so lange, wie etwas die Messwerte verbraucht.** Wird die App aus der Übersicht weggewischt oder die Activity wirklich beendet (nicht nur für eine Drehung neu erzeugt), trennt die App und beendet den Dienst — wie „Beenden“; „Zurück“ am Root ab Android 12 schickt die App nur in den Hintergrund, die Aufzeichnung läuft weiter. Start, Stopp und Beenden der Sitzung liegen in einer Klasse (`ObdServiceController`); lehnt Android den Dienststart ab (ab API 31 im Hintergrund), bleibt die Verbindung bestehen und das App-Log nennt den Grund (QS-Bericht B1/B4).
 
 ### Room mit Foreign Keys
 SQLite aktiviert Foreign-Key-Constraints standardmäßig **nicht**. Die App setzt `PRAGMA foreign_keys = ON` via `RoomDatabase.Callback` in `AppModule.kt` — sonst hätte `ON DELETE CASCADE` keine Wirkung.
@@ -346,19 +346,18 @@ Die übrigen sind „normale“ Berechtigungen ohne Dialog.
 | `BLUETOOTH` | ≤30 | Legacy-Bluetooth (`BLUETOOTH_ADMIN` entfiel mit dem BLE-Scan) |
 | `ACCESS_FINE_LOCATION` | alle | Quelle der Geschwindigkeit (opt-in, wird erst beim Einschalten angefragt) und Standort für die Außentemperatur; für Bluetooth wird kein Standort gebraucht |
 | `ACCESS_COARSE_LOCATION` | alle | zusammen mit FINE angefragt (Android 12+ lässt den Nutzer zwischen genau und ungefähr wählen); genügt allein für die Außentemperatur |
-| `ACCESS_BACKGROUND_LOCATION` | 29+ | optional, wird einmal angefragt, nachdem „Geschwindigkeit per GPS“ eingeschaltet wurde, und erst nach einem Erklärungsdialog in der App (was genutzt wird, wozu, dass es auf dem Telefon bleibt, dass es freiwillig ist): hält die GPS-Geschwindigkeit am Leben, solange `ObdForegroundService` ohne sichtbare Activity läuft |
 | `POST_NOTIFICATIONS` | 33+ | Foreground-Service-Notification und Alarm-Benachrichtigungen (optional: ohne sie läuft der Dienst und zeigt das Dashboard die Alarme, nur die Benachrichtigungen fehlen; die Einstellungen weisen darauf hin) |
 | `FOREGROUND_SERVICE` | alle | Foreground Service (normale Berechtigung, kein Dialog) |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | 34+ | Service-Type-Required ab Android 14 (normale Berechtigung) |
-| `FOREGROUND_SERVICE_LOCATION` | 34+ | Service-Typ `location` für die GPS-Geschwindigkeit im Hintergrund (normale Berechtigung; der Typ wird nur angefordert, wenn auch `ACCESS_BACKGROUND_LOCATION` erteilt ist) |
+| `FOREGROUND_SERVICE_LOCATION` | 34+ | Service-Typ `location`: hält die GPS-Geschwindigkeit am Laufen, solange der Adapter verbunden ist, auch bei ausgeschaltetem Bildschirm oder einer anderen App davor — **ohne** den Hintergrund-Standort („Immer zulassen“), den die App nicht deklariert (normale Berechtigung; der Typ wird nur angefordert, wenn „Geschwindigkeit per GPS“ an und ein Standort erteilt ist) |
 | `INTERNET` | alle | ausschließlich die Wetterabfrage (Open-Meteo, normale Berechtigung); Sentry bleibt ohne DSN inaktiv |
 
 **Standort für die Außentemperatur:** Genau (FINE) oder ungefähr (COARSE) genügt. Angefragt wird
 beim Einschalten von „Navigationsleiste beim Fahren ausblenden" — unabhängig von „Geschwindigkeit per
 GPS" (dort ist FINE Pflicht) — sowie nachträglich beim nächsten Öffnen der Einstellungen, für Nutzer
 bei denen der Schalter schon aus einer früheren App-Version an ist. Dieser Nachtrag erscheint
-höchstens einmal pro Installation (persistierter Guard, dieselbe Form wie bei der
-Hintergrund-Standort-Eskalation) — kein wiederholtes Nachfragen bei jedem weiteren Settings-Besuch.
+höchstens einmal pro Installation (persistierter Guard) — kein wiederholtes
+Nachfragen bei jedem weiteren Settings-Besuch.
 Anders als beim GPS-Schalter folgt die Einstellung immer dem Schalter: ohne Berechtigung fehlt in der
 Statuszeile nur die Temperatur, Datum und Uhrzeit bleiben. Eine schon vorher erteilte
 Standortberechtigung (z. B. über den GPS-Schalter) wird mitgenutzt.
@@ -477,8 +476,8 @@ Siehe [`RELEASE_NOTES.md`](../RELEASE_NOTES.md) — chronologische Änderungen s
 |---|---|
 | `README.md`, `docs/README.en.md`, `docs/README.de.md` | Die Kurzfassung (Englisch und Deutsch) und die ausführlichen Fassungen auf Englisch und Deutsch; die beiden ausführlichen haben dieselbe Gliederung (`ReadmeParityTest`), die Version steht nur dort |
 | `app/src/main/` | Produktiv-Code |
-| `app/src/test/` | JVM-Unit-Tests (3609) |
-| `app/src/androidTest/` | Instrumented Tests (950, Hilt + Compose + Room) |
+| `app/src/test/` | JVM-Unit-Tests (3600) |
+| `app/src/androidTest/` | Instrumented Tests (949, Hilt + Compose + Room) |
 | `app/schemas/` | **Im Repo** — Room-Schema-Exports für Migrationstests |
 | `docs/qa/` | Die gemessene Testabdeckung (`coverage.md`) und die Batterie-Basis für F12 (`2026-10-19-battery-baseline.md`; das wiederkehrende, getestete Skript liegt unter `scripts/battery_baseline.py`) — die aufgezeichneten Fahrten (CSV) liegen nicht im Repo |
 | *(nicht im Repository)* | Pläne, Spezifikationen, QS-Bericht, Entscheidungsprotokoll und Auswertungen aufgezeichneter Fahrten samt Analyse-Skripten liegen in einem privaten Ordner neben dem Repository (in Verweisen `<intern>`); die Ordner `plans/` und `superpowers/` unter `docs/` stehen in der `.gitignore`, damit dort neu angelegte Pläne nicht versehentlich im Repository landen |

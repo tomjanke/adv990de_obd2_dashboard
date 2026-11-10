@@ -438,12 +438,8 @@
     <string name="pid_oil_bar">Oil bar</string>
     <string name="pid_values_state">Values state</string>
     <string name="settings_gps_speed">Speed from GPS</string>
-    <string name="settings_gps_speed_desc">Uses the device GPS when the vehicle does not provide a speed signal. The “Terrain” tile (altitude, grade, heading) needs this setting too. Requires location permission; also keeps working in the background if you allow that when asked.</string>
+    <string name="settings_gps_speed_desc">Uses the device GPS when the vehicle does not provide a speed signal. The “Terrain” tile (altitude, grade, heading) needs this setting too. Requires location permission; keeps running while the adapter is connected, also with the screen off or another app in front.</string>
     <string name="settings_gps_permission_missing">Location permission missing: without precise location the GPS cannot provide a speed.</string>
-    <string name="bg_location_disclosure_title">Allow location in the background?</string>
-    <string name="bg_location_disclosure_body">“Speed from GPS” uses your location while you ride with a connected adapter. It provides the speed, the gear indicator, the distance on the fuel gauge and the estimated mileage in the logbook.\n\nIf you choose “Allow all the time” in the next step, this keeps working while the app is in the background or the screen is off.\n\nFor this, your location is used only on this phone and is not sent anywhere. Only the speed (in your drives) and the distance driven (for the fuel gauge and the logbook) are stored, never positions.\n\nThis is optional. Without this permission, GPS speed only works while the app is open.</string>
-    <string name="bg_location_disclosure_continue">Continue</string>
-    <string name="bg_location_disclosure_not_now">Not now</string>
 
     <!-- Fuel gauge (virtual: counts GPS kilometres since the last fill-up) -->
     <string name="fuel_gauge_desc">Fuel gauge: about %1$d km left (%2$d %%)</string>

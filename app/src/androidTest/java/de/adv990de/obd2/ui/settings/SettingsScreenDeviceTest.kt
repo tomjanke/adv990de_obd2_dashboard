@@ -67,16 +67,15 @@ import javax.inject.Inject
  *   DisplaySettingsViewModel, DriveStateViewModel) are constructed by Hilt automatically once
  *   all their transitive dependencies are satisfied.
  *
- * GPS-speed switch / background-location escalation tests below pre-grant ACCESS_FINE_LOCATION
- * and ACCESS_BACKGROUND_LOCATION via [GrantPermissionRule] (the same precedent
+ * GPS-speed switch tests below pre-grant ACCESS_FINE_LOCATION
+ * via [GrantPermissionRule] (the same precedent
  * `ObdForegroundServiceDeviceTest`/`GearRatioFieldUiTest` use for permission-gated instrumentation
  * tests) so that toggling the switch to "on" never has to open a real system permission dialog —
  * there is no established pattern in this codebase for driving or dismissing one mid-test, and a
  * lingering dialog would risk breaking whichever test runs next. That constraint means the
- * "permission not yet granted -> request launched" branch and the "escalation actually fires" path
- * cannot be exercised end-to-end here; see `SettingsScreenTest` in `test` (JVM) for full coverage
- * of those branches via the extracted pure functions `determineGpsSpeedSwitchAction` and
- * `shouldEscalateToBackgroundLocation`.
+ * "permission not yet granted -> request launched" branch cannot be exercised end-to-end here;
+ * see `SettingsScreenTest` in `test` (JVM) for full coverage of that branch via the extracted
+ * pure function `determineGpsSpeedSwitchAction`.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -88,7 +87,6 @@ class SettingsScreenDeviceTest {
     @get:Rule(order = 1)
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
     )
 
     @get:Rule(order = 2)
@@ -106,10 +104,9 @@ class SettingsScreenDeviceTest {
 
     /**
      * The DataStore-backed instance (a per-test store, see `TestAppModule`) — same direct-injection precedent
-     * as `SimulatedDashboardTest.appPreferences`. Used to pre-seed `useGpsSpeed` /
-     * `backgroundLocationPrompted` to a known state before each test and to read back
-     * `backgroundLocationPrompted` afterwards, since the DataStore file persists across test runs
-     * on a real device/emulator and must not be trusted to already be at its default.
+     * as `SimulatedDashboardTest.appPreferences`. Used to pre-seed `useGpsSpeed` to a known state
+     * before each test, since the DataStore file persists across test runs on a real device/emulator
+     * and must not be trusted to already be at its default.
      */
     @Inject
     lateinit var appPreferences: AppPreferences
@@ -247,29 +244,6 @@ class SettingsScreenDeviceTest {
         waitUntilGpsSpeedSwitchIsOn(expected = false)
 
         assertEquals(false, appPreferences.useGpsSpeed.first())
-    }
-
-    // ── escalateToBackgroundLocationIfNeeded(): the one branch safe to drive end-to-end ───────
-
-    @Test
-    fun escalateToBackgroundLocation_doesNotPrompt_whenBackgroundLocationAlreadyGranted() = runBlocking {
-        // permissionRule grants ACCESS_BACKGROUND_LOCATION for this whole class, so
-        // shouldEscalateToBackgroundLocation()'s needsBackgroundLocationRequest(...) check is
-        // false regardless of backgroundLocationPrompted — the real, safe-to-drive case.
-        appPreferences.setUseGpsSpeed(false)
-        appPreferences.setBackgroundLocationPrompted(false)
-
-        launchSettingsScreen()
-        waitUntilGpsSpeedSwitchIsOn(expected = false)
-
-        // Flips useGpsSpeed true, which re-runs the screen's LaunchedEffect(useGpsSpeed) and
-        // therefore escalateToBackgroundLocationIfNeeded() for real.
-        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
-        waitUntilGpsSpeedSwitchIsOn(expected = true)
-        composeRule.waitForIdle()
-
-        // Had escalation incorrectly fired despite the grant, this would have flipped to true.
-        assertEquals(false, appPreferences.backgroundLocationPrompted.first())
     }
 
     // ── hideNavOnDrive switch: follows the toggle; location is only a side request ───────────

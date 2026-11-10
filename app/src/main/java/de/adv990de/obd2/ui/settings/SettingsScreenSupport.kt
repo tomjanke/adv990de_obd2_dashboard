@@ -62,28 +62,6 @@ internal fun determineGpsSpeedSwitchAction(wanted: Boolean, granted: Boolean): G
         else -> GpsSpeedSwitchAction.REQUEST_PERMISSION
     }
 
-/** Pure trigger condition for [SettingsScreen]'s background-location escalation — extracted out of
- *  `escalateToBackgroundLocationIfNeeded()` so it is directly unit-testable. Mirrors the exact
- *  boolean expression that function evaluated inline before this extraction (no behavior change):
- *  short-circuits on `alreadyPrompted` before ever consulting [LocationPermissions.hasBackgroundLocation]. */
-internal fun shouldEscalateToBackgroundLocation(
-    alreadyPrompted: Boolean,
-    sdkInt: Int,
-    backgroundLocationGranted: Boolean
-): Boolean = !alreadyPrompted &&
-    LocationPermissions.needsBackgroundLocationRequest(sdkInt, backgroundLocationGranted)
-
-/** Die zwei Antworten auf die Erklaerung vor der Anfrage nach dem Hintergrund-Standort (Play-Richtlinie "Prominent Disclosure").
- *  Es gibt genau diese zwei: Wegtippen und Zurueck behandelt der Dialog als [NOT_NOW], nie als Zustimmung. */
-internal enum class BackgroundDisclosureChoice { CONTINUE, NOT_NOW }
-
-/** Was auf eine Antwort folgt: [markPrompted] — jede Antwort merkt sich, dass gefragt wurde (hoechstens einmal je Installation, `backgroundLocationPrompted`);
- *  [requestPermission] — nur "Weiter" loest die System-Anfrage aus. Rein, damit der Grundsatz "nie ohne Zustimmung anfragen" ohne Compose pruefbar ist. */
-internal data class BackgroundDisclosureOutcome(val markPrompted: Boolean, val requestPermission: Boolean)
-
-internal fun backgroundDisclosureOutcome(choice: BackgroundDisclosureChoice): BackgroundDisclosureOutcome =
-    BackgroundDisclosureOutcome(markPrompted = true, requestPermission = choice == BackgroundDisclosureChoice.CONTINUE)
-
 /** Whether turning the hideNavOnDrive switch should also ask for location: the row shown in place
  *  of the hidden nav bar (`AmbientStatusRow`) looks up the outside temperature for the current
  *  position, and fine OR coarse location is enough for that. Deliberately NOT a gate like
@@ -91,18 +69,15 @@ internal fun backgroundDisclosureOutcome(choice: BackgroundDisclosureChoice): Ba
  *  follows the toggle — without a grant the row just shows no temperature. Extracted for the same
  *  JVM-testability reason as the two functions above.
  *
- *  [alreadyPrompted] short-circuits before ever consulting the other three parameters — the exact
- *  same shape as [shouldEscalateToBackgroundLocation]'s own parameter of that name. Added because
+ *  [alreadyPrompted] short-circuits before ever consulting the other three parameters. Added because
  *  the catch-up effect below otherwise re-prompts on every Settings visit/rotation while the
  *  switch is on and permission is still denied, since without it there was no persisted "already
- *  asked" guard. Backed by `AppPreferences.weatherLocationPrompted`, checked-and-set exactly like
- *  `backgroundLocationPrompted`.
+ *  asked" guard. Backed by `AppPreferences.weatherLocationPrompted`.
  *
  *  Called from a single call site, `LaunchedEffect(hideNavOnDrive)` — both the switch's own
  *  toggle-to-on (state change triggers the effect) and, since this catches up users whose switch
  *  was already on from before this weather feature existed, every fresh composition where the
- *  DataStore-backed value resolves to `true` (same `useGpsSpeed`/background-location catch-up
- *  shape as [shouldEscalateToBackgroundLocation] above). */
+ *  DataStore-backed value resolves to `true`. */
 internal fun shouldRequestLocationForWeather(
     alreadyPrompted: Boolean,
     turningOn: Boolean,

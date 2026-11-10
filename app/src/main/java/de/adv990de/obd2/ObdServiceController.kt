@@ -19,11 +19,15 @@ import javax.inject.Inject
 
 /**
  * Whether [ObdForegroundService] should request the `location` foreground-service type on this (re)connect.
- * Both conditions are required: the user opted in, and Android will actually deliver background location
- * callbacks only when the permission is granted.
+ * Both conditions are required: the user opted in, and the app holds a location permission (from API 34 on,
+ * `startForeground()` throws a SecurityException for a location-type service without one).
+ *
+ * The background-location permission ("Allow all the time") is deliberately NOT needed: a service of this type that was
+ * started while the app is visible keeps the foreground location access when the app goes to the background — measured on a
+ * Pixel 8 Pro (Android 17, 2026-11-10): with the type the GPS registration stays active after Home, without it it turns inactive.
  */
-internal fun shouldIncludeLocationServiceType(useGpsSpeed: Boolean, hasBackgroundLocation: Boolean): Boolean =
-    useGpsSpeed && hasBackgroundLocation
+internal fun shouldIncludeLocationServiceType(useGpsSpeed: Boolean, hasLocationPermission: Boolean): Boolean =
+    useGpsSpeed && hasLocationPermission
 
 /**
  * Ob der laufende Dienst neu gestartet werden muss, weil sich der gewuenschte Typ geaendert hat.
@@ -82,18 +86,18 @@ class ObdServiceController @Inject constructor(
      * Fordert den Vordergrunddienst an. Wirft nicht, wenn Android das ablehnt: Die Verbindung steht dann trotzdem, und
      * die App laeuft weiter — nur ohne Schutz davor, im Hintergrund beendet zu werden. Der Grund steht im App-Log.
      *
-     * GPS-Geschwindigkeit im Hintergrund braucht ACCESS_BACKGROUND_LOCATION *und* den Typ `location` beim Start (s.
-     * [ObdForegroundService.resolveForegroundServiceType]); ohne die Berechtigung startet der Dienst wie bisher nur
-     * mit `connectedDevice`.
+     * GPS-Geschwindigkeit bei Display aus oder einer anderen App davor braucht den Typ `location` beim Start (s.
+     * [ObdForegroundService.resolveForegroundServiceType]) — nicht den Hintergrund-Standort; ohne Standortberechtigung
+     * startet der Dienst nur mit `connectedDevice`.
      */
     suspend fun start() {
         requestStart(wantsLocationType())
     }
 
-    /** Ob der Dienst JETZT den Typ `location` braucht: GPS-Geschwindigkeit an UND Hintergrund-Standort erteilt. */
+    /** Ob der Dienst JETZT den Typ `location` braucht: GPS-Geschwindigkeit an UND ein Standort erteilt (genau oder ungefaehr). */
     private suspend fun wantsLocationType(): Boolean = shouldIncludeLocationServiceType(
         useGpsSpeed = appPreferences.useGpsSpeed.first(),
-        hasBackgroundLocation = LocationPermissions.hasBackgroundLocation(appContext),
+        hasLocationPermission = LocationPermissions.hasAnyLocation(appContext),
     )
 
     private suspend fun requestStart(includeLocation: Boolean) {

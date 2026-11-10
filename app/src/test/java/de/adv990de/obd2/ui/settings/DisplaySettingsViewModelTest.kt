@@ -150,39 +150,6 @@ class DisplaySettingsViewModelTest {
     }
 
     @Test
-    fun `backgroundLocationPrompted defaults to false`() = runTest {
-        val vm = DisplaySettingsViewModel(fakeAppPreferences(backgroundLocationPrompted = false))
-        val job = launch { vm.backgroundLocationPrompted.collect {} }
-        advanceUntilIdle()
-        job.cancel()
-        assertFalse(vm.backgroundLocationPrompted.value)
-    }
-
-    @Test
-    fun `backgroundLocationPrompted reflects persisted true value`() = runTest {
-        val vm = DisplaySettingsViewModel(fakeAppPreferences(backgroundLocationPrompted = true))
-        val job = launch { vm.backgroundLocationPrompted.collect {} }
-        advanceUntilIdle()
-        job.cancel()
-        assertTrue(vm.backgroundLocationPrompted.value)
-    }
-
-    @Test
-    fun `setBackgroundLocationPrompted calls appPreferences setBackgroundLocationPrompted with given value`() = runTest {
-        val prefs = fakeAppPreferences(backgroundLocationPrompted = false)
-        coEvery { prefs.setBackgroundLocationPrompted(any()) } just Runs
-        val vm = DisplaySettingsViewModel(prefs)
-        val job = launch { vm.backgroundLocationPrompted.collect {} }
-        advanceUntilIdle()
-
-        vm.setBackgroundLocationPrompted(true)
-        advanceUntilIdle()
-        job.cancel()
-
-        coVerify { prefs.setBackgroundLocationPrompted(true) }
-    }
-
-    @Test
     fun `weatherLocationPrompted defaults to false`() = runTest {
         val vm = DisplaySettingsViewModel(fakeAppPreferences(weatherLocationPrompted = false))
         val job = launch { vm.weatherLocationPrompted.collect {} }

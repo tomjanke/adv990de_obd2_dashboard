@@ -182,8 +182,8 @@ class ObdForegroundService : Service() {
 
         /**
          * `connectedDevice` is always requested — that's the service's core job. `location` is
-         * added only when the caller already confirmed ACCESS_BACKGROUND_LOCATION is granted (see
-         * ConnectionCoordinator's startObdForegroundService): requesting a type without its
+         * added only when the caller already confirmed a location permission is granted (see
+         * ObdServiceController.shouldIncludeLocationServiceType): requesting a type without its
          * permission throws a SecurityException at startForeground(), exactly like the existing
          * connectedDevice/Bluetooth-permission precondition this service already relies on.
          */

@@ -450,12 +450,8 @@
     <string name="pid_oil_bar">Barra aceite</string>
     <string name="pid_values_state">Estado valores</string>
     <string name="settings_gps_speed">Velocidad por GPS</string>
-    <string name="settings_gps_speed_desc">Usa el GPS del dispositivo cuando el vehículo no proporciona señal de velocidad. El mosaico “Terreno” (altitud, pendiente, rumbo) también necesita este ajuste. Requiere el permiso de ubicación; si lo permites cuando se te pregunte, también sigue funcionando en segundo plano.</string>
+    <string name="settings_gps_speed_desc">Usa el GPS del dispositivo cuando el vehículo no proporciona señal de velocidad. El mosaico “Terreno” (altitud, pendiente, rumbo) también necesita este ajuste. Requiere el permiso de ubicación; sigue funcionando mientras el adaptador esté conectado, también con la pantalla apagada o con otra app delante.</string>
     <string name="settings_gps_permission_missing">Falta el permiso de ubicación: sin ubicación precisa el GPS no puede proporcionar una velocidad.</string>
-    <string name="bg_location_disclosure_title">¿Permitir la ubicación en segundo plano?</string>
-    <string name="bg_location_disclosure_body">«Velocidad por GPS» usa tu ubicación mientras conduces con un adaptador conectado. Aporta la velocidad, el indicador de marcha, la distancia del indicador de combustible y el kilometraje estimado de la bitácora.\n\nSi eliges «Permitir todo el tiempo» (o «Permitir siempre») en el siguiente paso, esto sigue funcionando con la app en segundo plano o con la pantalla apagada.\n\nPara ello tu ubicación se usa solo en este teléfono y no se envía a ningún sitio. Solo se guardan la velocidad (en tus viajes) y la distancia recorrida (para el indicador de combustible y la bitácora), nunca las posiciones.\n\nEs opcional. Sin este permiso, la velocidad por GPS solo funciona mientras la app está abierta.</string>
-    <string name="bg_location_disclosure_continue">Continuar</string>
-    <string name="bg_location_disclosure_not_now">Ahora no</string>
 
     <!-- Fuel gauge (virtual: counts GPS kilometres since the last fill-up) -->
     <string name="fuel_gauge_desc">Indicador de combustible: quedan unos %1$d km (%2$d %%)</string>

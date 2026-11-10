@@ -96,7 +96,6 @@ object SettingsCatalog {
         "device_name" to "Der Name des Adapters gehoert zur Kopplung und geht nie mit.",
         "device_type" to "Die Art des Adapters gehoert zur Kopplung und geht nie mit.",
         "crash_reports_enabled" to "Ob Absturzberichte gesendet werden, entscheidet jede Installation selbst.",
-        "background_location_prompted" to "Das Merkzeichen \"schon gefragt\": die Berechtigung muss am neuen Geraet neu erteilt werden.",
         "weather_location_prompted" to "Das Merkzeichen \"schon gefragt\": die Berechtigung muss am neuen Geraet neu erteilt werden.",
         "fuel_range_learned_km" to "Nur ein Zwischenspeicher fuer das erste Bild; er entsteht aus dem Logbuch neu.",
     )

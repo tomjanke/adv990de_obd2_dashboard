@@ -1,9 +1,7 @@
 package de.adv990de.obd2.ui.settings
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
-import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -66,7 +64,6 @@ fun SettingsScreen(
     val alarmSettings by alarmVm.settings.collectAsStateWithLifecycle()
     val hideNavOnDrive by driveVm.hideNavOnDrive.collectAsStateWithLifecycle()
     val useGpsSpeed by displayVm.useGpsSpeed.collectAsStateWithLifecycle()
-    val backgroundLocationPrompted by displayVm.backgroundLocationPrompted.collectAsStateWithLifecycle()
     val weatherLocationPrompted by displayVm.weatherLocationPrompted.collectAsStateWithLifecycle()
 
     // Die Standortberechtigung wird erst angefragt, wenn der Nutzer GPS-Geschwindigkeit oder das
@@ -89,32 +86,6 @@ fun SettingsScreen(
         }
     }
 
-    // Ergebnis wird nicht ausgewertet: GPS-Speed funktioniert so oder so im Vordergrund weiter,
-    // ob der Nutzer die zusaetzliche Hintergrund-Berechtigung erteilt oder ablehnt. Android
-    // verlangt diese Anfrage getrennt von Fine/Coarse — beides zusammen wird ab API 30 ignoriert.
-    val backgroundLocationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { }
-
-    // Play-Richtlinie "Prominent Disclosure": VOR der System-Anfrage steht eine Erklaerung. Hier wird sie nur gezeigt, die Anfrage laeuft erst
-    // als Antwort "Weiter"; rememberSaveable, damit eine Drehung sie nicht verschluckt (BackgroundDisclosureWiringSourceTest).
-    var showBackgroundDisclosure by rememberSaveable { mutableStateOf(false) }
-
-    @SuppressLint("InlinedApi")
-    fun answerBackgroundDisclosure(choice: BackgroundDisclosureChoice) {
-        showBackgroundDisclosure = false
-        val outcome = backgroundDisclosureOutcome(choice)
-        if (outcome.markPrompted) displayVm.setBackgroundLocationPrompted(true)
-        if (outcome.requestPermission) backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    }
-
-    fun escalateToBackgroundLocationIfNeeded() {
-        if (shouldEscalateToBackgroundLocation(
-                backgroundLocationPrompted, Build.VERSION.SDK_INT, LocationPermissions.hasBackgroundLocation(context)
-            )
-        ) showBackgroundDisclosure = true
-    }
-
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
@@ -126,21 +97,12 @@ fun SettingsScreen(
         locationPermission.refresh()
     }
 
-    // Ergebnis wird bewusst nicht ausgewertet (wie backgroundLocationLauncher): hideNavOnDrive folgt immer dem Schalter; ohne die Berechtigung
+    // Ergebnis wird bewusst nicht ausgewertet: hideNavOnDrive folgt immer dem Schalter; ohne die Berechtigung
     // fehlt nur die Aussentemperatur in der Zeile. FINE und COARSE zusammen: ab Android 12 waehlt der Nutzer "Genau" oder "Ungefaehr", beides
     // genuegt fuers Wetter. Ausgeloest nur von LaunchedEffect(hideNavOnDrive) weiter unten (Toggle UND Catch-up).
     val weatherLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { locationPermission.refresh() }
-
-    // Holt Nutzer nach, deren Schalter aus einer frueheren Version bereits an ist, aber die den
-    // Hintergrund-Prompt sonst nie zu sehen bekaemen. Key ist useGpsSpeed statt Unit: der Wert
-    // kommt asynchron aus dem DataStore und ist bei der ersten Komposition noch der Default
-    // (false), daher muss der Effect erneut laufen, sobald der echte Wert eintrifft — und deckt
-    // damit als einziger Aufrufpunkt zugleich den frischen Grant und das Switch-Toggle ab.
-    LaunchedEffect(useGpsSpeed) {
-        if (useGpsSpeed) escalateToBackgroundLocationIfNeeded()
-    }
 
     // Wie der useGpsSpeed-Effect oben: holt Nutzer nach, deren hideNavOnDrive-Schalter aus einer frueheren Version schon an ist (der Wert kommt
     // asynchron aus dem DataStore, der Effect laeuft erneut, sobald er eintrifft). Einziger Aufrufpunkt dieser Anfrage — der Switch ruft
@@ -390,11 +352,5 @@ fun SettingsScreen(
             )
             infoSection(navController, crashVm)
         }
-    }
-    if (showBackgroundDisclosure) {
-        BackgroundLocationDisclosureDialog(
-            onContinue = { answerBackgroundDisclosure(BackgroundDisclosureChoice.CONTINUE) },
-            onNotNow = { answerBackgroundDisclosure(BackgroundDisclosureChoice.NOT_NOW) },
-        )
     }
 }

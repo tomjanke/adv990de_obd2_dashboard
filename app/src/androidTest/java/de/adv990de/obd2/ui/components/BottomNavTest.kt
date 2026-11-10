@@ -169,7 +169,6 @@ class BottomNavTest {
             every { this@mockk.useImperial } returns flowOf(useImperial)
             every { theme } returns flowOf(THEME_SYSTEM)
             every { useGpsSpeed } returns flowOf(false)
-            every { backgroundLocationPrompted } returns flowOf(false)
             every { weatherLocationPrompted } returns flowOf(false)
             every { rpmBlinkThreshold } returns flowOf(0)
             every { rpmDynamicThreshold } returns flowOf(false)

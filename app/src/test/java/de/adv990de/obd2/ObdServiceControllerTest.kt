@@ -1,6 +1,7 @@
 package de.adv990de.obd2
 
 import android.content.Context
+import android.content.pm.PackageManager
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.LogLevel
@@ -55,11 +56,13 @@ class ObdServiceControllerTest {
     // ── shouldIncludeLocationServiceType (aus dem ConnectionCoordinatorTest hierher gezogen) ──
 
     @Test
-    fun `the location service type is requested only when GPS speed is on AND background location is granted`() {
-        assertTrue(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = true))
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = true))
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = true, hasBackgroundLocation = false))
-        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasBackgroundLocation = false))
+    fun `the location service type is requested only when GPS speed is on AND a location permission is granted`() {
+        // Der Typ braucht den normalen Standort (ab API 34 wirft startForeground() sonst eine SecurityException) — nicht den Hintergrund-Standort:
+        // ein bei sichtbarer App gestarteter Dienst dieses Typs behaelt den Vordergrund-Zugriff (am Pixel 8 Pro gemessen, s. CLAUDE.md).
+        assertTrue(shouldIncludeLocationServiceType(useGpsSpeed = true, hasLocationPermission = true))
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasLocationPermission = true))
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = true, hasLocationPermission = false))
+        assertFalse(shouldIncludeLocationServiceType(useGpsSpeed = false, hasLocationPermission = false))
     }
 
     // ── start ─────────────────────────────────────────────────────────────
@@ -297,7 +300,7 @@ class ObdServiceControllerTest {
     fun `refreshServiceType restarts a running service whose type no longer matches`() = runTest {
         val context = mockk<Context>(relaxed = true)
         ObdForegroundService.runningIncludesLocation = false
-        // GPS-Geschwindigkeit an; Hintergrund-Standort gilt im JVM-Test (SDK_INT 0 < Q) als erteilt
+        // GPS-Geschwindigkeit an; der relaxed Mock-Context meldet jede Berechtigung als erteilt
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
@@ -336,6 +339,36 @@ class ObdServiceControllerTest {
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
         verify(exactly = 1) { context.startForegroundService(any()) }
+    }
+
+    private fun denyLocation(context: Context) {
+        every { context.checkPermission(android.Manifest.permission.ACCESS_FINE_LOCATION, any(), any()) } returns PackageManager.PERMISSION_DENIED
+        every { context.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, any(), any()) } returns PackageManager.PERMISSION_DENIED
+    }
+
+    @Test
+    fun `refreshServiceType drops the location type when GPS speed is on but no location permission is granted`() = runTest {
+        // Ohne Standort wirft startForeground() mit dem Typ `location` ab API 34 eine SecurityException: der Dienst darf ihn dann nicht tragen.
+        val context = mockk<Context>(relaxed = true)
+        denyLocation(context)
+        ObdForegroundService.runningIncludesLocation = true
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 1) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType does not give a service the location type while no location permission is granted`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        denyLocation(context)
+        ObdForegroundService.runningIncludesLocation = false
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 0) { context.startForegroundService(any()) }
     }
 
     @Test

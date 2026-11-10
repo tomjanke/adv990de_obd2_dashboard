@@ -1,29 +1,23 @@
 package de.adv990de.obd2.ui.settings
 
-import android.os.Build
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
  * JVM unit tests for the pure decision functions extracted out of [SettingsScreen]'s GPS-speed
- * switch and background-location escalation — the same extract-pure-function convention as
+ * switch and the weather location request — the same extract-pure-function convention as
  * `DashboardComponentsTest.kt` (which covers `DashboardComponents.kt`'s internal decision
- * functions). Both functions are plain booleans/enums in, no Context/Compose/Android framework
+ * functions). Both are plain booleans/enums in, no Context/Compose/Android framework
  * dependency, so they need no Robolectric or instrumentation to exercise every branch.
  *
- * What these two functions do NOT cover — deliberately, and documented instead of silently
- * skipped: whether `escalateToBackgroundLocationIfNeeded()` actually wires
- * `shouldEscalateToBackgroundLocation()`'s true branch to `displayVm.setBackgroundLocationPrompted(true)`
- * + `backgroundLocationLauncher.launch(...)`, and whether the GPS-speed switch's
- * `REQUEST_PERMISSION` outcome actually wires to `locationPermissionLauncher.launch(...)`. Driving
- * either real trigger through `SettingsScreenTest` (androidTest) would fire a real system
- * permission dialog — this project's only precedent for permission-gated instrumentation tests
- * (`ObdForegroundServiceDeviceTest`, `GearRatioFieldUiTest`) is `GrantPermissionRule`, which only
- * *pre-grants* permissions before a test starts; there is no established pattern here for
- * driving or dismissing a live system permission dialog mid-test, and inventing one (e.g. via
- * UiAutomator) was explicitly out of scope. The androidTest suite instead covers the "does NOT
- * escalate / does NOT request" branches, which are safe to exercise for real (see
- * `SettingsScreenTest` in `androidTest`).
+ * What these functions do NOT cover — deliberately, and documented instead of silently
+ * skipped: whether the GPS-speed switch's `REQUEST_PERMISSION` outcome actually wires to
+ * `locationPermissionLauncher.launch(...)`. Driving the real trigger through `SettingsScreenTest`
+ * (androidTest) would fire a real system permission dialog — this project's only precedent for
+ * permission-gated instrumentation tests (`ObdForegroundServiceDeviceTest`, `GearRatioFieldUiTest`)
+ * is `GrantPermissionRule`, which only *pre-grants* permissions before a test starts; there is no
+ * established pattern here for driving or dismissing a live system permission dialog mid-test.
+ * (Since 2026-11-10 there is no background-location request any more, so no second dialog exists.)
  */
 class SettingsScreenTest {
 
@@ -45,58 +39,6 @@ class SettingsScreenTest {
         assertEquals(
             GpsSpeedSwitchAction.REQUEST_PERMISSION,
             determineGpsSpeedSwitchAction(wanted = true, granted = false)
-        )
-    }
-
-    // ── shouldEscalateToBackgroundLocation ───────────────────────────────────
-
-    @Test
-    fun `escalates when not yet prompted, not yet granted, and API is 29+`() {
-        assertEquals(
-            true,
-            shouldEscalateToBackgroundLocation(
-                alreadyPrompted = false,
-                sdkInt = Build.VERSION_CODES.Q,
-                backgroundLocationGranted = false
-            )
-        )
-    }
-
-    @Test
-    fun `does not escalate a second time once already prompted`() {
-        // Short-circuits on alreadyPrompted before ever consulting the grant state — this case
-        // stays false even though backgroundLocationGranted=false would otherwise call for it.
-        assertEquals(
-            false,
-            shouldEscalateToBackgroundLocation(
-                alreadyPrompted = true,
-                sdkInt = Build.VERSION_CODES.Q,
-                backgroundLocationGranted = false
-            )
-        )
-    }
-
-    @Test
-    fun `does not escalate once background location is already granted`() {
-        assertEquals(
-            false,
-            shouldEscalateToBackgroundLocation(
-                alreadyPrompted = false,
-                sdkInt = Build.VERSION_CODES.Q,
-                backgroundLocationGranted = true
-            )
-        )
-    }
-
-    @Test
-    fun `does not escalate below API 29, regardless of prompted or grant state`() {
-        assertEquals(
-            false,
-            shouldEscalateToBackgroundLocation(
-                alreadyPrompted = false,
-                sdkInt = Build.VERSION_CODES.P,
-                backgroundLocationGranted = false
-            )
         )
     }
 
@@ -156,8 +98,7 @@ class SettingsScreenTest {
 
     @Test
     fun `does not request a second time once already prompted`() {
-        // Short-circuits on alreadyPrompted before ever consulting turningOn/grant state — mirrors
-        // shouldEscalateToBackgroundLocation's own "does not escalate a second time" case above.
+        // Short-circuits on alreadyPrompted before ever consulting turningOn/grant state.
         // Stays false even though turningOn=true, fineGranted=false, coarseGranted=false would
         // otherwise call for it.
         assertEquals(

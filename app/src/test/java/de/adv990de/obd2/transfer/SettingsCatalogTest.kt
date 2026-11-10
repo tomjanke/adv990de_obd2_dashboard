@@ -67,7 +67,7 @@ class SettingsCatalogTest {
         assertEquals(listOf("fuel_km_since_fill", "logbook_gps_anchor_km", "logbook_gps_km"), SettingsCatalog.counterKeys)
         assertEquals(
             setOf(
-                "device_address", "device_name", "device_type", "crash_reports_enabled", "background_location_prompted",
+                "device_address", "device_name", "device_type", "crash_reports_enabled",
                 "weather_location_prompted", "fuel_range_learned_km",
             ),
             SettingsCatalog.excluded.keys,

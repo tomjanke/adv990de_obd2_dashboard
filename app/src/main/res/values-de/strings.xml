@@ -438,12 +438,8 @@
     <string name="pid_oil_bar">Ölbalken</string>
     <string name="pid_values_state">Werte-Zustand</string>
     <string name="settings_gps_speed">Geschwindigkeit per GPS</string>
-    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Auch die Kachel „Gelände“ (Höhe, Steigung, Peilung) braucht diese Einstellung. Benötigt die Standortberechtigung; funktioniert auch im Hintergrund weiter, wenn du das bei der Abfrage erlaubst.</string>
+    <string name="settings_gps_speed_desc">Nutzt das GPS des Geräts, wenn das Fahrzeug keine Geschwindigkeit liefert. Auch die Kachel „Gelände“ (Höhe, Steigung, Peilung) braucht diese Einstellung. Benötigt die Standortberechtigung; läuft, solange der Adapter verbunden ist, auch bei ausgeschaltetem Bildschirm oder einer anderen App davor.</string>
     <string name="settings_gps_permission_missing">Standortberechtigung fehlt: Ohne den genauen Standort liefert das GPS keine Geschwindigkeit.</string>
-    <string name="bg_location_disclosure_title">Standort im Hintergrund erlauben?</string>
-    <string name="bg_location_disclosure_body">„Geschwindigkeit per GPS“ nutzt deinen Standort, solange du mit verbundenem Adapter fährst. Daraus entstehen die Geschwindigkeit, die Ganganzeige, die Strecke der Tankanzeige und der geschätzte Kilometerstand im Logbuch.\n\nWählst du im nächsten Schritt „Immer zulassen“, läuft das auch weiter, wenn die App im Hintergrund ist oder der Bildschirm aus ist.\n\nDafür wird dein Standort nur auf diesem Telefon verwendet und nirgends hin gesendet. Gespeichert werden nur die Geschwindigkeit (in deinen Fahrten) und die gefahrene Strecke (für Tankanzeige und Logbuch), nie Positionen.\n\nDas ist freiwillig. Ohne diese Berechtigung funktioniert die GPS-Geschwindigkeit nur, solange die App geöffnet ist.</string>
-    <string name="bg_location_disclosure_continue">Weiter</string>
-    <string name="bg_location_disclosure_not_now">Nicht jetzt</string>
 
     <!-- Tankanzeige (virtuell: zählt die GPS-Kilometer seit dem letzten Tanken) -->
     <string name="fuel_gauge_desc">Tankanzeige: noch etwa %1$d km (%2$d %%)</string>
