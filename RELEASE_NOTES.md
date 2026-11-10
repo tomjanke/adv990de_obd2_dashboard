@@ -1,5 +1,19 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.3 (versionCode 162)
+
+**Kein „Immer zulassen“ mehr.** Die App fragt den Hintergrund-Standort nicht mehr an. Die GPS-Geschwindigkeit läuft trotzdem weiter, solange der Adapter verbunden ist.
+
+### Was sich ändert
+
+- **Berechtigung entfällt:** `ACCESS_BACKGROUND_LOCATION` steht nicht mehr im Manifest, und die App fragt nach dem Einschalten von „Geschwindigkeit per GPS“ nur noch nach dem genauen Standort. Eine früher erteilte „Immer zulassen“-Berechtigung hat keine Wirkung mehr.
+- **GPS bei Display aus oder einer anderen App davor:** Der Vordergrunddienst bekommt den Typ „Standort“, sobald „Geschwindigkeit per GPS“ an und ein Standort (genau oder ungefähr) erteilt ist. Damit liefert das System die Standortdaten weiter, auch wenn die App nicht mehr sichtbar ist — am Pixel 8 Pro geprüft: nach „Home“ blieb die Standort-Anmeldung aktiv, mit einem Dienst ohne diesen Typ wurde sie inaktiv.
+- **Text der Einstellung:** „Geschwindigkeit per GPS“ sagt jetzt, dass die Geschwindigkeit läuft, solange der Adapter verbunden ist, auch bei ausgeschaltetem Bildschirm oder einer anderen App davor (Englisch, Deutsch, Spanisch).
+- **Nicht geprüft:** Display aus (das Telefon ließ sich dafür nicht sperren) und der Neustart des Dienstes aus dem Hintergrund, wenn er vorher beendet war. Scheitert ein Start, bleibt die Verbindung bestehen und das App-Log nennt den Grund.
+- **Unverändert:** Funktionen, Aufzeichnung, Datenbank (bleibt **v6**), Paketkennung und Signaturschlüssel (ein Update von 1.45.2 ist möglich). Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.45.2 (versionCode 161)
 
 **Beim Einlesen einer Datei zeigt die App jetzt, welche Datei es war und warum es scheiterte.** Anlass: eine Meldung „Die Datei wurde nicht erkannt“ ließ sich nicht aufklären, weil weder der Dateiname noch die Ursache irgendwo standen.
