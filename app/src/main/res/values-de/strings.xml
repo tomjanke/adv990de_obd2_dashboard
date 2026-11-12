@@ -742,6 +742,8 @@
         <item quantity="other">%1$d Zeilen abgelehnt</item>
     </plurals>
     <string name="transfer_note_vin">Das Paket enthält die FIN deines Motorrads.</string>
+    <string name="transfer_note_trips_near_limit">Die Fahrten füllen %1$d %% der Menge, die sich wieder einlesen lässt. Darüber kann die App die Fahrten einer Sicherung nicht mehr einlesen.</string>
+    <string name="transfer_note_trips_over_limit">Zu viele Messwerte: Die App kann die Fahrten dieser Datei nicht wieder einlesen. Die übrigen Teile der Sicherung bleiben einlesbar.</string>
     <plurals name="transfer_trips_with_vin">
         <item quantity="one">%1$d Fahrt mit FIN</item>
         <item quantity="other">%1$d Fahrten mit FIN</item>

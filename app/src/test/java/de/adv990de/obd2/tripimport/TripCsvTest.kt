@@ -384,4 +384,33 @@ class TripCsvTest {
         assertEquals((rows - 1).toFloat(), last.value(last.size - 1), 0f)
         assertEquals("0105", last.pid(last.size - 1))
     }
+
+    // --- Die Grenze der Zeilenzahl folgt dem Heap des Geraets ---
+
+    @Test
+    fun `the row limit is the cap where the heap carries it`() {
+        val mib = 1024L * 1024
+        assertEquals(4_000_000, MAX_TRIP_IMPORT_ROWS)
+        assertEquals("256 MiB (das Testgeraet): die volle Grenze", MAX_TRIP_IMPORT_ROWS, tripImportRowLimit(256 * mib))
+        assertEquals(MAX_TRIP_IMPORT_ROWS, tripImportRowLimit(512 * mib))
+        assertEquals("keine Heap-Grenze", MAX_TRIP_IMPORT_ROWS, tripImportRowLimit(Long.MAX_VALUE))
+    }
+
+    @Test
+    fun `a smaller heap lowers the row limit to half the heap at the measured peak per row`() {
+        val mib = 1024L * 1024
+        assertEquals(64L, TRIP_IMPORT_HEAP_BYTES_PER_ROW)
+        assertEquals(3_000_000, tripImportRowLimit(192_000_000))
+        assertEquals(2_097_152, tripImportRowLimit(128 * mib))
+        assertEquals(1_048_576, tripImportRowLimit(64 * mib))
+        assertEquals("knapp unter der Stelle, an der die Obergrenze greift", 3_999_999, tripImportRowLimit(4_000_000L * 64 - 1))
+        assertEquals(0, tripImportRowLimit(0))
+        assertEquals("ein unsinniger Wert ist keine negative Grenze", 0, tripImportRowLimit(-1_000_000_000))
+    }
+
+    @Test
+    fun `the default limit of the reader is the one of this machine`() {
+        // Die Test-JVM hat mehr als 256 MiB Heap: dort gilt die Obergrenze. Der Leser selbst nimmt die Funktion als Vorgabe (eine Datei dieser Groesse baut kein Test).
+        assertEquals(tripImportRowLimit(Runtime.getRuntime().maxMemory()), tripImportRowLimit())
+    }
 }

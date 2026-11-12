@@ -281,6 +281,60 @@ class DataTransferScreenDeviceTest {
         composeRule.onAllNodesWithTag(TRANSFER_NOTE_RECORDING_TEST_TAG).assertCountEquals(0)
     }
 
+    // --- Die Fahrten gegen die Grenze des Imports: Vorwarnung ab 80 %, Warnung ueber 100 % ---
+
+    private val importLimit = de.adv990de.obd2.tripimport.tripImportRowLimit().toLong()
+
+    private fun countsWithTripRows(rows: Long) = ExportCounts(trips = 61, logbook = 104, appLog = 312, tripRows = rows)
+
+    @Test
+    fun belowEightyPercentOfTheImportLimitThereIsNoSizeHint() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit * 80 / 100 - 1), selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK)))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun fromEightyPercentOfTheImportLimitThePageWarnsAheadWithThePercentage() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit * 86 / 100), selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK)))
+        tag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_trips_near_limit, 86)).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun exactlyTheImportLimitIsStillTheAdvanceWarning() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit), selection = setOf(DataPart.TRIPS)))
+        tag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_trips_near_limit, 100)).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun aboveTheImportLimitThePageWarns_andTheExportStaysPossible() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit + 1), selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK)))
+        tag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_trips_over_limit)).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG).assertCountEquals(0)
+        tag(TRANSFER_SAVE_TEST_TAG).performScrollTo().assertIsEnabled().performClick()
+        tag(TRANSFER_SHARE_TEST_TAG).assertIsEnabled().performClick()
+        assertEquals(1, saves)
+        assertEquals(1, shares)
+    }
+
+    @Test
+    fun theSizeHintsBelongToTheTrips_withoutThemNothingIsSaid() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit + 1), selection = setOf(DataPart.LOGBOOK, DataPart.APP_LOG)))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theSizeHintIsNotCutOffInANarrowWindowWithLargeText() {
+        showExport(exportUi(counts = countsWithTripRows(importLimit + 1), selection = setOf(DataPart.TRIPS)), fontScale = 1.3f, width = 360)
+        tag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG).performScrollTo().assertIsDisplayed().assertNotCutOff()
+    }
+
     @Test
     fun theVinHintShowsForTheTripsInAPackage() {
         showExport(exportUi(selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK), format = ExportFormat.PACKAGE))

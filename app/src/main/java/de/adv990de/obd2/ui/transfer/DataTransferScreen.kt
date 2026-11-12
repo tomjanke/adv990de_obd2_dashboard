@@ -44,10 +44,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -64,11 +66,15 @@ import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.TransferResult
+import de.adv990de.obd2.transfer.TripExportSize
 import de.adv990de.obd2.transfer.UnreadableReason
+import de.adv990de.obd2.transfer.tripExportPercent
+import de.adv990de.obd2.transfer.tripExportSize
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.theme.PreviewTheme
+import de.adv990de.obd2.ui.theme.StatusColors
 import kotlinx.coroutines.launch
 
 /** Test tags der Seite. */
@@ -83,6 +89,8 @@ internal const val TRANSFER_NOTE_APP_LOG_TEST_TAG = "transfer_note_app_log"
 internal const val TRANSFER_NOTE_NO_BACKUP_TEST_TAG = "transfer_note_no_backup"
 internal const val TRANSFER_NOTE_RECORDING_TEST_TAG = "transfer_note_recording"
 internal const val TRANSFER_NOTE_VIN_TEST_TAG = "transfer_note_vin"
+internal const val TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG = "transfer_note_trips_near_limit"
+internal const val TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG = "transfer_note_trips_over_limit"
 internal const val TRANSFER_SAVE_TEST_TAG = "transfer_save"
 internal const val TRANSFER_SHARE_TEST_TAG = "transfer_share"
 internal const val TRANSFER_PICK_TEST_TAG = "transfer_pick"
@@ -313,6 +321,25 @@ internal fun DataTransferExportContent(state: ExportUi, actions: ExportActions, 
         if (!state.csvAllowed) {
             Note(stringResource(R.string.transfer_format_csv_hint), Modifier.testTag(TRANSFER_CSV_HINT_TEST_TAG))
         }
+        // Der Import nimmt nur eine begrenzte Zahl Messwerte an, der Export schreibt alle: ab 80 % der Grenze die Vorwarnung, darueber die Warnung. Der Export bleibt moeglich.
+        if (DataPart.TRIPS in state.selection) {
+            val rows = state.counts?.tripRows ?: 0L
+            when (tripExportSize(rows)) {
+                TripExportSize.NEAR_LIMIT -> Note(
+                    stringResource(R.string.transfer_note_trips_near_limit, tripExportPercent(rows)),
+                    Modifier.testTag(TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG),
+                    color = StatusColors.warningOn(MaterialTheme.colorScheme.background),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TripExportSize.OVER_LIMIT -> Note(
+                    stringResource(R.string.transfer_note_trips_over_limit),
+                    Modifier.testTag(TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TripExportSize.OK -> Unit
+            }
+        }
         if (DataPart.APP_LOG in state.selection) {
             Note(stringResource(R.string.transfer_note_app_log), Modifier.testTag(TRANSFER_NOTE_APP_LOG_TEST_TAG))
         }
@@ -341,11 +368,16 @@ internal fun DataTransferExportContent(state: ExportUi, actions: ExportActions, 
 }
 
 @Composable
-private fun Note(text: String, modifier: Modifier = Modifier) {
+private fun Note(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    style: TextStyle = MaterialTheme.typography.bodySmall,
+) {
     Text(
         text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = style,
+        color = color,
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     )
 }
@@ -493,6 +525,22 @@ private fun PreviewDataTransferExportEmptyDark() {
         ExportPreviewScreen(
             state = ExportUi(ExportCounts(trips = 0, logbook = 104, appLog = 312), setOf(DataPart.LOGBOOK, DataPart.APP_LOG), ExportFormat.PACKAGE, csvAllowed = false, canExport = true),
         )
+    }
+}
+
+@Preview(name = "DataTransfer · export, drives near the import limit (light)", showBackground = true)
+@Composable
+private fun PreviewDataTransferExportNearLimitLight() {
+    PreviewTheme(dark = false) {
+        ExportPreviewScreen(state = ExportUi(PREVIEW_COUNTS.copy(tripRows = 3_440_000), DataPart.DEFAULT_EXPORT, ExportFormat.PACKAGE, csvAllowed = false, canExport = true))
+    }
+}
+
+@Preview(name = "DataTransfer · export, drives over the import limit (dark)", showBackground = true)
+@Composable
+private fun PreviewDataTransferExportOverLimitDark() {
+    PreviewTheme(dark = true) {
+        ExportPreviewScreen(state = ExportUi(PREVIEW_COUNTS.copy(tripRows = 4_100_000), DataPart.DEFAULT_EXPORT, ExportFormat.PACKAGE, csvAllowed = false, canExport = true))
     }
 }
 

@@ -742,6 +742,8 @@
         <item quantity="other">%1$d rows rejected</item>
     </plurals>
     <string name="transfer_note_vin">The package contains your motorcycle\'s VIN.</string>
+    <string name="transfer_note_trips_near_limit">The drives fill %1$d%% of what the app can read back in. Above that, the app can no longer read the drives of a backup.</string>
+    <string name="transfer_note_trips_over_limit">Too many readings: the app cannot read the drives of this file back in. The other parts of the backup can still be read.</string>
     <plurals name="transfer_trips_with_vin">
         <item quantity="one">%1$d drive with a VIN</item>
         <item quantity="other">%1$d drives with a VIN</item>

@@ -23,7 +23,14 @@ import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 /** Wie viele Eintraege je Art da sind (P6: beim Oeffnen der Seite und vor jedem Export frisch gelesen, nicht live). */
-data class ExportCounts(val trips: Int, val logbook: Int, val appLog: Int, val dtcHistory: Int = 0) {
+data class ExportCounts(
+    val trips: Int,
+    val logbook: Int,
+    val appLog: Int,
+    val dtcHistory: Int = 0,
+    /** Die Messwerte (Datenzeilen) der Fahrten, die der Export schreibt; die Seite haelt sie gegen die Grenze des Imports (`tripExportSize`). */
+    val tripRows: Long = 0,
+) {
     /** `null` = keine Menge (Einstellungen und Zaehler sind immer vorhanden). */
     fun of(part: DataPart): Int? = when (part) {
         DataPart.TRIPS -> trips
@@ -71,6 +78,7 @@ class TransferExporter @Inject constructor(
         logbook = logbook.all().size,
         appLog = appLogs.logs.first().size,
         dtcHistory = dtcHistory.all().size,
+        tripRows = sessions.exportableReadingCount(),
     )
 
     suspend fun share(request: ExportRequest): Uri {

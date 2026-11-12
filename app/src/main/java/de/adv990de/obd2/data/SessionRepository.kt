@@ -281,6 +281,12 @@ class SessionRepository @Inject constructor(
     }
 
     /**
+     * How many data rows an export of [exportableSessionIds] writes: every reading except those of the trip being recorded right now. The export page compares it with the
+     * limit of the import (`tripExportSize`), so that a backup that could not be read back in does not go unnoticed.
+     */
+    suspend fun exportableReadingCount(): Long = db.sensorReadingDao().countExcept(_activeSessionId.value)
+
+    /**
      * Die FIN und die Fehlercodes der Fahrten [ids] (nur Fahrten, die es gibt), in Bloecken zu [META_CHUNK_IDS]: SQLite erlaubt auf API 26 nur 999 gebundene Variablen. Eine Fahrt ohne
      * Angabe steht mit einer leeren [TripMeta] in der Antwort; wer nur die mit Angabe braucht, fragt [TripMeta.isEmpty].
      */

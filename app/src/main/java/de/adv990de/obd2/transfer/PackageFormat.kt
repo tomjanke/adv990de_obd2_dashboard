@@ -24,8 +24,14 @@ object PackageFormat {
     private const val KIB = 1024L
     private const val MIB = 1024L * KIB
 
-    /** Entpackt insgesamt höchstens so viel (P3). */
-    const val MAX_TOTAL_BYTES = 128L * 1024 * 1024
+    /**
+     * Die Fahrten-CSV, im Paket und einzeln: Platz für die Höchstzahl der Zeilen des Imports (4 Millionen, `MAX_TRIP_IMPORT_ROWS`) bei bis zu 64 Byte je Zeile — die echten Dateien
+     * haben rund 43 Byte je Zeile. Die Grenze der Zeilenzahl greift in der Regel zuerst; die Datei wird im Strom gelesen, ihre Größe kostet keinen Arbeitsspeicher.
+     */
+    const val MAX_TRIPS_BYTES = 256L * 1024 * 1024
+
+    /** Entpackt insgesamt höchstens so viel (P3): die Fahrten und 64 MiB für alles Übrige. Auch die Obergrenze für die Kopie der gewählten Datei im Cache. */
+    const val MAX_TOTAL_BYTES = 320L * 1024 * 1024
 
     /** Dateien im ZIP (nicht Fahrten oder Logbuch-Einträge). */
     const val MAX_ENTRIES = 100
@@ -34,7 +40,7 @@ object PackageFormat {
     fun entryLimit(name: String): Long = when (name) {
         MANIFEST, DataPart.SETTINGS.packageEntry, DataPart.COUNTERS.packageEntry, DataPart.DTC_HISTORY.packageEntry -> 256 * KIB
         TRIPS_META -> 4 * MIB
-        DataPart.TRIPS.packageEntry -> 96 * MIB
+        DataPart.TRIPS.packageEntry -> MAX_TRIPS_BYTES
         DataPart.LOGBOOK.packageEntry -> 5 * MIB
         DataPart.APP_LOG.packageEntry -> MAX_TOTAL_BYTES
         else -> 0L

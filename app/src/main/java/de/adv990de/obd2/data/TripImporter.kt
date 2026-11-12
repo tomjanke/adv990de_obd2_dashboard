@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import de.adv990de.obd2.transfer.PackageFormat
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -18,10 +19,10 @@ import java.io.InputStreamReader
 import javax.inject.Inject
 
 /**
- * Die groesste Datei, die der Fahrten-Import liest (96 MiB): ein Export aller Fahrten der 90 Tage Aufbewahrung hat einige MiB (13 Fahrten waren 46 733 Zeilen, rund 2 MiB),
- * alles darueber ist die falsche Datei. Die Grenze der Zeilenzahl ([de.adv990de.obd2.tripimport.MAX_TRIP_IMPORT_ROWS]) greift in der Regel zuerst.
+ * Die groesste Datei, die der Fahrten-Import liest (256 MiB, [PackageFormat.MAX_TRIPS_BYTES]: Platz fuer die Hoechstzahl der Zeilen; 224 774 Zeilen waren 9,7 MiB),
+ * alles darueber ist die falsche Datei. Die Grenze der Zeilenzahl ([de.adv990de.obd2.tripimport.tripImportRowLimit]) greift in der Regel zuerst.
  */
-internal const val MAX_TRIP_IMPORT_BYTES = 96L * 1024 * 1024
+internal const val MAX_TRIP_IMPORT_BYTES = PackageFormat.MAX_TRIPS_BYTES
 
 /**
  * Ein Eingabestrom, der nach mehr als [maxBytes] Bytes mit [FileTooLargeException] scheitert: gelesen wird hoechstens die Grenze plus ein Byte, nicht die ganze Datei. Gezaehlt

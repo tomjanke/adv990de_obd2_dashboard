@@ -21,8 +21,29 @@ const val TRIP_COLUMN_VALUE = "value"
 const val TRIP_COLUMN_SOURCE = "source"
 const val TRIP_COLUMN_SESSION = "session"
 
-/** Hoechstzahl der Datenzeilen (ohne Leerzeilen); mehr bricht den Import ab. Die Zeilen stehen kompakt im Speicher (rund 15 Byte je Zeile), nie als Text. */
-const val MAX_TRIP_IMPORT_ROWS = 1_500_000
+/**
+ * Die Obergrenze der Datenzeilen (ohne Leerzeilen) auf jedem Geraet; die wirksame Grenze ist [tripImportRowLimit]. Die Zeilen stehen kompakt im Speicher, nie als Text.
+ *
+ * **Gemessen am 2026-11-12** (Pixel 8 Pro, Android 17, Debug-Build, Heap-Grenze 256 MiB, erzeugte Dateien): fertig gelesen belegt eine Zeile 15,6 Byte, in der Spitze rund das
+ * Doppelte (die gewachsenen Felder und ihre auf die Groesse gekuerzte Kopie leben kurz nebeneinander) — 4 Millionen Zeilen brauchen rund 125 MiB. Sie liessen sich einlesen und
+ * schreiben, auch als eine einzige Fahrt und auch mit 96 MiB anderweitig belegtem Speicher (die App selbst belegt rund 29 MiB); mit 128 MiB Fremdbelegung brach das Lesen mit
+ * `OutOfMemoryError` ab. Bis 2026-11-12 lag die Grenze bei 1,5 Millionen (gerechnet, nicht gemessen).
+ */
+const val MAX_TRIP_IMPORT_ROWS = 4_000_000
+
+/**
+ * So viel Heap rechnet der Import je Zeile: das Doppelte der gemessenen Spitze von rund 31 Byte — der Import darf hoechstens die Haelfte des Heaps brauchen, der Rest bleibt der
+ * uebrigen App und dem Muell des Lesens (jede Zeile erzeugt kurzlebige Texte).
+ */
+const val TRIP_IMPORT_HEAP_BYTES_PER_ROW = 64L
+
+/**
+ * Die Hoechstzahl der Datenzeilen auf diesem Geraet; mehr bricht den Import ab ([TripFileException.Kind.TOO_MANY_ROWS]). [MAX_TRIP_IMPORT_ROWS], auf Geraeten mit kleinerem Heap
+ * weniger ([maxHeapBytes] / [TRIP_IMPORT_HEAP_BYTES_PER_ROW]: 256 MiB tragen die volle Grenze, 128 MiB gut 2 Millionen Zeilen). Ein `OutOfMemoryError` waere ein `Error`, den
+ * beim Einlesen niemand faengt: lieber eine Datei ablehnen als die App beenden. Die Exportseite warnt mit derselben Funktion (`tripExportSize`).
+ */
+fun tripImportRowLimit(maxHeapBytes: Long = Runtime.getRuntime().maxMemory()): Int =
+    (maxHeapBytes / TRIP_IMPORT_HEAP_BYTES_PER_ROW).coerceIn(0L, MAX_TRIP_IMPORT_ROWS.toLong()).toInt()
 
 /** Hoechstzahl verschiedener PID-Namen in einer Datei: der Export kennt rund zwei Dutzend, mehr heisst, dass die Datei etwas anderes ist. */
 const val MAX_TRIP_IMPORT_PIDS = 1_000
@@ -46,7 +67,7 @@ class TripFileException(val kind: Kind, message: String) : IllegalArgumentExcept
         /** Pflichtspalte fehlt, die Datei ist leer oder hat zu viele verschiedene PIDs. */
         NOT_AN_EXPORT,
 
-        /** Mehr als [MAX_TRIP_IMPORT_ROWS] Datenzeilen. */
+        /** Mehr Datenzeilen als [tripImportRowLimit]. */
         TOO_MANY_ROWS,
 
         /** Die Zeilen einer Fahrt stehen nicht zusammen: so schreibt der Export nie, die Datei ist zusammengesetzt oder veraendert. */
@@ -148,7 +169,7 @@ private fun CsvRecord.isBlank() = fields.all { it.isBlank() }
 fun readTripCsv(
     reader: Reader,
     nowMs: Long,
-    maxRows: Int = MAX_TRIP_IMPORT_ROWS,
+    maxRows: Int = tripImportRowLimit(),
     maxPids: Int = MAX_TRIP_IMPORT_PIDS,
     checkCancelled: () -> Unit = {},
 ): ParsedTripFile {

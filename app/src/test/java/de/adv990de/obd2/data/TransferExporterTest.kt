@@ -27,6 +27,7 @@ import io.mockk.CapturingSlot
 import io.mockk.Runs
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -138,11 +139,12 @@ class TransferExporterTest {
         every { odometer.current() } returns odo
     }
 
-    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList(), history: List<DtcHistoryEntry> = emptyList()) {
+    private fun stubData(tripIds: List<Long> = listOf(1L, 2L), tripRows: Long = 2L, logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList(), history: List<DtcHistoryEntry> = emptyList()) {
         coEvery { dtcRepo.all() } returns history
         coEvery { sessionDao.metaByIds(any()) } answers { meta.filter { it.id in firstArg<List<Long>>() } }
         every { sessionDao.observeIds() } returns flowOf(tripIds)
         coEvery { sessionDao.idsWithReadings() } returns tripIds
+        coEvery { sensorReadingDao.countExcept(any()) } returns tripRows
         every { sensorReadingDao.getBySessionCursor(any()) } answers { tripCursor() }
         coEvery { logbook.all() } returns logEntries
         every { appLogDao.getExportCursor(any()) } answers { logCursor() }
@@ -392,6 +394,18 @@ class TransferExporterTest {
         assertEquals(null, counts.of(DataPart.SETTINGS))
         assertEquals(null, counts.of(DataPart.COUNTERS))
         assertFalse(counts.isEmpty(DataPart.TRIPS))
+    }
+
+    @Test
+    fun `counts carry the readings of the trips the export writes, without the trip being recorded`() = runTest {
+        stubData(tripIds = listOf(1L, 2L, 3L))
+        coEvery { sensorReadingDao.countExcept(null) } returns 1_300_000L
+        coEvery { sensorReadingDao.countExcept(3L) } returns 1_250_000L
+        assertEquals("ohne laufende Aufzeichnung zaehlt jeder Messwert", 1_300_000L, exporter.counts().tripRows)
+        coEvery { sessionDao.insert(any<SessionEntity>()) } returns 3L
+        sessions.startSession()
+        assertEquals("die Messwerte der laufenden Fahrt stehen nicht in der Datei", 1_250_000L, exporter.counts().tripRows)
+        coVerify(exactly = 1) { sensorReadingDao.countExcept(3L) }
     }
 
     @Test
