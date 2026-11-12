@@ -54,6 +54,24 @@ class OpenMeteoApiTest {
         assertNull(api.currentTemperatureC(52.52, 13.41))
     }
 
+    /**
+     * Androids org.json parst rekursiv ohne Tiefenlimit: 16 KiB aus `[` (die Groessengrenze laesst sie zu) waeren rund 16 000 Ebenen und ein `StackOverflowError` — ein `Error`,
+     * den das `catch (Exception)` hier nicht faengt. Die Tiefe wird deshalb vor dem Parsen gezaehlt. Der Test haelt den Waechter fest (17 Ebenen sind fuer die org.json-Referenz der
+     * JVM-Tests noch lesbar: ohne den Waechter kaeme hier die Temperatur zurueck); der Absturz selbst zeigt sich nur auf dem Geraet. Die echte Antwort hat zwei Ebenen.
+     */
+    @Test
+    fun `a response nested deeper than the limit is an unusable answer`() = runTest {
+        val nested = "[".repeat(16) + "]".repeat(16)
+        val api = fakeApi("""{"current":{"temperature_2m":13.5},"x":$nested}""")
+        assertNull(api.currentTemperatureC(52.52, 13.41))
+    }
+
+    @Test
+    fun `a response of nothing but opening brackets yields null`() = runTest {
+        val api = fakeApi("""{"current":{"temperature_2m":13.5},"x":""" + "[".repeat(16_000))
+        assertNull(api.currentTemperatureC(52.52, 13.41))
+    }
+
     @Test
     fun `missing temperature_2m field yields null`() = runTest {
         val api = fakeApi("""{"current":{"time":"2026-09-27T12:00"}}""")

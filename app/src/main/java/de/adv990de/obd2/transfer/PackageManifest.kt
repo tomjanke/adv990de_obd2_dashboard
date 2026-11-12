@@ -25,9 +25,11 @@ fun PackageManifest.toJson(): String {
 
 /**
  * `null` = keine Sicherung dieser App: kein JSON-Objekt, `format` keine ganze Zahl ab 1, `app_id` fehlt oder ist eine andere. Ein neueres Format wird gelesen
- * (das Warnen ist Sache des Importers); unbekannte Namen in `parts` werden übergangen.
+ * (das Warnen ist Sache des Importers); unbekannte Namen in `parts` werden übergangen. Auch ein zu tief verschachtelter Text ist keine Sicherung ([jsonDepthWithin]): Androids
+ * org.json parst rekursiv ohne Grenze, und der `StackOverflowError` eines präparierten Manifests wäre ein `Error`, den beim Einlesen niemand fängt.
  */
 fun parseManifest(text: String): PackageManifest? {
+    if (!jsonDepthWithin(text)) return null
     val json = try {
         JSONObject(text)
     } catch (_: Exception) {

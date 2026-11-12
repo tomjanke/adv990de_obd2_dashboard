@@ -1,5 +1,6 @@
 package de.adv990de.obd2.weather
 
+import de.adv990de.obd2.transfer.jsonDepthWithin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,6 +66,8 @@ class OpenMeteoApi(
                 if (connection.contentLengthLong > MAX_RESPONSE_BYTES) return@withContext null
                 val bytes = connection.inputStream.use { readBounded(it, MAX_RESPONSE_BYTES) } ?: return@withContext null
                 val body = String(bytes, Charsets.UTF_8)
+                // Androids org.json parst rekursiv ohne Tiefenlimit: 16 KiB aus "[" waeren ein StackOverflowError (ein Error, den das catch unten nicht faengt).
+                if (!jsonDepthWithin(body)) return@withContext null
                 val current = JSONObject(body).optJSONObject("current") ?: return@withContext null
                 if (!current.has("temperature_2m")) return@withContext null
                 // NaN/Unendlich (z. B. "NaN" als String, oder ein Wert jenseits des Float-Bereichs)

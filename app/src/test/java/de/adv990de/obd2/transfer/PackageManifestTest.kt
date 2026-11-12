@@ -65,4 +65,37 @@ class PackageManifestTest {
         val parsed = parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","app_version":"9","created_ms":5,"parts":{"TRIPS":2,"FUTURE":3}}""")!!
         assertEquals(mapOf(DataPart.TRIPS to 2), parsed.parts)
     }
+
+    /**
+     * Androids org.json (`JSONTokener.nextValue` → `readArray`/`readObject` → `nextValue`) parst rekursiv ohne Tiefenlimit: ein Manifest mit hunderttausend `[` passt in die
+     * Groessengrenze des Eintrags (256 KiB) und endete dort in einem `StackOverflowError` — ein `Error`, den beim Einlesen niemand faengt (die App waere beendet). Die Tiefe wird
+     * deshalb vor dem Parsen gezaehlt, wie bei `settings.json` und `counters.json`.
+     *
+     * **Dieser Test haelt den Waechter fest, nicht den Absturz:** die org.json-Referenz der JVM-Tests hat ein eigenes Limit (512) und wirft eine `JSONException`; der Absturz zeigt sich
+     * nur auf dem Geraet. Die Tiefe hier ([MAX_JSON_DEPTH] + 1) liegt unter jenem Limit: ohne den Waechter waere dies ein gueltiges Manifest.
+     */
+    @Test
+    fun aManifestNestedDeeperThanTheLimitIsNoBackupOfThisApp() {
+        val nested = "[".repeat(MAX_JSON_DEPTH) + "]".repeat(MAX_JSON_DEPTH)
+        assertNull(parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","app_version":"9","created_ms":5,"x":$nested}"""))
+    }
+
+    @Test
+    fun aManifestNestedExactlyToTheLimitIsRead() {
+        val nested = "[".repeat(MAX_JSON_DEPTH - 1) + "]".repeat(MAX_JSON_DEPTH - 1)
+        assertNotNull(parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","app_version":"9","created_ms":5,"x":$nested}"""))
+    }
+
+    @Test
+    fun aManifestNestedFarTooDeeplyIsNoBackupOfThisApp() {
+        assertNull(parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","x":""" + "[".repeat(200_000)))
+        assertNull(parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","parts":""" + "{\"a\":".repeat(100_000) + "1" + "}".repeat(100_001)))
+    }
+
+    @Test
+    fun bracketsInsideATextDoNotCount() {
+        val parsed = parseManifest("""{"format":1,"app_id":"de.adv990de.obd2","app_version":"${"[".repeat(1000)}","created_ms":5,"parts":{"TRIPS":2}}""")
+        assertNotNull(parsed)
+        assertEquals("[".repeat(1000), parsed!!.appVersion)
+    }
 }
