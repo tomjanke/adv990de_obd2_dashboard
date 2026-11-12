@@ -1,5 +1,20 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.4 (versionCode 163)
+
+**Die Exportseite warnt, bevor die Fahrten zu groß für das Wiedereinlesen werden, und der Import nimmt mehr an.** Anlass: der Export der Fahrten kannte keine Grenze, der Import schon — die App hätte eine Sicherung schreiben können, die sie selbst nicht mehr einlesen kann.
+
+### Was sich ändert
+
+- **Hinweis in zwei Stufen:** Sind Fahrten gewählt, zeigt die Exportseite ab 80 % der Import-Grenze eine gelbe Vorwarnung mit der Prozentzahl. Liegen die Fahrten über der Grenze, steht dort eine rote Warnung: die App kann die Fahrten dieser Datei nicht wieder einlesen, die übrigen Teile der Sicherung schon. Der Export bleibt in beiden Fällen möglich.
+- **Höhere Import-Grenze:** 4 Millionen Messwerte statt 1,5 Millionen. Die Dateigrenzen ziehen mit: Fahrten-CSV 256 MiB (vorher 96), Paket insgesamt 320 MiB (vorher 128).
+- **Die Grenze richtet sich nach dem Gerät:** Sie beträgt den App-Speicher des Geräts geteilt durch 64 Byte je Messwert, höchstens 4 Millionen. Auf dem Pixel 8 Pro gelten die vollen 4 Millionen, auf einem Gerät mit halb so viel App-Speicher gut 2 Millionen. Eine zu große Datei wird so abgelehnt, statt die App zu beenden; eine Sicherung von einem großen Gerät kann deshalb auf einem kleineren als „zu viele Zeilen“ abgelehnt werden.
+- **Gemessen, nicht geschätzt:** Auf dem Pixel 8 Pro (Debug-Build, erzeugte Dateien) belegt ein gelesener Messwert 15,6 Byte, in der Spitze rund das Doppelte. 4 Millionen Messwerte ließen sich einlesen und schreiben, auch mit 96 MiB anderweitig belegtem Speicher; Lesen rund 28 s, Schreiben rund 50 s (eine laufende Aufzeichnung wartet so lange). Nicht gemessen: eine echte Datei dieser Größe, der Release-Build und ein Gerät mit weniger Speicher.
+- **Robuster gegen präparierte Dateien:** Das Manifest eines Pakets und die Antwort des Wetterdienstes werden vor dem Lesen auf zu tiefe Verschachtelung geprüft (wie schon Einstellungen und Zähler). Eine solche Datei hätte die App beenden können; nachgestellt ist der Absturz nicht.
+- **Unverändert:** Aufzeichnung, Datenbank (bleibt **v6**), Berechtigungen, Paketformat (bleibt Format 1), Paketkennung und Signaturschlüssel (ein Update von 1.45.3 ist möglich). Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.45.3 (versionCode 162)
 
 **Kein „Immer zulassen“ mehr.** Die App fragt den Hintergrund-Standort nicht mehr an. Die GPS-Geschwindigkeit läuft trotzdem weiter, solange der Adapter verbunden ist.
