@@ -1387,6 +1387,46 @@ class ReadingsPipelineTest {
     }
 
     @Test
+    fun `a session that failed does not re-merge its last readings when the GPS moves on`() = runTest {
+        // Die Verbindung steht noch (isConnectedFlow bleibt true), aber die Sitzung ist an einem Fehler geendet: niemand fragt mehr ab, und "veraltet" meldet
+        // sich fuer eine beendete Sitzung nicht. Ihre letzten Werte duerfen mit dem naechsten GPS-Fix nicht wieder als live erscheinen.
+        val gps = MutableStateFlow<Float?>(null)
+        val repo = makeRepo(connected = true)
+        every { repo.livePids(any()) } returns flow { emit(listOf(rpm)); throw IllegalStateException("boom") }
+        val gpsSource: GpsSpeedSource = mockk { every { speedKmh } returns gps }
+        val events = collect(makePipeline(repo, prefs = fakeAppPreferences(useGpsSpeed = true), gps = gpsSource))
+        runCurrent()
+        assertTrue("die Sitzung endet mit einem Fehler: $events", events.last() is SessionEvent.Failed)
+        val before = events.size
+
+        gps.value = 20f; runCurrent()
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+        gps.value = 30f; runCurrent()
+
+        assertEquals("nach dem Fehler kommt nichts mehr, schon gar keine alten Werte: $events", emptyList<SessionEvent>(), events.drop(before))
+    }
+
+    @Test
+    fun `a cycle that arrives just as the stale limit ends is not overtaken by the stale state`() = runTest {
+        // Zwei PID-Zeitlimits ergeben einen Zyklus von rund 10 s: er trifft ein, waehrend die Frist gerade ablaeuft. Die Frist gehoert zum Zyklus davor und gilt nicht mehr.
+        val repo = makeRepo(connected = true)
+        val rows = mutableListOf<List<SensorValue>>()
+        val sessionRepo = makeSessionRepo().also { coEvery { it.writeReadings(7L, capture(rows)) } just Runs }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        every { repo.livePids(any()) } returns flow {
+            emit(listOf(rpm)); delay(OBD_STALE_AFTER_MS); emit(listOf(rpm.copy(timestamp = 2000L))); awaitCancellation()
+        }
+        val events = collect(makePipeline(repo, sessionRepo = sessionRepo, logRepo = logRepo))
+
+        advanceTimeBy(OBD_STALE_AFTER_MS + 1); runCurrent()
+
+        assertEquals("beide Zyklen erreichen die Anzeige: $events", 2, events.count { it is SessionEvent.Values })
+        assertTrue("kein 'veraltet' fuer einen Zyklus, der da ist: $events", events.none { it == SessionEvent.Stale })
+        assertEquals("kein Marker 'keine aktuellen Werte' in der Fahrt", emptyList<Float>(), rows.stateRows().map { it.value })
+        coVerify(exactly = 0) { logRepo.log(any(), match { it.contains("No fresh values") }) }
+    }
+
+    @Test
     fun `a new session starts from standing - the drive hysteresis does not carry over a reconnect`() = runTest {
         val isConnected = MutableStateFlow(true)
         val repo = makeRepo(connected = true)

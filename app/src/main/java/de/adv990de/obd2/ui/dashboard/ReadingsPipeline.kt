@@ -191,7 +191,9 @@ class ReadingsPipeline @Inject constructor(
                     // fuehrte der erste GPS-Zwischenwert nach einem Reconnect die ALTEN Messwerte neu
                     // zusammen und zeigte sie als live, bis der erste echte Zyklus eintrifft.
                     merge(
-                        runSession(slotIds, gpsSpeed).onCompletion { sessionRunning = false },
+                        // Endet die Sitzung, waehrend die Verbindung noch steht (ein Fehler, der nicht trennt), laufen [gpsRefresh] und [staleness] weiter: ohne die
+                        // letzten Werte zu vergessen, fuehrte jeder GPS-Fix sie wieder als live zusammen, und "veraltet" meldet eine beendete Sitzung nicht mehr.
+                        runSession(slotIds, gpsSpeed).onCompletion { sessionRunning = false; lastObdReadings.value = null },
                         gpsRefresh(gpsSpeed),
                         staleness(),
                         faultWatch.events(),
@@ -223,10 +225,12 @@ class ReadingsPipeline @Inject constructor(
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun staleness(): Flow<SessionEvent> = obdCycles
-        .flatMapLatest {
+        .flatMapLatest { cyclesAtStart ->
             flow {
                 delay(OBD_STALE_AFTER_MS)
-                if (sessionRunning) emit(SessionEvent.Stale)
+                // Die Frist gehoert zu dem Zyklus, mit dem sie begann. Trifft genau zu ihrem Ende der naechste ein (zwei PID-Zeitlimits dauern rund 10 s), ist der
+                // Zaehler schon weiter, aber dieser Zweig noch nicht abgebrochen: ohne den Vergleich meldete er "veraltet" fuer Werte, die gerade gekommen sind.
+                if (sessionRunning && obdCycles.value == cyclesAtStart) emit(SessionEvent.Stale)
             }
         }
         .onEach {
