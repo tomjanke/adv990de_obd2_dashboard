@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -133,8 +133,10 @@ class FuelRepository @Inject constructor(
         if (!odometer.value.loaded) {
             scope.launch {
                 val stored = appPreferences.fuelKmSinceFill.first()
-                odometer.update { if (it.loaded) it else Odometer(loaded = true, km = stored + it.km) }
-                persistedKm = stored
+                // Die Marke "zuletzt geschrieben" folgt dem gelesenen Wert nur, wenn dieses Laden den Zaehler wirklich gesetzt hat: hat der Nutzer inzwischen zurueckgesetzt
+                // oder wiederhergestellt, steht dort schon dessen Wert — der alte Stand wuerde sonst jeden Schritt bis dorthin als "noch nicht weit genug" gelten lassen.
+                val before = odometer.getAndUpdate { if (it.loaded) it else Odometer(loaded = true, km = stored + it.km) }
+                if (!before.loaded) persistedKm = stored
             }
         }
     }

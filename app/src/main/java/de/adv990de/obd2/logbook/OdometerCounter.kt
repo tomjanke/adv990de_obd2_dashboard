@@ -30,6 +30,8 @@ internal data class OdometerCounter(
     /** Der hoechste Kilometerstand im Logbuch ist [max] (`null` ohne Eintrag). */
     fun withLoggedMax(max: Int?): OdometerCounter {
         if (!maxKnown) return copy(maxKnown = true, loggedMax = max).settledIfReady()
+        // Der gespeicherte Zaehler ist noch nicht gelesen: nur den Stand merken. Ein Zaehler, der hier schon entstuende (bei 0), wuerde ueber den gespeicherten geschrieben.
+        if (!storedKnown) return copy(loggedMax = max)
         val pending = restoredPending
         return when {
             max == null -> copy(loggedMax = null, counter = null, restoredPending = null)

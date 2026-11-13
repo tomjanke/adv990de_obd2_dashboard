@@ -112,6 +112,17 @@ class OdometerCounterTest {
     }
 
     @Test
+    fun `a second highest reading before the stored value is read decides nothing yet`() {
+        // Das Logbuch meldet zweimal, bevor der gespeicherte Zaehler gelesen ist: ein Zaehler, der jetzt schon entstuende (bei 0), wuerde ueber den gespeicherten geschrieben.
+        val waiting = start.withLoggedMax(40_000).withDistance(2f).withLoggedMax(40_100)
+
+        assertFalse(waiting.ready)
+        assertNull("ohne den gespeicherten Wert gibt es noch keinen Zaehler", waiting.counter)
+        assertEquals(GpsOdometer(40_100, 7f), waiting.withStored(GpsOdometer(40_100, 5f)).counter)
+        assertEquals("ein gespeicherter Zaehler eines anderen Stands gilt nicht", GpsOdometer(40_100, 2f), waiting.withStored(GpsOdometer(40_000, 5f)).counter)
+    }
+
+    @Test
     fun `no entries left drops the counter`() {
         val driven = start.withStored(null).withLoggedMax(40_000).withDistance(12f)
 

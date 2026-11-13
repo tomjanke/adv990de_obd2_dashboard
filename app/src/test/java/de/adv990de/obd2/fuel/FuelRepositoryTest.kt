@@ -282,6 +282,27 @@ class FuelRepositoryTest {
         assertEquals(0f, repo.state.value!!.kmSinceFill, 0f)
     }
 
+    @Test
+    fun `after a reset that beat the late stored value the next step is still written`() = runTest {
+        // Das spaete Laden aendert den Zaehler nicht mehr (der Nutzer hat zurueckgesetzt) — dann darf es auch die Marke "zuletzt geschrieben" nicht auf den alten Wert stellen:
+        // sonst gaelte bis zu diesem alten Stand jeder Schritt als "noch nicht 0,2 km weiter", und ein Prozess-Ende verloere die ganze Strecke seit dem Zuruecksetzen.
+        val stored = MutableSharedFlow<Float>()
+        val prefs = fakeAppPreferences(fuelRangeFullKm = 200).also(::stubWrites)
+        every { prefs.fuelKmSinceFill } returns stored
+        val repo = repo(prefs)
+        runCurrent()
+        repo.reset()
+        runCurrent()
+        stored.emit(100f)
+        runCurrent()
+        written.clear()
+
+        repo.addDistance(0.3f)
+        runCurrent()
+
+        assertEquals(listOf(0.3f), written)
+    }
+
     // --- restore / currentKm (Daten wiederherstellen) ---
 
     @Test
