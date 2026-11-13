@@ -102,7 +102,11 @@ class ConnectionCoordinator @Inject constructor(
         scope.launch { autoConnect(onEvent) }
     }
 
-    /** Stoesst die Wiederverbindung an. Laeuft die Schleife bereits, verpufft der Aufruf. */
+    /**
+     * Stoesst die Wiederverbindung an. Laeuft gerade eine Runde, verpufft der Aufruf **nicht**: hoechstens eine weitere Aufforderung bleibt im Puffer von [trigger]
+     * und beginnt nach dem Ende der laufenden Runde eine neue (nach einem gescheiterten Durchgang also noch einmal bis zu fuenf Versuche; hat der Nutzer inzwischen
+     * getrennt oder steht die Verbindung, endet sie sofort). Zwei Stellen koennen denselben Verlust melden (Abfrageschleife und Fehlerwache).
+     */
     fun requestReconnect() {
         trigger.tryEmit(obdRepository.userDisconnectCount.value)
     }
@@ -124,17 +128,28 @@ class ConnectionCoordinator @Inject constructor(
         val savedDevice = appPreferences.lastDevice.first() ?: return
         onEvent(ConnectionEvent.Attempting(attempt = 0, total = RECONNECT_ATTEMPT_COUNT))
         appLogRepository.log(LogLevel.INFO, "Connecting to ${savedDevice.name}…")
+        // "Trennen" waehrend des Aufbaus schliesst die entstehende Verbindung (ObdRepository.disconnectByUser): der Versuch scheitert dann oder wird gerade noch
+        // fertig. Beides ist der Wunsch des Nutzers, kein Verbindungsfehler — wie in der Schleife unten: weder Wiederverbindung noch Dienst-Start noch Connected.
+        val disconnectsAtStart = obdRepository.userDisconnectCount.value
         try {
             // Nicht connect(): Der Nutzer koennte in den ersten Sekunden selbst verbunden haben, und der
             // Auto-Connect darf diese Verbindung nicht ersetzen (die Entscheidung faellt im Repository
             // unter dem Lock, s. ObdRepository.connectIfDisconnected).
             obdRepository.connectIfDisconnected(savedDevice)
+            if (userDisconnectedSince(disconnectsAtStart)) {
+                abort(onEvent)
+                return
+            }
             appLogRepository.log(LogLevel.INFO, connectedLogMessage(savedDevice.name, obdRepository.adapterInit))
             serviceController.start()
             onEvent(ConnectionEvent.Connected)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (userDisconnectedSince(disconnectsAtStart)) {
+                abort(onEvent)
+                return
+            }
             appLogRepository.log(LogLevel.ERROR, "Connection error: ${e.message ?: e.javaClass.simpleName}")
             requestReconnect()
         }

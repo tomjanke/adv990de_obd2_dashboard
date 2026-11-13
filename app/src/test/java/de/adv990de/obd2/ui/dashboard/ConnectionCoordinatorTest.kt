@@ -449,6 +449,38 @@ class ConnectionCoordinatorTest {
     // ── Abbruch und spaete Nutzer-Trennung ─────────────────────────────────────
 
     @Test
+    fun `a user disconnect that makes the auto-connect fail does not start a reconnect round`() = runTest {
+        // "Trennen" schliesst die Verbindung, die gerade aufgebaut wird: der Auto-Connect scheitert daran. Das ist kein Verbindungsfehler, sondern der Wunsch des Nutzers.
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(userDisconnects = userDisconnects)
+        coEvery { repo.connectIfDisconnected(device) } coAnswers { userDisconnects.value = 1; throw java.io.IOException("socket closed") }
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), logRepo = logRepo).start(coordinatorScope, events::add)
+        advanceUntilIdle()
+
+        assertEquals(listOf(ConnectionEvent.Attempting(0, RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Aborted), events)
+        coVerify(exactly = 1) { repo.connectIfDisconnected(device) }
+        coVerify(exactly = 0) { logRepo.log(LogLevel.ERROR, any()) }
+    }
+
+    @Test
+    fun `a user disconnect while the auto-connect is finishing prevents Connected and the service start`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(userDisconnects = userDisconnects)
+        coEvery { repo.connectIfDisconnected(device) } coAnswers { userDisconnects.value = 1 }   // der Aufbau wird noch fertig, die Trennung des Nutzers folgt
+        val context = mockk<Context>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = device), context = context).start(coordinatorScope, events::add)
+        advanceUntilIdle()
+
+        assertEquals(listOf(ConnectionEvent.Attempting(0, RECONNECT_ATTEMPT_COUNT), ConnectionEvent.Aborted), events)
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
     fun `a cancelled auto-connect is no connection error and starts no reconnect round`() = runTest {
         val repo = makeRepo()
         coEvery { repo.connectIfDisconnected(device) } throws CancellationException("gone")

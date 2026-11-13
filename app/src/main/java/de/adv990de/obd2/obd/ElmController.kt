@@ -3,6 +3,8 @@ package de.adv990de.obd2.obd
 import de.adv990de.obd2.obd.model.ObdException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -101,6 +103,9 @@ class ElmController(
                     }
                 }
             } catch (e: TimeoutCancellationException) {
+                // Nur das EIGENE Zeitlimit ist ein Adapter-Timeout. Laeuft ein Zeitlimit des Aufrufers ab, kommt dieselbe Ausnahmeart hier an — dann ist dieser
+                // Block selbst abgebrochen, und der Abbruch geht weiter, statt als ObdException.Timeout in einem `catch (e: ObdException)` des Aufrufers zu enden.
+                currentCoroutineContext().ensureActive()
                 throw ObdException.Timeout(command)
             }
         }

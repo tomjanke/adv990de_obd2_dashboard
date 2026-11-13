@@ -223,6 +223,28 @@ class ElmControllerTest {
     }
 
     @Test
+    fun `a time limit of the caller stays the caller's - it is not turned into an adapter Timeout`() = runTest {
+        // Das eigene Lese-Zeitlimit (60 s) laeuft hier nie ab: es ist das Zeitlimit des Aufrufers (100 ms, echte Zeit). Ein `catch (e: ObdException)` beim
+        // Aufrufer darf diesen Abbruch nicht als "Adapter antwortet nicht" zu fassen bekommen.
+        val silent = PipedInputStream()
+        PipedOutputStream(silent).use {
+            val controller = ElmController(silent, ByteArrayOutputStream(), readTimeoutMs = 60_000)
+            var seenByTheCaller: ObdException? = null
+
+            val failure = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    kotlinx.coroutines.withTimeout(100) {
+                        try { controller.sendCommand("010C") } catch (e: ObdException) { seenByTheCaller = e; throw e }
+                    }
+                }
+            }.exceptionOrNull()
+
+            assertNull("der Aufrufer sieht keinen Adapter-Fehler: $seenByTheCaller", seenByTheCaller)
+            assertTrue("das Zeitlimit des Aufrufers erwartet, war: $failure", failure is kotlinx.coroutines.TimeoutCancellationException)
+        }
+    }
+
+    @Test
     fun `cancelling a pending command is a cancellation - not a lost connection`() = runTest {
         val silent = PipedInputStream()
         PipedOutputStream(silent).use {
