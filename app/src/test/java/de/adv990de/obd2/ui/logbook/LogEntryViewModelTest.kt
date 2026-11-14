@@ -228,6 +228,22 @@ class LogEntryViewModelTest {
     }
 
     @Test
+    fun `a tap after the entry is written does not write it a second time`() = runTest {
+        // Nach dem Schreiben steht die Seite noch kurz (Uebergang zurueck zur Liste) und der Knopf ist wieder frei: ein Doppeltipp legte denselben Eintrag zweimal an.
+        val f = fixture(gauge = null)                   // ohne Tankanzeige folgt keine Rueckfrage, die die Seite verdeckt
+        collect(f.vm); runCurrent()
+        f.vm.fillFuel(); runCurrent()
+        f.vm.save(); runCurrent()
+        assertEquals(SaveOutcome.Done, f.vm.outcome.value)
+
+        f.vm.save(); runCurrent()                       // der zweite Tipp
+        f.vm.confirmWarnings(); runCurrent()            // und der Weg ueber die Rueckfrage
+
+        coVerify(exactly = 1) { f.repo.save(any()) }
+        assertEquals(SaveOutcome.Done, f.vm.outcome.value)
+    }
+
+    @Test
     fun `a failed save reports the text and does not finish - a cancellation is no error`() = runTest {
         val f = fixture()
         collect(f.vm); runCurrent()

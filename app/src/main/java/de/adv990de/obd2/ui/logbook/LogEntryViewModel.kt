@@ -192,9 +192,9 @@ class LogEntryViewModel internal constructor(
     private suspend fun currentCheck(): FormCheck =
         checkForm(_form.value, entryId, repository.entries.first().filter { it.id != entryId }, today())
 
-    /** Speichern: mit Fehlern nur die Fehler zeigen; mit Warnungen erst fragen; sonst schreiben. Waehrend gespeichert wird, zaehlt ein zweiter Aufruf nicht. */
+    /** Speichern: mit Fehlern nur die Fehler zeigen; mit Warnungen erst fragen; sonst schreiben. Waehrend gespeichert wird und danach zaehlt ein weiterer Aufruf nicht. */
     fun save() {
-        if (!_loaded.value || _isSaving.value) return
+        if (!_loaded.value || _isSaving.value || _outcome.value != null) return
         saveAttempted.value = true
         viewModelScope.launch {
             val c = currentCheck()
@@ -222,7 +222,9 @@ class LogEntryViewModel internal constructor(
     }
 
     private suspend fun write(entry: LogEntry) {
-        if (_isSaving.value) return
+        // Einmal geschrieben ist geschrieben ([outcome] steht): die Seite bleibt waehrend des Uebergangs zurueck zur Liste noch beruehrbar und der Knopf ist wieder frei — ein zweiter
+        // Tipp (oder die Taste "Fertig") legte einen neuen Eintrag sonst ein zweites Mal an. Ein fehlgeschlagenes Speichern setzt [outcome] nicht und laesst sich wiederholen.
+        if (_isSaving.value || _outcome.value != null) return
         _isSaving.value = true
         try {
             repository.save(entry)

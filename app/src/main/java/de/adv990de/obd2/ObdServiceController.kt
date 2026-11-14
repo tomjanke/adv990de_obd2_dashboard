@@ -32,7 +32,7 @@ internal fun shouldIncludeLocationServiceType(useGpsSpeed: Boolean, hasLocationP
 /**
  * Ob der laufende Dienst neu gestartet werden muss, weil sich der gewuenschte Typ geaendert hat.
  *
- * Der Typ wird beim Start gewaehlt ([ObdServiceController.start]). Schaltet der Nutzer die GPS-Geschwindigkeit ein oder erteilt "Immer",
+ * Der Typ wird beim Start gewaehlt ([ObdServiceController.start]). Schaltet der Nutzer die GPS-Geschwindigkeit ein oder erteilt den Standort,
  * waehrend die Verbindung steht, behielt der Dienst den alten Typ bis zur naechsten Verbindung. Ein erneuter Start mit dem neuen Typ
  * aktualisiert ihn (`startForeground()` darf mehrfach gerufen werden).
  *  - Nur ein LAUFENDER Dienst ([runningIncludesLocation] != null): ein abgelehnter oder beendeter wird nicht von selbst wieder gestartet.
