@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
@@ -65,6 +66,21 @@ class FreezeFrameScreenTest {
             FreezeFrameScreen(navController = navController)
         }
         composeRule.waitForIdle()
+    }
+
+    /**
+     * A vehicle can answer every PID of the registry: one row each. The list must scroll — in landscape only a few rows fit, the rest was cut
+     * off and out of reach. `performScrollTo` fails without a scrollable parent, so this test does not depend on the orientation of the phone.
+     */
+    @Test
+    fun freezeFrame_withARowForEveryPid_scrollsToTheLastRow() {
+        val pids = PidRegistry.all.values.toList()
+        coEvery { obdRepository.readFreezeFrame() } returns pids.associate { it.id to "1.0" }
+        launchFreezeFrameScreen()
+        composeRule
+            .onNodeWithText(composeRule.activity.getString(pids.last().labelRes))
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     /**
