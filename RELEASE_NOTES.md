@@ -1,5 +1,23 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.45.5 (versionCode 164)
+
+**Qualitätsdurchsicht: neun Fehler behoben, die meisten selten oder nur im Querformat sichtbar.** Anlass war eine Durchsicht des Codes am 13. bis 15. November; neue Funktionen gibt es nicht. Nur Fehler, die sich als Ablauf im Code belegen oder in einem Test rot sehen ließen, sind behoben.
+
+### Was sich ändert
+
+- **Doppeltipp beim Navigieren:** Ein zweiter Tipp auf eine Zeile der Einstellungen, der App-Info oder des Logbuchs öffnete die Unterseite zweimal; ein zweiter Tipp auf den Zurück-Pfeil ging zwei Ebenen zurück (von einer Unterseite der Einstellungen auf das Dashboard). Jetzt öffnet jeder Tipp die Seite einmal, und der Pfeil schließt nur seine eigene Seite. Am Pixel 8 Pro belegt: zwei neue Tests waren vorher rot.
+- **Logbuch:** Ein zweiter Tipp auf „Speichern“ (oder die Taste „Fertig“) legte denselben Eintrag doppelt an, solange die Seite noch ausgeblendet wurde. Nach einem gelungenen Speichern zählt kein weiterer Tipp mehr.
+- **Freeze-Frame:** Die Seite ließ sich nicht scrollen; im Querformat war der Rest der Liste abgeschnitten. Am Motorrad, an dem die App erprobt ist, ohne Wirkung (das Steuergerät beantwortet nur Modus 01); andere Fahrzeuge melden mehr Werte.
+- **Verbindung:** Trennte der Nutzer während eines Auto-Connects, startete der Fehlerpfad trotzdem bis zu fünf Verbindungsversuche. Ein Zeitlimit des Aufrufers wurde außerdem als „Adapter antwortet nicht“ gemeldet.
+- **Anzeige „Keine aktuellen Werte“:** Traf ein Zyklus genau zum Ende der 10-Sekunden-Frist ein, wurde er noch als veraltet gemeldet. Und nach einem Sitzungsfehler bei stehender Verbindung führte jeder GPS-Fix die letzten Werte wieder als aktuell zusammen.
+- **Zähler:** Tankzähler und Kilometerzähler des Logbuchs konnten in sehr seltenen Fällen (Lesefehler beim Start, zwei Logbuch-Meldungen in den ersten Millisekunden) einen gespeicherten Stand überschreiben oder die Strecke seit einem Zurücksetzen nicht mehr gedrosselt schreiben.
+- **Geprüft ohne Befund:** der größte Teil der App, darunter Alarme, Pipeline, Datenbank, Navigation, Einstellungen und die Sicherungsseite. Die Liste steht in `CLAUDE.md`.
+- **Nicht gemessen:** keiner der Fehler am Fahrzeug; mehrere sind abgeleitet und nicht nachgestellt (die Gründe stehen in `CLAUDE.md`). Offen und nicht geändert: Fehlercodes aus mehrzeiligen Antworten, ein Lesefehler der Einstellungen sieht für die Zähler wie „nichts gespeichert“ aus, und der Tankinhalt-Dialog bei Sprachen mit nicht-lateinischen Ziffern.
+- **Unverändert:** Aufzeichnung, Datenbank (bleibt **v6**), Paketformat (bleibt Format 1), Berechtigungen, Paketkennung und Signaturschlüssel (ein Update von 1.45.4 ist möglich). Das Fahrzeug bleibt rein lesend.
+
+---
+
 ## Version 1.45.4 (versionCode 163)
 
 **Die Exportseite warnt, bevor die Fahrten zu groß für das Wiedereinlesen werden, und der Import nimmt mehr an.** Anlass: der Export der Fahrten kannte keine Grenze, der Import schon — die App hätte eine Sicherung schreiben können, die sie selbst nicht mehr einlesen kann.
