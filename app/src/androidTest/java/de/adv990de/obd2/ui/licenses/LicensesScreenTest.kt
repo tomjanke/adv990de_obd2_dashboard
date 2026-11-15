@@ -101,4 +101,33 @@ class LicensesScreenTest {
 
         composeRule.onNodeWithText("first-destination").assertIsDisplayed()
     }
+
+    /**
+     * Der Pfeil bleibt waehrend der Ueberblendung zur vorigen Seite beruehrbar (700 ms): ein zweiter Tipp ging vorher eine weitere Ebene zurueck — von den Lizenzen ueber die
+     * App-Info hinweg. Ohne laufende Uhr steht die Seite nach dem ersten Tipp noch unter dem Finger, wie in der App.
+     */
+    @Test
+    fun aDoubleTapOnTheBackArrow_goesBackOnePageOnly() {
+        lateinit var nav: androidx.navigation.NavHostController
+        composeRule.setContent {
+            nav = rememberNavController()
+            NavHost(nav, startDestination = "first") {
+                composable("first") { androidx.compose.material3.Text("first-destination") }
+                composable("second") { androidx.compose.material3.Text("second-destination") }
+                composable("licenses") { LicensesScreen(nav) }
+            }
+            androidx.compose.runtime.LaunchedEffect(Unit) { nav.navigate("second"); nav.navigate("licenses") }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.licenses_title)).assertIsDisplayed()
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.nav_back_desc)).performClick()
+        composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.nav_back_desc)).performClick()
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+
+        composeRule.runOnUiThread { org.junit.Assert.assertEquals("second", nav.currentDestination?.route) }
+        composeRule.onNodeWithText("second-destination").assertIsDisplayed()
+    }
 }

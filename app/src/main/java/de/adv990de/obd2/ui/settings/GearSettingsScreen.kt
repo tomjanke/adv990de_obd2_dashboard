@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.amberColorScheme
@@ -55,7 +56,7 @@ fun GearSettingsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.gear_settings_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.nav_back_desc)

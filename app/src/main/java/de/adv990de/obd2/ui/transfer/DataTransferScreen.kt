@@ -73,6 +73,7 @@ import de.adv990de.obd2.transfer.tripExportSize
 import de.adv990de.obd2.ui.UiText
 import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.SectionLabel
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.StatusColors
 import kotlinx.coroutines.launch
@@ -191,7 +192,7 @@ internal fun DataTransferScreen(navController: NavController, pick: Boolean = fa
             TopAppBar(
                 title = { Text(stringResource(R.string.transfer_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.heightIn(min = PartRowMinHeight)) {
+                    IconButton(onClick = rememberClosePage(navController), modifier = Modifier.heightIn(min = PartRowMinHeight)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

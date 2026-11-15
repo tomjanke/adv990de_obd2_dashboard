@@ -32,6 +32,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.asLiveValue
 
 /** Test-only selector for the loading [LinearProgressIndicator] — it carries no text and no
@@ -55,7 +56,7 @@ fun FreezeFrameScreen(navController: NavController, vm: FreezeFrameViewModel = h
             TopAppBar(
                 title = { Text(stringResource(R.string.freeze_frame_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 }

@@ -426,6 +426,27 @@ class SettingsScreenDeviceTest {
         }
     }
 
+    /**
+     * Die Liste bleibt waehrend der Ueberblendung zur Unterseite beruehrbar (700 ms): ein zweiter Tipp legte die Unterseite vorher ein zweites Mal an, "Zurueck" brauchte dann
+     * zwei Schritte. Ohne laufende Uhr steht die Zeile nach dem ersten Tipp noch unter dem Finger, wie in der App.
+     */
+    @Test
+    fun aDoubleTapOnALinkRow_opensItsSubPageOnce() {
+        launchSettingsInNavHost()
+        scrollTo(str(R.string.settings_app_info_summary))
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithText(str(R.string.settings_app_info)).performClick()
+        composeRule.onNodeWithText(str(R.string.settings_app_info)).performClick()
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+
+        composeRule.runOnUiThread {
+            assertEquals(Screen.AppInfo.route, navController.currentDestination?.route)
+            assertEquals(1, navController.currentBackStack.value.count { it.destination.route == Screen.AppInfo.route })
+        }
+    }
+
     @Test
     fun theSeparateDashboardConfigurationEntryIsGone_itsContentLivesInDashboardAndDisplay() {
         launchSettingsInNavHost()

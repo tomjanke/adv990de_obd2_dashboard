@@ -63,6 +63,7 @@ import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.openDataTransfer
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.transfer.TransferMode
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import java.time.LocalDate
@@ -169,7 +170,7 @@ internal fun LogbookScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { navController.navigate(Screen.LogEntry.routeFor(0)) },
+                onClick = { navController.openSubPage(Screen.LogEntry.routeFor(0)) },
                 icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.logbook_cd_add)) },
                 text = { Text(stringResource(R.string.logbook_add)) },
                 modifier = Modifier.testTag(LOGBOOK_ADD_TEST_TAG),
@@ -194,7 +195,7 @@ internal fun LogbookScreen(
                         if (sections.overview) item(key = OVERVIEW_KEY) { LogbookOverview(maintenance, onEditInterval = { intervalDialogFor = it.name }) }
                         if (sections.cards.isNotEmpty()) {
                             item(key = STATS_KEY) {
-                                LogbookStatsCards(sections.cards, insights, onOpen = { navController.navigate(Screen.LogbookStats.routeFor(it)) })
+                                LogbookStatsCards(sections.cards, insights, onOpen = { navController.openSubPage(Screen.LogbookStats.routeFor(it)) })
                             }
                         }
                         item(key = ENTRIES_HEADER_KEY) {
@@ -212,7 +213,7 @@ internal fun LogbookScreen(
                             SwipeToDeleteRow(onDelete = { vm.delete(entry.id) }, modifier = Modifier.testTag(logbookRowTestTag(entry.id))) {
                                 LogbookRow(
                                     entry = entry,
-                                    onOpen = { navController.navigate(Screen.LogEntry.routeFor(entry.id)) },
+                                    onOpen = { navController.openSubPage(Screen.LogEntry.routeFor(entry.id)) },
                                     onDelete = { vm.delete(entry.id) },
                                     consumption = insights.consumption[entry.id]?.let { consumptionText(it, locale) },
                                 )

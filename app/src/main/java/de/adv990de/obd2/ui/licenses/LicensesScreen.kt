@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.SectionLabel
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -58,7 +59,7 @@ fun LicensesScreen(navController: NavController) {
             TopAppBar(
                 title = { Text(stringResource(R.string.licenses_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

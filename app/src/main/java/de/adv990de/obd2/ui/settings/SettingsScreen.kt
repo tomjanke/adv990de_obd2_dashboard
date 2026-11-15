@@ -37,6 +37,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.permission.appSettingsIntent
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.permission.rememberNotificationsEnabled
@@ -325,7 +326,7 @@ fun SettingsScreen(
                 SettingsLinkRow(
                     title = stringResource(R.string.settings_gear_ratios),
                     summary = stringResource(R.string.settings_gear_ratios_summary),
-                    onClick = { navController.navigate(Screen.GearSettings.route) },
+                    onClick = { navController.openSubPage(Screen.GearSettings.route) },
                 )
                 HorizontalDivider()
             }

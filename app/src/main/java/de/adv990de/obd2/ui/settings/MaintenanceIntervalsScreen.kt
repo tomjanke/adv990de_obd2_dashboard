@@ -40,6 +40,7 @@ import de.adv990de.obd2.logbook.MAINTENANCE_TYPES
 import de.adv990de.obd2.ui.logbook.MaintenanceIntervalDialog
 import de.adv990de.obd2.ui.logbook.formatOdometer
 import de.adv990de.obd2.ui.logbook.labelRes
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
 /** Test tag der Liste (zum Scrollen in Tests). */
@@ -61,7 +62,7 @@ internal fun MaintenanceIntervalsScreen(navController: NavController, vm: Mainte
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_maintenance_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.heightIn(min = SettingsRowMinHeight)) {
+                    IconButton(onClick = rememberClosePage(navController), modifier = Modifier.heightIn(min = SettingsRowMinHeight)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

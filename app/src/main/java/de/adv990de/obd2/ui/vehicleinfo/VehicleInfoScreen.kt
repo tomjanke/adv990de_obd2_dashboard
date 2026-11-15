@@ -26,6 +26,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.asLiveValue
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +45,7 @@ fun VehicleInfoScreen(navController: NavController, vm: VehicleInfoViewModel = h
             TopAppBar(
                 title = { Text(stringResource(R.string.vehicle_info_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 }

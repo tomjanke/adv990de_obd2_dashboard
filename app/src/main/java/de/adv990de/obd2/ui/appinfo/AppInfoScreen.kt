@@ -43,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import de.adv990de.obd2.crash.CrashReportingStatus
 import de.adv990de.obd2.ui.components.AppIcons
+import de.adv990de.obd2.ui.navigation.openSubPage
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.settings.CrashReportingSettingsViewModel
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -94,7 +96,7 @@ fun AppInfoScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_info_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 }
@@ -141,7 +143,7 @@ fun AppInfoScreen(
                 onClickLabel = stringResource(R.string.app_info_licenses_action),
                 testTag = LICENSES_ROW_TEST_TAG,
                 icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                onClick = { navController.navigate(Screen.Licenses.route) },
+                onClick = { navController.openSubPage(Screen.Licenses.route) },
             )
         }
     }

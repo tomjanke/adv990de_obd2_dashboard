@@ -49,6 +49,7 @@ import de.adv990de.obd2.logbook.fuelReport
 import de.adv990de.obd2.ui.components.BarChart
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.SectionLabel
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.asLiveValue
 import androidx.compose.material3.MaterialTheme
@@ -70,14 +71,15 @@ internal fun logbookFigureTestTag(figure: String) = "logbook_figure_$figure"
 @Composable
 internal fun LogbookStatsScreen(navController: NavController, vm: LogbookStatsViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    LaunchedEffect(state) { if (state == LogbookStatsState.Invalid) navController.popBackStack() }
+    val closePage = rememberClosePage(navController)
+    LaunchedEffect(state) { if (state == LogbookStatsState.Invalid) closePage() }
     val title = vm.type?.let { stringResource(it.statsTitleRes()) }.orEmpty()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.heightIn(min = TouchMinHeight)) {
+                    IconButton(onClick = closePage, modifier = Modifier.heightIn(min = TouchMinHeight)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

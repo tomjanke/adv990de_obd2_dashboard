@@ -50,6 +50,7 @@ class CodeHygieneSourceTest {
         "ui/freezeframe/FreezeFrameScreen.kt" to "braucht hiltViewModel() und hat keinen zustandslosen Teil",
         "ui/licenses/LicensesScreen.kt" to "liest die Lizenztexte aus den Assets der App, die eine Vorschau nicht kennt",
         "ui/navigation/AppNavHost.kt" to "der Navigationsgraph: jedes Ziel braucht hiltViewModel()",
+        "ui/navigation/PageNavigation.kt" to "kein sichtbares Composable: merkt sich nur das Schliessen der eigenen Seite (remember)",
         "ui/permission/LocationPermissionState.kt" to "kein sichtbares Composable: der Zustand der Standortberechtigung (remember)",
         "ui/permission/NotificationsState.kt" to "kein sichtbares Composable: der Zustand der Benachrichtigungen (remember)",
         "ui/settings/SettingsScreen.kt" to "braucht hiltViewModel(); die Geraetezeile (DeviceRow.kt) und die Zeilen (SettingsComponents.kt) haben Vorschauen",

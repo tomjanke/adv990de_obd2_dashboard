@@ -54,6 +54,7 @@ import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.MAX_BRAND_LENGTH
 import de.adv990de.obd2.logbook.MAX_NOTE_LENGTH
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.settings.SettingsSwitchRow
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import java.time.LocalDate
@@ -124,8 +125,10 @@ internal fun LogEntryScreen(navController: NavController, vm: LogEntryViewModel 
     val saveErrorMessage = saveError?.let { stringResource(R.string.logbook_save_error, it) }
 
     // Fertig gespeichert (oder der Eintrag ist nicht mehr da): zurueck zur Liste. Erst nach der Frage nach der Tankanzeige, falls sie kommt.
-    LaunchedEffect(outcome) { if (outcome == SaveOutcome.Done) navController.popBackStack() }
-    LaunchedEffect(notFound) { if (notFound) navController.popBackStack() }
+    // Nur solange diese Seite oben liegt: ein Speichern, das nach einem Tipp auf den Pfeil fertig wird, ginge sonst eine zweite Ebene zurueck.
+    val closePage = rememberClosePage(navController)
+    LaunchedEffect(outcome) { if (outcome == SaveOutcome.Done) closePage() }
+    LaunchedEffect(notFound) { if (notFound) closePage() }
     LaunchedEffect(saveErrorMessage) {
         saveErrorMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -142,7 +145,7 @@ internal fun LogEntryScreen(navController: NavController, vm: LogEntryViewModel 
             TopAppBar(
                 title = { Text(stringResource(if (vm.isEditing) R.string.logbook_entry_edit_title else R.string.logbook_entry_new_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.heightIn(min = TouchMinHeight)) {
+                    IconButton(onClick = closePage, modifier = Modifier.heightIn(min = TouchMinHeight)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

@@ -45,6 +45,7 @@ import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.formatDateTimeSeconds
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.openDataTransfer
+import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
 import de.adv990de.obd2.ui.theme.PreviewTheme
@@ -75,7 +76,7 @@ fun AppLogsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_logs_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = rememberClosePage(navController)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },

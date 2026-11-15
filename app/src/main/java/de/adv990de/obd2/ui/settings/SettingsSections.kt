@@ -11,6 +11,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.openDataTransfer
+import de.adv990de.obd2.ui.navigation.openSubPage
 
 /*
  * Die drei unteren Gruppen der Einstellungsseite, aus `SettingsScreen` herausgeloest (die Datei war 558 Zeilen lang). Reine Verschiebung:
@@ -65,7 +66,7 @@ internal fun LazyListScope.vehicleSection(
         SettingsLinkRow(
             title = stringResource(R.string.settings_maintenance_title),
             summary = stringResource(R.string.settings_maintenance_summary),
-            onClick = { navController.navigate(Screen.MaintenanceIntervals.route) },
+            onClick = { navController.openSubPage(Screen.MaintenanceIntervals.route) },
             modifier = Modifier.testTag(MAINTENANCE_LINK_TEST_TAG),
         )
         HorizontalDivider()
@@ -74,7 +75,7 @@ internal fun LazyListScope.vehicleSection(
         SettingsLinkRow(
             title = stringResource(R.string.settings_vehicle_info),
             summary = stringResource(R.string.settings_vehicle_info_summary),
-            onClick = { navController.navigate(Screen.VehicleInfo.route) },
+            onClick = { navController.openSubPage(Screen.VehicleInfo.route) },
         )
         HorizontalDivider()
     }
@@ -110,7 +111,7 @@ internal fun LazyListScope.infoSection(navController: NavController, crashVm: Cr
         SettingsLinkRow(
             title = stringResource(R.string.settings_app_logs),
             summary = stringResource(R.string.settings_app_logs_summary),
-            onClick = { navController.navigate(Screen.AppLogs.route) },
+            onClick = { navController.openSubPage(Screen.AppLogs.route) },
         )
         HorizontalDivider()
     }
@@ -118,7 +119,7 @@ internal fun LazyListScope.infoSection(navController: NavController, crashVm: Cr
         SettingsLinkRow(
             title = stringResource(R.string.settings_app_info),
             summary = stringResource(R.string.settings_app_info_summary),
-            onClick = { navController.navigate(Screen.AppInfo.route) },
+            onClick = { navController.openSubPage(Screen.AppInfo.route) },
         )
         HorizontalDivider()
     }

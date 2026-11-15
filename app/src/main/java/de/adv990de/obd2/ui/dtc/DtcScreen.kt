@@ -64,6 +64,7 @@ import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDate
 import de.adv990de.obd2.ui.navigation.Screen
 import androidx.compose.ui.tooling.preview.Preview
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 
 /** The two views of the DTC page: what the vehicle reports now, and what it has reported before. The switch between them lives in `TripsAndFaultsScreen`. */
@@ -170,7 +171,7 @@ fun DtcScreen(
                     state = state,
                     isConnected = isConnected,
                     onRefresh = vm::refresh,
-                    onOpenFreezeFrame = { navController.navigate(Screen.FreezeFrame.route) },
+                    onOpenFreezeFrame = { navController.openSubPage(Screen.FreezeFrame.route) },
                     modifier = Modifier.weight(1f),
                 )
                 DtcView.History -> HistoryContent(
