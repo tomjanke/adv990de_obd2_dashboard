@@ -162,6 +162,8 @@ dependencies {
     // Shadows android.jar's org.json stub (see libs.versions.toml comment) so OpenMeteoApiTest
     // exercises real JSON parsing instead of silently-null stub methods.
     testImplementation(libs.json)
+    // Real XmlPull parser for the GPX reader tests (Android provides kXML at run time; see libs.versions.toml).
+    testImplementation(libs.kxml2)
 
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.androidx.test.runner)

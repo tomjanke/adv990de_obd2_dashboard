@@ -52,6 +52,11 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version = "1.
 # test classpath, OpenMeteoApiTest's JSON parsing never actually runs. Verified latest on Maven
 # Central (repo1.maven.org/maven2/org/json/json/), 2026-09-27.
 json = { group = "org.json", name = "json", version = "20260814" }
+# Reference XmlPull parser for JVM unit tests of the GPX reader (F8): android.jar ships only stubs of org.xmlpull.v1 and android.util.Xml; Android itself
+# uses a kXML implementation at run time. kxml2 2.3.0 (BSD style for org.kxml2, public domain for the XmlPull API, 43 KB, no dependencies, from 2009 and
+# unmaintained) is the version on Maven Central (repo1.maven.org/maven2/net/sf/kxml/kxml2/2.3.0, read 2026-11-17; its maven-metadata.xml lists only 2.2.2,
+# the 2.3.0 files exist). Test classpath only: it is not part of the APK.
+kxml2 = { group = "net.sf.kxml", name = "kxml2", version = "2.3.0" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 paging-runtime = { group = "androidx.paging", name = "paging-runtime-ktx", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
