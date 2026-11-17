@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 private const val TEST_DB = "migration-test"
 
 /**
- * Covers [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4], [MIGRATION_4_5] and [MIGRATION_5_6], which hand-write their SQL statements
+ * Covers [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4], [MIGRATION_4_5], [MIGRATION_5_6] and [MIGRATION_6_7], which hand-write their SQL statements
  * instead of relying on Room's generated migrations — a hand-written migration has no compile-time
  * guarantee of matching the exported schema, so this asserts the resulting table shape (Room validates
  * it against the exported JSON), that rows written before the migration survive it, and that the DAO
@@ -339,6 +339,86 @@ class AppDatabaseMigrationTest {
 
             assertEquals(14_370, db.vehicleLogDao().getById(id)!!.amountMl)
             assertEquals(listOf(id), db.vehicleLogDao().observeAll().first().map { it.id })
+        }
+    }
+
+    // ── 6 -> 7: the tracks ────────────────────────────────────────────────────
+
+    @Test
+    fun migrate6To7_createsTheTrackTablesWithTheExpectedColumns() {
+        helper.createDatabase(TEST_DB, 6).close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 7, true, MIGRATION_6_7)
+
+        fun columns(table: String): Map<String, Int> = migratedDb.query("PRAGMA table_info($table)").use { cursor ->
+            val name = cursor.getColumnIndexOrThrow("name")
+            val notNull = cursor.getColumnIndexOrThrow("notnull")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(name) to cursor.getInt(notNull) else null }.toMap()
+        }
+        val tracks = columns("tracks")
+        assertEquals(
+            setOf("id", "name", "source", "startMs", "endMs", "sessionId", "distanceM", "ascentM", "descentM", "pointCount", "createdMs"),
+            tracks.keys,
+        )
+        assertEquals("Name, Herkunft, Strecke, Punktzahl und Anlage sind Pflicht", listOf(1, 1, 1, 1, 1), listOf("name", "source", "distanceM", "pointCount", "createdMs").map { tracks.getValue(it) })
+        assertEquals("Zeiten, Fahrt und Hoehenmeter fehlen bei manchen Tracks", listOf(0, 0, 0, 0, 0), listOf("startMs", "endMs", "sessionId", "ascentM", "descentM").map { tracks.getValue(it) })
+        val points = columns("track_points")
+        assertEquals(setOf("trackId", "seq", "timeMs", "lat", "lon", "ele", "accuracyM", "speedKmh"), points.keys)
+        assertEquals("Lage ist Pflicht, Zeit, Hoehe, Genauigkeit und Tempo nicht", listOf(1, 1, 1, 1, 0, 0, 0, 0), listOf("trackId", "seq", "lat", "lon", "timeMs", "ele", "accuracyM", "speedKmh").map { points.getValue(it) })
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate6To7_keepsEverythingWrittenBeforeTheUpdate() {
+        helper.createDatabase(TEST_DB, 6).apply {
+            execSQL("INSERT INTO sessions (id, startTime, endTime, vehicleVin, dtcCodes) VALUES (1, 1000, 2000, 'VIN123', 'P0301')")
+            execSQL("INSERT INTO sensor_readings (id, sessionId, timestamp, pidId, value, source) VALUES (1, 1, 1500, '010D', 80.0, 'ECU')")
+            execSQL("INSERT INTO app_log (id, timestamp, level, message) VALUES (1, 1600, 'INFO', 'hello')")
+            execSQL("INSERT INTO dtc_history (code, firstSeen, lastSeen, lastWasPending) VALUES ('P0301', 1000, 1800, 0)")
+            execSQL("INSERT INTO vehicle_log (id, type, epochDay, odometerKm) VALUES (1, 'FUEL', 20000, 41000)")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 7, true, MIGRATION_6_7)
+
+        migratedDb.query("SELECT vehicleVin, dtcCodes FROM sessions WHERE id = 1").use {
+            assertEquals(1, it.count); it.moveToFirst(); assertEquals("VIN123", it.getString(0)); assertEquals("P0301", it.getString(1))
+        }
+        migratedDb.query("SELECT value FROM sensor_readings WHERE sessionId = 1").use { assertEquals(1, it.count) }
+        migratedDb.query("SELECT message FROM app_log").use { it.moveToFirst(); assertEquals("hello", it.getString(0)) }
+        migratedDb.query("SELECT code FROM dtc_history").use { it.moveToFirst(); assertEquals("P0301", it.getString(0)) }
+        migratedDb.query("SELECT odometerKm FROM vehicle_log").use { it.moveToFirst(); assertEquals(41_000, it.getInt(0)) }
+        migratedDb.query("SELECT COUNT(*) FROM tracks").use { it.moveToFirst(); assertEquals("die Tracks beginnen leer", 0, it.getInt(0)) }
+        migratedDb.query("SELECT COUNT(*) FROM track_points").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To7_theWholeChainWorks() {
+        helper.createDatabase(TEST_DB, 1).close()
+
+        helper.runMigrationsAndValidate(TEST_DB, 7, true, *ALL_MIGRATIONS).close()
+    }
+
+    @Test
+    fun migrate6To7_theTracksAreUsableThroughTheDao_andTheirPointsFollowThem() {
+        helper.createDatabase(TEST_DB, 6).close()
+        helper.runMigrationsAndValidate(TEST_DB, 7, true, MIGRATION_6_7).close()
+
+        val db = appDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, TEST_DB).build()
+        helper.closeWhenFinished(db)
+
+        runBlocking {
+            val id = db.trackDao().insert(
+                de.adv990de.obd2.data.db.entity.TrackEntity(
+                    name = "Tour", source = "RECORDED", startMs = 1, endMs = null, sessionId = null,
+                    distanceM = 0, ascentM = null, descentM = null, pointCount = 0, createdMs = 2,
+                ),
+            )
+            db.trackDao().insertPoints(listOf(de.adv990de.obd2.data.db.entity.TrackPointEntity(id, 0, 5, 50.0, 8.0, null, null, null)))
+
+            assertEquals("Tour", db.trackDao().getById(id)!!.name)
+            assertEquals(1, db.trackDao().pointsAfter(id, -1, 10).size)
         }
     }
 }

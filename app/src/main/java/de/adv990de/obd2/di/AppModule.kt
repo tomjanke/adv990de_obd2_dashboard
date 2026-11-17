@@ -17,6 +17,7 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.appDatabaseBuilder
 import de.adv990de.obd2.data.db.AppLogDao
 import de.adv990de.obd2.data.db.DtcHistoryDao
+import de.adv990de.obd2.data.db.TrackDao
 import de.adv990de.obd2.data.db.VehicleLogDao
 import de.adv990de.obd2.obd.DtcParser
 import de.adv990de.obd2.obd.PidParser
@@ -62,6 +63,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideVehicleLogDao(db: AppDatabase): VehicleLogDao = db.vehicleLogDao()
+
+    @Provides @Singleton
+    fun provideTrackDao(db: AppDatabase): TrackDao = db.trackDao()
 
     /** Never cancelled; a failing child does not take the others down (SupervisorJob). The work
      *  inside is suspend calls into Room, which switch threads themselves, so Default is enough. */

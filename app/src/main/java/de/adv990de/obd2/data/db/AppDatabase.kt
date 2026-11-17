@@ -10,6 +10,8 @@ import de.adv990de.obd2.data.db.entity.AppLogEntity
 import de.adv990de.obd2.data.db.entity.DtcHistoryEntity
 import de.adv990de.obd2.data.db.entity.SensorReadingEntity
 import de.adv990de.obd2.data.db.entity.SessionEntity
+import de.adv990de.obd2.data.db.entity.TrackEntity
+import de.adv990de.obd2.data.db.entity.TrackPointEntity
 import de.adv990de.obd2.data.db.entity.VehicleLogEntity
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -67,10 +69,32 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 }
 
 /**
+ * Die Tracks (`tracks` und `track_points`, s. [TrackEntity], [TrackPointEntity]). Neue Tabellen, nichts Bestehendes wird angefasst. `tracks.sessionId` verweist auf die Fahrt und wird beim
+ * Loeschen der Fahrt `NULL` (der Track bleibt), die Punkte folgen ihrem Track (`CASCADE`). Von Hand geschrieben wie [MIGRATION_1_2]; `AppDatabaseMigrationTest` validiert sie gegen das
+ * exportierte 7.json und prueft, dass Altdaten bleiben.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE tracks (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, source TEXT NOT NULL, " +
+            "startMs INTEGER, endMs INTEGER, sessionId INTEGER, distanceM INTEGER NOT NULL, ascentM INTEGER, descentM INTEGER, " +
+            "pointCount INTEGER NOT NULL, createdMs INTEGER NOT NULL, " +
+            "FOREIGN KEY(sessionId) REFERENCES sessions(id) ON UPDATE NO ACTION ON DELETE SET NULL)"
+        )
+        db.execSQL("CREATE INDEX index_tracks_sessionId ON tracks (sessionId)")
+        db.execSQL(
+            "CREATE TABLE track_points (trackId INTEGER NOT NULL, seq INTEGER NOT NULL, timeMs INTEGER, lat REAL NOT NULL, " +
+            "lon REAL NOT NULL, ele REAL, accuracyM REAL, speedKmh REAL, PRIMARY KEY(trackId, seq), " +
+            "FOREIGN KEY(trackId) REFERENCES tracks(id) ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+    }
+}
+
+/**
  * Die Version der Datenbank — die EINE Stelle (`@Database(version = …)` unten und die Pruefung in
  * `AppDatabaseMigrationsTest`, dass [ALL_MIGRATIONS] bis hierher reicht, lesen sie).
  */
-const val APP_DATABASE_VERSION = 6
+const val APP_DATABASE_VERSION = 7
 
 /**
  * Alle Migrationen, in der Reihenfolge ihrer Versionen. Produktion ([appDatabaseBuilder]) und Tests benutzen
@@ -78,7 +102,7 @@ const val APP_DATABASE_VERSION = 6
  * oder fehlt sie fuer eine neue Version, schlaegt `AppDatabaseMigrationsTest` auf dem JVM fehl, statt dass ein
  * Update-Nutzer beim ersten Start abstuerzt.
  */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
 /**
  * Der Produktions-Builder der Datenbank: Name und Migrationen. Kein destruktiver Fallback — ein Schema-Fehler
@@ -93,7 +117,7 @@ fun appDatabaseBuilder(context: Context, name: String?): RoomDatabase.Builder<Ap
     Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(*ALL_MIGRATIONS)
 
 @Database(
-    entities = [SessionEntity::class, SensorReadingEntity::class, AppLogEntity::class, DtcHistoryEntity::class, VehicleLogEntity::class],
+    entities = [SessionEntity::class, SensorReadingEntity::class, AppLogEntity::class, DtcHistoryEntity::class, VehicleLogEntity::class, TrackEntity::class, TrackPointEntity::class],
     version = APP_DATABASE_VERSION,
     exportSchema = true
 )
@@ -103,4 +127,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appLogDao(): AppLogDao
     abstract fun dtcHistoryDao(): DtcHistoryDao
     abstract fun vehicleLogDao(): VehicleLogDao
+    abstract fun trackDao(): TrackDao
 }
