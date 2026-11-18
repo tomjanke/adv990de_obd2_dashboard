@@ -25,10 +25,10 @@ class AmbientBrightnessTest {
     // ── die Stufen ────────────────────────────────────────────────────────────
 
     @Test
-    fun `the three levels have the brightness values the user asked for - full, half and about a fifth`() {
+    fun `the three levels have the brightness values the user asked for - full, half and a tenth`() {
         assertEquals(1f, day.windowBrightness, 0f)
         assertEquals(0.5f, dusk.windowBrightness, 0f)
-        assertEquals(0.2f, night.windowBrightness, 0f)
+        assertEquals(0.1f, night.windowBrightness, 0f)
     }
 
     @Test

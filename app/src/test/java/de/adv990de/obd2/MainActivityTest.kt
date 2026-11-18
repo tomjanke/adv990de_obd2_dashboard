@@ -114,9 +114,9 @@ class MainActivityTest {
     }
 
     @Test
-    fun `resumed takes the brightness of the level - dusk half, night a fifth`() {
+    fun `resumed takes the brightness of the level - dusk half, night a tenth`() {
         assertEquals(0.5f, brightnessOverrideFor(resumed = true, level = de.adv990de.obd2.ui.theme.BrightnessLevel.DUSK), 0.0f)
-        assertEquals(0.2f, brightnessOverrideFor(resumed = true, level = de.adv990de.obd2.ui.theme.BrightnessLevel.NIGHT), 0.0f)
+        assertEquals(0.1f, brightnessOverrideFor(resumed = true, level = de.adv990de.obd2.ui.theme.BrightnessLevel.NIGHT), 0.0f)
     }
 
     @Test

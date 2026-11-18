@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 enum class BrightnessLevel(val windowBrightness: Float) {
     DAY(1f),
     DUSK(0.5f),
-    NIGHT(0.2f),
+    NIGHT(0.1f),
 }
 
 /**
