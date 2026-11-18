@@ -1,6 +1,9 @@
 package de.adv990de.obd2.ui.tracks
 
+import android.content.ActivityNotFoundException
 import android.content.res.Configuration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,20 +21,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -43,25 +52,77 @@ import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackSummary
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.asLiveValue
+import kotlinx.coroutines.launch
 
-/** Die Ansicht eines Tracks (Route `track_detail/{id}`): Zeichnung ohne Karte, darunter oder daneben die Kennzahlen. */
+/** Test-only selectors of the export buttons and the note under the numbers. */
+internal const val TRACK_EXPORT_SAVE_TEST_TAG = "track_export_save"
+internal const val TRACK_EXPORT_SHARE_TEST_TAG = "track_export_share"
+internal const val TRACK_EXPORT_NOTE_TEST_TAG = "track_export_note"
+
+/** The MIME type of the file dialog for "save as GPX". */
+private const val GPX_MIME = "application/gpx+xml"
+
+/** Die Ansicht eines Tracks (Route `track_detail/{id}`): Zeichnung ohne Karte, darunter oder daneben die Kennzahlen; in der Kopfleiste „als GPX speichern“ und „als GPX teilen“. */
 @Composable
 fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    TrackDetailContent(state = state, onBack = rememberClosePage(navController))
+    val saved by vm.saved.collectAsStateWithLifecycle()
+    val exporting by vm.exporting.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val saveUnavailableMessage = stringResource(R.string.history_save_unavailable)
+
+    // „Speichern“: das Dateidialog-System fragt nach Ort und Namen (der Vorschlag kommt vom ViewModel); null bei Abbruch. Gibt es keinen Dateidialog im System, sagt es eine Snackbar.
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(GPX_MIME)) { uri -> if (uri != null) vm.saveTo(uri) }
+    val onSave: () -> Unit = {
+        try {
+            saveLauncher.launch(vm.suggestedFileName())
+        } catch (_: ActivityNotFoundException) {
+            scope.launch { snackbarHostState.showSnackbar(saveUnavailableMessage) }
+        }
+    }
+
+    ExportFeedbackEffects(
+        feedback = vm.exportFeedback,
+        snackbarHostState = snackbarHostState,
+        shareChooserTitle = stringResource(R.string.track_export_chooser),
+        nothingToExportMessage = stringResource(R.string.transfer_nothing_to_export),
+        savedMessage = if (saved) stringResource(R.string.transfer_saved) else null,
+        onSavedShown = vm::consumeSaved,
+    )
+
+    TrackDetailContent(
+        state = state,
+        onBack = rememberClosePage(navController),
+        onSave = onSave,
+        onShare = vm::share,
+        exporting = exporting,
+        snackbarHostState = snackbarHostState,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun TrackDetailContent(state: TrackDetailState, onBack: () -> Unit) {
+internal fun TrackDetailContent(
+    state: TrackDetailState,
+    onBack: () -> Unit,
+    onSave: () -> Unit = {},
+    onShare: () -> Unit = {},
+    exporting: Boolean = false,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+) {
     val title = (state as? TrackDetailState.Ready)?.summary?.name ?: stringResource(R.string.track_detail_title)
+    // Exportieren kann man nur, was Punkte hat (ein leerer Track haette nur eine nutzlose Datei).
+    val canExport = state is TrackDetailState.Ready && state.bounds != null
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,8 +132,19 @@ internal fun TrackDetailContent(state: TrackDetailState, onBack: () -> Unit) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
                     }
                 },
+                actions = {
+                    if (canExport) {
+                        IconButton(onClick = onSave, enabled = !exporting, modifier = Modifier.heightIn(min = 56.dp).testTag(TRACK_EXPORT_SAVE_TEST_TAG)) {
+                            Icon(AppIcons.Download, contentDescription = stringResource(R.string.track_cd_export_save))
+                        }
+                        IconButton(onClick = onShare, enabled = !exporting, modifier = Modifier.heightIn(min = 56.dp).testTag(TRACK_EXPORT_SHARE_TEST_TAG)) {
+                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.track_cd_export_share))
+                        }
+                    }
+                },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -97,14 +169,31 @@ private fun ReadyContent(state: TrackDetailState.Ready) {
     if (landscape) {
         Row(Modifier.fillMaxSize()) {
             TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxSize())
-            TrackStatsPanel(state.summary, Modifier.width(240.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp))
+            Column(Modifier.width(240.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TrackStatsPanel(state.summary, Modifier.fillMaxWidth())
+                ExportNote()
+            }
         }
     } else {
         Column(Modifier.fillMaxSize()) {
             TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxWidth())
-            TrackStatsPanel(state.summary, Modifier.fillMaxWidth().padding(12.dp))
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TrackStatsPanel(state.summary, Modifier.fillMaxWidth())
+                ExportNote()
+            }
         }
     }
+}
+
+/** Der Hinweis zum GPX-Export: die Datei enthaelt die Wege des Nutzers. */
+@Composable
+private fun ExportNote() {
+    Text(
+        stringResource(R.string.track_export_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(TRACK_EXPORT_NOTE_TEST_TAG),
+    )
 }
 
 /** Die Kennzahlen des Tracks; ein Wert, den es nicht gibt, ist ein Strich, nie 0. */

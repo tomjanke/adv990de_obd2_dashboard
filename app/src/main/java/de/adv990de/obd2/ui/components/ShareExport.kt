@@ -5,12 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 
-/** Der Typ, mit dem eine Exportdatei geteilt wird: `.zip` (die Pakete) als `application/zip`, alles andere als CSV. */
-internal fun shareMimeType(fileName: String): String =
-    if (fileName.endsWith(".zip", ignoreCase = true)) "application/zip" else "text/csv"
+/** Der Typ, mit dem eine Exportdatei geteilt wird: `.zip` (die Pakete) als `application/zip`, `.gpx` (ein Track) als `application/gpx+xml`, alles andere als CSV. */
+internal fun shareMimeType(fileName: String): String = when {
+    fileName.endsWith(".zip", ignoreCase = true) -> "application/zip"
+    fileName.endsWith(".gpx", ignoreCase = true) -> "application/gpx+xml"
+    else -> "text/csv"
+}
 
 /**
- * Oeffnet das Teilen-Menue des Systems fuer die Exportdatei [uri] (CSV oder Paket). Die Datei kommt vom FileProvider der App, der Empfaenger bekommt Leserecht darauf; der Typ
+ * Oeffnet das Teilen-Menue des Systems fuer die Exportdatei [uri] (CSV, Paket oder GPX). Die Datei kommt vom FileProvider der App, der Empfaenger bekommt Leserecht darauf; der Typ
  * folgt dem Dateinamen am Ende des Pfads. Liefert `false`, wenn keine App die Datei annehmen kann — der Aufrufer sagt das dann in einer Snackbar.
  */
 internal fun shareExport(context: Context, uri: Uri, chooserTitle: String): Boolean {

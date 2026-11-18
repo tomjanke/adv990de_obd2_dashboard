@@ -61,6 +61,9 @@ internal fun csvRow(vararg fields: String): String = fields.joinToString(",") { 
 private val EXPORT_TIME_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS'Z'").withZone(ZoneOffset.UTC)
 
+/** Die UTC-Zeit auf die Millisekunde, wie sie in jedem Namen einer Exportdatei steht (`20270115T080000123Z`). */
+internal fun exportTimeStamp(nowMillis: Long): String = EXPORT_TIME_FORMAT.format(Instant.ofEpochMilli(nowMillis))
+
 /**
  * `session_<Fahrt>_<UTC-Zeit auf die Millisekunde>.csv`. Vorher hiess die Datei fest `session_<Fahrt>.csv`: ein
  * zweiter Export derselben Fahrt loeschte die Datei, waehrend die erste Weitergabe sie noch las (DAT-06).
@@ -97,7 +100,7 @@ internal fun createExportFile(dir: File, name: String): File {
     }
 }
 
-private val EXPORT_FILE = Regex("""(?:(?:session|applog|logbook)_.*\.csv|obd-dashboard_.*\.zip)""")
+private val EXPORT_FILE = Regex("""(?:(?:session|applog|logbook)_.*\.csv|obd-dashboard_.*\.zip|track_.*\.gpx)""")
 
 /**
  * Loescht Exportdateien in [dir], die aelter als [maxAgeMs] sind (DAT-07: sie wurden nie geloescht). Angefasst

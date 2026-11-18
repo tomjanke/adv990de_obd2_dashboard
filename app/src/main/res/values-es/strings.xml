@@ -875,6 +875,10 @@
     <string name="track_detail_not_found">Esta ruta ya no existe.</string>
     <string name="track_detail_failed">No se pudo leer la ruta.</string>
     <string name="track_detail_empty">Esta ruta no tiene puntos.</string>
+    <string name="track_cd_export_save">Guardar como GPX</string>
+    <string name="track_cd_export_share">Compartir como GPX</string>
+    <string name="track_export_chooser">Compartir ruta (GPX)</string>
+    <string name="track_export_note">El archivo GPX contiene las posiciones de esta ruta, punto por punto. Quien lo reciba de ti conocerá el recorrido.</string>
     <string name="track_zoom_in">Acercar</string>
     <string name="track_zoom_out">Alejar</string>
     <string name="track_fit">Ajustar</string>

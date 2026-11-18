@@ -1,13 +1,17 @@
 package de.adv990de.obd2.ui.tracks
 
 import androidx.lifecycle.SavedStateHandle
+import android.net.Uri
+import de.adv990de.obd2.data.TrackExporter
 import de.adv990de.obd2.data.TrackRepository
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackSummary
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,13 +47,15 @@ class TrackDetailViewModelTest {
 
     private fun point(i: Int) = TrackPoint(null, 50.0 + i * 0.0001, 10.0 + i * 0.0002, null, null, null)
 
+    private val exporter = mockk<TrackExporter>()
+
     private fun vm(id: String?, tracks: List<TrackSummary>, points: suspend () -> List<TrackPoint>): TrackDetailViewModel {
         val repo = mockk<TrackRepository> {
             every { this@mockk.tracks } returns MutableStateFlow(tracks)
             coEvery { points(any()) } coAnswers { points() }
         }
         val handle = SavedStateHandle(if (id == null) emptyMap() else mapOf(TRACK_ID_ARG to id.toLong()))
-        return TrackDetailViewModel(repo, handle)
+        return TrackDetailViewModel(repo, exporter, handle)
     }
 
     /** Das Ausduennen laeuft auf einem echten Thread (`Dispatchers.Default`): `runCurrent()` allein wartet darauf nicht. */
@@ -139,5 +145,131 @@ class TrackDetailViewModelTest {
         val state = v.loaded() as TrackDetailState.Ready
         assertEquals(all.minOf { it.lat }, state.bounds!!.minLat, 1e-12)
         assertEquals(all.maxOf { it.lat }, state.bounds!!.maxLat, 1e-12)
+    }
+
+    // ── GPX-Export (Task 7) ───────────────────────────────────────────────────
+
+    private fun summaryWithPoints(id: Long, pointCount: Int) = summary(id).copy(pointCount = pointCount)
+
+    private suspend fun TrackDetailViewModel.ready() = also { loaded() }
+
+    @Test
+    fun `share exports the shown track and hands its uri to the feedback`() = runTest {
+        val uri = mockk<Uri>()
+        coEvery { exporter.exportToGpx(5) } returns uri
+        val v = vm("5", listOf(summary(4), summary(5))) { List(3) { point(it) } }.ready()
+
+        v.share()
+        runCurrent()
+
+        assertEquals(uri, v.exportFeedback.shareUri.value)
+        coVerify(exactly = 1) { exporter.exportToGpx(5) }
+    }
+
+    @Test
+    fun `a track without points says nothing to export and writes no file`() = runTest {
+        val v = vm("5", listOf(summaryWithPoints(5, 0))) { emptyList() }.ready()
+
+        v.share()
+        runCurrent()
+        v.saveTo(mockk())
+        runCurrent()
+
+        assertTrue(v.exportFeedback.nothingToExport.value)
+        coVerify(exactly = 0) { exporter.exportToGpx(any()) }
+        coVerify(exactly = 0) { exporter.saveGpx(any(), any()) }
+    }
+
+    @Test
+    fun `saveTo writes into the chosen target and reports saved only afterwards`() = runTest {
+        val target = mockk<Uri>()
+        coEvery { exporter.saveGpx(target, 5) } returns Unit
+        val v = vm("5", listOf(summary(5))) { List(3) { point(it) } }.ready()
+        assertEquals(false, v.saved.value)
+
+        v.saveTo(target)
+        runCurrent()
+
+        coVerify(exactly = 1) { exporter.saveGpx(target, 5) }
+        assertEquals(true, v.saved.value)
+        v.consumeSaved()
+        assertEquals(false, v.saved.value)
+    }
+
+    @Test
+    fun `a failing save shows the error and does not report saved`() = runTest {
+        coEvery { exporter.saveGpx(any(), any()) } throws java.io.IOException("The chosen file could not be opened for writing")
+        val v = vm("5", listOf(summary(5))) { List(3) { point(it) } }.ready()
+
+        v.saveTo(mockk())
+        runCurrent()
+
+        assertEquals("The chosen file could not be opened for writing", v.exportFeedback.error.value)
+        assertEquals(false, v.saved.value)
+    }
+
+    @Test
+    fun `a failing share shows the error and publishes no uri`() = runTest {
+        coEvery { exporter.exportToGpx(any()) } throws IllegalStateException("boom")
+        val v = vm("5", listOf(summary(5))) { List(3) { point(it) } }.ready()
+
+        v.share()
+        runCurrent()
+
+        assertEquals("boom", v.exportFeedback.error.value)
+        assertEquals(null, v.exportFeedback.shareUri.value)
+    }
+
+    @Test
+    fun `nothing is exported while the track is still loading, not found or failed`() = runTest {
+        val notFound = vm("9", listOf(summary(4))) { emptyList() }
+        runCurrent()
+        notFound.share()
+        notFound.saveTo(mockk())
+        runCurrent()
+
+        coVerify(exactly = 0) { exporter.exportToGpx(any()) }
+        coVerify(exactly = 0) { exporter.saveGpx(any(), any()) }
+        assertEquals(false, notFound.saved.value)
+        assertEquals(null, notFound.exportFeedback.error.value)
+    }
+
+    @Test
+    fun `a second tap while the first export runs is ignored`() = runTest {
+        val release = kotlinx.coroutines.CompletableDeferred<Uri>()
+        coEvery { exporter.exportToGpx(5) } coAnswers { release.await() }
+        val v = vm("5", listOf(summary(5))) { List(3) { point(it) } }.ready()
+
+        v.share()
+        runCurrent()
+        assertTrue(v.exporting.value)
+        v.share()
+        v.saveTo(mockk())
+        runCurrent()
+        release.complete(mockk())
+        runCurrent()
+
+        coVerify(exactly = 1) { exporter.exportToGpx(5) }
+        coVerify(exactly = 0) { exporter.saveGpx(any(), any()) }
+        assertEquals(false, v.exporting.value)
+    }
+
+    @Test
+    fun `the name suggested for the file dialog is built from the track name`() = runTest {
+        val v = vm("5", listOf(summary(5).copy(name = "Morgenrunde"))) { List(3) { point(it) } }.ready()
+
+        val name = v.suggestedFileName()
+
+        assertTrue(name, name.startsWith("track_Morgenrunde_") && name.endsWith(".gpx"))
+    }
+
+    @Test
+    fun `without a loaded track the suggested name is still a valid file name`() = runTest {
+        val v = vm("9", listOf(summary(4))) { emptyList() }
+        runCurrent()
+
+        val name = v.suggestedFileName()
+
+        assertTrue(name, name.startsWith("track_unnamed_") && name.endsWith(".gpx"))
     }
 }

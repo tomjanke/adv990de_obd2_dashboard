@@ -836,6 +836,10 @@
     <string name="track_detail_not_found">This track no longer exists.</string>
     <string name="track_detail_failed">The track could not be read.</string>
     <string name="track_detail_empty">This track has no points.</string>
+    <string name="track_cd_export_save">Save as GPX</string>
+    <string name="track_cd_export_share">Share as GPX</string>
+    <string name="track_export_chooser">Share track (GPX)</string>
+    <string name="track_export_note">The GPX file contains the positions of this track, point by point. Whoever you share it with gets the route.</string>
     <string name="track_zoom_in">Zoom in</string>
     <string name="track_zoom_out">Zoom out</string>
     <string name="track_fit">Fit</string>

@@ -8,11 +8,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import android.content.pm.ActivityInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -27,7 +30,9 @@ import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackSummary
 import de.adv990de.obd2.ui.assertTouchTargetAtLeast56
+import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.PreviewTheme
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -50,6 +55,17 @@ class TracksScreenDeviceTest {
     @BindValue @JvmField val obdRepository: ObdRepository = idleObdRepository()
 
     @Before fun setup() { hiltRule.inject() }
+
+    @After
+    fun unlockOrientation() {
+        // Die Activity endet mit dem Test; der Wunsch nach einer Ausrichtung soll das Geraet nicht festhalten, falls ein Test vorher scheitert.
+        composeRule.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+
+    private fun requestOrientation(orientation: Int) {
+        composeRule.activityRule.scenario.onActivity { it.requestedOrientation = orientation }
+        composeRule.waitForIdle()
+    }
 
     private fun string(id: Int, vararg args: Any) = composeRule.activity.getString(id, *args)
 
@@ -220,8 +236,8 @@ class TracksScreenDeviceTest {
     private val points = List(30) { i -> TrackPoint(null, 50.0 + 0.002 * Math.sin(i / 5.0), 10.0 + 0.0005 * i, null, null, null) }
     private val bounds = TrackBounds(points.minOf { it.lat }, points.maxOf { it.lat }, points.minOf { it.lon }, points.maxOf { it.lon })
 
-    private fun showDetail(state: TrackDetailState) {
-        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(state, onBack = {}) } }
+    private fun showDetail(state: TrackDetailState, onSave: () -> Unit = {}, onShare: () -> Unit = {}, exporting: Boolean = false) {
+        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(state, onBack = {}, onSave = onSave, onShare = onShare, exporting = exporting) } }
     }
 
     @Test
@@ -253,5 +269,74 @@ class TracksScreenDeviceTest {
         val dashes = composeRule.onAllNodes(hasText(TRACK_UNKNOWN)).fetchSemanticsNodes().size
         assertTrue("Strich fuer Anstieg und Abstieg, gefunden: $dashes", dashes >= 2)
         composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).assertIsDisplayed()
+    }
+
+    // ── GPX-Export (Task 7) ───────────────────────────────────────────────────
+
+    @Test
+    fun aReadyTrack_offersSaveAndShare_as56dpButtons_andTheNoteAboutThePositions() {
+        // AppTheme, nicht PreviewTheme: die 56-dp-Regel fuer Touch-Ziele steht im Theme der App (ui/theme/AppTheme.kt)
+        composeRule.setContent {
+            AppTheme(colorScheme = androidx.compose.material3.lightColorScheme()) {
+                TrackDetailContent(TrackDetailState.Ready(track(1, "Runde"), points, bounds), onBack = {})
+            }
+        }
+
+        composeRule.onNodeWithTag(TRACK_EXPORT_SAVE_TEST_TAG).assertIsDisplayed().assertIsEnabled().assertTouchTargetAtLeast56(composeRule.density)
+        composeRule.onNodeWithTag(TRACK_EXPORT_SHARE_TEST_TAG).assertIsDisplayed().assertIsEnabled().assertTouchTargetAtLeast56(composeRule.density)
+        composeRule.onNodeWithTag(TRACK_EXPORT_NOTE_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.track_export_note)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theButtons_reportTheirTaps_oneEach() {
+        var saves = 0
+        var shares = 0
+        showDetail(TrackDetailState.Ready(track(1), points, bounds), onSave = { saves++ }, onShare = { shares++ })
+
+        composeRule.onNodeWithTag(TRACK_EXPORT_SAVE_TEST_TAG).performClick()
+        assertEquals(1 to 0, saves to shares)
+        composeRule.onNodeWithTag(TRACK_EXPORT_SHARE_TEST_TAG).performClick()
+        assertEquals(1 to 1, saves to shares)
+    }
+
+    @Test
+    fun whileAnExportRuns_bothButtonsAreLocked() {
+        showDetail(TrackDetailState.Ready(track(1), points, bounds), exporting = true)
+
+        composeRule.onNodeWithTag(TRACK_EXPORT_SAVE_TEST_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(TRACK_EXPORT_SHARE_TEST_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun aTrackWithoutPoints_andTheOtherStates_offerNoExport() {
+        showDetail(TrackDetailState.Ready(track(1), emptyList(), null))
+        composeRule.onNodeWithTag(TRACK_EXPORT_SAVE_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(TRACK_EXPORT_SHARE_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(TRACK_EXPORT_NOTE_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun theButtons_haveSpokenNames() {
+        showDetail(TrackDetailState.Ready(track(1), points, bounds))
+
+        composeRule.onNodeWithContentDescription(string(R.string.track_cd_export_save)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.track_cd_export_share)).assertIsDisplayed()
+    }
+
+    @Test
+    fun inLandscape_theNoteSitsInTheSidePanel_andIsReachableByScrolling() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(TrackDetailState.Ready(track(1), points, bounds), onBack = {}) } }
+
+        composeRule.onNodeWithTag(TRACK_EXPORT_NOTE_TEST_TAG).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun inPortrait_theNoteIsShownBelowTheNumbers() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(TrackDetailState.Ready(track(1), points, bounds), onBack = {}) } }
+
+        composeRule.onNodeWithTag(TRACK_EXPORT_NOTE_TEST_TAG).assertIsDisplayed()
     }
 }
