@@ -240,7 +240,7 @@ class ConnectionCoordinator @Inject constructor(
         }
     }
 
-    private fun fail(onEvent: (ConnectionEvent) -> Unit, messageRes: Int) {
+    private suspend fun fail(onEvent: (ConnectionEvent) -> Unit, messageRes: Int) {
         onEvent(ConnectionEvent.Failed(UiText.StringResource(messageRes)))
         serviceController.stop()
     }

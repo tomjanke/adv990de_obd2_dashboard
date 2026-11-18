@@ -69,6 +69,24 @@ class ObdForegroundServiceTest {
         )
     }
 
+    // --- Wegwischen (F8, Entscheidung des Nutzers 2026-11-16) ---
+
+    @Test
+    fun `swiping the app away ends the OBD session only - a recording keeps running`() {
+        val service = ObdForegroundService()
+        val controller = io.mockk.mockk<ObdServiceController>(relaxed = true)
+        val recorder = io.mockk.mockk<de.adv990de.obd2.track.TrackRecorder>(relaxed = true)
+        service.serviceController = controller
+        service.trackRecorder = recorder
+
+        service.onTaskRemoved(null)
+        testDispatcher.scheduler.runCurrent()
+
+        io.mockk.coVerify(exactly = 1) { controller.endSession() }
+        io.mockk.coVerify(exactly = 0) { recorder.stop() }
+        io.mockk.coVerify(exactly = 0) { controller.setTrack(any()) }
+    }
+
     // --- onDestroy / scope.cancel() ---
 
     @Test

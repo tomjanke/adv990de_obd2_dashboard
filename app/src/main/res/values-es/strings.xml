@@ -359,10 +359,15 @@
     <string name="settings_show_all_bt_devices_desc">Incluir dispositivos no identificados como adaptadores OBD2</string>
 
     <!-- Foreground service notification -->
-    <string name="notif_channel_name">Conexión OBD2</string>
+    <string name="notif_channel_name">Conexión y grabación</string>
     <string name="notif_obd_title">OBD2 conectado</string>
     <string name="notif_obd_text">Se están registrando los datos del vehículo</string>
     <string name="notif_obd_disconnect">Desconectar</string>
+    <string name="notif_track_title">Grabando recorrido</string>
+    <string name="notif_track_text">Se está grabando el recorrido</string>
+    <string name="notif_track_stop">Terminar recorrido</string>
+    <string name="notif_both_title">OBD2 conectado, grabando recorrido</string>
+    <string name="notif_both_text">Se están grabando los datos del vehículo y el recorrido</string>
 
     <!-- Alarms while riding: channel of the system notification and the texts of the banner and the notification -->
     <string name="notif_alarm_channel_name">Alarmas</string>

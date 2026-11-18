@@ -1,5 +1,6 @@
 package de.adv990de.obd2.track
 
+import de.adv990de.obd2.ObdServiceController
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.TrackRepository
@@ -70,6 +71,7 @@ class TrackRecorderTest {
         val location = FakeLocation()
         val repository = mockk<TrackRepository>()
         val appLog = mockk<AppLogRepository>()
+        val controller = mockk<ObdServiceController>()
 
         val calls = mutableListOf<String>()
         val appended = mutableListOf<List<TrackPoint>>()
@@ -81,6 +83,8 @@ class TrackRecorderTest {
         var failPoints = false
         var failFinish = false
         var appendAttempts = 0
+        var recovered = 0
+        var failRecover = false
         var failCreate = false
         var finishCalls = 0
         var finishedEndMs: Long? = null
@@ -112,10 +116,15 @@ class TrackRecorderTest {
                 finishedStats = thirdArg()
                 calls += "finish"
             }
+            coEvery { controller.setTrack(any()) } coAnswers { calls += "setTrack(${firstArg<Boolean>()})" }
+            coEvery { repository.recoverUnfinished() } coAnswers {
+                if (failRecover) throw IllegalStateException("db locked")
+                recovered
+            }
             coEvery { appLog.log(any(), any()) } coAnswers { logs += firstArg<LogLevel>() to secondArg<String>() }
         }
 
-        val recorder = TrackRecorder(location, repository, appLog, test.backgroundScope).apply {
+        val recorder = TrackRecorder(location, repository, appLog, controller, test.backgroundScope).apply {
             elapsedMs = { test.testScheduler.currentTime }
             wallMs = { EPOCH + test.testScheduler.currentTime }
             zone = { ZoneOffset.UTC }
@@ -359,7 +368,7 @@ class TrackRecorderTest {
 
         recorder.stop()
 
-        assertEquals(listOf("create", "append", "finish"), calls)
+        assertEquals(listOf("create", "setTrack(true)", "append", "finish", "setTrack(false)"), calls)
         assertEquals(3, appended.single().size)
         assertEquals(1, finishCalls)
         assertEquals(EPOCH + 3_000L, finishedEndMs)
@@ -422,6 +431,77 @@ class TrackRecorderTest {
 
         assertEquals("the first fix counts again, even at the same place", 1, recording.points)
         assertEquals(2, createCalls)
+    }
+
+    // ── Vordergrunddienst und Wiederherstellung ───────────────────────────────
+
+    @Test
+    fun `the service is asked for once the track exists, and released after it is finished`() = recorderTest {
+        recorder.start("Tour")
+        assertEquals(listOf("create", "setTrack(true)"), calls)
+
+        recorder.stop()
+
+        assertEquals(listOf("create", "setTrack(true)", "finish", "setTrack(false)"), calls)
+    }
+
+    @Test
+    fun `a start that does not happen never asks for the service`() = recorderTest {
+        location.permission = false
+        recorder.start("Tour")
+        location.permission = true
+        location.canRegister = false
+        recorder.start("Tour")
+        location.canRegister = true
+        failCreate = true
+        recorder.start("Tour")
+
+        assertTrue("no setTrack at all: $calls", calls.none { it.startsWith("setTrack") })
+    }
+
+    @Test
+    fun `a second start does not ask for the service again`() = recorderTest {
+        recorder.start("Eins")
+        recorder.start("Zwei")
+
+        assertEquals(1, calls.count { it == "setTrack(true)" })
+    }
+
+    @Test
+    fun `the service is released even if finishing the track fails`() = recorderTest {
+        recorder.start("Tour")
+        failFinish = true
+
+        recorder.stop()
+
+        assertEquals("setTrack(false)", calls.last())
+    }
+
+    @Test
+    fun `recovering at start reports how many tracks were closed`() = recorderTest {
+        recovered = 2
+
+        recorder.recoverAtStart()
+
+        assertTrue(logs.any { it.first == LogLevel.INFO && it.second.contains("2") })
+    }
+
+    @Test
+    fun `recovering at start with nothing to close says nothing`() = recorderTest {
+        recovered = 0
+
+        recorder.recoverAtStart()
+
+        assertTrue(logs.isEmpty())
+    }
+
+    @Test
+    fun `a failing recovery is logged and does not throw`() = recorderTest {
+        failRecover = true
+
+        recorder.recoverAtStart()
+
+        assertTrue(logs.any { it.first == LogLevel.WARN && it.second.contains("IllegalStateException") })
     }
 
     // ── Fehler beim Schreiben ─────────────────────────────────────────────────

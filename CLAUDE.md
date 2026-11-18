@@ -651,6 +651,7 @@ aufgezeichnet, sofern sie abgefragt werden.
 
 ### Sitzung und Vordergrunddienst (seit v1.24.7)
 
+- **Seit F8 Task 5 (2026-11-18): der Dienst gehört zwei Verbrauchern, `ForegroundDemand(obd, track)`** (`ForegroundDemand.kt`): `ObdServiceController` ist jetzt **`@Singleton`** (die Bedarfe leben nur im Speicher, unter einem `Mutex`), `setObd(on)`/`setTrack(on)` schicken bei Bedarf den Start-Intent neu (erneuert Typ und Benachrichtigung) oder stoppen den Dienst, wenn beide aus sind; `start()` = `setObd(true)`, `stop()` = `setObd(false)`. Typ: `connectedDevice` bei OBD, `location` bei Aufzeichnung oder (OBD + GPS-Einstellung + Standort); Benachrichtigung OBD / TRACK / BOTH. `endSession()` beendet nur den OBD-Teil, eine laufende Aufzeichnung hält den Dienst (auch nach Wegwischen: `onTaskRemoved` beendet nur die OBD-Sitzung). Mutationsproben 16/16 erkannt (zwei erst nach Schärfung der Tests). Die folgenden Sätze zu Start/Stopp beschreiben den Stand davor, soweit sie nur OBD nennen.
 - **Eine Stelle für den Dienst: `ObdServiceController`** (`de.adv990de.obd2`, `@Inject`, ohne Scope). `start()` fordert den Vordergrunddienst an (inkl. Dienst-Typ-Entscheidung
   `shouldIncludeLocationServiceType`), `stop()` beendet ihn, `endSession()` trennt als **Nutzer-Trennung** und stoppt den Dienst (die Trennung läuft in `NonCancellable`
   zu Ende, der Dienst wird auch bei Fehlschlag gestoppt), `endSessionInBackground()` ist dasselbe für Aufrufer ohne eigene Coroutine (im `@ApplicationScope`, wirft nie → App-Log).

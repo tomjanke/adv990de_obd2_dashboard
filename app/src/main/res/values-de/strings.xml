@@ -348,10 +348,15 @@
     <string name="settings_show_all_bt_devices_desc">Zeigt auch Geräte ohne OBD2-Bezeichnung</string>
 
     <!-- Foreground service notification -->
-    <string name="notif_channel_name">OBD2-Verbindung</string>
+    <string name="notif_channel_name">Verbindung und Aufzeichnung</string>
     <string name="notif_obd_title">OBD2 verbunden</string>
     <string name="notif_obd_text">Fahrzeugdaten werden aufgezeichnet</string>
     <string name="notif_obd_disconnect">Trennen</string>
+    <string name="notif_track_title">Track wird aufgezeichnet</string>
+    <string name="notif_track_text">Die Strecke wird aufgezeichnet</string>
+    <string name="notif_track_stop">Track beenden</string>
+    <string name="notif_both_title">OBD2 verbunden, Track läuft</string>
+    <string name="notif_both_text">Fahrzeugdaten und Strecke werden aufgezeichnet</string>
 
     <!-- Alarme unterwegs: Kanal der Systembenachrichtigung und die Texte von Band und Benachrichtigung -->
     <string name="notif_alarm_channel_name">Alarme</string>

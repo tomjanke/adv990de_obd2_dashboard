@@ -255,6 +255,163 @@ class ObdServiceControllerTest {
         coVerify { log.log(LogLevel.WARN, match { "boom" in it }) }
     }
 
+    // ── zwei Bedarfe, ein Dienst (F8): OBD-Sitzung und Streckenaufzeichnung ─────────────────────────
+
+    @Test
+    fun `there is one controller per process - the demands live in it`() {
+        assertTrue(
+            "ohne @Singleton haetten Koordinator, Einstellungen und Aufzeichnung je eigene Bedarfe",
+            ObdServiceController::class.java.isAnnotationPresent(javax.inject.Singleton::class.java),
+        )
+    }
+
+    @Test
+    fun `the track alone starts the service`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+
+        c.setTrack(true)
+
+        verify(exactly = 1) { context.startForegroundService(any()) }
+        assertEquals(ForegroundDemand(obd = false, track = true), c.currentDemand)
+    }
+
+    @Test
+    fun `ending the OBD session leaves the service up while a track is recording`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+        c.setObd(true)
+        c.setTrack(true)
+
+        c.endSession()
+
+        verify(exactly = 0) { context.stopService(any()) }
+        assertEquals(ForegroundDemand(obd = false, track = true), c.currentDemand)
+        verify(exactly = 3) { context.startForegroundService(any()) }   // OBD, plus Track, nach dem Trennen noch einmal fuer die Track-Benachrichtigung
+    }
+
+    @Test
+    fun `ending the track leaves the service up while the adapter is connected`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+        c.setObd(true)
+        c.setTrack(true)
+
+        c.setTrack(false)
+
+        verify(exactly = 0) { context.stopService(any()) }
+        assertEquals(ForegroundDemand(obd = true, track = false), c.currentDemand)
+    }
+
+    @Test
+    fun `the service stops only when both demands are off`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+        c.setObd(true)
+        c.setTrack(true)
+
+        c.setObd(false)
+        verify(exactly = 0) { context.stopService(any()) }
+        c.setTrack(false)
+
+        verify(exactly = 1) { context.stopService(any()) }
+        assertEquals(ForegroundDemand(), c.currentDemand)
+    }
+
+    @Test
+    fun `a track that ends first and then the adapter - the service stops with the last one`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+        c.setObd(true)
+        c.setTrack(true)
+
+        c.setTrack(false)
+        c.endSession()
+
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
+    @Test
+    fun `the thin start and stop wrappers are the OBD demand`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+
+        c.start()
+        assertEquals(ForegroundDemand(obd = true, track = false), c.currentDemand)
+        c.stop()
+
+        assertEquals(ForegroundDemand(), c.currentDemand)
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
+    @Test
+    fun `a stop whose caller is cancelled on the way still switches the demand off and stops the service`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val repo = mockk<ObdRepository> { coEvery { disconnectByUser() } coAnswers { gate.await() } }
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, repo = repo, context = context)
+        c.setObd(true)
+
+        val caller = launch { c.endSession() }
+        runCurrent()
+        caller.cancel()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { context.stopService(any()) }
+        assertEquals(ForegroundDemand(), c.currentDemand)
+    }
+
+    @Test
+    fun `two changes at the same moment are applied one after the other`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val context = mockk<Context>(relaxed = true)
+        // Das erste Lesen der Einstellung haengt: waehrenddessen darf die zweite Aenderung den Bedarf nicht schon umschreiben.
+        val prefs = mockk<AppPreferences>(relaxed = true) {
+            every { useGpsSpeed } returns kotlinx.coroutines.flow.flow { gate.await(); emit(true) }
+        }
+        val c = controller(backgroundScope, context = context, prefs = prefs)
+
+        val first = launch { c.setObd(true) }
+        runCurrent()
+        val second = launch { c.setTrack(true) }
+        runCurrent()
+        assertEquals("the second change waits its turn", ForegroundDemand(obd = true, track = false), c.currentDemand)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        first.join()
+        second.join()
+
+        assertEquals(ForegroundDemand(obd = true, track = true), c.currentDemand)
+        verify(exactly = 2) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `a stop that has to wait for the lock is not lost when its caller is cancelled meanwhile`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        var hang = false
+        val context = mockk<Context>(relaxed = true)
+        val prefs = mockk<AppPreferences>(relaxed = true) {
+            every { useGpsSpeed } returns kotlinx.coroutines.flow.flow { if (hang) gate.await(); emit(true) }
+        }
+        val c = controller(backgroundScope, context = context, prefs = prefs)
+        c.setObd(true)
+
+        // Eine andere Aenderung haelt die Sperre, waehrend die Sitzung beendet wird.
+        hang = true
+        val holder = launch { c.setTrack(true) }
+        runCurrent()
+        val caller = launch { c.endSession() }
+        runCurrent()
+        caller.cancel()
+        gate.complete(Unit)
+        advanceUntilIdle()
+        holder.join()
+
+        assertEquals("the OBD demand is off although the caller was cancelled while waiting", ForegroundDemand(obd = false, track = true), c.currentDemand)
+    }
+
     // ── onServiceStartFailed (vom Dienst selbst gemeldet) ─────────────────
 
     @Test
@@ -279,6 +436,27 @@ class ObdServiceControllerTest {
         ObdForegroundService.runningIncludesLocation = null
     }
 
+    /** Eine laufende OBD-Sitzung mit dem Dienst im Zustand [includesLocation] (so, wie ihn `onStartCommand` meldet); die Aufrufe des Starts selbst zaehlen im Test nicht mit. */
+    private suspend fun ObdServiceController.connected(context: Context, includesLocation: Boolean?) {
+        setObd(true)
+        io.mockk.clearMocks(context, answers = false)
+        ObdForegroundService.runningIncludesLocation = includesLocation
+    }
+
+    @Test
+    fun `a refresh without any demand never starts the service`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context)
+        c.setObd(true)
+        c.setObd(false)
+        io.mockk.clearMocks(context, answers = false)
+        ObdForegroundService.runningIncludesLocation = true   // ein Rest vom vorigen Lauf: der Typ passt nicht zum "kein Bedarf"
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
     @Test
     fun `a refresh is due only when a running service has a different type than the one wanted now`() {
         val typed = ForegroundStartMode.TYPED
@@ -299,9 +477,9 @@ class ObdServiceControllerTest {
     @Test
     fun `refreshServiceType restarts a running service whose type no longer matches`() = runTest {
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = false
         // GPS-Geschwindigkeit an; der relaxed Mock-Context meldet jede Berechtigung als erteilt
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = false)
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -311,8 +489,8 @@ class ObdServiceControllerTest {
     @Test
     fun `refreshServiceType does nothing when the running service already has the wanted type`() = runTest {
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = true
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = true)
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -322,8 +500,8 @@ class ObdServiceControllerTest {
     @Test
     fun `refreshServiceType never starts a service that is not running`() = runTest {
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = null
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = null)
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -333,8 +511,21 @@ class ObdServiceControllerTest {
     @Test
     fun `refreshServiceType drops the location type again when GPS speed is switched off`() = runTest {
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = true
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = false))
+        c.connected(context, includesLocation = true)
+
+        c.refreshServiceType(ForegroundStartMode.TYPED)
+
+        verify(exactly = 1) { context.startForegroundService(any()) }
+    }
+
+    @Test
+    fun `refreshServiceType gives a recording the location type even when GPS speed is off`() = runTest {
+        val context = mockk<Context>(relaxed = true)
+        val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = false))
+        c.setTrack(true)
+        io.mockk.clearMocks(context, answers = false)
+        ObdForegroundService.runningIncludesLocation = false   // ein Dienst, der den Typ verloren hat
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -351,8 +542,8 @@ class ObdServiceControllerTest {
         // Ohne Standort wirft startForeground() mit dem Typ `location` ab API 34 eine SecurityException: der Dienst darf ihn dann nicht tragen.
         val context = mockk<Context>(relaxed = true)
         denyLocation(context)
-        ObdForegroundService.runningIncludesLocation = true
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = true)
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -363,8 +554,8 @@ class ObdServiceControllerTest {
     fun `refreshServiceType does not give a service the location type while no location permission is granted`() = runTest {
         val context = mockk<Context>(relaxed = true)
         denyLocation(context)
-        ObdForegroundService.runningIncludesLocation = false
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = false)
 
         c.refreshServiceType(ForegroundStartMode.TYPED)
 
@@ -374,8 +565,8 @@ class ObdServiceControllerTest {
     @Test
     fun `refreshServiceType leaves the service alone before API 34`() = runTest {
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = false
         val c = controller(backgroundScope, context = context, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = false)
 
         c.refreshServiceType(ForegroundStartMode.LEGACY)
 
@@ -384,12 +575,11 @@ class ObdServiceControllerTest {
 
     @Test
     fun `refreshServiceTypeInBackground never crashes the process - a failure goes to the log`() = runTest {
-        val context = mockk<Context>(relaxed = true) {
-            every { startForegroundService(any()) } throws NullPointerException("bug")
-        }
+        val context = mockk<Context>(relaxed = true)
         val log = mockk<AppLogRepository>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = false
         val c = controller(backgroundScope, context = context, log = log, prefs = fakeAppPreferences(useGpsSpeed = true))
+        c.connected(context, includesLocation = false)
+        every { context.startForegroundService(any()) } throws NullPointerException("bug")
 
         c.refreshServiceTypeInBackground(ForegroundStartMode.TYPED)
         runCurrent()   // ein ungefangener Fehler im Scope wuerde hier den Test (und in der App den Prozess) beenden
@@ -402,8 +592,8 @@ class ObdServiceControllerTest {
         val gps = kotlinx.coroutines.flow.MutableStateFlow(false)
         val prefs: AppPreferences = mockk { every { useGpsSpeed } returns gps }
         val context = mockk<Context>(relaxed = true)
-        ObdForegroundService.runningIncludesLocation = false
         val c = controller(backgroundScope, context = context, prefs = prefs)
+        c.connected(context, includesLocation = false)
 
         backgroundScope.launch { c.keepServiceTypeCurrent(ForegroundStartMode.TYPED) }
         runCurrent()

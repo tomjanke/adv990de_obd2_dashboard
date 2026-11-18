@@ -7,11 +7,15 @@ import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import de.adv990de.obd2.data.ObdRepository
+import de.adv990de.obd2.track.RecordingState
+import de.adv990de.obd2.track.StartResult
+import de.adv990de.obd2.track.TrackRecorder
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import org.junit.After
@@ -68,6 +72,8 @@ class ObdForegroundServiceDeviceTest {
 
     @javax.inject.Inject lateinit var appPreferences: de.adv990de.obd2.data.AppPreferences
 
+    @javax.inject.Inject lateinit var trackRecorder: TrackRecorder
+
     private val ctx: Context get() = ApplicationProvider.getApplicationContext()
 
     /** Wartet, bis `runningIncludesLocation` den erwarteten Wert hat — der Dienst setzt ihn auf dem Main-Thread nach `startForeground()`. */
@@ -93,6 +99,11 @@ class ObdForegroundServiceDeviceTest {
     @After
     fun teardown() {
         scenario.close()
+        // Ein Dienst, der nach einem Test weiterlaeuft, haelt die Objekte dieses Tests: der naechste Test trafe ihn mit seinen eigenen, neuen Attrappen nicht mehr.
+        // Der Controller (und damit sein Bedarf) gehoert zu diesem Test, der Dienst wird deshalb hart beendet und abgewartet.
+        ctx.stopService(Intent(ctx, ObdForegroundService::class.java))
+        val deadline = System.currentTimeMillis() + 5_000
+        while (ObdForegroundService.runningIncludesLocation != null && System.currentTimeMillis() < deadline) Thread.sleep(50)
     }
 
     // --- B36: der Kanal, den die Produktion anlegt ---
@@ -228,14 +239,142 @@ class ObdForegroundServiceDeviceTest {
 
     @Test
     fun refreshServiceType_givesARunningServiceTheLocationTypeOnceGpsSpeedIsSwitchedOn() {
-        ctx.startService(ObdForegroundService.startIntent(ctx, includeLocationType = false))
+        kotlinx.coroutines.runBlocking { serviceController.setObd(true) }
         awaitRunningType(false, "gestartet ohne Standort-Typ")
         kotlinx.coroutines.runBlocking { appPreferences.setUseGpsSpeed(true) }
 
         kotlinx.coroutines.runBlocking { serviceController.refreshServiceType() }
 
-        awaitRunningType(true, "GPS-Geschwindigkeit an und Hintergrund-Standort erteilt: der laufende Dienst bekommt den Typ")
-        ctx.startService(ObdForegroundService.stopIntent(ctx))
+        awaitRunningType(true, "GPS-Geschwindigkeit an und ein Standort erteilt: der laufende Dienst bekommt den Typ")
+        kotlinx.coroutines.runBlocking { serviceController.stop() }
         awaitRunningType(null, "nach dem Stopp laeuft er nicht mehr")
+    }
+
+    // --- F8: zwei Bedarfe, ein Dienst ---
+
+    /** Der Dienst-Typ, wie ihn das System fuer den laufenden Dienst fuehrt (`dumpsys activity services`), oder `null`, wenn der Dienst nicht als Vordergrunddienst laeuft. */
+    private fun systemServiceType(): Int? {
+        val out = shell("dumpsys activity services ${ctx.packageName}/de.adv990de.obd2.ObdForegroundService")
+        val record = out.substringAfter("ServiceRecord{", "")
+        // Die Zeile des Systems: `isForeground=true foregroundId=1 types=0x00000008` — nur ein laufender Vordergrunddienst hat sie.
+        val match = Regex("""isForeground=true[^\n]*? types=0x([0-9a-fA-F]+)""").find(record) ?: return null
+        return match.groupValues[1].toLong(16).toInt()
+    }
+
+    private fun shell(command: String): String {
+        val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
+    }
+
+    private fun awaitSystemType(expected: Int?, what: String) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (systemServiceType() != expected && System.currentTimeMillis() < deadline) Thread.sleep(100)
+        val lines = shell("dumpsys activity services ${ctx.packageName}/de.adv990de.obd2.ObdForegroundService").lines()
+            .filter { Regex("foreground|fgs|types", RegexOption.IGNORE_CASE).containsMatchIn(it) && !it.contains("Allow") }
+        assertEquals("$what\n${lines.joinToString("\n")}", expected, systemServiceType())
+    }
+
+    private fun serviceNotification(): android.app.Notification? =
+        ctx.getSystemService(NotificationManager::class.java).activeNotifications
+            .firstOrNull { it.notification.channelId == ObdForegroundService.CHANNEL_ID }?.notification
+
+    private fun awaitNotification(titleRes: Int, what: String): android.app.Notification {
+        val deadline = System.currentTimeMillis() + 5_000
+        var n = serviceNotification()
+        while ((n == null || n.extras.getString(android.app.Notification.EXTRA_TITLE) != ctx.getString(titleRes)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100)
+            n = serviceNotification()
+        }
+        assertEquals(what, ctx.getString(titleRes), n?.extras?.getString(android.app.Notification.EXTRA_TITLE))
+        return n!!
+    }
+
+    private fun actionTitles(n: android.app.Notification): List<String> = n.actions.orEmpty().map { it.title.toString() }
+
+    @Test
+    fun theDemandTravelsInTheStartIntent() {
+        val both = ObdForegroundService.startIntent(ctx, ForegroundDemand(obd = true, track = true), includeLocationType = true)
+        assertTrue(both.getBooleanExtra(ObdForegroundService.EXTRA_OBD, false))
+        assertTrue(both.getBooleanExtra(ObdForegroundService.EXTRA_TRACK, false))
+        assertTrue(both.getBooleanExtra(ObdForegroundService.EXTRA_INCLUDE_LOCATION, false))
+
+        val trackOnly = ObdForegroundService.startIntent(ctx, ForegroundDemand(obd = false, track = true))
+        assertEquals(false, trackOnly.getBooleanExtra(ObdForegroundService.EXTRA_OBD, true))
+        assertTrue(trackOnly.getBooleanExtra(ObdForegroundService.EXTRA_TRACK, false))
+        assertEquals(ObdForegroundService.ACTION_START, trackOnly.action)
+        assertEquals(ObdForegroundService.ACTION_STOP_TRACK, ObdForegroundService.stopTrackIntent(ctx).action)
+    }
+
+    @Test
+    fun theTrackAloneRunsWithTheLocationTypeOnly_andOffersToEndTheTrack() {
+        kotlinx.coroutines.runBlocking { serviceController.setTrack(true) }
+
+        awaitRunningType(true, "nur der Track: der Typ enthaelt `location`")
+        awaitSystemType(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, "nur `location`, kein Bluetooth-Typ")
+        val n = awaitNotification(R.string.notif_track_title, "die Benachrichtigung des Tracks")
+        assertEquals(listOf(ctx.getString(R.string.notif_track_stop)), actionTitles(n))
+
+        kotlinx.coroutines.runBlocking { serviceController.setTrack(false) }
+        awaitRunningType(null, "ohne Bedarf laeuft er nicht mehr")
+    }
+
+    @Test
+    fun bothDemandsShareOneService_andEachOneLeavesTheOtherRunning() {
+        kotlinx.coroutines.runBlocking { serviceController.setTrack(true) }
+        awaitSystemType(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, "erst nur der Track")
+
+        kotlinx.coroutines.runBlocking { serviceController.setObd(true) }
+        val both = awaitNotification(R.string.notif_both_title, "beide: eine gemeinsame Benachrichtigung")
+        assertEquals(listOf(ctx.getString(R.string.notif_obd_disconnect), ctx.getString(R.string.notif_track_stop)), actionTitles(both))
+        awaitSystemType(
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            "beide Typen",
+        )
+
+        // Das Trennen des Adapters (auch Wegwischen und „Beenden“ gehen diesen Weg) beendet die Aufzeichnung nicht.
+        kotlinx.coroutines.runBlocking { serviceController.endSession() }
+        awaitNotification(R.string.notif_track_title, "nach dem Trennen bleibt die Track-Benachrichtigung")
+        awaitSystemType(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, "der Dienst laeuft mit `location` weiter")
+
+        kotlinx.coroutines.runBlocking { serviceController.setObd(true) }
+        awaitNotification(R.string.notif_both_title, "wieder beide")
+        kotlinx.coroutines.runBlocking { serviceController.setTrack(false) }
+        awaitNotification(R.string.notif_obd_title, "nach dem Track-Ende bleibt die OBD-Benachrichtigung")
+        awaitRunningType(false, "und der Dienst laeuft ohne `location` (GPS-Geschwindigkeit ist aus)")
+
+        kotlinx.coroutines.runBlocking { serviceController.endSession() }
+        awaitRunningType(null, "erst mit dem letzten Bedarf stoppt er")
+    }
+
+    @Test
+    fun theStopActionOfTheNotificationDisconnectsButKeepsTheRecording() {
+        kotlinx.coroutines.runBlocking {
+            serviceController.setObd(true)
+            serviceController.setTrack(true)
+        }
+        awaitNotification(R.string.notif_both_title, "beide laufen")
+
+        ctx.startService(ObdForegroundService.stopIntent(ctx))
+
+        coVerify(timeout = 5_000) { obdRepository.disconnectByUser() }
+        awaitNotification(R.string.notif_track_title, "„Trennen“ laesst die Aufzeichnung stehen")
+        awaitSystemType(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, "der Dienst laeuft weiter")
+        kotlinx.coroutines.runBlocking { serviceController.setTrack(false) }
+        awaitRunningType(null, "aufgeraeumt")
+    }
+
+    @Test
+    fun theEndTrackActionStopsTheRealRecorder_andThenTheService() {
+        val result = kotlinx.coroutines.runBlocking { trackRecorder.start("Geraetetest") }
+        assertEquals(StartResult.Started, result)
+        assertTrue(trackRecorder.state.value is RecordingState.Recording)
+        awaitNotification(R.string.notif_track_title, "die Aufzeichnung haelt den Dienst")
+
+        ctx.startService(ObdForegroundService.stopTrackIntent(ctx))
+
+        val deadline = System.currentTimeMillis() + 5_000
+        while (trackRecorder.state.value != RecordingState.Idle && System.currentTimeMillis() < deadline) Thread.sleep(50)
+        assertEquals("„Track beenden“ beendet die Aufzeichnung", RecordingState.Idle, trackRecorder.state.value)
+        awaitRunningType(null, "und mit ihr den Dienst, weil keiner mehr etwas will")
     }
 }

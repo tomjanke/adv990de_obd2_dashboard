@@ -14,8 +14,11 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Whether [ObdForegroundService] should request the `location` foreground-service type on this (re)connect.
@@ -71,9 +74,10 @@ internal inline fun catchingForegroundStart(block: () -> Unit): Exception? =
  * Hintergrund eine Ausnahme wirft. Die landete im `catch` des Verbindungsaufbaus: eine STEHENDE Verbindung wurde als
  * "Reconnect-Versuch fehlgeschlagen" geloggt und `Connected` blieb aus.
  *
- * Ohne eigenen Scope (`@Singleton` nur wo unverzichtbar): der `@ApplicationScope` ueberlebt Activity und ViewModels,
+ * `@Singleton`, seit er die Bedarfe haelt (OBD-Sitzung und Streckenaufzeichnung, [ForegroundDemand]): mehrere Instanzen haetten je eigene Bedarfe und einen eigenen `Mutex`. Der `@ApplicationScope` ueberlebt Activity und ViewModels,
  * was [endSessionInBackground] braucht — eine zerstoerte Activity kann keine eigene Coroutine mehr halten.
  */
+@Singleton
 class ObdServiceController @Inject constructor(
     private val obdRepository: ObdRepository,
     private val appPreferences: AppPreferences,
@@ -82,38 +86,56 @@ class ObdServiceController @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
+    private val mutex = Mutex()
+    private var demand = ForegroundDemand()
+
+    /** Wer den Dienst gerade will. Nur zum Lesen (Tests); geaendert wird nur ueber [setObd] und [setTrack]. */
+    internal val currentDemand: ForegroundDemand get() = demand
+
     /**
-     * Fordert den Vordergrunddienst an. Wirft nicht, wenn Android das ablehnt: Die Verbindung steht dann trotzdem, und
-     * die App laeuft weiter — nur ohne Schutz davor, im Hintergrund beendet zu werden. Der Grund steht im App-Log.
-     *
-     * GPS-Geschwindigkeit bei Display aus oder einer anderen App davor braucht den Typ `location` beim Start (s.
-     * [ObdForegroundService.resolveForegroundServiceType]) — nicht den Hintergrund-Standort; ohne Standortberechtigung
-     * startet der Dienst nur mit `connectedDevice`.
+     * Die OBD-Sitzung will den Dienst ([on] = `true`) oder nicht mehr. Der **eine Ort** der Bedarfe (zusammen mit [setTrack]): jede Aenderung startet den Dienst neu mit dem
+     * neuen Bedarf (Typ und Benachrichtigung, `startForeground()` darf mehrfach laufen) oder beendet ihn, wenn keiner mehr etwas will. Aenderungen laufen unter einem `Mutex`, damit
+     * zwei zugleich (Verbinden und Aufzeichnen) sich nicht ueberholen. Wirft nicht, wenn Android den Start ablehnt (der Grund steht im App-Log).
      */
-    suspend fun start() {
-        requestStart(wantsLocationType())
+    suspend fun setObd(on: Boolean) = change { it.copy(obd = on) }
+
+    /** Die Streckenaufzeichnung will den Dienst oder nicht mehr, s. [setObd]. */
+    suspend fun setTrack(on: Boolean) = change { it.copy(track = on) }
+
+    private suspend fun change(edit: (ForegroundDemand) -> ForegroundDemand) = mutex.withLock {
+        demand = edit(demand)
+        if (demand.any) requestStart(demand, obdWantsLocation()) else stopService()
     }
 
-    /** Ob der Dienst JETZT den Typ `location` braucht: GPS-Geschwindigkeit an UND ein Standort erteilt (genau oder ungefaehr). */
-    private suspend fun wantsLocationType(): Boolean = shouldIncludeLocationServiceType(
+    /**
+     * Fordert den Vordergrunddienst fuer die OBD-Sitzung an ([setObd]). Wirft nicht, wenn Android das ablehnt: Die Verbindung steht dann trotzdem, und die App laeuft weiter — nur ohne Schutz davor,
+     * im Hintergrund beendet zu werden. GPS-Geschwindigkeit bei Display aus oder einer anderen App davor braucht den Typ `location` beim Start ([foregroundServiceType]) — nicht den Hintergrund-Standort.
+     */
+    suspend fun start() = setObd(true)
+
+    /** Ob die OBD-Sitzung JETZT den Typ `location` braucht: GPS-Geschwindigkeit an UND ein Standort erteilt (genau oder ungefaehr). */
+    private suspend fun obdWantsLocation(): Boolean = shouldIncludeLocationServiceType(
         useGpsSpeed = appPreferences.useGpsSpeed.first(),
         hasLocationPermission = LocationPermissions.hasAnyLocation(appContext),
     )
 
-    private suspend fun requestStart(includeLocation: Boolean) {
+    private suspend fun requestStart(demand: ForegroundDemand, obdWantsLocation: Boolean) {
         val refused = catchingForegroundStart {
-            appContext.startForegroundService(ObdForegroundService.startIntent(appContext, includeLocation))
+            appContext.startForegroundService(ObdForegroundService.startIntent(appContext, demand, obdWantsLocation))
         }
         if (refused != null) appLogRepository.log(LogLevel.WARN, startFailureMessage(refused))
     }
 
     /**
-     * Gleicht den Typ eines LAUFENDEN Dienstes mit dem jetzt gewuenschten ab (s. [shouldRefreshServiceType]). Ruft [start]-Logik nur, wenn
-     * sich etwas geaendert hat; sonst passiert nichts — es ist billig und darf oft gerufen werden.
+     * Gleicht den Typ eines LAUFENDEN Dienstes mit dem jetzt gewuenschten ab (s. [shouldRefreshServiceType]). Es zaehlt nur der Typ `location` — jede Aenderung des Bedarfs
+     * startet den Dienst ohnehin neu. Sonst passiert nichts: es ist billig und darf oft gerufen werden.
      */
-    internal suspend fun refreshServiceType(startMode: ForegroundStartMode = ObdForegroundService.resolveForegroundStartMode()) {
-        val wantsLocation = wantsLocationType()
-        if (shouldRefreshServiceType(ObdForegroundService.runningIncludesLocation, wantsLocation, startMode)) requestStart(wantsLocation)
+    internal suspend fun refreshServiceType(startMode: ForegroundStartMode = ObdForegroundService.resolveForegroundStartMode()) = mutex.withLock {
+        val wanted = demand
+        if (!wanted.any) return@withLock
+        val obdLocation = obdWantsLocation()
+        val wantsLocation = hasLocationType(foregroundServiceType(wanted, obdLocation))
+        if (shouldRefreshServiceType(ObdForegroundService.runningIncludesLocation, wantsLocation, startMode)) requestStart(wanted, obdLocation)
     }
 
     /** Wie [refreshServiceType], aber ein Fehler steht im App-Log statt als Ausnahme beim Aufrufer (nur die Abbruch-Ausnahme wird weitergereicht). */
@@ -139,14 +161,16 @@ class ObdServiceController @Inject constructor(
         appPreferences.useGpsSpeed.distinctUntilChanged().collect { refreshServiceTypeSafely(startMode) }
     }
 
-    /** Beendet den Dienst (und damit die Benachrichtigung). Trennt die Verbindung NICHT. */
-    fun stop() {
+    /** Die OBD-Sitzung will den Dienst nicht mehr ([setObd]); er laeuft weiter, solange eine Aufzeichnung ihn braucht. Trennt die Verbindung NICHT. */
+    suspend fun stop() = setObd(false)
+
+    private fun stopService() {
         appContext.stopService(ObdForegroundService.stopIntent(appContext))
     }
 
     /**
      * Beendet die Sitzung auf Wunsch des Nutzers: trennen (als Nutzer-Trennung, damit keine Wiederverbindung
-     * dagegenarbeitet) und den Dienst stoppen. Die Trennung laeuft zu Ende, auch wenn der Aufrufer abgebrochen wird
+     * dagegenarbeitet) und den Dienst stoppen, **sofern keine Aufzeichnung ihn braucht**. Die Trennung laeuft zu Ende, auch wenn der Aufrufer abgebrochen wird
      * (z. B. weil die Coroutine des Dienstes mit `onDestroy` stirbt) — sonst bliebe der Adapter belegt. Der Dienst
      * wird auch gestoppt, wenn die Trennung scheitert.
      */
@@ -154,7 +178,8 @@ class ObdServiceController @Inject constructor(
         try {
             withContext(NonCancellable) { obdRepository.disconnectByUser() }
         } finally {
-            stop()
+            // Unabbrechbar: setObd wartet auf den Mutex, und ein abgebrochener Aufrufer liesse das sonst ausfallen (der Adapter ist getrennt, der Dienst liefe weiter).
+            withContext(NonCancellable) { stop() }
         }
     }
 

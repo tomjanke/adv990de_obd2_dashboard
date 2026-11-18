@@ -1,6 +1,7 @@
 package de.adv990de.obd2.track
 
 import android.os.SystemClock
+import de.adv990de.obd2.ObdServiceController
 import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.TrackRepository
@@ -71,6 +72,7 @@ class TrackRecorder @Inject constructor(
     private val location: LocationSpeedProvider,
     private val repository: TrackRepository,
     private val appLog: AppLogRepository,
+    private val serviceController: ObdServiceController,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
@@ -139,6 +141,8 @@ class TrackRecorder @Inject constructor(
         s.job = scope.launch { process(s) }
         publish(s)
         appLog.log(LogLevel.INFO, "Track recording started")
+        // Der Vordergrunddienst haelt den Prozess am Leben (nur der Tipp des Nutzers darf ihn mit dem Typ `location` starten, daher hier und nie aus dem Hintergrund).
+        serviceController.setTrack(true)
         StartResult.Started
     }
 
@@ -152,6 +156,21 @@ class TrackRecorder @Inject constructor(
             finish(s)
             session = null
             mutableState.value = RecordingState.Idle
+            serviceController.setTrack(false)
+        }
+    }
+
+    /**
+     * Schliesst beim App-Start Spuren ab, die ein beendeter Prozess hinterliess (`TrackRepository.recoverUnfinished`); die laufende Aufzeichnung, falls es schon eine gibt, bleibt unberuehrt.
+     * Wirft nie: ein Fehler steht im App-Log (nur die Abbruch-Ausnahme geht durch).
+     */
+    suspend fun recoverAtStart() {
+        try {
+            val closed = repository.recoverUnfinished()
+            if (closed > 0) appLog.log(LogLevel.INFO, "Track recording: closed $closed unfinished track(s) from an earlier run")
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            appLog.log(LogLevel.WARN, "Track recording: recovering unfinished tracks failed (${e::class.simpleName})")
         }
     }
 
