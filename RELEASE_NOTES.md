@@ -1,5 +1,21 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.46.1 (versionCode 166)
+
+**Neu: Die Helligkeit sinkt bei Dämmerung und Nacht.** Bisher stand der Bildschirm in der App immer auf voller Helligkeit; im Dunkeln spiegelte sich das Telefon im Visier. Jetzt wählt der Lichtsensor des Telefons eine von drei Stufen.
+
+### Was sich ändert
+
+- **Drei Stufen:** Tag 100 %, Dämmerung 50 %, Nacht 20 %. Die Stufe wechselt mit Abstand (ab 1 200 lx Tag, unter 800 lx wieder Dämmerung; unter 30 lx Nacht, ab 50 lx wieder Dämmerung) und folgt dem Median der letzten fünf Sekunden: ein kurzer Lichtblitz kippt sie nicht, ein echter Wechsel braucht rund drei Sekunden.
+- **Einstellung:** Einstellungen → Dashboard & Anzeige → „Bei Dunkelheit dimmen“, **standardmäßig an**. Aus heißt immer volle Helligkeit, wie bisher. Die Einstellung geht in das Sicherungspaket mit (jetzt 37 Einstellungen).
+- **Keine Berechtigung:** der Lichtsensor braucht keine; die App ändert weiter nur die Helligkeit ihres Fensters, solange sie im Vordergrund steht. Ohne Lichtsensor bleibt es bei voller Helligkeit.
+- **Log zum Abstimmen:** jeder Stufenwechsel steht mit dem gemessenen Lux-Wert im App-Log (`Brightness level DAY -> DUSK (median 85 lx)`).
+- **Geprüft:** JVM 3901 Tests, Geräte-Suite 1025 Tests (Pixel 8 Pro; beim ersten vollen Lauf waren 22 `BottomNavTest` rot wegen einer fehlenden Stub-Zeile im Test, danach die Klasse allein grün, kein zweiter voller Lauf), Lint ohne Fehler, Mutationsproben an der Logik und am Schalter. Am Pixel gesehen: im Zimmerlicht fordert die App 50 % an, auf dem Home-Bildschirm gilt der Systemwert.
+- **Nicht gesehen:** die Nachtstufe (kein dunkler Raum), die tatsächlich leuchtende Helligkeit (nur die angeforderte gelesen), die Wirkung am Motorrad und im Visier. **Die Schwellen und die Werte 0,5 und 0,2 sind geschätzt, nicht gemessen**; der Sensor kann am Lenker hinter dem Visier verfälscht werden. Beim Kaltstart im Dunkeln steht die Anzeige kurz auf 100 %, bis der erste Sensorwert da ist. Die spanischen Texte sind meine Übersetzung.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.46.0 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.46.0 (versionCode 165)
 
 **Neu: Tracks. Die App zeichnet Wege auf und zeigt sie als Linie.** Das Symbol „Tracks“ in der Kopfleiste von „Fahrten“ öffnet die Liste; ein Aufnahmeknopf im Dashboard und ein Knopf in der Liste starten und beenden die Aufzeichnung. Es ist ein erster Stand: ein Weg lässt sich aufzeichnen, ansehen, umbenennen und löschen, aber noch nicht exportieren.
