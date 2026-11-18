@@ -168,6 +168,7 @@ class BottomNavTest {
         val prefs = mockk<AppPreferences> {
             every { this@mockk.useImperial } returns flowOf(useImperial)
             every { theme } returns flowOf(THEME_SYSTEM)
+            every { dimInDark } returns flowOf(true)
             every { useGpsSpeed } returns flowOf(false)
             every { weatherLocationPrompted } returns flowOf(false)
             every { rpmBlinkThreshold } returns flowOf(0)
