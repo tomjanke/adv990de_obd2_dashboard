@@ -1,5 +1,24 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.46.0 (versionCode 165)
+
+**Neu: Tracks. Die App zeichnet Wege auf und zeigt sie als Linie.** Das Symbol „Tracks“ in der Kopfleiste von „Fahrten“ öffnet die Liste; ein Aufnahmeknopf im Dashboard und ein Knopf in der Liste starten und beenden die Aufzeichnung. Es ist ein erster Stand: ein Weg lässt sich aufzeichnen, ansehen, umbenennen und löschen, aber noch nicht exportieren.
+
+### Was sich ändert
+
+- **Aufzeichnen:** Die Aufzeichnung läuft auch ohne Adapter und nach dem Wegwischen der App weiter, im gemeinsamen Vordergrunddienst (Typ `location`, Benachrichtigung mit „Track beenden“). Sie braucht den genauen Standort; fehlt er, steht in der Liste ein Hinweis mit einem Knopf zu den App-Einstellungen. Beenden fragt vorher nach. Die App deklariert weiterhin keinen Hintergrund-Standort.
+- **Welche Punkte gespeichert werden:** nur Punkte mit einer Genauigkeit bis 30 m und in Bewegung (ab 2 km/h), mit Mindestabstand (5 m, nach 10 s 2 m). Die Zahlen sind meine Wahl und nicht am Fahrzeug gemessen.
+- **Liste und Ansicht:** je Track Name, Strecke und Dauer. Die Ansicht zeichnet den Weg als Linie **ohne Kartenhintergrund** mit Start- und Zielmarke, Maßstab und Nordpfeil. Zoom, Verschieben und „Anpassen“ gehen über Knöpfe (56 dp), Ziehen und Doppeltipp sind nur zusätzlich. Gezeichnet werden höchstens 2000 Punkte, Strecke und Grenzen rechnen aus allen.
+- **Verwalten:** Umbenennen; Löschen mit 10 Sekunden „Rückgängig“ (die laufende Aufzeichnung lässt sich nicht löschen). **Tracks werden nie automatisch gelöscht**, anders als Fahrten nach 90 Tagen.
+- **Datenbank v7:** zwei neue Tabellen für Tracks und Punkte; die vorhandenen Daten bleiben (Migration von Hand, getestet). Kein Rückweg auf ältere APKs ohne Löschen der App-Daten (wie schon seit v3).
+- **Datenschutz:** Positionen bleiben auf dem Gerät. Sie stehen nicht im App-Log und werden nicht übertragen; sie gehen auch nicht in das Sicherungspaket (noch nicht gebaut).
+- **Noch nicht da:** GPX-Export und -Import, Aufnahme der Tracks in das Sicherungspaket, Nachfahren (eigene Position auf dem Track), Kartenhintergrund. Die Bausteine für GPX (Leser und Schreiber) sind im Code, die Oberfläche fehlt noch.
+- **Geprüft:** JVM 3876 Tests, Geräte-Suite 1020 Tests (Pixel 8 Pro), Lint ohne Fehler; die reinen Teile mit Mutationsproben.
+- **Nicht gesehen:** die Oberfläche von Hand am Gerät, nie ein echter GPS-Fix, nie eine Fahrt mit Aufzeichnung am Motorrad; Akkuverbrauch einer langen Aufzeichnung und das Verhalten des Dienstes bei ausgeschaltetem Bildschirm sind nicht gemessen. Die spanischen Texte sind meine Übersetzung und nicht gegengelesen.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.45.5 ist möglich), Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.45.5 (versionCode 164)
 
 **Qualitätsdurchsicht: neun Fehler behoben, die meisten selten oder nur im Querformat sichtbar.** Anlass war eine Durchsicht des Codes am 13. bis 15. November; neue Funktionen gibt es nicht. Nur Fehler, die sich als Ablauf im Code belegen oder in einem Test rot sehen ließen, sind behoben.

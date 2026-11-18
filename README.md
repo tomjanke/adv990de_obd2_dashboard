@@ -30,7 +30,7 @@ Debug build on a Pixel 8 Pro, landscape. **The values come from the built-in ECU
 - **Written with AI assistance:** most of the code, the tests and the documentation were written with Claude (Anthropic) in Claude Code. The requirements, the decisions and the testing on the motorcycle are mine. Automated tests and the AI's own checks are no substitute for an independent review of the code.
 - **Do not operate it while riding or driving.** Gear, fuel gauge, range, the oil-temperature strip and the maintenance due-dates are estimates, not measurements.
 - **No warranty** (Apache License 2.0), use at your own risk. Not affiliated with ELM Electronics, KTM or any other vehicle manufacturer.
-- **Privacy:** drives, logbook and settings stay on the device unless you export them. The only network use is the optional outside temperature (rounded location sent to Open-Meteo); no crash reports unless the app was built with a Sentry key.
+- **Privacy:** drives, tracks (positions), logbook and settings stay on the device unless you export them. The only network use is the optional outside temperature (rounded location sent to Open-Meteo); no crash reports unless the app was built with a Sentry key.
 
 **Download**
 
@@ -71,7 +71,7 @@ You need JDK 21 (JetBrains) and the Android SDK with platform 37 — details in 
 - **Mit KI-Hilfe entstanden:** Der Großteil des Codes, der Tests und der Dokumentation wurde mit Claude (Anthropic) in Claude Code geschrieben. Die Anforderungen, die Entscheidungen und die Erprobung am Motorrad stammen von mir. Automatische Tests und die Prüfungen der KI ersetzen keine unabhängige Durchsicht des Codes.
 - **Nicht während der Fahrt bedienen.** Gang, Tankanzeige, Reichweite, die Öltemperatur-Leiste und die Wartungsfälligkeit sind Schätzungen, keine Messwerte.
 - **Keine Gewähr** (Apache License 2.0), Nutzung auf eigene Verantwortung. Keine Verbindung zu ELM Electronics, KTM oder einem anderen Fahrzeughersteller.
-- **Datenschutz:** Fahrten, Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie exportieren. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo); keine Absturzberichte, wenn die App nicht mit einem Sentry-Schlüssel gebaut wurde.
+- **Datenschutz:** Fahrten, Tracks (Positionen), Logbuch und Einstellungen bleiben auf dem Gerät, bis Sie sie exportieren. Das Netz nutzt die App nur für die optionale Außentemperatur (gerundeter Standort an Open-Meteo); keine Absturzberichte, wenn die App nicht mit einem Sentry-Schlüssel gebaut wurde.
 
 **Herunterladen**
 
