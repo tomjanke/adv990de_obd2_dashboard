@@ -803,4 +803,60 @@
         <item quantity="one">%1$d Einstellung übernommen</item>
         <item quantity="other">%1$d Einstellungen übernommen</item>
     </plurals>
+
+    <!-- Tracks (F8) -->
+    <string name="tracks_title">Tracks</string>
+    <string name="tracks_open_cd">Tracks</string>
+    <string name="tracks_empty">Noch keine Tracks. Starte eine Aufzeichnung, um deine Strecke zu speichern.</string>
+    <string name="tracks_start">Aufzeichnung starten</string>
+    <string name="tracks_stop">Beenden</string>
+    <string name="tracks_recording_title">Aufzeichnung läuft</string>
+    <string name="tracks_recording_wait">Warte auf GPS-Signal</string>
+    <string name="tracks_recording_write_failed">Speichern fehlgeschlagen — neuer Versuch</string>
+    <string name="tracks_stop_title">Aufzeichnung beenden?</string>
+    <string name="tracks_stop_text">Der Track wird mit dem bisher Aufgezeichneten gespeichert.</string>
+    <string name="tracks_stop_confirm">Aufzeichnung beenden</string>
+    <string name="tracks_source_recorded">Aufgezeichnet</string>
+    <string name="tracks_source_imported">Importiert</string>
+    <string name="tracks_cd_rename">Umbenennen</string>
+    <string name="tracks_rename_title">Track umbenennen</string>
+    <string name="tracks_rename_label">Name</string>
+    <string name="tracks_save">Speichern</string>
+    <string name="tracks_cd_delete">Löschen</string>
+    <string name="tracks_deleted">Track gelöscht</string>
+    <string name="tracks_permission_hint">Die Aufzeichnung braucht deinen genauen Standort.</string>
+    <string name="tracks_msg_no_permission">Erlaube den Standortzugriff, um einen Track aufzuzeichnen.</string>
+    <string name="tracks_msg_no_location_service">Die Ortungsdienste sind ausgeschaltet.</string>
+    <string name="tracks_msg_start_failed">Die Aufzeichnung ließ sich nicht starten.</string>
+    <string name="tracks_msg_stop_failed">Die Aufzeichnung ließ sich nicht beenden.</string>
+    <string name="tracks_msg_rename_failed">Umbenennen fehlgeschlagen.</string>
+    <string name="track_detail_title">Track</string>
+    <string name="track_detail_not_found">Diesen Track gibt es nicht mehr.</string>
+    <string name="track_detail_failed">Der Track ließ sich nicht lesen.</string>
+    <string name="track_detail_empty">Dieser Track hat keine Punkte.</string>
+    <string name="track_zoom_in">Vergrößern</string>
+    <string name="track_zoom_out">Verkleinern</string>
+    <string name="track_fit">Anpassen</string>
+    <string name="track_fit_cd">Track an den Bildschirm anpassen</string>
+    <string name="track_pan_up">Nach oben schieben</string>
+    <string name="track_pan_down">Nach unten schieben</string>
+    <string name="track_pan_left">Nach links schieben</string>
+    <string name="track_pan_right">Nach rechts schieben</string>
+    <string name="track_stat_distance">Strecke</string>
+    <string name="track_stat_duration">Dauer</string>
+    <string name="track_stat_ascent">Anstieg</string>
+    <string name="track_stat_descent">Abstieg</string>
+    <string name="track_stat_points">Punkte</string>
+    <string name="track_stat_start">Beginn</string>
+    <string name="track_stat_source">Herkunft</string>
+    <string name="track_canvas_desc">Zeichnung des Tracks, Norden ist oben</string>
+    <string name="track_north">Norden</string>
+    <string name="track_scale_m">%1$d m</string>
+    <string name="track_scale_km">%1$d km</string>
+    <string name="dashboard_track_start_cd">Track aufzeichnen</string>
+    <string name="dashboard_track_stop_cd">Track wird aufgezeichnet — tippen zum Beenden</string>
+    <plurals name="tracks_points">
+        <item quantity="one">%d Punkt</item>
+        <item quantity="other">%d Punkte</item>
+    </plurals>
 </resources>

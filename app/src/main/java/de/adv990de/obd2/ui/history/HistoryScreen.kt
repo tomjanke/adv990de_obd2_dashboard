@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,6 +64,7 @@ import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.navigation.openDataTransfer
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.transfer.TransferMode
 import androidx.compose.ui.tooling.preview.Preview
@@ -136,6 +138,12 @@ fun HistoryScreen(
                 actions = {
                     // Abkuerzung auf die Seite „Daten sichern und wiederherstellen“, Exportieren mit den Fahrten vorgewaehlt (CSV). Gleiche Voraussetzung wie der Papierkorb
                     // daneben: mindestens eine abgeschlossene, sichtbare Fahrt (die laufende Aufzeichnung ist nicht dabei).
+                    IconButton(
+                        onClick = { navController.openSubPage(Screen.Tracks.route) },
+                        modifier = Modifier.size(RowButtonSize).testTag(HISTORY_TRACKS_TEST_TAG),
+                    ) {
+                        Icon(Icons.Default.Place, contentDescription = stringResource(R.string.tracks_open_cd))
+                    }
                     IconButton(
                         onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.EXPORT, DataPart.TRIPS)) },
                         enabled = canExportAll,
@@ -216,6 +224,7 @@ private val RowButtonSize = 56.dp
 /** Test tags of the export and import shortcuts in the top bar. */
 internal const val HISTORY_EXPORT_TEST_TAG = "history_export"
 internal const val HISTORY_IMPORT_TEST_TAG = "history_import"
+internal const val HISTORY_TRACKS_TEST_TAG = "history_tracks"
 
 /** Test tag of one history row — the full-width swipe container the UI tests swipe. */
 internal fun historyRowTestTag(sessionId: Long) = "history_row_$sessionId"

@@ -35,6 +35,14 @@ sealed class Screen(val route: String) {
         fun routeFor(type: LogType) = "logbook_stats/${type.name}"
     }
 
+    /** Die Liste der Tracks (Aufzeichnen, Umbenennen, Loeschen), erreicht ueber das Symbol in der Kopfleiste von „Fahrten“ und den Knopf im Dashboard. */
+    object Tracks : Screen("tracks")
+
+    /** Die Ansicht eines Tracks. Die Id steht in der Route: [routeFor] setzt sie ein, `route` ist das Muster (`destination.route`). */
+    object TrackDetail : Screen("track_detail/{id}") {
+        fun routeFor(id: Long) = "track_detail/$id"
+    }
+
     /**
      * Die Seite „Daten sichern und wiederherstellen“ (Einstellungen → Info & Wartung) und ihre Abkuerzungen aus den Symbolen der Listen. Die Argumente sind alle optional:
      * `mode` (`export`/`import`), `part` (der Name einer [DataPart]-Art, leer = keine) und `pick` (der Dateidialog des Imports oeffnet sofort). Die Route ist das **Muster**

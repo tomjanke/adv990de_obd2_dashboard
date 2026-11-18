@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import de.adv990de.obd2.ui.tracks.TRACKS_START_TEST_TAG
 import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -99,6 +100,9 @@ class AppNavHostDeviceTest {
         Screen.LogEntry -> Screen.LogEntry.routeFor(0)
         Screen.LogbookStats -> Screen.LogbookStats.routeFor(LogType.FUEL)
         Screen.DataTransfer -> Screen.DataTransfer.routeFor()
+        Screen.Tracks -> Screen.Tracks.route
+        // Ohne Track mit dieser Id zeigt die Ansicht ihren eigenen Hinweis.
+        Screen.TrackDetail -> Screen.TrackDetail.routeFor(0)
     }
 
     /** Ein Merkmal, das nur dieser Bildschirm hat — kein Text, den auch das Hauptmenue traegt (Beschriftung und Titel koennen gleich lauten). */
@@ -118,13 +122,15 @@ class AppNavHostDeviceTest {
             Screen.LogEntry -> composeRule.onNodeWithTag(LOGBOOK_SAVE_TEST_TAG).performScrollTo().assertIsDisplayed()
             Screen.LogbookStats -> composeRule.onNodeWithTag(LOGBOOK_STATS_LIST_TEST_TAG).assertIsDisplayed()
             Screen.DataTransfer -> composeRule.onNodeWithTag(TRANSFER_SAVE_TEST_TAG).performScrollTo().assertIsDisplayed()
+            Screen.Tracks -> composeRule.onNodeWithTag(TRACKS_START_TEST_TAG).assertIsDisplayed()
+            Screen.TrackDetail -> composeRule.onNodeWithText(string(R.string.track_detail_not_found)).assertIsDisplayed()
         }
     }
 
     private val allScreens = listOf(
         Screen.Dashboard, Screen.FreezeFrame, Screen.VehicleInfo, Screen.TripsAndFaults, Screen.Settings, Screen.AppInfo,
         Screen.AppLogs, Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals, Screen.LogEntry, Screen.LogbookStats,
-        Screen.DataTransfer,
+        Screen.DataTransfer, Screen.Tracks, Screen.TrackDetail,
     )
 
     private fun navigateTo(route: String) {

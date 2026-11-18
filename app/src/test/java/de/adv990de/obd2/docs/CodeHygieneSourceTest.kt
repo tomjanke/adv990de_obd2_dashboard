@@ -54,6 +54,7 @@ class CodeHygieneSourceTest {
         "ui/permission/LocationPermissionState.kt" to "kein sichtbares Composable: der Zustand der Standortberechtigung (remember)",
         "ui/permission/NotificationsState.kt" to "kein sichtbares Composable: der Zustand der Benachrichtigungen (remember)",
         "ui/settings/SettingsScreen.kt" to "braucht hiltViewModel(); die Geraetezeile (DeviceRow.kt) und die Zeilen (SettingsComponents.kt) haben Vorschauen",
+        "ui/tracks/TrackStrings.kt" to "Texte, Effekte und der gemeinsame Start (Berechtigung) der Track-Seiten; der Stopp-Dialog hat bewusst keine eigene Vorschau (Text und zwei Knoepfe), die Zeilen und Karten haben Vorschauen in TracksScreen.kt",
         "ui/settings/NumberInputDialog.kt" to "der gemeinsame Rumpf dreier Dialoge: ihre Vorschauen (FuelRangeSetting.kt, FuelReserveSetting.kt, FuelCapacitySetting.kt) zeigen ihn in beiden Flaechen",
         "ui/theme/AppTheme.kt" to "der Rahmen um die App (Theme und Mindestgroesse der Touch-Ziele), nichts Eigenes zu zeigen",
         "ui/theme/PreviewSupport.kt" to "der Rahmen der Vorschauen selbst",

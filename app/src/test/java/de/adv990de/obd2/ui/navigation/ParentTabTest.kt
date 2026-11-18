@@ -53,6 +53,15 @@ class ParentTabTest {
     }
 
     @Test
+    fun `the tracks pages belong to the trips tab and the detail route carries the id`() {
+        assertEquals("tracks", Screen.Tracks.route)
+        assertEquals("track_detail/{id}", Screen.TrackDetail.route)
+        assertEquals(Screen.TripsAndFaults, parentTab(Screen.Tracks.route))
+        assertEquals(Screen.TripsAndFaults, parentTab(Screen.TrackDetail.route))
+        assertEquals("track_detail/42", Screen.TrackDetail.routeFor(42L))
+    }
+
+    @Test
     fun `the data transfer page belongs to the settings tab - under the route pattern the NavController reports`() {
         assertEquals("data_transfer?mode={mode}&part={part}&pick={pick}", Screen.DataTransfer.route)
         assertEquals(Screen.Settings, parentTab(Screen.DataTransfer.route))
@@ -89,7 +98,7 @@ class ParentTabTest {
      *  decided which tab owns it — so it cannot silently be left without a highlight. */
     private fun expectedParent(screen: Screen): Screen = when (screen) {
         Screen.Dashboard -> Screen.Dashboard
-        Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry, Screen.LogbookStats -> Screen.TripsAndFaults
+        Screen.TripsAndFaults, Screen.FreezeFrame, Screen.LogEntry, Screen.LogbookStats, Screen.Tracks, Screen.TrackDetail -> Screen.TripsAndFaults
         Screen.Settings, Screen.VehicleInfo, Screen.AppInfo, Screen.AppLogs,
         Screen.GearSettings, Screen.Licenses, Screen.MaintenanceIntervals, Screen.DataTransfer -> Screen.Settings
     }
@@ -99,7 +108,7 @@ class ParentTabTest {
         val all = listOf(
             Screen.Dashboard, Screen.TripsAndFaults, Screen.FreezeFrame, Screen.VehicleInfo,
             Screen.Settings, Screen.AppInfo, Screen.AppLogs, Screen.GearSettings,
-            Screen.Licenses, Screen.LogEntry, Screen.LogbookStats, Screen.MaintenanceIntervals, Screen.DataTransfer,
+            Screen.Licenses, Screen.LogEntry, Screen.LogbookStats, Screen.MaintenanceIntervals, Screen.DataTransfer, Screen.Tracks, Screen.TrackDetail,
         )
         for (screen in all) assertEquals("route ${screen.route}", expectedParent(screen), parentTab(screen.route))
     }

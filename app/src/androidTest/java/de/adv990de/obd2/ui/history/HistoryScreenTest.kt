@@ -7,7 +7,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.material3.Text
 import androidx.compose.ui.test.hasText
+import androidx.navigation.compose.composable
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -632,6 +634,30 @@ class HistoryScreenTest {
 
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag(SHORTCUT_TARGET_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theTracksIcon_isThere_atLeast56dp_andOpensTheTracksPage_once() {
+        composeRule.setContent {
+            val controller = rememberNavController()
+            navController = controller
+            ShortcutNavHost(controller, extraDestinations = { composable(Screen.Tracks.route) { Text("tracks page") } }) { HistoryScreen(navController = it) }
+        }
+        composeRule.waitForIdle()
+        waitForText("WP0ZZZ99ZTS392124")
+        composeRule.onNodeWithTag(HISTORY_TRACKS_TEST_TAG).assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(56.dp).assertWidthIsAtLeast(56.dp)
+
+        // Zwei Tipps in der Ueberblendung legen die Seite nur einmal an (openSubPage).
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(HISTORY_TRACKS_TEST_TAG).performClick()
+        composeRule.onNodeWithTag(HISTORY_TRACKS_TEST_TAG).performClick()
+        composeRule.mainClock.autoAdvance = true
+
+        composeRule.waitForIdle()
+        composeRule.runOnUiThread {
+            assertEquals(Screen.Tracks.route, navController.currentDestination?.route)
+            assertEquals(1, navController.currentBackStack.value.count { it.destination.route == Screen.Tracks.route })
+        }
     }
 
     @Test

@@ -803,4 +803,60 @@
         <item quantity="one">%1$d setting applied</item>
         <item quantity="other">%1$d settings applied</item>
     </plurals>
+
+    <!-- Tracks (F8) -->
+    <string name="tracks_title">Tracks</string>
+    <string name="tracks_open_cd">Tracks</string>
+    <string name="tracks_empty">No tracks yet. Start a recording to save your route.</string>
+    <string name="tracks_start">Start recording</string>
+    <string name="tracks_stop">Stop</string>
+    <string name="tracks_recording_title">Recording</string>
+    <string name="tracks_recording_wait">Waiting for GPS signal</string>
+    <string name="tracks_recording_write_failed">Saving failed — trying again</string>
+    <string name="tracks_stop_title">Stop recording?</string>
+    <string name="tracks_stop_text">The track is saved with what has been recorded so far.</string>
+    <string name="tracks_stop_confirm">Stop recording</string>
+    <string name="tracks_source_recorded">Recorded</string>
+    <string name="tracks_source_imported">Imported</string>
+    <string name="tracks_cd_rename">Rename</string>
+    <string name="tracks_rename_title">Rename track</string>
+    <string name="tracks_rename_label">Name</string>
+    <string name="tracks_save">Save</string>
+    <string name="tracks_cd_delete">Delete</string>
+    <string name="tracks_deleted">Track deleted</string>
+    <string name="tracks_permission_hint">Recording needs your precise location.</string>
+    <string name="tracks_msg_no_permission">Allow location access to record a track.</string>
+    <string name="tracks_msg_no_location_service">Location services are turned off.</string>
+    <string name="tracks_msg_start_failed">The recording could not be started.</string>
+    <string name="tracks_msg_stop_failed">The recording could not be stopped.</string>
+    <string name="tracks_msg_rename_failed">Renaming failed.</string>
+    <string name="track_detail_title">Track</string>
+    <string name="track_detail_not_found">This track no longer exists.</string>
+    <string name="track_detail_failed">The track could not be read.</string>
+    <string name="track_detail_empty">This track has no points.</string>
+    <string name="track_zoom_in">Zoom in</string>
+    <string name="track_zoom_out">Zoom out</string>
+    <string name="track_fit">Fit</string>
+    <string name="track_fit_cd">Fit track to the screen</string>
+    <string name="track_pan_up">Move up</string>
+    <string name="track_pan_down">Move down</string>
+    <string name="track_pan_left">Move left</string>
+    <string name="track_pan_right">Move right</string>
+    <string name="track_stat_distance">Distance</string>
+    <string name="track_stat_duration">Duration</string>
+    <string name="track_stat_ascent">Ascent</string>
+    <string name="track_stat_descent">Descent</string>
+    <string name="track_stat_points">Points</string>
+    <string name="track_stat_start">Start</string>
+    <string name="track_stat_source">Source</string>
+    <string name="track_canvas_desc">Track drawing, north is up</string>
+    <string name="track_north">North</string>
+    <string name="track_scale_m">%1$d m</string>
+    <string name="track_scale_km">%1$d km</string>
+    <string name="dashboard_track_start_cd">Record a track</string>
+    <string name="dashboard_track_stop_cd">Recording a track — tap to stop</string>
+    <plurals name="tracks_points">
+        <item quantity="one">%d point</item>
+        <item quantity="other">%d points</item>
+    </plurals>
 </resources>

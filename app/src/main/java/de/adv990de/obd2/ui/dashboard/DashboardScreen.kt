@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +42,11 @@ import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.tracks.RecordingButton
+import de.adv990de.obd2.ui.tracks.StopRecordingDialog
+import de.adv990de.obd2.ui.tracks.TracksMessageEffect
+import de.adv990de.obd2.ui.tracks.TracksViewModel
+import de.adv990de.obd2.ui.tracks.rememberStartRecording
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +56,7 @@ fun DashboardScreen(
     vm: DashboardViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     fuelVm: FuelGaugeViewModel = hiltViewModel(),
+    tracksVm: TracksViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val placeholderReadings by vm.placeholderReadings.collectAsStateWithLifecycle()
@@ -76,6 +84,17 @@ fun DashboardScreen(
     // fehlender Berechtigung wartet die Kachel nicht auf ein Signal, sondern sagt, was fehlt (B10).
     val locationPermission = rememberLocationPermissionState()
     val gpsPermissionMissing = useGpsSpeed && !locationPermission.fine
+    // Streckenaufzeichnung (Tracks): der Knopf neben dem Bluetooth-Symbol. Das Dashboard beobachtet nur den Zustand der Aufzeichnung, nicht die Liste der Tracks; eine
+    // abgelehnte oder gescheiterte Aufnahme sagt eine Snackbar (dieselben Texte wie auf der Seite „Tracks“), das Beenden fragt vorher zurueck.
+    val recording by tracksVm.recording.collectAsStateWithLifecycle()
+    val trackMessage by tracksVm.message.collectAsStateWithLifecycle()
+    val startRecording = rememberStartRecording(tracksVm, locationPermission)
+    var stopRecordingConfirmation: Boolean by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    TracksMessageEffect(trackMessage, tracksVm::consumeMessage, snackbarHostState)
+    if (stopRecordingConfirmation) {
+        StopRecordingDialog(onConfirm = { stopRecordingConfirmation = false; tracksVm.stopRecording() }, onDismiss = { stopRecordingConfirmation = false })
+    }
     // Echte Messwerte nur in der Phase "Live" — auch wenn keiner zu einem Slot gehoert (dann zeigt jede Kachel ihren
     // Hinweis, z. B. "Vom Fahrzeug nicht unterstuetzt"). In allen anderen Phasen die Vorschau-Belegung ("--") — mit EINER Ausnahme: in "veraltet" zeigt die
     // Geschwindigkeits-Kachel die GPS-Geschwindigkeit, denn die haengt nicht am Adapter (Entscheidung D3, s. withStaleGpsSpeed).
@@ -100,6 +119,7 @@ fun DashboardScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         // ── RPM demo animation ────────────────────────────────────────────
@@ -160,6 +180,7 @@ fun DashboardScreen(
                 alertsEnabled = rpmAlertsEnabled(isLive, demoRpm),
                 digitsEnabled = rpmDigitsEnabled(isLive, demoRpm),
                 trailingContent = {
+                    RecordingButton(recording, onStart = startRecording, onStopRequest = { stopRecordingConfirmation = true })
                     ConnectionIndicator(
                         isConnected = state.isConnected,
                         isReconnecting = state.isReconnecting,

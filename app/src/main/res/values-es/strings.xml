@@ -842,4 +842,61 @@
         <item quantity="many">%1$d ajustes incorporados</item>
         <item quantity="other">%1$d ajustes incorporados</item>
     </plurals>
+
+    <!-- Tracks (F8) -->
+    <string name="tracks_title">Rutas</string>
+    <string name="tracks_open_cd">Rutas</string>
+    <string name="tracks_empty">Aún no hay rutas. Inicia una grabación para guardar tu recorrido.</string>
+    <string name="tracks_start">Iniciar grabación</string>
+    <string name="tracks_stop">Detener</string>
+    <string name="tracks_recording_title">Grabando</string>
+    <string name="tracks_recording_wait">Esperando señal GPS</string>
+    <string name="tracks_recording_write_failed">Error al guardar: reintentando</string>
+    <string name="tracks_stop_title">¿Detener la grabación?</string>
+    <string name="tracks_stop_text">La ruta se guarda con lo grabado hasta ahora.</string>
+    <string name="tracks_stop_confirm">Detener grabación</string>
+    <string name="tracks_source_recorded">Grabada</string>
+    <string name="tracks_source_imported">Importada</string>
+    <string name="tracks_cd_rename">Renombrar</string>
+    <string name="tracks_rename_title">Renombrar ruta</string>
+    <string name="tracks_rename_label">Nombre</string>
+    <string name="tracks_save">Guardar</string>
+    <string name="tracks_cd_delete">Eliminar</string>
+    <string name="tracks_deleted">Ruta eliminada</string>
+    <string name="tracks_permission_hint">La grabación necesita tu ubicación precisa.</string>
+    <string name="tracks_msg_no_permission">Permite el acceso a la ubicación para grabar una ruta.</string>
+    <string name="tracks_msg_no_location_service">Los servicios de ubicación están desactivados.</string>
+    <string name="tracks_msg_start_failed">No se pudo iniciar la grabación.</string>
+    <string name="tracks_msg_stop_failed">No se pudo detener la grabación.</string>
+    <string name="tracks_msg_rename_failed">No se pudo renombrar.</string>
+    <string name="track_detail_title">Ruta</string>
+    <string name="track_detail_not_found">Esta ruta ya no existe.</string>
+    <string name="track_detail_failed">No se pudo leer la ruta.</string>
+    <string name="track_detail_empty">Esta ruta no tiene puntos.</string>
+    <string name="track_zoom_in">Acercar</string>
+    <string name="track_zoom_out">Alejar</string>
+    <string name="track_fit">Ajustar</string>
+    <string name="track_fit_cd">Ajustar la ruta a la pantalla</string>
+    <string name="track_pan_up">Mover arriba</string>
+    <string name="track_pan_down">Mover abajo</string>
+    <string name="track_pan_left">Mover a la izquierda</string>
+    <string name="track_pan_right">Mover a la derecha</string>
+    <string name="track_stat_distance">Distancia</string>
+    <string name="track_stat_duration">Duración</string>
+    <string name="track_stat_ascent">Subida</string>
+    <string name="track_stat_descent">Bajada</string>
+    <string name="track_stat_points">Puntos</string>
+    <string name="track_stat_start">Inicio</string>
+    <string name="track_stat_source">Origen</string>
+    <string name="track_canvas_desc">Dibujo de la ruta, el norte está arriba</string>
+    <string name="track_north">Norte</string>
+    <string name="track_scale_m">%1$d m</string>
+    <string name="track_scale_km">%1$d km</string>
+    <string name="dashboard_track_start_cd">Grabar una ruta</string>
+    <string name="dashboard_track_stop_cd">Grabando una ruta: toca para detener</string>
+    <plurals name="tracks_points">
+        <item quantity="one">%d punto</item>
+        <item quantity="many">%d puntos</item>
+        <item quantity="other">%d puntos</item>
+    </plurals>
 </resources>
