@@ -50,7 +50,13 @@ class AndroidLocationSpeedProvider @Inject constructor(
         onDisabled = { onFix(null) },
     )
 
-    /** Die eine Stelle, die einen [LocationListener] am GPS-Anbieter anmeldet; [startUpdates] und [startFixUpdates] unterscheiden sich nur in dem, was sie aus dem Fix machen. */
+    override fun startPositionUpdates(minIntervalMs: Long, onFix: (TrackFix?) -> Unit): (() -> Unit)? = register(
+        minIntervalMs = minIntervalMs,
+        onLocation = { location -> onFix(location.toTrackFix()) },
+        onDisabled = { onFix(null) },
+    )
+
+    /** Die eine Stelle, die einen [LocationListener] am GPS-Anbieter anmeldet; [startUpdates], [startFixUpdates] und [startPositionUpdates] unterscheiden sich nur in dem, was sie aus dem Fix machen. */
     private fun register(
         minIntervalMs: Long,
         onLocation: (Location) -> Unit,
@@ -96,21 +102,37 @@ class AndroidLocationSpeedProvider @Inject constructor(
 }
 
 /**
- * Ein [Location] als [GpsFix] fuer die Gelaende-Kachel: jedes Feld nur, wenn der Fix es traegt (`hasX()`), sonst null — nie 0. Die Hoehe kommt ab Android 14
- * ([sdkInt] 34) ueber dem Meeresniveau (`getMslAltitudeMeters`), davor und ohne MSL-Angabe ueber dem Ellipsoid (in Deutschland mehrere Dutzend Meter daneben).
- * Die Vertikalgenauigkeit gilt fuer beide Angaben (die MSL-Genauigkeit unterscheidet sich nur um die Unsicherheit des Geoidmodells). Die Zeit ist die
- * monotone des Fixes. [sdkInt] ist ein Parameter, damit beide Zweige im JVM-Test laufen (wie bei `LocationPermissions`).
+ * Ein [Location] als [GpsFix] fuer die Gelaende-Kachel: jedes Feld nur, wenn der Fix es traegt (`hasX()`), sonst null — nie 0. Die Hoehe: s. [altitudeOrNull]. Die Vertikalgenauigkeit gilt fuer beide
+ * Angaben (die MSL-Genauigkeit unterscheidet sich nur um die Unsicherheit des Geoidmodells). Die Zeit ist die monotone des Fixes. [sdkInt] ist ein Parameter, damit beide Zweige im JVM-Test laufen
+ * (wie bei `LocationPermissions`).
  */
-@SuppressLint("NewApi") // der MSL-Zweig steht hinter dem Vergleich mit sdkInt (Standard: Build.VERSION.SDK_INT); Lint sieht ihn durch den Parameter nicht
 internal fun Location.toGpsFix(sdkInt: Int = Build.VERSION.SDK_INT): GpsFix = GpsFix(
     elapsedMs = elapsedRealtimeNanos / 1_000_000L,
     speedKmh = if (hasSpeed()) speed * 3.6f else null,
-    altitudeM = when {
-        sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && hasMslAltitude() -> mslAltitudeMeters.toFloat()
-        hasAltitude() -> altitude.toFloat()
-        else -> null
-    },
+    altitudeM = altitudeOrNull(sdkInt),
     verticalAccuracyM = if (hasVerticalAccuracy()) verticalAccuracyMeters else null,
     bearingDeg = if (hasBearing()) bearing else null,
     bearingAccuracyDeg = if (hasBearingAccuracy()) bearingAccuracyDegrees else null,
 )
+
+/** Ein [Location] als [TrackFix] fuer die Streckenaufzeichnung: Position und Wanduhr immer, der Rest nur, wenn der Fix es traegt (sonst null, nie 0); die Hoehe wie bei [toGpsFix]. */
+internal fun Location.toTrackFix(sdkInt: Int = Build.VERSION.SDK_INT): TrackFix = TrackFix(
+    timeMs = time,
+    elapsedMs = elapsedRealtimeNanos / 1_000_000L,
+    lat = latitude,
+    lon = longitude,
+    altitudeM = altitudeOrNull(sdkInt),
+    accuracyM = if (hasAccuracy()) accuracy else null,
+    speedKmh = if (hasSpeed()) speed * 3.6f else null,
+)
+
+/**
+ * Die Hoehe eines Fixes: ab Android 14 ([sdkInt] 34) ueber dem Meeresniveau (`getMslAltitudeMeters`), davor und ohne MSL-Angabe ueber dem Ellipsoid (in Deutschland mehrere Dutzend Meter daneben);
+ * ohne beides null.
+ */
+@SuppressLint("NewApi") // der MSL-Zweig steht hinter dem Vergleich mit sdkInt (Standard: Build.VERSION.SDK_INT); Lint sieht ihn durch den Parameter nicht
+private fun Location.altitudeOrNull(sdkInt: Int): Float? = when {
+    sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && hasMslAltitude() -> mslAltitudeMeters.toFloat()
+    hasAltitude() -> altitude.toFloat()
+    else -> null
+}

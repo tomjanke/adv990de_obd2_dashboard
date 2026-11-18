@@ -35,4 +35,12 @@ interface LocationSpeedProvider {
      * @return eine Funktion zum Abmelden, oder null wenn die Registrierung scheiterte oder nicht unterstuetzt wird.
      */
     fun startFixUpdates(minIntervalMs: Long, onFix: (GpsFix?) -> Unit): (() -> Unit)? = null
+
+    /**
+     * Meldet jeden Fix mit seiner **Position** (Streckenaufzeichnung) im Abstand von mindestens [minIntervalMs] — `null`, wenn der Anbieter abgeschaltet wurde. Wieder ein **eigener**
+     * Listener neben [startUpdates] und [startFixUpdates]. Standardmaessig nicht unterstuetzt (`null`).
+     *
+     * @return eine Funktion zum Abmelden, oder null wenn die Registrierung scheiterte oder nicht unterstuetzt wird.
+     */
+    fun startPositionUpdates(minIntervalMs: Long, onFix: (TrackFix?) -> Unit): (() -> Unit)? = null
 }

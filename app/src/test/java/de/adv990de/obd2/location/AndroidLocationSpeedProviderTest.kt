@@ -347,4 +347,150 @@ class AndroidLocationSpeedProviderTest {
             )
         }
     }
+
+    // --- startPositionUpdates() und toTrackFix(): die Streckenaufzeichnung (F8, 2026-11-18); alle Koordinaten sind erfunden ---
+
+    private fun trackLocation(
+        lat: Double = 51.2345,
+        lon: Double = 9.8765,
+        timeMs: Long = 1_794_909_600_000L,
+        elapsedNanos: Long = 5_000_000_000L,
+        accuracyM: Float? = null,
+        speedMps: Float? = null,
+        altitudeM: Double? = null,
+        mslAltitudeM: Double? = null,
+    ): Location = mockk {
+        every { latitude } returns lat
+        every { longitude } returns lon
+        every { time } returns timeMs
+        every { elapsedRealtimeNanos } returns elapsedNanos
+        every { hasAccuracy() } returns (accuracyM != null)
+        if (accuracyM != null) every { accuracy } returns accuracyM
+        every { hasSpeed() } returns (speedMps != null)
+        if (speedMps != null) every { speed } returns speedMps
+        every { hasAltitude() } returns (altitudeM != null)
+        if (altitudeM != null) every { altitude } returns altitudeM
+        every { hasMslAltitude() } returns (mslAltitudeM != null)
+        if (mslAltitudeM != null) every { mslAltitudeMeters } returns mslAltitudeM
+    }
+
+    private fun registerPositionAndCapture(
+        intervalMs: Long = 1_000L,
+        onFix: (TrackFix?) -> Unit = {},
+    ): Registration {
+        val manager = mockk<LocationManager>(relaxed = true)
+        every { context.getSystemService(LocationManager::class.java) } returns manager
+        val listenerSlot = slot<LocationListener>()
+        every {
+            manager.requestLocationUpdates(
+                any<String>(), any<Long>(), any<Float>(), capture(listenerSlot), any<Looper>(),
+            )
+        } just Runs
+        val stop = AndroidLocationSpeedProvider(context).startPositionUpdates(intervalMs, onFix)
+        assertNotNull("Registrierung haette eine Abmelde-Funktion liefern muessen", stop)
+        return Registration(manager, listenerSlot.captured, stop!!)
+    }
+
+    @Test
+    fun `the position listener asks the GPS provider for the requested interval`() {
+        val registration = registerPositionAndCapture(intervalMs = 1_000L)
+
+        verify {
+            registration.manager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER, 1_000L, 0f, registration.listener, any<Looper>(),
+            )
+        }
+    }
+
+    @Test
+    fun `positions are not supported by the default implementation`() {
+        val speedOnly = object : LocationSpeedProvider {
+            override fun hasPermission() = true
+            override fun startUpdates(onSpeed: (Float?) -> Unit): (() -> Unit)? = null
+        }
+
+        assertNull(speedOnly.startPositionUpdates(1_000L) { })
+    }
+
+    @Test
+    fun `startPositionUpdates returns null when the system has no LocationManager`() {
+        every { context.getSystemService(LocationManager::class.java) } returns null
+
+        assertNull(AndroidLocationSpeedProvider(context).startPositionUpdates(1_000L) { })
+    }
+
+    @Test
+    fun `startPositionUpdates returns null when the permission is revoked between check and call`() {
+        val manager = mockk<LocationManager>(relaxed = true)
+        every { context.getSystemService(LocationManager::class.java) } returns manager
+        every {
+            manager.requestLocationUpdates(
+                any<String>(), any<Long>(), any<Float>(), any<LocationListener>(), any<Looper>(),
+            )
+        } throws SecurityException("permission revoked")
+
+        assertNull(AndroidLocationSpeedProvider(context).startPositionUpdates(1_000L) { })
+    }
+
+    @Test
+    fun `a position is passed on with every field the fix carries`() {
+        val received = mutableListOf<TrackFix?>()
+        val registration = registerPositionAndCapture { received += it }
+
+        registration.listener.onLocationChanged(
+            trackLocation(
+                lat = 51.5, lon = 9.25, timeMs = 1_794_909_601_000L, elapsedNanos = 7_500_000_000L,
+                accuracyM = 4.5f, speedMps = 10f, altitudeM = 123.5,
+            ),
+        )
+
+        assertEquals(
+            listOf<TrackFix?>(
+                TrackFix(
+                    timeMs = 1_794_909_601_000L, elapsedMs = 7_500L, lat = 51.5, lon = 9.25,
+                    altitudeM = 123.5f, accuracyM = 4.5f, speedKmh = 36f,
+                ),
+            ),
+            received,
+        )
+    }
+
+    @Test
+    fun `a field the position does not carry is null, never zero`() {
+        val received = mutableListOf<TrackFix?>()
+        val registration = registerPositionAndCapture { received += it }
+
+        registration.listener.onLocationChanged(trackLocation())
+
+        val fix = received.single()!!
+        assertNull(fix.altitudeM)
+        assertNull(fix.accuracyM)
+        assertNull(fix.speedKmh)
+    }
+
+    @Test
+    fun `a disabled provider reports no position`() {
+        val received = mutableListOf<TrackFix?>()
+        val registration = registerPositionAndCapture { received += it }
+
+        registration.listener.onProviderDisabled(LocationManager.GPS_PROVIDER)
+
+        assertEquals(listOf<TrackFix?>(null), received)
+    }
+
+    @Test
+    fun `the position stop function unregisters exactly the registered listener`() {
+        val registration = registerPositionAndCapture()
+
+        registration.stop()
+
+        verify { registration.manager.removeUpdates(registration.listener) }
+    }
+
+    @Test
+    fun `the track altitude follows the same rule as the terrain altitude`() {
+        assertEquals(55f, trackLocation(altitudeM = 100.0, mslAltitudeM = 55.0).toTrackFix(sdkInt = 34).altitudeM!!, 0.001f)
+        assertEquals(100f, trackLocation(altitudeM = 100.0, mslAltitudeM = 55.0).toTrackFix(sdkInt = 33).altitudeM!!, 0.001f)
+        assertEquals(100f, trackLocation(altitudeM = 100.0).toTrackFix(sdkInt = 34).altitudeM!!, 0.001f)
+    }
 }
