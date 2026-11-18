@@ -1,5 +1,19 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.46.3 (versionCode 168)
+
+**Geändert: Die Nachtstufe der Helligkeit ist dunkler.** Auf deiner Fahrt im Dunkeln (Log: 21 lx) war die Nachtstufe mit 20 % noch zu hell, die Blendung war aber „viel besser“ als vorher. Die Nachtstufe steht jetzt auf 10 %.
+
+### Was sich ändert
+
+- **Nachtstufe:** 10 % statt 20 % (Fensterwert 0,1 statt 0,2). Tag (100 %) und Dämmerung (50 %), die Schwellen (ab 1 200 lx Tag, unter 30 lx Nacht), die Glättung und der Schalter „Bei Dunkelheit dimmen“ bleiben.
+- **Warum 10 %:** der Systemwert des Pixels liegt in dunkler Umgebung bei etwa 0,09 bis 0,1 — die Nacht entspricht damit ungefähr dem, was das Telefon im Dunkeln von sich aus wählen würde. Das ist meine Wahl, nicht gemessen; ist es noch zu hell oder zu dunkel, ist es eine Konstante.
+- **Geprüft:** JVM 3932 Tests (Geräte-Suite und Lint nicht wiederholt: es ändert sich nur eine Konstante samt Tests und Doku).
+- **Nicht gesehen:** wie sich 10 % auf der Fahrt anfühlt und ob die Anzeige bei Gegenlicht (Straßenlampen) noch lesbar bleibt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.46.2 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.46.2 (versionCode 167)
 
 **Neu: Ein Track lässt sich als GPX-Datei speichern oder teilen.** In der Ansicht eines Tracks stehen in der Kopfleiste „Als GPX speichern“ und „Als GPX teilen“. So lässt sich ein aufgezeichneter Weg in eine Karten-App oder ein anderes Gerät mitnehmen.
