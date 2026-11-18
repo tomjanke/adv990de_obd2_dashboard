@@ -25,6 +25,9 @@ internal const val WEATHER_PERMISSION_HINT_TEST_TAG = "settings_weather_permissi
 /** Test-only selector for the hideNavOnDrive [Switch], same reasoning as [GPS_SPEED_SWITCH_TEST_TAG]. */
 internal const val HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG = "settings_hide_nav_on_drive_switch"
 
+/** Test-only selector for the "dim in the dark" switch (same reasoning as [GPS_SPEED_SWITCH_TEST_TAG]). */
+internal const val DIM_IN_DARK_SWITCH_TEST_TAG = "settings_dim_in_dark_switch"
+
 /** Test-only selector for this screen's [LazyColumn], so instrumentation tests can
  *  `performScrollToNode` to items below the initially-composed viewport instead of relying on
  *  them already being laid out — needed once the list grew past what a single screen shows. */

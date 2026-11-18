@@ -56,6 +56,7 @@ class AppPreferences @Inject constructor(
         // Nicht mehr gelesen (seit 1.28.0: die Aufzeichnung schreibt, was abgefragt wird, ohne weiteren Filter), aber bei Nutzern noch im
         // DataStore: `log_only_discovered_pids`, `unlogged_pid_ids`, `logged_pid_ids`. Diese Namen nicht mit anderer Bedeutung wiederverwenden.
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
+        private val KEY_DIM_IN_DARK = booleanPreferencesKey("dim_in_dark")
         private val KEY_CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
         // Nicht mehr gelesen (seit 2026-11-10: kein Hintergrund-Standort mehr), aber bei Nutzern noch im DataStore: `background_location_prompted`.
@@ -160,6 +161,18 @@ class AppPreferences @Inject constructor(
 
     suspend fun setHideNavOnDrive(enabled: Boolean) {
         dataStore.edit { it[KEY_HIDE_NAV_ON_DRIVE] = enabled }
+    }
+
+    /**
+     * Ob die App bei Daemmerung und Dunkelheit die Helligkeit absenkt (Lichtsensor, s. `ui/theme/AmbientBrightness.kt`). Standard **an** (Nutzerwunsch 2026-11-18);
+     * aus heisst volle Helligkeit, wie bis 1.46.0.
+     */
+    val dimInDark: Flow<Boolean> = data.map { prefs ->
+        prefs[KEY_DIM_IN_DARK] ?: true
+    }
+
+    suspend fun setDimInDark(enabled: Boolean) {
+        dataStore.edit { it[KEY_DIM_IN_DARK] = enabled }
     }
 
     /**

@@ -12,18 +12,29 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import de.adv990de.obd2.data.AppLogRepository
 import de.adv990de.obd2.data.AppPreferences
+import de.adv990de.obd2.data.LogLevel
 import de.adv990de.obd2.data.seedBlocking
 import de.adv990de.obd2.ui.navigation.AppNavHost
 import de.adv990de.obd2.ui.permission.PermissionGate
+import de.adv990de.obd2.ui.theme.AmbientLightSensor
 import de.adv990de.obd2.ui.theme.AppTheme
+import de.adv990de.obd2.ui.theme.BrightnessLevel
+import de.adv990de.obd2.ui.theme.BrightnessReading
+import de.adv990de.obd2.ui.theme.ambientBrightness
+import de.adv990de.obd2.ui.theme.brightnessLogMessage
 import de.adv990de.obd2.ui.theme.amberColorScheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.blueColorScheme
 import de.adv990de.obd2.ui.theme.greenColorScheme
 import de.adv990de.obd2.ui.theme.rememberSplashThemeFor
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -32,6 +43,13 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var serviceController: ObdServiceController
 
     @Inject lateinit var appPreferences: AppPreferences
+
+    @Inject lateinit var ambientLight: AmbientLightSensor
+
+    @Inject lateinit var appLog: AppLogRepository
+
+    /** Die zuletzt gewaehlte Helligkeitsstufe; `onResume` setzt sie sofort, damit die App nicht erst voll hell aufblitzt, bis der Sensor meldet. */
+    private var brightnessLevel = BrightnessLevel.DAY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,15 +73,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // Der Sensor ist nur angemeldet, solange die App im Vordergrund steht und die Einstellung an ist (ambientBrightness).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                ambientBrightness(appPreferences.dimInDark, ambientLight::luxUpdates).collect { onBrightnessReading(it) }
+            }
+        }
     }
 
     // Volle Helligkeit nur waehrend die App tatsaechlich im Vordergrund ist (User-Wunsch
     // 2026-09-28, fuer Sonnenlicht-Lesbarkeit auf dem Motorrad) — kein WRITE_SETTINGS noetig,
     // da ein reines Fenster-Attribut statt einer System-Einstellung. onPause() setzt zurueck,
     // sonst bliebe die Helligkeit beim Wechsel in eine andere App faelschlich auf Maximum.
+    // Seit 2026-11-18 senkt der Lichtsensor sie in Daemmerung und Dunkelheit ab (ui/theme/AmbientBrightness.kt),
+    // solange die Einstellung "Bei Dunkelheit dimmen" an ist.
     override fun onResume() {
         super.onResume()
-        window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = true) }
+        applyBrightness(brightnessLevel)
         // Eine Berechtigung (Standort) kann sich ausserhalb der App geaendert haben; steht der Dienst schon, bekommt er
         // den dazu passenden Typ (ObdServiceController.refreshServiceType). Ohne laufenden Dienst oder bei gleichem Typ tut das nichts.
         serviceController.refreshServiceTypeInBackground()
@@ -72,6 +98,18 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = false) }
         super.onPause()
+    }
+
+    private fun applyBrightness(level: BrightnessLevel) {
+        window.attributes = window.attributes.apply { screenBrightness = brightnessOverrideFor(resumed = true, level = level) }
+    }
+
+    private suspend fun onBrightnessReading(reading: BrightnessReading) {
+        val previous = brightnessLevel
+        brightnessLevel = reading.level
+        applyBrightness(reading.level)
+        // ein Wechsel der Stufe steht im App-Log (mit dem gemessenen Lux-Wert): daran stellt man die Schwellen nach einer Fahrt nach
+        if (reading.level != previous) appLog.log(LogLevel.INFO, brightnessLogMessage(previous, reading))
     }
 
     // Polling und Aufzeichnung leben im ViewModel dieser Activity (B1). Wird sie wirklich beendet — Wegwischen, "Aktivitaeten
@@ -122,8 +160,8 @@ internal fun resolveColorScheme(theme: String, darkTheme: Boolean): ColorScheme 
 
 /**
  * The [android.view.Window.attributes] `screenBrightness` override for [MainActivity]'s
- * onResume/onPause: maximum while the app is actually in the foreground, otherwise
- * [WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE] (defer to the system setting).
+ * onResume/onPause: the brightness of [level] (full by default, lower at dusk and at night) while the app is actually
+ * in the foreground, otherwise [WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE] (defer to the system setting).
  */
-internal fun brightnessOverrideFor(resumed: Boolean): Float =
-    if (resumed) 1f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+internal fun brightnessOverrideFor(resumed: Boolean, level: BrightnessLevel = BrightnessLevel.DAY): Float =
+    if (resumed) level.windowBrightness else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE

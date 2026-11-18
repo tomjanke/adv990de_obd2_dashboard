@@ -57,6 +57,7 @@ object SettingsCatalog {
         ),
         flag("use_imperial", SettingsGroup.DISPLAY),
         flag("hide_nav_on_drive", SettingsGroup.DISPLAY),
+        flag("dim_in_dark", SettingsGroup.DISPLAY),
         flag("use_gps_speed", SettingsGroup.DISPLAY),
         flag("rpm_dynamic_threshold", SettingsGroup.DISPLAY),
         // Die Spanne des Schiebereglers in den Einstellungen (RpmThresholdSection: 0f..10000f).

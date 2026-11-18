@@ -86,7 +86,7 @@ class SettingsTransferTest {
     }
 
     @Test
-    fun `all 36 settings survive the trip from one install to another`() = runTest {
+    fun `all 37 settings survive the trip from one install to another`() = runTest {
         val source = freshPrefs()
         SettingsTransfer(source).apply(sampleSettings())
         assertEquals(sampleSettings(), SettingsTransfer(source).snapshot())

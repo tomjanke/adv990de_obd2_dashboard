@@ -128,6 +128,7 @@ fun SettingsScreen(
     }
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val theme by displayVm.theme.collectAsStateWithLifecycle()
+    val dimInDark by displayVm.dimInDark.collectAsStateWithLifecycle()
     val showAllBtDevices by vm.showAllBtDevices.collectAsStateWithLifecycle()
     LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
     val rpmBlinkThreshold by displayVm.rpmBlinkThreshold.collectAsStateWithLifecycle()
@@ -246,6 +247,16 @@ fun SettingsScreen(
                     summary = stringResource(R.string.settings_imperial_units_desc),
                     checked = useImperial,
                     onCheckedChange = { displayVm.toggleUseImperial() },
+                )
+                HorizontalDivider()
+            }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_dim_in_dark),
+                    summary = stringResource(R.string.settings_dim_in_dark_desc),
+                    checked = dimInDark,
+                    onCheckedChange = { displayVm.setDimInDark(it) },
+                    modifier = Modifier.testTag(DIM_IN_DARK_SWITCH_TEST_TAG),
                 )
                 HorizontalDivider()
             }

@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Der Einstellungs-Katalog: welche 36 Einstellungen ein Paket tragen und welche Werte als gueltig gelten (nie raten, nie runden). */
+/** Der Einstellungs-Katalog: welche 37 Einstellungen ein Paket tragen und welche Werte als gueltig gelten (nie raten, nie runden). */
 class SettingsCatalogTest {
 
     private fun spec(key: String) = SettingsCatalog.spec(key) ?: error("not in the catalog: $key")
@@ -35,9 +35,9 @@ class SettingsCatalogTest {
     }
 
     @Test
-    fun `the catalog holds the 36 settings in the order of the file`() {
+    fun `the catalog holds the 37 settings in the order of the file`() {
         val expected = listOf(
-            "theme", "use_imperial", "hide_nav_on_drive", "use_gps_speed", "rpm_dynamic_threshold", "rpm_blink_threshold",
+            "theme", "use_imperial", "hide_nav_on_drive", "dim_in_dark", "use_gps_speed", "rpm_dynamic_threshold", "rpm_blink_threshold",
             "slot_pids",
             "show_all_bt_devices", "log_only_dtc_sessions", "obd_watchdog_timeout_seconds", "reconnect_base_delay_seconds",
             "alarm_voltage_enabled", "alarm_coolant_enabled", "alarm_faults_enabled",
@@ -47,10 +47,10 @@ class SettingsCatalogTest {
             "wheel_circumference_mm", "primary_ratio", "secondary_ratio",
             "gear_ratio_1", "gear_ratio_2", "gear_ratio_3", "gear_ratio_4", "gear_ratio_5", "gear_ratio_6",
         )
-        assertEquals(36, expected.size)
+        assertEquals(37, expected.size)
         assertEquals(expected, SettingsCatalog.exported.map { it.key })
         assertEquals(6, maintenanceKeys.size)
-        assertEquals(36, SettingsCatalog.exported.map { it.key }.toSet().size)
+        assertEquals(37, SettingsCatalog.exported.map { it.key }.toSet().size)
     }
 
     @Test
@@ -86,7 +86,7 @@ class SettingsCatalogTest {
         val a = AlarmSettings()
         val defaults = mapOf<String, Any>(
             "theme" to AppPreferences.THEME_SYSTEM,
-            "use_imperial" to false, "hide_nav_on_drive" to false, "use_gps_speed" to false, "rpm_dynamic_threshold" to false,
+            "use_imperial" to false, "hide_nav_on_drive" to false, "dim_in_dark" to true, "use_gps_speed" to false, "rpm_dynamic_threshold" to false,
             "rpm_blink_threshold" to 0,
             "slot_pids" to AppPreferences.DEFAULT_SLOT_PIDS.joinToString(","),
             "show_all_bt_devices" to false, "log_only_dtc_sessions" to false,

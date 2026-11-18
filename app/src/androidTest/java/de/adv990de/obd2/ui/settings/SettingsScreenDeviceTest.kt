@@ -285,6 +285,38 @@ class SettingsScreenDeviceTest {
         assertEquals(false, appPreferences.hideNavOnDrive.first())
     }
 
+    // ── "Bei Dunkelheit dimmen": Standard an, der Schalter schreibt nur seinen Schluessel ────────
+
+    @Test
+    fun dimInDarkSwitch_isOnByDefault_andTurnsOffAndOn() = runBlocking {
+        // frischer DataStore je Test (TestAppModule): nichts gesetzt = der Standard
+        launchSettingsScreen()
+        waitUntilSwitchIsOn(DIM_IN_DARK_SWITCH_TEST_TAG, expected = true)
+        assertEquals(true, appPreferences.dimInDark.first())
+
+        composeRule.onNodeWithTag(DIM_IN_DARK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(DIM_IN_DARK_SWITCH_TEST_TAG, expected = false)
+        assertEquals(false, appPreferences.dimInDark.first())
+
+        composeRule.onNodeWithTag(DIM_IN_DARK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(DIM_IN_DARK_SWITCH_TEST_TAG, expected = true)
+        assertEquals(true, appPreferences.dimInDark.first())
+    }
+
+    @Test
+    fun dimInDarkSwitch_showsTitleAndDescription_andTouchesNoOtherSwitch() = runBlocking {
+        appPreferences.setHideNavOnDrive(false)
+        launchSettingsScreen()
+        scrollToClearView(DIM_IN_DARK_SWITCH_TEST_TAG)
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_dim_in_dark)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_dim_in_dark_desc)).assertIsDisplayed()
+        composeRule.onNodeWithTag(DIM_IN_DARK_SWITCH_TEST_TAG).assertHeightIsAtLeast(64.dp)
+
+        composeRule.onNodeWithTag(DIM_IN_DARK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(DIM_IN_DARK_SWITCH_TEST_TAG, expected = false)
+        assertEquals(false, appPreferences.hideNavOnDrive.first())
+    }
+
     // ── Connection choices (fixed options instead of free-text number fields) ──
 
     /** The segment showing [option] inside the choice group tagged [groupTag]. "10" and "30" exist

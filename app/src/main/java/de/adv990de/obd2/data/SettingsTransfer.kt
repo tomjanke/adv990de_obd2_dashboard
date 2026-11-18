@@ -63,6 +63,7 @@ class SettingsTransfer @Inject constructor(private val prefs: AppPreferences) {
             Binding("theme", { it.theme.first() }, { p, v -> p.setTheme(v as String) }),
             Binding("use_imperial", { it.useImperial.first() }, { p, v -> p.setUseImperial(v as Boolean) }),
             Binding("hide_nav_on_drive", { it.hideNavOnDrive.first() }, { p, v -> p.setHideNavOnDrive(v as Boolean) }),
+            Binding("dim_in_dark", { it.dimInDark.first() }, { p, v -> p.setDimInDark(v as Boolean) }),
             Binding("use_gps_speed", { it.useGpsSpeed.first() }, { p, v -> p.setUseGpsSpeed(v as Boolean) }),
             Binding("rpm_dynamic_threshold", { it.rpmDynamicThreshold.first() }, { p, v -> p.setRpmDynamicThreshold(v as Boolean) }),
             Binding("rpm_blink_threshold", { it.rpmBlinkThreshold.first() }, { p, v -> p.setRpmBlinkThreshold(v as Int) }),

@@ -7,6 +7,7 @@ internal fun sampleSettings(): Map<String, Any> = buildMap {
     put("theme", "amber")
     put("use_imperial", true)
     put("hide_nav_on_drive", true)
+    put("dim_in_dark", false)
     put("use_gps_speed", true)
     put("rpm_dynamic_threshold", true)
     put("rpm_blink_threshold", 9_000)

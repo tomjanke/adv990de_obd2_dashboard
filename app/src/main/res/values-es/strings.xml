@@ -323,6 +323,8 @@
     <string name="settings_permission_open_settings">Conceder en los ajustes de la app</string>
     <string name="settings_imperial_units">Unidades imperiales</string>
     <string name="settings_imperial_units_desc">Velocidad en mph, temperatura en °F</string>
+    <string name="settings_dim_in_dark">Atenuar en la oscuridad</string>
+    <string name="settings_dim_in_dark_desc">Reduce el brillo de la pantalla al atardecer y de noche para que no se refleje en la visera. Usa el sensor de luz; con luz diurna el brillo se mantiene al máximo.</string>
     <string name="settings_theme_system">Sistema</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Oscuro</string>

@@ -312,6 +312,8 @@
     <string name="settings_permission_open_settings">Grant in app settings</string>
     <string name="settings_imperial_units">Imperial units</string>
     <string name="settings_imperial_units_desc">Speed in mph, temperature in °F</string>
+    <string name="settings_dim_in_dark">Dim in the dark</string>
+    <string name="settings_dim_in_dark_desc">Lowers the screen brightness at dusk and at night, so the display does not mirror in your visor. Uses the light sensor; in daylight the brightness stays full.</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>

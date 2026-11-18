@@ -7,6 +7,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import de.adv990de.obd2.bluetooth.BtType
@@ -231,6 +232,33 @@ class AppPreferencesTest {
         val prefs = makePreferences()
         prefs.setHideNavOnDrive(true)
         assertEquals(true, prefs.hideNavOnDrive.first())
+    }
+
+    // ── dimInDark (2026-11-18) ────────────────────────────────────────────────
+
+    @Test
+    fun `dimInDark defaults to true - the user asked for it to be on`() = runTest {
+        assertEquals(true, makePreferences().dimInDark.first())
+    }
+
+    @Test
+    fun `setDimInDark persists both values under the key dim_in_dark`() = runTest {
+        val prefs = makePreferences()
+        prefs.setDimInDark(false)
+        assertEquals(false, prefs.dimInDark.first())
+        prefs.setDimInDark(true)
+        assertEquals(true, prefs.dimInDark.first())
+    }
+
+    @Test
+    fun `the key dim_in_dark is persisted state - written and read under exactly that name`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        prefs.setDimInDark(false)
+        assertEquals(false, store.data.first()[booleanPreferencesKey("dim_in_dark")])
+        store.edit { it[booleanPreferencesKey("dim_in_dark")] = true }
+        assertEquals(true, prefs.dimInDark.first())
+        store.edit { it[booleanPreferencesKey("dim_in_dark")] = false }
+        assertEquals(false, prefs.dimInDark.first())
     }
 
     // ── crashReportsEnabled (QS B33) ──────────────────────────────────────────

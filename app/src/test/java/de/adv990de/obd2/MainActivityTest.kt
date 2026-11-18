@@ -114,6 +114,21 @@ class MainActivityTest {
     }
 
     @Test
+    fun `resumed takes the brightness of the level - dusk half, night a fifth`() {
+        assertEquals(0.5f, brightnessOverrideFor(resumed = true, level = de.adv990de.obd2.ui.theme.BrightnessLevel.DUSK), 0.0f)
+        assertEquals(0.2f, brightnessOverrideFor(resumed = true, level = de.adv990de.obd2.ui.theme.BrightnessLevel.NIGHT), 0.0f)
+    }
+
+    @Test
+    fun `not resumed defers to the system setting whatever the level`() {
+        assertEquals(
+            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE,
+            brightnessOverrideFor(resumed = false, level = de.adv990de.obd2.ui.theme.BrightnessLevel.NIGHT),
+            0.0f,
+        )
+    }
+
+    @Test
     fun `not resumed defers to the system brightness setting`() {
         assertEquals(
             WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE,

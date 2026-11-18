@@ -22,6 +22,13 @@ class DisplaySettingsViewModel @Inject constructor(
     val theme: StateFlow<String> = appPreferences.theme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), THEME_SYSTEM)
 
+    val dimInDark: StateFlow<Boolean> = appPreferences.dimInDark
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setDimInDark(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setDimInDark(enabled) }
+    }
+
     val useGpsSpeed: StateFlow<Boolean> = appPreferences.useGpsSpeed
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 

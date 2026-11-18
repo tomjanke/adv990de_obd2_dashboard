@@ -22,6 +22,7 @@ internal fun fakeAppPreferences(
     showAllBtDevices: Boolean = false,
     logOnlyDtcSessions: Boolean = false,
     hideNavOnDrive: Boolean = false,
+    dimInDark: Boolean = true,
     crashReportsEnabled: Boolean = true,
     useGpsSpeed: Boolean = false,
     weatherLocationPrompted: Boolean = false,
@@ -49,6 +50,7 @@ internal fun fakeAppPreferences(
     every { this@mockk.showAllBtDevices } returns flowOf(showAllBtDevices)
     every { this@mockk.logOnlyDtcSessions } returns flowOf(logOnlyDtcSessions)
     every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
+    every { this@mockk.dimInDark } returns flowOf(dimInDark)
     every { this@mockk.crashReportsEnabled } returns flowOf(crashReportsEnabled)
     every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
     every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)
