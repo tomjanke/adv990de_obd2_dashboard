@@ -1,5 +1,22 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.46.2 (versionCode 167)
+
+**Neu: Ein Track lässt sich als GPX-Datei speichern oder teilen.** In der Ansicht eines Tracks stehen in der Kopfleiste „Als GPX speichern“ und „Als GPX teilen“. So lässt sich ein aufgezeichneter Weg in eine Karten-App oder ein anderes Gerät mitnehmen.
+
+### Was sich ändert
+
+- **Speichern und Teilen:** „Speichern“ öffnet den Dateidialog des Systems, „Teilen“ das Teilen-Menü. Die Datei heißt `track_<Name>_<Zeit>.gpx` (GPX 1.1, eine Spur mit Zeit und Höhe, soweit bekannt, ohne Geschwindigkeit). Der Name ist nie ein Pfad: Sonderzeichen werden zu Unterstrichen, höchstens 40 Zeichen.
+- **Die Datei enthält deine Wege:** jeder Punkt des Tracks samt Zeit. Wer sie bekommt, kennt den Weg; ein Hinweis unter den Kennzahlen sagt es. Die App sendet nichts von selbst.
+- **Nur mit Punkten:** ein Track ohne Punkte hat die Knöpfe nicht. Eine laufende Aufzeichnung wird mit den Punkten bis jetzt exportiert.
+- **Sicher geschrieben:** die Datei entsteht erst im Cache und geht erst bei Erfolg heraus; ein Fehler hinterlässt keine halbe Datei. Exporte im Cache werden nach einem Tag entfernt.
+- **Geprüft:** JVM 3932 Tests, Geräte-Suite 1038 Tests (Pixel 8 Pro), Lint ohne Fehler, Mutationsproben an Namenslogik, Exporter, ViewModel und Bildschirm. Auf dem Pixel wird die Datei mit echter Datenbank und echtem FileProvider geschrieben und mit dem Parser des Systems wieder gelesen.
+- **Nicht gesehen:** Dateidialog und Teilen-Menü des Systems von Hand; die Datei in einer fremden App (Karten-App, Garmin, Komoot); ein echter, unterwegs aufgezeichneter Track (nur erfundene Koordinaten); sehr lange Tracks mit hunderttausenden Punkten. Die spanischen Texte sind meine Übersetzung.
+- **Noch nicht da:** GPX-Import, Aufnahme der Tracks im Sicherungspaket, Nachfahren, Kartenhintergrund.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.46.1 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.46.1 (versionCode 166)
 
 **Neu: Die Helligkeit sinkt bei Dämmerung und Nacht.** Bisher stand der Bildschirm in der App immer auf voller Helligkeit; im Dunkeln spiegelte sich das Telefon im Visier. Jetzt wählt der Lichtsensor des Telefons eine von drei Stufen.
