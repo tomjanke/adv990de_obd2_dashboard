@@ -32,6 +32,14 @@ interface TrackDao {
     @Query("SELECT * FROM track_points WHERE trackId = :trackId AND seq > :afterSeq ORDER BY seq LIMIT :limit")
     suspend fun pointsAfter(trackId: Long, afterSeq: Int, limit: Int): List<TrackPointEntity>
 
+    /** Die Ids der Tracks mit diesem Namen und dieser Punktzahl: die Vorauswahl, wenn der Import nach Doppelten sucht. */
+    @Query("SELECT id FROM tracks WHERE name = :name AND pointCount = :pointCount")
+    suspend fun idsByNameAndCount(name: String, pointCount: Int): List<Long>
+
+    /** Der letzte Punkt dieses Tracks; `null` ohne Punkte. */
+    @Query("SELECT * FROM track_points WHERE trackId = :trackId ORDER BY seq DESC LIMIT 1")
+    suspend fun lastPoint(trackId: Long): TrackPointEntity?
+
     /** Beendet einen Track: Ende, Kennzahlen und die tatsaechliche Zahl der Punkte (massgeblich, nicht die laufend mitgezaehlte). */
     @Query(
         "UPDATE tracks SET endMs = :endMs, distanceM = :distanceM, ascentM = :ascentM, descentM = :descentM, " +

@@ -19,6 +19,7 @@ import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.NotAPackageException
 import de.adv990de.obd2.transfer.PackageFormat
 import de.adv990de.obd2.transfer.PartPlan
+import de.adv990de.obd2.track.GpxFileException
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.PartOutcome
@@ -297,6 +298,7 @@ internal fun importFailureText(e: Exception): UiText = when (e) {
             TripFileException.Kind.TOO_MANY_ROWS, TripFileException.Kind.SPLIT_TRIP -> R.string.transfer_error_trips_invalid
         },
     )
+    is GpxFileException -> UiText.StringResource(if (e.kind == GpxFileException.Kind.NOT_GPX) R.string.transfer_error_unrecognized else R.string.transfer_error_too_large)
     is FileTooLargeException -> UiText.StringResource(R.string.transfer_error_too_large)
     // Jede uebrige IllegalArgumentException (ein kaputtes Anfuehrungszeichen, zu viele Zeilen im Logbuch, ein `require` im Code) ist "nicht lesbar", nicht "nicht erkannt": wer sagt, die Datei
     // sei unbekannt, obwohl der Fehler im Programm liegt, schickt den Nutzer auf die falsche Spur. Die Ursache steht im App-Log.

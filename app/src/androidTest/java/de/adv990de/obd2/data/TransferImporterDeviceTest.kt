@@ -12,6 +12,13 @@ import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.logbookCsvHeader
 import de.adv990de.obd2.logbook.logbookCsvLine
 import de.adv990de.obd2.transfer.DataPart
+import kotlinx.coroutines.flow.first
+import de.adv990de.obd2.transfer.UnreadableReason
+import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.track.trackStats
+import de.adv990de.obd2.track.TrackSource
+import de.adv990de.obd2.track.TrackPoint
+import de.adv990de.obd2.track.GpxFileException
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PartPlan
@@ -43,6 +50,7 @@ class TransferImporterDeviceTest {
     private lateinit var ctx: Context
     private lateinit var db: AppDatabase
     private lateinit var importer: TransferImporter
+    private lateinit var trackRepo: TrackRepository
     private val files = ArrayList<File>()
     private val now = System.currentTimeMillis()
     private val today = LocalDate.now()
@@ -51,7 +59,8 @@ class TransferImporterDeviceTest {
     fun setup() {
         ctx = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).allowMainThreadQueries().build()
-        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())), DtcHistoryRepository(db.dtcHistoryDao(), AppLogRepository(db.appLogDao())), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), VehicleLogRepository(db.vehicleLogDao()))
+        trackRepo = TrackRepository(db)
+        importer = TransferImporter(ctx, TripImporter(ctx, SessionRepository(ctx, db)), LogbookImporter(ctx, VehicleLogRepository(db.vehicleLogDao())), DtcHistoryRepository(db.dtcHistoryDao(), AppLogRepository(db.appLogDao())), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), VehicleLogRepository(db.vehicleLogDao()), TrackImporter(ctx, trackRepo))
         File(ctx.cacheDir, TRANSFER_IMPORT_CACHE_DIR).deleteRecursively()
     }
 
@@ -178,5 +187,107 @@ class TransferImporterDeviceTest {
     @Test
     fun aContentUriOfAnUnknownProviderGivesNullAndNeverThrows() = runBlocking {
         assertNull(importer.displayName(Uri.parse("content://de.adv990de.obd2.does.not.exist/some/file.zip")))
+    }
+
+    // --- GPX (Tracks), mit dem XML-Leser des Systems; alle Koordinaten sind erfunden ---
+
+    private val gpxTwoTracks = """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+<wpt lat="10.5" lon="20.5"><name>Hut</name></wpt>
+<trk><name>Ridden</name><trkseg>
+<trkpt lat="10.000" lon="20.000"><ele>100</ele><time>2026-09-01T10:00:00Z</time></trkpt>
+<trkpt lat="10.001" lon="20.000"><ele>105</ele><time>2026-09-01T10:00:10Z</time></trkpt>
+<trkpt lat="10.002" lon="20.000"><ele>110</ele><time>2026-09-01T10:00:20Z</time></trkpt>
+</trkseg></trk>
+<trk><name>Planned</name><trkseg>
+<trkpt lat="11.000" lon="21.000"></trkpt>
+<trkpt lat="91.0" lon="21.001"></trkpt>
+<trkpt lat="11.001" lon="21.001"></trkpt>
+</trkseg></trk>
+</gpx>"""
+
+    @Test
+    fun aGpxFileIsReadWithTheParserOfTheSystem() = runBlocking {
+        val preview = importer.inspect(file("transfer_two.gpx", gpxTwoTracks), now, today)
+
+        assertEquals(FileKind.GPX, preview.kind)
+        assertEquals(listOf(DataPart.TRACKS), preview.parts.keys.toList())
+        val plan = (preview.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+        assertEquals(listOf("Ridden", "Planned"), plan.items.map { it.name })
+        assertEquals(listOf(3, 2), plan.items.map { it.pointCount })
+        assertEquals(1, plan.rejectedPoints)
+        assertEquals(1, plan.ignoredWaypoints)
+        assertEquals(1, plan.withoutTime)
+        assertTrue(plan.items.none { it.duplicate })
+    }
+
+    @Test
+    fun theTracksOfAGpxFileAreWrittenAndFoundAgainAsDuplicates() = runBlocking {
+        val uri = file("transfer_again.gpx", gpxTwoTracks)
+        val first = importer.inspect(uri, now, today)
+
+        val result = importer.apply(first, setOf(DataPart.TRACKS))
+
+        assertEquals(PartOutcome.Done(count = 2, skipped = 0), result.outcomes[DataPart.TRACKS])
+        val saved = trackRepo.tracks.first().sortedBy { it.name }
+        assertEquals(listOf("Planned", "Ridden"), saved.map { it.name })
+        assertTrue(saved.all { it.source == TrackSource.IMPORTED })
+        assertEquals(listOf(2, 3), saved.map { it.pointCount })
+        val again = (importer.inspect(uri, now, today).parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+        assertEquals(listOf(true, true), again.items.map { it.duplicate })
+        assertTrue(again.toInsert.isEmpty())
+    }
+
+    @Test
+    fun anExportedTrackIsRecognizedWhenItComesBack() = runBlocking {
+        val id = trackRepo.create("Own ride", TrackSource.IMPORTED)
+        val points = (0 until 5).map { TrackPoint(1_790_000_000_000L + it * 5_000, 48.1234567891 + it * 0.0012345678, 11.9876543219 + it * 0.0009876543, 500f + it, null, null) }
+        trackRepo.appendPoints(id, points)
+        trackRepo.finish(id, points.last().timeMs, trackStats(points))
+        val uri = TrackExporter(ctx, trackRepo).exportToGpx(id)
+
+        val plan = (importer.inspect(uri, now, today).parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+
+        assertEquals(listOf(true), plan.items.map { it.duplicate })
+        trackRepo.delete(listOf(id))
+        val afterDelete = (importer.inspect(uri, now, today).parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+        assertEquals(listOf(false), afterDelete.items.map { it.duplicate })
+    }
+
+    @Test
+    fun aPackageWithTracksGpxGivesTheTracksPart() = runBlocking {
+        val preview = importer.inspect(packageFile("transfer_tracks.zip", true, "logbook.csv" to logbookCsv, "tracks.gpx" to gpxTwoTracks), now, today)
+
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRACKS), preview.parts.keys.toList())
+        assertEquals(2, (preview.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan.items.size)
+        assertTrue(copies().isEmpty())
+    }
+
+    @Test
+    fun aBrokenGpxInAPackageMakesOnlyTheTracksUnreadable() = runBlocking {
+        val preview = importer.inspect(packageFile("transfer_broken_tracks.zip", true, "logbook.csv" to logbookCsv, "tracks.gpx" to "<gpx><trk><trkseg><trkpt lat=\"1\" lon=\"2\">"), now, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.TRACKS))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun aGpxFileThatIsNoGpxIsRefused() = runBlocking {
+        try {
+            importer.inspect(file("transfer_broken.gpx", "<gpx><trk><trkseg><trkpt lat=\"1\" lon=\"2\">"), now, today)
+            fail("expected GpxFileException")
+        } catch (e: GpxFileException) {
+            assertEquals(GpxFileException.Kind.NOT_GPX, e.kind)
+        }
+    }
+
+    @Test
+    fun aKmlFileIsNotRecognized() = runBlocking {
+        try {
+            importer.inspect(file("transfer_other.kml", "<?xml version=\"1.0\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"></kml>"), now, today)
+            fail("expected TransferFileException")
+        } catch (e: TransferFileException) {
+            assertEquals(TransferFileException.Kind.UNRECOGNIZED, e.kind)
+        }
     }
 }

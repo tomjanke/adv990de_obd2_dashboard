@@ -859,6 +859,7 @@
     <string name="tracks_stop_confirm">Detener grabación</string>
     <string name="tracks_source_recorded">Grabada</string>
     <string name="tracks_source_imported">Importada</string>
+    <string name="tracks_cd_import">Importar archivo GPX</string>
     <string name="tracks_cd_rename">Renombrar</string>
     <string name="tracks_rename_title">Renombrar ruta</string>
     <string name="tracks_rename_label">Nombre</string>
@@ -904,5 +905,46 @@
         <item quantity="one">%d punto</item>
         <item quantity="many">%d puntos</item>
         <item quantity="other">%d puntos</item>
+    </plurals>
+
+    <!-- Importación GPX (rutas) -->
+    <string name="track_import_fallback_name">Ruta %1$d</string>
+    <string name="transfer_part_tracks">Rutas</string>
+    <plurals name="track_import_new">
+        <item quantity="one">%1$d ruta nueva</item>
+        <item quantity="many">%1$d rutas nuevas</item>
+        <item quantity="other">%1$d rutas nuevas</item>
+    </plurals>
+    <plurals name="track_import_item">
+        <item quantity="one">%2$s · %3$s · %1$d punto</item>
+        <item quantity="many">%2$s · %3$s · %1$d puntos</item>
+        <item quantity="other">%2$s · %3$s · %1$d puntos</item>
+    </plurals>
+    <plurals name="track_import_duplicates">
+        <item quantity="one">%1$d ruta ya está en la app (mismo nombre y mismo recorrido)</item>
+        <item quantity="many">%1$d rutas ya están en la app (mismo nombre y mismo recorrido)</item>
+        <item quantity="other">%1$d rutas ya están en la app (mismo nombre y mismo recorrido)</item>
+    </plurals>
+    <string name="track_import_nothing_new">Nada nuevo: todas las rutas de este archivo ya están en la app.</string>
+    <string name="track_import_no_points">Este archivo no tiene ninguna ruta con puntos.</string>
+    <plurals name="track_import_no_time">
+        <item quantity="one">%1$d ruta nueva no tiene horas (un recorrido planificado, no una salida)</item>
+        <item quantity="many">%1$d rutas nuevas no tienen horas (recorridos planificados, no salidas)</item>
+        <item quantity="other">%1$d rutas nuevas no tienen horas (recorridos planificados, no salidas)</item>
+    </plurals>
+    <plurals name="track_import_rejected_points">
+        <item quantity="one">Se omite %1$d punto con una posición imposible</item>
+        <item quantity="many">Se omiten %1$d puntos con una posición imposible</item>
+        <item quantity="other">Se omiten %1$d puntos con una posición imposible</item>
+    </plurals>
+    <plurals name="track_import_waypoints">
+        <item quantity="one">%1$d punto de interés no se importa (aún no se muestran)</item>
+        <item quantity="many">%1$d puntos de interés no se importan (aún no se muestran)</item>
+        <item quantity="other">%1$d puntos de interés no se importan (aún no se muestran)</item>
+    </plurals>
+    <plurals name="track_import_done">
+        <item quantity="one">%1$d ruta importada</item>
+        <item quantity="many">%1$d rutas importadas</item>
+        <item quantity="other">%1$d rutas importadas</item>
     </plurals>
 </resources>

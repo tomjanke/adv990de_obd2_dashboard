@@ -460,6 +460,7 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
                 when (plan) {
                     is PartPlan.Trips -> TripsPreviewBody(plan.plan, meta = plan.meta)
                     is PartPlan.Logbook -> LogbookPreviewBody(plan.plan)
+                    is PartPlan.Tracks -> TracksPreviewBody(plan.plan)
                     is PartPlan.DtcHistory -> DtcHistoryPreviewBody(plan.plan)
                     is PartPlan.Settings -> SettingsPreviewBody(plan.plan)
                     is PartPlan.Counters -> CountersPreviewBody(plan)

@@ -820,6 +820,7 @@
     <string name="tracks_stop_confirm">Stop recording</string>
     <string name="tracks_source_recorded">Recorded</string>
     <string name="tracks_source_imported">Imported</string>
+    <string name="tracks_cd_import">Import GPX file</string>
     <string name="tracks_cd_rename">Rename</string>
     <string name="tracks_rename_title">Rename track</string>
     <string name="tracks_rename_label">Name</string>
@@ -864,5 +865,39 @@
     <plurals name="tracks_points">
         <item quantity="one">%d point</item>
         <item quantity="other">%d points</item>
+    </plurals>
+
+    <!-- GPX import (tracks) -->
+    <string name="track_import_fallback_name">Track %1$d</string>
+    <string name="transfer_part_tracks">Tracks</string>
+    <plurals name="track_import_new">
+        <item quantity="one">%1$d new track</item>
+        <item quantity="other">%1$d new tracks</item>
+    </plurals>
+    <plurals name="track_import_item">
+        <item quantity="one">%2$s · %3$s · %1$d point</item>
+        <item quantity="other">%2$s · %3$s · %1$d points</item>
+    </plurals>
+    <plurals name="track_import_duplicates">
+        <item quantity="one">%1$d track is already in the app (same name and same route)</item>
+        <item quantity="other">%1$d tracks are already in the app (same name and same route)</item>
+    </plurals>
+    <string name="track_import_nothing_new">Nothing new: every track in this file is already in the app.</string>
+    <string name="track_import_no_points">This file has no track with points.</string>
+    <plurals name="track_import_no_time">
+        <item quantity="one">%1$d new track has no times (a planned route, not a ride)</item>
+        <item quantity="other">%1$d new tracks have no times (planned routes, not rides)</item>
+    </plurals>
+    <plurals name="track_import_rejected_points">
+        <item quantity="one">%1$d point with an impossible position is skipped</item>
+        <item quantity="other">%1$d points with an impossible position are skipped</item>
+    </plurals>
+    <plurals name="track_import_waypoints">
+        <item quantity="one">%1$d waypoint is not imported (waypoints are not shown yet)</item>
+        <item quantity="other">%1$d waypoints are not imported (waypoints are not shown yet)</item>
+    </plurals>
+    <plurals name="track_import_done">
+        <item quantity="one">%1$d track imported</item>
+        <item quantity="other">%1$d tracks imported</item>
     </plurals>
 </resources>

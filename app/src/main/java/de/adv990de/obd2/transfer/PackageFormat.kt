@@ -30,6 +30,9 @@ object PackageFormat {
      */
     const val MAX_TRIPS_BYTES = 256L * 1024 * 1024
 
+    /** Die GPX-Datei der Tracks, im Paket und einzeln: dieselbe Grenze wie beim Lesen einer einzelnen GPX-Datei (`GpxLimits.maxBytes`). */
+    const val MAX_TRACKS_BYTES = 64L * 1024 * 1024
+
     /** Entpackt insgesamt höchstens so viel (P3): die Fahrten und 64 MiB für alles Übrige. Auch die Obergrenze für die Kopie der gewählten Datei im Cache. */
     const val MAX_TOTAL_BYTES = 320L * 1024 * 1024
 
@@ -42,6 +45,7 @@ object PackageFormat {
         TRIPS_META -> 4 * MIB
         DataPart.TRIPS.packageEntry -> MAX_TRIPS_BYTES
         DataPart.LOGBOOK.packageEntry -> 5 * MIB
+        DataPart.TRACKS.packageEntry -> MAX_TRACKS_BYTES
         DataPart.APP_LOG.packageEntry -> MAX_TOTAL_BYTES
         else -> 0L
     }

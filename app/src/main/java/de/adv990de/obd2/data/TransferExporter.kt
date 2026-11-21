@@ -37,7 +37,8 @@ data class ExportCounts(
         DataPart.LOGBOOK -> logbook
         DataPart.APP_LOG -> appLog
         DataPart.DTC_HISTORY -> dtcHistory
-        DataPart.SETTINGS, DataPart.COUNTERS -> null
+        // Die Tracks lassen sich noch nicht ausgeben (F8 Aufgabe 10): keine Menge, die Exportseite zeigt sie nicht.
+        DataPart.SETTINGS, DataPart.COUNTERS, DataPart.TRACKS -> null
     }
 
     fun isEmpty(part: DataPart): Boolean = of(part) == 0

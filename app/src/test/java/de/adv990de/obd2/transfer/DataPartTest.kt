@@ -1,5 +1,8 @@
 package de.adv990de.obd2.transfer
 
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,7 +13,7 @@ class DataPartTest {
     @Test
     fun theImportOrderPutsTheLogbookBeforeTheCounters() {
         assertEquals(
-            listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS),
+            listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.TRACKS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS),
             DataPart.IMPORT_ORDER,
         )
     }
@@ -34,7 +37,7 @@ class DataPartTest {
     @Test
     fun thePackageEntryNamesAreTheContract() {
         assertEquals(
-            setOf("manifest.json", "trips_meta.csv", "trips.csv", "logbook.csv", "settings.json", "counters.json", "dtc_history.csv", "applog.csv"),
+            setOf("manifest.json", "trips_meta.csv", "trips.csv", "tracks.gpx", "logbook.csv", "settings.json", "counters.json", "dtc_history.csv", "applog.csv"),
             PackageFormat.KNOWN_ENTRIES,
         )
     }
@@ -47,7 +50,30 @@ class DataPartTest {
     }
 
     @Test
-    fun phaseThreeOffersAllSixParts() {
-        assertEquals(DataPart.entries.toSet(), DataPart.AVAILABLE)
+    fun theExportOffersTheSixOldPartsAndNotYetTheTracks() {
+        assertEquals(DataPart.entries.toSet() - DataPart.TRACKS, DataPart.AVAILABLE)
+    }
+
+    @Test
+    fun aTracksPlanWithOnlyDuplicatesHasNothingNew() {
+        val dup = TrackImportItem("Old", listOf(TrackPoint(null, 10.0, 20.0, null, null, null)), 0, null, null, duplicate = true)
+        val fresh = dup.copy(name = "New", duplicate = false)
+
+        assertFalse(PartPlan.Tracks(TrackImportPlan(listOf(dup), 0, 0)).hasNews)
+        assertFalse(PartPlan.Tracks(TrackImportPlan(emptyList(), 0, 0)).hasNews)
+        assertTrue(PartPlan.Tracks(TrackImportPlan(listOf(dup, fresh), 0, 0)).hasNews)
+    }
+
+    @Test
+    fun theTracksAreNeverPreselected() {
+        assertFalse(DataPart.TRACKS in DataPart.DEFAULT_EXPORT)
+    }
+
+    @Test
+    fun theTracksCanBeImportedAlready() {
+        assertTrue(DataPart.TRACKS.importable)
+        assertEquals("tracks.gpx", DataPart.TRACKS.packageEntry)
+        assertEquals(DataPart.entries.filter { it.importable }.toSet(), DataPart.IMPORT_AVAILABLE)
+        assertTrue(DataPart.AVAILABLE.filter { it.importable }.all { it in DataPart.IMPORT_AVAILABLE })
     }
 }

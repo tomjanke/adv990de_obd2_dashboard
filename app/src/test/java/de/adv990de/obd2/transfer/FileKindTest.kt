@@ -29,6 +29,25 @@ class FileKindTest {
 
     @Test fun logbookWithBom() = assertEquals(FileKind.LOGBOOK_CSV, detectFileKind(bom + "date,type,odometer_km\n".toByteArray()))
 
+    @Test fun gpxWithDeclaration() =
+        assertEquals(FileKind.GPX, kind("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" creator=\"x\">\n<trk/></gpx>"))
+
+    @Test fun gpxWithoutDeclaration() = assertEquals(FileKind.GPX, kind("<gpx version=\"1.1\"></gpx>"))
+
+    @Test fun gpxWithBomAndLeadingBlankLines() = assertEquals(FileKind.GPX, detectFileKind(bom + "\r\n  \n<?xml version=\"1.0\"?><gpx></gpx>".toByteArray()))
+
+    @Test fun gpxWithNamespacePrefix() = assertEquals(FileKind.GPX, kind("<?xml version=\"1.0\"?><gpx:gpx xmlns:gpx=\"http://www.topografix.com/GPX/1/1\"/>"))
+
+    @Test fun xmlOfAnotherKindIsUnknown() {
+        assertEquals(FileKind.UNKNOWN, kind("<?xml version=\"1.0\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"></kml>"))
+        assertEquals(FileKind.UNKNOWN, kind("<html><body>gpx</body></html>"))
+    }
+
+    @Test fun aWordGpxInsideAnotherFileIsNoGpx() {
+        assertEquals(FileKind.UNKNOWN, kind("track.gpx,is,a,name\n"))
+        assertEquals(FileKind.UNKNOWN, kind("{\"file\": \"<gpx>\"}"))
+    }
+
     @Test fun appLog() = assertEquals(FileKind.APP_LOG_CSV, kind("timestamp,level,message\n1,INFO,x\n"))
 
     @Test fun appLogWithCr() = assertEquals(FileKind.APP_LOG_CSV, kind("timestamp,level,message\r1,INFO,x"))

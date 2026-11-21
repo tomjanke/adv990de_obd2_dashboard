@@ -27,6 +27,7 @@ class TransferShortcutsSourceTest {
     private val history = source("ui/history/HistoryScreen.kt")
     private val logbook = source("ui/logbook/LogbookScreen.kt")
     private val appLogs = source("ui/settings/AppLogsScreen.kt")
+    private val tracks = source("ui/tracks/TracksScreen.kt")
 
     @Test
     fun `the trip export shortcut opens the page with the trips and is enabled like delete all`() {
@@ -38,6 +39,13 @@ class TransferShortcutsSourceTest {
     @Test
     fun `the trip import shortcut asks for the file at once and is always enabled`() {
         val button = buttonWith(history, "R.string.history_cd_import")
+        assertTrue(button.contains("Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)"))
+        assertFalse("der Import-Knopf hat keine Freigabe-Bedingung", button.substringBefore("Icon(").contains("enabled"))
+    }
+
+    @Test
+    fun `the tracks import shortcut asks for the file at once and is always enabled`() {
+        val button = buttonWith(tracks, "R.string.tracks_cd_import")
         assertTrue(button.contains("Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)"))
         assertFalse("der Import-Knopf hat keine Freigabe-Bedingung", button.substringBefore("Icon(").contains("enabled"))
     }

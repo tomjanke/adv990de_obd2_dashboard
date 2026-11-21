@@ -33,7 +33,11 @@ import de.adv990de.obd2.transfer.SettingsCatalog
 import de.adv990de.obd2.transfer.SettingsPlan
 import de.adv990de.obd2.transfer.TripMetaSummary
 import de.adv990de.obd2.transfer.UnreadableReason
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.tripimport.ParsedTripFile
+import de.adv990de.obd2.ui.tracks.formatTrackDistance
 import de.adv990de.obd2.tripimport.RejectedRow
 import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.tripimport.readTripCsv
@@ -97,6 +101,42 @@ internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifie
                 Text(pluralStringResource(R.plurals.trip_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
             }
         }
+    }
+}
+
+/** Hoechstens so viele neue Spuren nennt die Vorschau einzeln; der Rest steht als „… und N weitere“ (eine Datei kann hunderte Spuren haben). */
+internal const val MAX_LISTED_TRACKS = 20
+
+/**
+ * Die Vorschau der Tracks einer GPX-Datei: die neuen Spuren (Name, Laenge, Punkte), die schon vorhandenen, Spuren ohne Zeit, uebersprungene Punkte und Wegpunkte, die
+ * (noch) nicht uebernommen werden. Alles oder nichts: es gibt keine Auswahl je Spur, nur das Kaestchen des Teils.
+ */
+@Composable
+internal fun TracksPreviewBody(plan: TrackImportPlan, modifier: Modifier = Modifier) {
+    val fresh = plan.toInsert
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when {
+            plan.items.isEmpty() -> Text(stringResource(R.string.track_import_no_points), style = MaterialTheme.typography.titleMedium)
+            fresh.isEmpty() -> Text(stringResource(R.string.track_import_nothing_new), style = MaterialTheme.typography.titleMedium)
+            else -> {
+                Text(pluralStringResource(R.plurals.track_import_new, fresh.size, fresh.size), style = MaterialTheme.typography.titleMedium)
+                fresh.take(MAX_LISTED_TRACKS).forEach { track ->
+                    Text(
+                        pluralStringResource(R.plurals.track_import_item, track.pointCount, track.pointCount, track.name, formatTrackDistance(track.distanceM)),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                if (fresh.size > MAX_LISTED_TRACKS) {
+                    val more = fresh.size - MAX_LISTED_TRACKS
+                    Text(pluralStringResource(R.plurals.trip_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+        if (plan.duplicateTracks > 0) Text(pluralStringResource(R.plurals.track_import_duplicates, plan.duplicateTracks, plan.duplicateTracks))
+        if (plan.withoutTime > 0) Text(pluralStringResource(R.plurals.track_import_no_time, plan.withoutTime, plan.withoutTime), color = StatusColors.warningOn(MaterialTheme.colorScheme.surface))
+        if (plan.ignoredWaypoints > 0) Text(pluralStringResource(R.plurals.track_import_waypoints, plan.ignoredWaypoints, plan.ignoredWaypoints))
+        if (plan.rejectedPoints > 0) Text(pluralStringResource(R.plurals.track_import_rejected_points, plan.rejectedPoints, plan.rejectedPoints), color = MaterialTheme.colorScheme.error)
     }
 }
 
@@ -270,6 +310,7 @@ private fun doneText(part: DataPart, outcome: PartOutcome.Done): String {
     return when (part) {
         DataPart.TRIPS -> pluralStringResource(R.plurals.trip_import_done, count, count)
         DataPart.LOGBOOK -> pluralStringResource(R.plurals.logbook_import_done, count, count)
+        DataPart.TRACKS -> pluralStringResource(R.plurals.track_import_done, count, count)
         DataPart.DTC_HISTORY -> pluralStringResource(R.plurals.transfer_done_codes, count, count)
         DataPart.SETTINGS -> pluralStringResource(R.plurals.transfer_done_settings, count, count)
         DataPart.COUNTERS ->
@@ -325,6 +366,35 @@ internal fun previewSettingsPlan(): SettingsPlan {
 
 internal fun previewCountersPlan(decision: OdometerDecision = OdometerDecision.APPLY): PartPlan.Counters =
     PartPlan.Counters(CounterValues(12.5f, 40_362, 4.2f), rejectedKeys = emptyList(), decision = decision, predictedMaxKm = 40_362)
+
+/** Drei neue Spuren (eine ohne Zeit), eine schon vorhandene, zwei uebersprungene Punkte und ein Wegpunkt. Alle Koordinaten sind erfunden. */
+internal fun previewTrackPlan(): TrackImportPlan {
+    fun item(name: String, points: Int, startMs: Long?, duplicate: Boolean = false) = TrackImportItem(
+        name = name,
+        points = List(points) { TrackPoint(startMs?.plus(it * 5_000L), 10.0 + it * 0.0005, 20.0, null, null, null) },
+        distanceM = points * 55L,
+        startMs = startMs,
+        endMs = startMs?.plus((points - 1) * 5_000L),
+        duplicate = duplicate,
+    )
+    return TrackImportPlan(
+        items = listOf(item("Alpine loop", 900, PREVIEW_START_MS), item("Planned route", 240, null), item("Coast road", 1_600, PREVIEW_START_MS + 86_400_000L), item("Old favourite", 500, PREVIEW_START_MS - 86_400_000L, duplicate = true)),
+        rejectedPoints = 2,
+        ignoredWaypoints = 1,
+    )
+}
+
+@Preview(name = "TracksPreviewBody (light)", showBackground = true)
+@Composable
+private fun PreviewTracksPreviewBodyLight() {
+    PreviewTheme(dark = false) { TracksPreviewBody(previewTrackPlan(), Modifier.padding(16.dp)) }
+}
+
+@Preview(name = "TracksPreviewBody (dark)", showBackground = true)
+@Composable
+private fun PreviewTracksPreviewBodyDark() {
+    PreviewTheme(dark = true) { TracksPreviewBody(previewTrackPlan(), Modifier.padding(16.dp)) }
+}
 
 @Preview(name = "SettingsPreviewBody (light)", showBackground = true)
 @Composable

@@ -19,6 +19,7 @@ import de.adv990de.obd2.transfer.parseDtcHistoryCsv
 import de.adv990de.obd2.transfer.planDtcHistoryMerge
 import java.io.InputStream
 import java.io.InputStreamReader
+import de.adv990de.obd2.track.GpxFileException
 import de.adv990de.obd2.transfer.UnreadableReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -27,7 +28,7 @@ import java.time.LocalDate
 
 /**
  * Liest die Teile eines geoeffneten Pakets zu Plaenen. Jeder Teil ist unabhaengig (D9): ein Fehler macht nur ihn [PartPlan.Unreadable], die anderen bleiben. Unbekannte Eintraege und
- * Teile, die diese Version noch nicht kennt ([DataPart.AVAILABLE]), bleiben unbeachtet.
+ * Teile, die diese Version noch nicht einlesen kann ([DataPart.IMPORT_AVAILABLE]), bleiben unbeachtet.
  */
 internal class PackageInspector(
     private val trips: TripImporter,
@@ -35,13 +36,14 @@ internal class PackageInspector(
     private val dtcHistory: DtcHistoryRepository,
     private val settings: SettingsTransfer,
     private val logEntries: VehicleLogRepository,
+    private val tracks: TrackImporter,
 ) {
 
     suspend fun inspect(reader: PackageReader, nowMs: Long, today: LocalDate): TransferPreview {
         val manifest = reader.manifest() ?: throw TransferFileException(TransferFileException.Kind.NOT_A_BACKUP, "No valid manifest: not a backup of this app")
         val parts = LinkedHashMap<DataPart, PartPlan>()
         for (part in DataPart.IMPORT_ORDER) {
-            if (part !in DataPart.AVAILABLE || !reader.has(part.packageEntry)) continue
+            if (part !in DataPart.IMPORT_AVAILABLE || !reader.has(part.packageEntry)) continue
             parts[part] = readPart(reader, part, nowMs, today, parts[DataPart.LOGBOOK])
         }
         return TransferPreview(
@@ -97,6 +99,7 @@ internal class PackageInspector(
             when (part) {
                 DataPart.TRIPS -> planTrips(reader, it, nowMs)
                 DataPart.LOGBOOK -> PartPlan.Logbook(logbook.plan(it, today))
+                DataPart.TRACKS -> PartPlan.Tracks(tracks.plan(it))
                 DataPart.DTC_HISTORY -> PartPlan.DtcHistory(planDtcHistoryMerge(dtcHistory.all(), parseDtcHistoryCsv(InputStreamReader(it, Charsets.UTF_8), nowMs)))
                 DataPart.SETTINGS -> PartPlan.Settings(planSettings(parseSettingsJson(it.reader(Charsets.UTF_8).readText()), settings.snapshot()))
                 DataPart.COUNTERS -> planCounters(parseCountersJson(it.reader(Charsets.UTF_8).readText()), logbookPlan)
@@ -107,6 +110,8 @@ internal class PackageInspector(
         throw e
     } catch (e: FileTooLargeException) {
         PartPlan.Unreadable(UnreadableReason.TOO_LARGE)
+    } catch (e: GpxFileException) {
+        PartPlan.Unreadable(if (e.kind == GpxFileException.Kind.NOT_GPX) UnreadableReason.FORMAT else UnreadableReason.TOO_LARGE)
     } catch (e: IllegalArgumentException) {
         PartPlan.Unreadable(UnreadableReason.FORMAT)
     } catch (e: IOException) {

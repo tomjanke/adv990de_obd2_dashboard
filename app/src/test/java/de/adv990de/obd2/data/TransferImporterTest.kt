@@ -23,6 +23,10 @@ import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.toJson
+import de.adv990de.obd2.track.GpxFileException
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.tripimport.TripImportPlan
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -35,6 +39,7 @@ import io.mockk.slot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -66,10 +71,12 @@ class TransferImporterTest {
     private val fuel = mockk<FuelRepository>()
     private val odometer = mockk<LogbookOdometer>()
     private val logEntries = mockk<VehicleLogRepository>()
-    private val importer = TransferImporter(context, trips, logbook, dtcHistory, settingsTransfer, fuel, odometer, logEntries)
+    private val trackImporter = mockk<TrackImporter>()
+    private val importer = TransferImporter(context, trips, logbook, dtcHistory, settingsTransfer, fuel, odometer, logEntries, trackImporter)
 
     private val tripPlan = TripImportPlan(emptyList(), 0, 0, emptyList(), 0)
     private val logPlan = ImportPlan(emptyList(), 0, emptyList(), 0)
+    private val trackPlan = TrackImportPlan(emptyList(), 0, 0)
     private val both = TransferPreview(FileKind.PACKAGE, false, false, linkedMapOf(DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRIPS to PartPlan.Trips(tripPlan)))
 
     @Test
@@ -97,6 +104,7 @@ class TransferImporterTest {
     fun `the fault history is merged after the trips with the merged entries and counts new plus updated`() = runTest {
         coEvery { logbook.apply(any()) } returns 2
         coEvery { trips.apply(any()) } returns 3
+        coEvery { trackImporter.apply(any()) } returns 2
         coEvery { dtcHistory.mergeFrom(any()) } returns Unit
         val result = importer.apply(all, setOf(DataPart.DTC_HISTORY, DataPart.TRIPS, DataPart.LOGBOOK))
 
@@ -186,8 +194,9 @@ class TransferImporterTest {
     private val sessionRepo = mockk<SessionRepository>()
     private val logRepo = mockk<VehicleLogRepository>()
     private val realContext = mockk<Context>()
+    private val realTracks = mockk<TrackImporter>()
     private val resolver = mockk<ContentResolver>()
-    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo), mockk<DtcHistoryRepository>(), mockk<SettingsTransfer>(), mockk<FuelRepository>(), mockk<LogbookOdometer>(), logRepo)
+    private val real = TransferImporter(realContext, TripImporter(realContext, sessionRepo), LogbookImporter(realContext, logRepo), mockk<DtcHistoryRepository>(), mockk<SettingsTransfer>(), mockk<FuelRepository>(), mockk<LogbookOdometer>(), logRepo, realTracks)
 
     private val tripsCsv = "timestamp,pid,value,name,source,session\n${nowMs - 5_000},010C,1500.0,Engine RPM,ECU,1\n"
     private val logbookCsv = logbookCsvHeader() + logbookCsvLine(
@@ -347,12 +356,13 @@ class TransferImporterTest {
     private fun everything(counterPlan: PartPlan.Counters = counterPlan(OdometerDecision.APPLY)) = TransferPreview(
         FileKind.PACKAGE, false, false,
         linkedMapOf(
-            DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRIPS to PartPlan.Trips(tripPlan), DataPart.DTC_HISTORY to PartPlan.DtcHistory(dtcPlan),
+            DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRIPS to PartPlan.Trips(tripPlan), DataPart.TRACKS to PartPlan.Tracks(trackPlan),
+            DataPart.DTC_HISTORY to PartPlan.DtcHistory(dtcPlan),
             DataPart.SETTINGS to PartPlan.Settings(settingsPlan), DataPart.COUNTERS to counterPlan,
         ),
     )
 
-    private val allParts = setOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS)
+    private val allParts = setOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.TRACKS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS)
 
     private fun stubAllApply(highest: Int? = 1000) {
         coEvery { logbook.apply(any()) } returns 2
@@ -365,12 +375,12 @@ class TransferImporterTest {
     }
 
     @Test
-    fun `the parts are written in the order logbook, trips, fault history, settings, counters`() = runTest {
+    fun `the parts are written in the order logbook, trips, tracks, fault history, settings, counters`() = runTest {
         stubAllApply()
         val result = importer.apply(everything(), allParts)
 
         coVerifyOrder {
-            logbook.apply(any()); trips.apply(any()); dtcHistory.mergeFrom(any()); settingsTransfer.apply(any())
+            logbook.apply(any()); trips.apply(any()); trackImporter.apply(any()); dtcHistory.mergeFrom(any()); settingsTransfer.apply(any())
             logEntries.maxOdometerKm; fuel.restore(12.5f); odometer.restore(GpsOdometer(1000, 4.25f))
         }
         assertEquals(DataPart.IMPORT_ORDER, result.outcomes.keys.toList())
@@ -466,5 +476,70 @@ class TransferImporterTest {
         val result = importer.apply(everything(), setOf(DataPart.COUNTERS))
 
         assertEquals(PartOutcome.Failed(boom), result.outcomes[DataPart.COUNTERS])
+    }
+
+    // --- tracks ---
+
+    private fun freshTrack(name: String, duplicate: Boolean) =
+        TrackImportItem(name, listOf(TrackPoint(null, 10.0, 20.0, null, null, null)), 0, null, null, duplicate)
+
+    @Test
+    fun `a gpx file is read as the tracks part`() = runTest {
+        val plan = TrackImportPlan(listOf(freshTrack("Loop", false)), 0, 0)
+        coEvery { realTracks.read(any()) } returns plan
+
+        val preview = real.inspect(serve("<?xml version=\"1.0\"?><gpx version=\"1.1\"></gpx>".toByteArray()), nowMs, today)
+
+        assertEquals(FileKind.GPX, preview.kind)
+        assertEquals(listOf(DataPart.TRACKS), preview.parts.keys.toList())
+        assertEquals(PartPlan.Tracks(plan), preview.parts.getValue(DataPart.TRACKS))
+        assertFalse(preview.newerFormat)
+    }
+
+    @Test
+    fun `a gpx file that cannot be read keeps its reason`() = runTest {
+        coEvery { realTracks.read(any()) } throws GpxFileException(GpxFileException.Kind.NOT_GPX, "x")
+
+        try {
+            real.inspect(serve("<gpx version=\"1.1\">".toByteArray()), nowMs, today)
+            fail("expected GpxFileException")
+        } catch (e: GpxFileException) {
+            assertEquals(GpxFileException.Kind.NOT_GPX, e.kind)
+        }
+    }
+
+    @Test
+    fun `the tracks outcome counts the new tracks and skips the duplicates`() = runTest {
+        val plan = TrackImportPlan(listOf(freshTrack("Old", true), freshTrack("New", false)), 0, 0)
+        coEvery { trackImporter.apply(plan) } returns 1
+        val preview = TransferPreview(FileKind.GPX, false, false, linkedMapOf(DataPart.TRACKS to PartPlan.Tracks(plan)))
+
+        val result = importer.apply(preview, setOf(DataPart.TRACKS))
+
+        assertEquals(PartOutcome.Done(count = 1, skipped = 1), result.outcomes[DataPart.TRACKS])
+    }
+
+    @Test
+    fun `tracks are written only when they are chosen`() = runTest {
+        val plan = TrackImportPlan(listOf(freshTrack("New", false)), 0, 0)
+        stubAllApply()
+        val preview = TransferPreview(FileKind.PACKAGE, false, false, linkedMapOf(DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRACKS to PartPlan.Tracks(plan)))
+
+        importer.apply(preview, setOf(DataPart.LOGBOOK))
+
+        coVerify(exactly = 0) { trackImporter.apply(any()) }
+    }
+
+    @Test
+    fun `a failing tracks part is reported and the other parts still run`() = runTest {
+        stubAllApply()
+        val plan = TrackImportPlan(listOf(freshTrack("New", false)), 0, 0)
+        coEvery { trackImporter.apply(any()) } throws java.io.IOException("disk")
+        val preview = TransferPreview(FileKind.PACKAGE, false, false, linkedMapOf(DataPart.LOGBOOK to PartPlan.Logbook(logPlan), DataPart.TRACKS to PartPlan.Tracks(plan)))
+
+        val result = importer.apply(preview, setOf(DataPart.LOGBOOK, DataPart.TRACKS))
+
+        assertTrue(result.outcomes.getValue(DataPart.TRACKS) is PartOutcome.Failed)
+        assertEquals(PartOutcome.Done(2), result.outcomes[DataPart.LOGBOOK])
     }
 }

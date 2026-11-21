@@ -1,6 +1,7 @@
 package de.adv990de.obd2.transfer
 
 import de.adv990de.obd2.logbook.ImportPlan
+import de.adv990de.obd2.track.TrackImportPlan
 import de.adv990de.obd2.tripimport.TripImportPlan
 
 /** Die gewaehlte Datei ist keine Sicherung dieser App und keine CSV, die sich einlesen laesst ([kind] sagt, warum). */
@@ -30,6 +31,7 @@ data class TripMetaSummary(val withVin: Int, val withCodesRecorded: Int, val inv
 sealed interface PartPlan {
     data class Trips(val plan: TripImportPlan, val meta: TripMetaSummary = TripMetaSummary(0, 0, 0, 0, false)) : PartPlan
     data class Logbook(val plan: ImportPlan) : PartPlan
+    data class Tracks(val plan: TrackImportPlan) : PartPlan
     data class DtcHistory(val plan: DtcHistoryPlan) : PartPlan
     data class Settings(val plan: SettingsPlan) : PartPlan
 
@@ -46,6 +48,7 @@ val PartPlan.hasNews: Boolean
     get() = when (this) {
         is PartPlan.Trips -> plan.trips.isNotEmpty()
         is PartPlan.Logbook -> plan.toInsert.isNotEmpty()
+        is PartPlan.Tracks -> plan.toInsert.isNotEmpty()
         is PartPlan.DtcHistory -> plan.newCodes + plan.updatedCodes > 0
         is PartPlan.Settings -> plan.changes.isNotEmpty()
         is PartPlan.Counters -> values.fuelKmSinceFill != null || decision == OdometerDecision.APPLY

@@ -7,6 +7,7 @@ import de.adv990de.obd2.data.db.entity.TrackEntity
 import de.adv990de.obd2.data.db.entity.TrackPointEntity
 import de.adv990de.obd2.projectRoot
 import de.adv990de.obd2.track.GpxTrack
+import de.adv990de.obd2.track.TrackFingerprint
 import de.adv990de.obd2.track.TRACK_NAME_MAX
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
@@ -270,6 +271,57 @@ class TrackRepositoryTest {
 
         coVerify(exactly = 0) { dao.finish(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { dao.deleteByIds(any()) }
+    }
+
+    // ── Doppelte beim Import ──────────────────────────────────────────────────
+
+    private fun entityPoint(trackId: Long, seq: Int, lat: Double, lon: Double) = TrackPointEntity(trackId, seq, null, lat, lon, null, null, null)
+
+    @Test
+    fun theFingerprintsAreFirstAndLastPointOfEveryTrackWithThatNameAndCount() = runBlocking {
+        coEvery { dao.idsByNameAndCount("Loop", 3) } returns listOf(5L, 6L)
+        coEvery { dao.pointsAfter(5, -1, 1) } returns listOf(entityPoint(5, 0, 10.0, 20.0))
+        coEvery { dao.lastPoint(5) } returns entityPoint(5, 2, 10.2, 20.2)
+        coEvery { dao.pointsAfter(6, -1, 1) } returns listOf(entityPoint(6, 0, 11.0, 21.0))
+        coEvery { dao.lastPoint(6) } returns entityPoint(6, 2, 11.2, 21.2)
+
+        val prints = repo.fingerprints(listOf("Loop" to 3))
+
+        assertEquals(
+            listOf(TrackFingerprint("Loop", 3, 10.0, 20.0, 10.2, 20.2), TrackFingerprint("Loop", 3, 11.0, 21.0, 11.2, 21.2)),
+            prints,
+        )
+    }
+
+    @Test
+    fun aKeyWithoutATrackAndATrackWithoutPointsGiveNothing() = runBlocking {
+        coEvery { dao.idsByNameAndCount("None", 3) } returns emptyList()
+        coEvery { dao.idsByNameAndCount("Hollow", 4) } returns listOf(9L)
+        coEvery { dao.pointsAfter(9, -1, 1) } returns emptyList()
+        coEvery { dao.lastPoint(9) } returns null
+
+        assertEquals(emptyList<TrackFingerprint>(), repo.fingerprints(listOf("None" to 3, "Hollow" to 4)))
+    }
+
+    @Test
+    fun theSameKeyIsLookedUpOnce() = runBlocking {
+        coEvery { dao.idsByNameAndCount(any(), any()) } returns emptyList()
+
+        repo.fingerprints(listOf("A" to 1, "A" to 1, "B" to 2))
+
+        coVerify(exactly = 1) { dao.idsByNameAndCount("A", 1) }
+        coVerify(exactly = 1) { dao.idsByNameAndCount("B", 2) }
+    }
+
+    @Test
+    fun theFingerprintsReadOnlyTwoPointsPerTrack() = runBlocking {
+        coEvery { dao.idsByNameAndCount("Loop", 3) } returns listOf(5L)
+        coEvery { dao.pointsAfter(5, -1, 1) } returns listOf(entityPoint(5, 0, 10.0, 20.0))
+        coEvery { dao.lastPoint(5) } returns entityPoint(5, 2, 10.2, 20.2)
+
+        repo.fingerprints(listOf("Loop" to 3))
+
+        coVerify(exactly = 0) { dao.pointsAfter(5, -1, more(1)) }
     }
 
     // ── Aufbewahrung ──────────────────────────────────────────────────────────

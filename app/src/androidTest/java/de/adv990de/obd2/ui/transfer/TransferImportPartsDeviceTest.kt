@@ -19,6 +19,9 @@ import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogIssue
 import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.logbook.RowError
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.transfer.TripMeta
@@ -276,5 +279,87 @@ class TransferImportPartsDeviceTest {
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_logbook), plural(R.plurals.logbook_import_done, 98))).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_trips), string(R.string.transfer_error_write))).assertIsDisplayed()
         composeRule.onNodeWithText("odd failure", substring = true).assertDoesNotExist()
+    }
+
+    // --- Tracks (GPX) ---
+
+    private fun item(name: String, points: Int = 10, distanceM: Long = 1_234, startMs: Long? = start, duplicate: Boolean = false) = TrackImportItem(
+        name = name,
+        points = List(points) { TrackPoint(startMs?.plus(it * 1_000L), 10.0 + it * 0.0001, 20.0, null, null, null) },
+        distanceM = distanceM,
+        startMs = startMs,
+        endMs = startMs?.plus((points - 1) * 1_000L),
+        duplicate = duplicate,
+    )
+
+    private fun showTracks(plan: TrackImportPlan) {
+        composeRule.setContent { Column(Modifier.verticalScroll(rememberScrollState())) { TracksPreviewBody(plan) } }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun theTracksPreviewListsEveryNewTrackWithItsLengthAndPoints() {
+        showTracks(TrackImportPlan(listOf(item("Alpine loop", 900, 12_345), item("Coast road", 1_600, 80_000)), 0, 0))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_new, 2)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.resources.getQuantityString(R.plurals.track_import_item, 900, 900, "Alpine loop", de.adv990de.obd2.ui.tracks.formatTrackDistance(12_345))).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.resources.getQuantityString(R.plurals.track_import_item, 1_600, 1_600, "Coast road", de.adv990de.obd2.ui.tracks.formatTrackDistance(80_000))).assertIsDisplayed()
+    }
+
+    @Test
+    fun aTrackAlreadyInTheAppIsCountedAndNotListed() {
+        showTracks(TrackImportPlan(listOf(item("New one"), item("Old one", duplicate = true)), 0, 0))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_new, 1)).assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.track_import_duplicates, 1)).assertIsDisplayed()
+        composeRule.onAllNodesWithText("Old one", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun whenEveryTrackIsAlreadyThereTheFileHasNothingNew() {
+        showTracks(TrackImportPlan(listOf(item("Old one", duplicate = true)), 0, 0))
+
+        composeRule.onNodeWithText(string(R.string.track_import_nothing_new)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_new, 1)).assertCountEquals(0)
+    }
+
+    @Test
+    fun aFileWithoutAnyTrackSaysSo() {
+        showTracks(TrackImportPlan(emptyList(), 0, 0))
+
+        composeRule.onNodeWithText(string(R.string.track_import_no_points)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aTrackWithoutTimesGetsItsOwnHint() {
+        showTracks(TrackImportPlan(listOf(item("Planned", startMs = null), item("Ridden")), 0, 0))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_no_time, 1)).assertIsDisplayed()
+    }
+
+    @Test
+    fun skippedPointsAndWaypointsAreNamedOnlyWhenThereAreSome() {
+        showTracks(TrackImportPlan(listOf(item("A")), rejectedPoints = 3, ignoredWaypoints = 2))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_rejected_points, 3)).assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.track_import_waypoints, 2)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aCleanFileHasNeitherSkippedPointsNorWaypointsNorTimeHint() {
+        showTracks(TrackImportPlan(listOf(item("A")), 0, 0))
+
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_rejected_points, 1)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_waypoints, 1)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_no_time, 1)).assertCountEquals(0)
+    }
+
+    @Test
+    fun onlyTheFirstTwentyNewTracksAreListedAndTheRestIsCounted() {
+        showTracks(TrackImportPlan(List(25) { item("Track number ${it + 1}") }, 0, 0))
+
+        composeRule.onNodeWithText("Track number 20", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("Track number 21", substring = true).assertCountEquals(0)
+        composeRule.onNodeWithText(plural(R.plurals.trip_import_more_rows, 5)).performScrollTo().assertIsDisplayed()
     }
 }

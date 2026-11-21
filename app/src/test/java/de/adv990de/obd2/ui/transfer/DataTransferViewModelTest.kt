@@ -18,6 +18,7 @@ import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.NotAPackageException
 import de.adv990de.obd2.transfer.PartOutcome
+import de.adv990de.obd2.track.GpxFileException
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
@@ -620,6 +621,9 @@ class DataTransferViewModelTest {
         assertEquals(res(R.string.transfer_error_unrecognized), failureOf(TripFileException(TripFileException.Kind.NOT_AN_EXPORT, "x")))
         assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.TOO_MANY_ROWS, "x")))
         assertEquals(res(R.string.transfer_error_trips_invalid), failureOf(TripFileException(TripFileException.Kind.SPLIT_TRIP, "x")))
+        assertEquals(res(R.string.transfer_error_unrecognized), failureOf(GpxFileException(GpxFileException.Kind.NOT_GPX, "x")))
+        assertEquals(res(R.string.transfer_error_too_large), failureOf(GpxFileException(GpxFileException.Kind.TOO_LARGE, "x")))
+        assertEquals(res(R.string.transfer_error_too_large), failureOf(GpxFileException(GpxFileException.Kind.TOO_MANY_POINTS, "x")))
         assertEquals(res(R.string.transfer_error_too_large), failureOf(FileTooLargeException("x")))
         assertEquals(res(R.string.transfer_error_unreadable), failureOf(IllegalArgumentException("x")))
         assertEquals(res(R.string.transfer_error_unreadable), failureOf(IOException("x")))

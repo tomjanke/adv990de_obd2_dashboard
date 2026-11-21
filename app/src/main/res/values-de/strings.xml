@@ -820,6 +820,7 @@
     <string name="tracks_stop_confirm">Aufzeichnung beenden</string>
     <string name="tracks_source_recorded">Aufgezeichnet</string>
     <string name="tracks_source_imported">Importiert</string>
+    <string name="tracks_cd_import">GPX-Datei importieren</string>
     <string name="tracks_cd_rename">Umbenennen</string>
     <string name="tracks_rename_title">Track umbenennen</string>
     <string name="tracks_rename_label">Name</string>
@@ -864,5 +865,39 @@
     <plurals name="tracks_points">
         <item quantity="one">%d Punkt</item>
         <item quantity="other">%d Punkte</item>
+    </plurals>
+
+    <!-- GPX-Import (Tracks) -->
+    <string name="track_import_fallback_name">Track %1$d</string>
+    <string name="transfer_part_tracks">Tracks</string>
+    <plurals name="track_import_new">
+        <item quantity="one">%1$d neuer Track</item>
+        <item quantity="other">%1$d neue Tracks</item>
+    </plurals>
+    <plurals name="track_import_item">
+        <item quantity="one">%2$s · %3$s · %1$d Punkt</item>
+        <item quantity="other">%2$s · %3$s · %1$d Punkte</item>
+    </plurals>
+    <plurals name="track_import_duplicates">
+        <item quantity="one">%1$d Track ist schon in der App (gleicher Name und gleiche Strecke)</item>
+        <item quantity="other">%1$d Tracks sind schon in der App (gleicher Name und gleiche Strecke)</item>
+    </plurals>
+    <string name="track_import_nothing_new">Nichts Neues: jeder Track dieser Datei ist schon in der App.</string>
+    <string name="track_import_no_points">Diese Datei hat keinen Track mit Punkten.</string>
+    <plurals name="track_import_no_time">
+        <item quantity="one">%1$d neuer Track hat keine Zeiten (eine geplante Strecke, keine Fahrt)</item>
+        <item quantity="other">%1$d neue Tracks haben keine Zeiten (geplante Strecken, keine Fahrten)</item>
+    </plurals>
+    <plurals name="track_import_rejected_points">
+        <item quantity="one">%1$d Punkt mit unmöglicher Position wird übersprungen</item>
+        <item quantity="other">%1$d Punkte mit unmöglicher Position werden übersprungen</item>
+    </plurals>
+    <plurals name="track_import_waypoints">
+        <item quantity="one">%1$d Wegpunkt wird nicht übernommen (Wegpunkte werden noch nicht angezeigt)</item>
+        <item quantity="other">%1$d Wegpunkte werden nicht übernommen (Wegpunkte werden noch nicht angezeigt)</item>
+    </plurals>
+    <plurals name="track_import_done">
+        <item quantity="one">%1$d Track importiert</item>
+        <item quantity="other">%1$d Tracks importiert</item>
     </plurals>
 </resources>

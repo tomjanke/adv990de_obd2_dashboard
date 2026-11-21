@@ -1,7 +1,7 @@
 package de.adv990de.obd2.transfer
 
-/** Was eine gewählte Datei ist (D7): ein Paket oder eine der drei CSV-Arten, die diese App schreibt. */
-enum class FileKind { PACKAGE, TRIPS_CSV, LOGBOOK_CSV, APP_LOG_CSV, UNKNOWN }
+/** Was eine gewählte Datei ist (D7): ein Paket, eine der drei CSV-Arten, die diese App schreibt, oder eine GPX-Datei (Tracks). */
+enum class FileKind { PACKAGE, TRIPS_CSV, LOGBOOK_CSV, APP_LOG_CSV, GPX, UNKNOWN }
 
 private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
 
@@ -11,7 +11,7 @@ private val BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
 
 /**
  * Erkennt die Art an den ersten Bytes [head] (höchstens [length]): ZIP-Kopf `50 4B 03 04` = Paket; sonst Text, dessen erste Zeile die Pflichtspalten einer der drei CSV-Arten
- * trägt. Ein NUL-Byte, eine leere Datei oder eine leere erste Zeile ist [FileKind.UNKNOWN].
+ * trägt; oder eine XML-Datei, die mit `<gpx` beginnt (nach der optionalen XML-Deklaration). Ein NUL-Byte, eine leere Datei oder eine leere erste Zeile ist [FileKind.UNKNOWN].
  */
 fun detectFileKind(head: ByteArray, length: Int = head.size): FileKind {
     val n = minOf(length, head.size)
@@ -20,6 +20,7 @@ fun detectFileKind(head: ByteArray, length: Int = head.size): FileKind {
     if ((0 until n).any { head[it] == 0.toByte() }) return FileKind.UNKNOWN
     val start = if (n >= BOM.size && BOM.indices.all { head[it] == BOM[it] }) BOM.size else 0
     val text = String(head, start, n - start, Charsets.UTF_8)
+    if (isGpxHead(text)) return FileKind.GPX
     val firstLine = text.takeWhile { it != '\n' && it != '\r' }
     if (firstLine.isBlank()) return FileKind.UNKNOWN
     val columns = firstLine.split(',').map { it.trim().trim('"').trim() }.toSet()
@@ -29,4 +30,18 @@ fun detectFileKind(head: ByteArray, length: Int = head.size): FileKind {
         columns.containsAll(listOf("timestamp", "level", "message")) -> FileKind.APP_LOG_CSV
         else -> FileKind.UNKNOWN
     }
+}
+
+/**
+ * Ein GPX beginnt (nach Leerraum) mit `<?xml …?>` und dann dem Wurzelelement `<gpx`, oder gleich mit `<gpx`. Eine andere XML-Art (KML, HTML) und ein Text, der nur irgendwo `gpx` nennt, sind
+ * es nicht; ob die Datei wirklich ein GPX ist, entscheidet danach der Leser.
+ */
+private fun isGpxHead(text: String): Boolean {
+    var rest = text.trimStart()
+    if (rest.startsWith("<?xml")) {
+        val end = rest.indexOf("?>")
+        if (end < 0) return false
+        rest = rest.substring(end + 2).trimStart()
+    }
+    return rest.startsWith("<gpx")
 }

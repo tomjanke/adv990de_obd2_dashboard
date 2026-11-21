@@ -5,6 +5,7 @@ import de.adv990de.obd2.data.db.AppDatabase
 import de.adv990de.obd2.data.db.entity.TrackEntity
 import de.adv990de.obd2.data.db.entity.TrackPointEntity
 import de.adv990de.obd2.track.GpxTrack
+import de.adv990de.obd2.track.TrackFingerprint
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackStats
@@ -174,6 +175,23 @@ class TrackRepository @Inject constructor(private val db: AppDatabase) {
                 ids
             }
         }
+
+    /**
+     * Die Fingerabdruecke der Tracks, die zu einem der Schluessel (Name, Punktzahl) passen: die Vorauswahl der Doppelten beim GPX-Import. Gelesen werden nur der erste und der letzte
+     * Punkt je Treffer, nie alle Punkte; ein Track ohne Punkte zaehlt nicht.
+     */
+    suspend fun fingerprints(keys: Collection<Pair<String, Int>>): List<TrackFingerprint> = withContext(Dispatchers.IO) {
+        val found = ArrayList<TrackFingerprint>()
+        for ((name, count) in keys.distinct()) {
+            for (id in dao.idsByNameAndCount(name, count)) {
+                currentCoroutineContext().ensureActive()
+                val first = dao.pointsAfter(id, -1, 1).firstOrNull() ?: continue
+                val last = dao.lastPoint(id) ?: continue
+                found += TrackFingerprint(name, count, first.lat, first.lon, last.lat, last.lon)
+            }
+        }
+        found
+    }
 
     private suspend fun readAll(trackId: Long): List<TrackPoint> {
         val all = ArrayList<TrackPoint>()

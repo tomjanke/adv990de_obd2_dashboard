@@ -9,6 +9,7 @@ import de.adv990de.obd2.transfer.DataPart
 @StringRes
 internal fun partLabelRes(part: DataPart): Int = when (part) {
     DataPart.TRIPS -> R.string.transfer_part_trips
+    DataPart.TRACKS -> R.string.transfer_part_tracks
     DataPart.LOGBOOK -> R.string.transfer_part_logbook
     DataPart.SETTINGS -> R.string.transfer_part_settings
     DataPart.COUNTERS -> R.string.transfer_part_counters

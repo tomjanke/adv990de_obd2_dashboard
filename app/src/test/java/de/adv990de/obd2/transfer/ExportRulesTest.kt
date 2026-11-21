@@ -119,6 +119,7 @@ class ExportRulesTest {
         assertEquals(4 * mib, PackageFormat.entryLimit("trips_meta.csv"))
         assertEquals(256 * mib, PackageFormat.entryLimit("trips.csv"))
         assertEquals(5 * mib, PackageFormat.entryLimit("logbook.csv"))
+        assertEquals(64 * mib, PackageFormat.entryLimit("tracks.gpx"))
         assertEquals(320 * mib, PackageFormat.entryLimit("applog.csv"))
         assertEquals(0L, PackageFormat.entryLimit("evil.bin"))
     }

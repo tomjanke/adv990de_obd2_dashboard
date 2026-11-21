@@ -63,14 +63,17 @@ import de.adv990de.obd2.track.TRACK_NAME_MAX
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackSummary
 import de.adv990de.obd2.track.normalizeTrackName
+import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.components.EmptyState
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.SwipeToDeleteRow
 import de.adv990de.obd2.ui.components.UndoSnackbarEffect
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openDataTransfer
 import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.navigation.rememberClosePage
+import de.adv990de.obd2.ui.transfer.TransferMode
 import de.adv990de.obd2.ui.permission.appSettingsIntent
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.PermissionHintRow
@@ -80,6 +83,7 @@ import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.asLiveValue
 
 internal const val TRACKS_START_TEST_TAG = "tracks_start"
+internal const val TRACKS_IMPORT_TEST_TAG = "tracks_import"
 internal const val TRACKS_STOP_TEST_TAG = "tracks_stop"
 internal const val TRACKS_RECORDING_CARD_TEST_TAG = "tracks_recording_card"
 internal const val TRACKS_PERMISSION_HINT_TEST_TAG = "tracks_permission_hint"
@@ -132,6 +136,15 @@ fun TracksScreen(navController: NavController, vm: TracksViewModel = hiltViewMod
                 navigationIcon = {
                     IconButton(onClick = back, modifier = Modifier.heightIn(min = ButtonSize)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
+                    }
+                },
+                actions = {
+                    // Abkuerzung auf die Seite „Daten sichern und wiederherstellen“ im Modus Importieren, der Dateidialog oeffnet sich dort gleich: immer moeglich, auch ohne Tracks.
+                    IconButton(
+                        onClick = { navController.openDataTransfer(Screen.DataTransfer.routeFor(TransferMode.IMPORT, pick = true)) },
+                        modifier = Modifier.size(ButtonSize).testTag(TRACKS_IMPORT_TEST_TAG),
+                    ) {
+                        Icon(AppIcons.Upload, contentDescription = stringResource(R.string.tracks_cd_import))
                     }
                 },
             )

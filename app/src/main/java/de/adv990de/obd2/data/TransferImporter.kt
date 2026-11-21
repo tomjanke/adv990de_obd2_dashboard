@@ -53,8 +53,9 @@ class TransferImporter @Inject constructor(
     private val fuel: FuelRepository,
     private val odometer: LogbookOdometer,
     private val logEntries: VehicleLogRepository,
+    private val tracks: TrackImporter,
 ) {
-    private val inspector = PackageInspector(trips, logbook, dtcHistory, settings, logEntries)
+    private val inspector = PackageInspector(trips, logbook, dtcHistory, settings, logEntries, tracks)
 
     /** Die Grenze der Kopie eines Pakets; nur als Naht fuer Tests veraenderbar (eine Datei von 128 MiB baut kein Test). */
     internal var maxPackageBytes: Long = PackageFormat.MAX_TOTAL_BYTES
@@ -64,6 +65,7 @@ class TransferImporter @Inject constructor(
         when (val kind = detectFileKind(head, head.size)) {
             FileKind.TRIPS_CSV -> single(kind, DataPart.TRIPS, PartPlan.Trips(trips.read(source, nowMs)))
             FileKind.LOGBOOK_CSV -> single(kind, DataPart.LOGBOOK, PartPlan.Logbook(logbook.read(source, today)))
+            FileKind.GPX -> single(kind, DataPart.TRACKS, PartPlan.Tracks(tracks.read(source)))
             FileKind.APP_LOG_CSV -> throw TransferFileException(TransferFileException.Kind.APP_LOG_NOT_IMPORTABLE, "The app log can be exported, not imported")
             FileKind.UNKNOWN -> throw TransferFileException(TransferFileException.Kind.UNRECOGNIZED, "The file is neither a backup nor a csv file of this app")
             FileKind.PACKAGE -> inspectPackage(source, nowMs, today)
@@ -155,6 +157,7 @@ class TransferImporter @Inject constructor(
             outcomes[part] = try {
                 when (plan) {
                     is PartPlan.Trips -> PartOutcome.Done(trips.apply(plan.plan))
+                    is PartPlan.Tracks -> PartOutcome.Done(tracks.apply(plan.plan), skipped = plan.plan.duplicateTracks)
                     is PartPlan.Logbook -> PartOutcome.Done(logbook.apply(plan.plan))
                     is PartPlan.DtcHistory -> { dtcHistory.mergeFrom(plan.plan.entries); PartOutcome.Done(plan.plan.newCodes + plan.plan.updatedCodes) }
                     is PartPlan.Settings -> applySettings(plan.plan)

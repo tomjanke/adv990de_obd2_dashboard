@@ -9,6 +9,10 @@ import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.PackageManifest
 import de.adv990de.obd2.transfer.PackageReader
+import de.adv990de.obd2.track.GpxFileException
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TripMeta
@@ -54,7 +58,8 @@ class PackageInspectorTest {
     private val logRepo = mockk<VehicleLogRepository>()
     private val dtcRepo = mockk<DtcHistoryRepository>()
     private val settingsTransfer = mockk<SettingsTransfer>()
-    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo), dtcRepo, settingsTransfer, logRepo)
+    private val trackImporter = mockk<TrackImporter>()
+    private val inspector = PackageInspector(TripImporter(mockk<Context>(), sessionRepo), LogbookImporter(mockk<Context>(), logRepo), dtcRepo, settingsTransfer, logRepo, trackImporter)
 
     private fun manifest(format: Int = 1, appId: String = "de.adv990de.obd2") = PackageManifest(format, appId, "1.0", nowMs, emptyMap()).toJson()
 
@@ -524,5 +529,65 @@ class PackageInspectorTest {
             nowMs, today,
         )
         assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.DTC_HISTORY, DataPart.SETTINGS, DataPart.COUNTERS), preview.parts.keys.toList())
+    }
+
+    // --- tracks.gpx ---
+
+    private fun trackPlan(vararg names: String) = TrackImportPlan(
+        names.map { TrackImportItem(it, listOf(TrackPoint(null, 10.0, 20.0, null, null, null)), 0, null, null, false) }, 0, 0,
+    )
+
+    private val gpx = "<gpx version=\"1.1\"></gpx>"
+
+    @Test
+    fun `tracks gpx gives the tracks plan between trips and the fault history`() = runTest {
+        stubRepos()
+        coEvery { trackImporter.plan(any()) } returns trackPlan("Loop")
+
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "trips.csv" to tripsCsv, "tracks.gpx" to gpx, "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.TRACKS), preview.parts.keys.toList())
+        val tracks = preview.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks
+        assertEquals(listOf("Loop"), tracks.plan.items.map { it.name })
+        assertTrue(tracks.hasNews)
+    }
+
+    @Test
+    fun `a gpx that is no gpx makes only the tracks unreadable`() = runTest {
+        stubRepos()
+        coEvery { trackImporter.plan(any()) } throws GpxFileException(GpxFileException.Kind.NOT_GPX, "x")
+
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "tracks.gpx" to "nonsense", "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.FORMAT), preview.parts.getValue(DataPart.TRACKS))
+        assertTrue(preview.parts.getValue(DataPart.LOGBOOK) is PartPlan.Logbook)
+    }
+
+    @Test
+    fun `a gpx above the limits is too large`() = runTest {
+        stubRepos()
+        coEvery { trackImporter.plan(any()) } throws GpxFileException(GpxFileException.Kind.TOO_MANY_POINTS, "x")
+        assertEquals(PartPlan.Unreadable(UnreadableReason.TOO_LARGE), inspector.inspect(zip("manifest.json" to manifest(), "tracks.gpx" to gpx), nowMs, today).parts.getValue(DataPart.TRACKS))
+
+        coEvery { trackImporter.plan(any()) } throws GpxFileException(GpxFileException.Kind.TOO_LARGE, "x")
+        assertEquals(PartPlan.Unreadable(UnreadableReason.TOO_LARGE), inspector.inspect(zip("manifest.json" to manifest(), "tracks.gpx" to gpx), nowMs, today).parts.getValue(DataPart.TRACKS))
+    }
+
+    @Test
+    fun `a gpx the database cannot be compared with is unreadable and the others stay`() = runTest {
+        stubRepos()
+        coEvery { trackImporter.plan(any()) } throws java.io.IOException("disk")
+
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "tracks.gpx" to gpx, "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertEquals(PartPlan.Unreadable(UnreadableReason.UNREADABLE), preview.parts.getValue(DataPart.TRACKS))
+    }
+
+    @Test
+    fun `a package without tracks gpx has no tracks part`() = runTest {
+        stubRepos()
+        val preview = inspector.inspect(zip("manifest.json" to manifest(), "logbook.csv" to logbookCsv), nowMs, today)
+
+        assertFalse(DataPart.TRACKS in preview.parts)
     }
 }
