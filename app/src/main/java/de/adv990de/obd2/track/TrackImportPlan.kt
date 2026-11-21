@@ -60,6 +60,16 @@ data class TrackImportPlan(
     val toInsert: List<TrackImportItem> get() = items.filterNot { it.duplicate }
     val duplicateTracks: Int get() = items.count { it.duplicate }
 
+    /** Die Positionen der neuen (nicht doppelten) Spuren in [items]: nur diese lassen sich in der Vorschau an- und abwaehlen. */
+    val newIndices: List<Int> get() = items.indices.filter { !items[it].duplicate }
+
+    /**
+     * Der Plan ohne die neuen Spuren an den Positionen [excluded] (Index in [items], wie [newIndices]). Doppelte bleiben (sie sind nie Teil des Imports und zaehlen weiter als vorhanden),
+     * unbekannte Positionen sind ohne Wirkung; ohne Ausschluss ist es derselbe Plan.
+     */
+    fun without(excluded: Set<Int>): TrackImportPlan =
+        if (excluded.isEmpty()) this else copy(items = items.filterIndexed { index, item -> item.duplicate || index !in excluded })
+
     /** Neue Spuren ohne jede Zeit (ein geplanter Weg, keine Fahrt): erlaubt, aber die Vorschau sagt es. */
     val withoutTime: Int get() = toInsert.count { it.startMs == null }
 }

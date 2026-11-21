@@ -19,6 +19,9 @@ import de.adv990de.obd2.transfer.FileKind
 import de.adv990de.obd2.transfer.NotAPackageException
 import de.adv990de.obd2.transfer.PartOutcome
 import de.adv990de.obd2.track.GpxFileException
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
@@ -47,6 +50,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -453,6 +457,136 @@ class DataTransferViewModelTest {
         assertEquals(setOf(DataPart.LOGBOOK), (f.vm.importState.value as TransferImportState.Preview).selected)
         f.vm.toggleImportPart(DataPart.APP_LOG)
         assertEquals("a part the preview does not hold is ignored", setOf(DataPart.LOGBOOK), (f.vm.importState.value as TransferImportState.Preview).selected)
+    }
+
+    // ── Auswahl je Spur (GPX) ─────────────────────────────────────────────────
+
+    private fun trackItem(name: String, duplicate: Boolean = false) = TrackImportItem(
+        name = name,
+        points = listOf(TrackPoint(null, 10.0, 20.0, null, null, null), TrackPoint(null, 10.001, 20.0, null, null, null)),
+        distanceM = 111, startMs = null, endMs = null, duplicate = duplicate,
+    )
+
+    /** Vier Spuren: 0 neu, 1 doppelt, 2 neu, 3 neu. */
+    private val tracksPlan = TrackImportPlan(listOf(trackItem("A"), trackItem("Old", duplicate = true), trackItem("B"), trackItem("C")), 0, 0)
+
+    private fun TestScope.pickedTracks(): Fixture {
+        val f = ready()
+        coEvery { f.importer.inspect(any(), any(), any()) } returns preview.copy(parts = linkedMapOf(DataPart.TRACKS to PartPlan.Tracks(tracksPlan)))
+        f.vm.pickImport(source)
+        runCurrent()
+        return f
+    }
+
+    private fun Fixture.preview() = vm.importState.value as TransferImportState.Preview
+
+    @Test
+    fun `a file with new tracks starts with all of them chosen`() = runTest {
+        val f = pickedTracks()
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
+    }
+
+    @Test
+    fun `a single track can be chosen away and back while the part stays on`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(2)
+        assertEquals(setOf(2), f.preview().excludedTracks)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        f.vm.toggleImportTrack(2)
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
+    }
+
+    @Test
+    fun `choosing away the last new track turns the part off and choosing one back turns it on`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(0)
+        f.vm.toggleImportTrack(2)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        f.vm.toggleImportTrack(3)
+        assertEquals(emptySet<DataPart>(), f.preview().selected)
+        f.vm.toggleImportTrack(2)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        assertEquals(setOf(0, 3), f.preview().excludedTracks)
+    }
+
+    @Test
+    fun `a duplicate and a position that does not exist cannot be toggled`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(1)
+        f.vm.toggleImportTrack(17)
+        f.vm.toggleImportTrack(-1)
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+    }
+
+    @Test
+    fun `switching the part on after every track was chosen away chooses them all again`() = runTest {
+        val f = pickedTracks()
+        f.vm.setAllImportTracks(false)
+        assertEquals(emptySet<DataPart>(), f.preview().selected)
+        f.vm.toggleImportPart(DataPart.TRACKS)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
+    }
+
+    @Test
+    fun `switching the part off keeps the choice of single tracks`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(2)
+        f.vm.toggleImportPart(DataPart.TRACKS)
+        assertEquals(emptySet<DataPart>(), f.preview().selected)
+        f.vm.toggleImportPart(DataPart.TRACKS)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+        assertEquals(setOf(2), f.preview().excludedTracks)
+    }
+
+    @Test
+    fun `all and none choose every new track or no track`() = runTest {
+        val f = pickedTracks()
+        f.vm.setAllImportTracks(false)
+        assertEquals(setOf(0, 2, 3), f.preview().excludedTracks)
+        assertEquals(emptySet<DataPart>(), f.preview().selected)
+        f.vm.setAllImportTracks(true)
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
+        assertEquals(setOf(DataPart.TRACKS), f.preview().selected)
+    }
+
+    @Test
+    fun `confirm writes only the chosen tracks`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(2)
+        val applied = slot<TransferPreview>()
+        coEvery { f.importer.apply(capture(applied), any()) } returns TransferResult(mapOf(DataPart.TRACKS to PartOutcome.Done(2)))
+
+        f.vm.confirmImport()
+        runCurrent()
+
+        val written = (applied.captured.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+        assertEquals(listOf("A", "C"), written.toInsert.map { it.name })
+        assertEquals("the duplicate stays counted as skipped", 1, written.duplicateTracks)
+    }
+
+    @Test
+    fun `confirm without a choice hands the preview over untouched`() = runTest {
+        val f = pickedTracks()
+        val shown = f.preview().preview
+        val applied = slot<TransferPreview>()
+        coEvery { f.importer.apply(capture(applied), any()) } returns TransferResult(mapOf(DataPart.TRACKS to PartOutcome.Done(3)))
+
+        f.vm.confirmImport()
+        runCurrent()
+
+        assertSame(shown, applied.captured)
+    }
+
+    @Test
+    fun `a new file starts with all its tracks chosen again`() = runTest {
+        val f = pickedTracks()
+        f.vm.toggleImportTrack(2)
+        f.vm.pickImport(source)
+        runCurrent()
+        assertEquals(emptySet<Int>(), f.preview().excludedTracks)
     }
 
     @Test

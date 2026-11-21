@@ -131,6 +131,10 @@ internal class ImportActions(
     val onToggle: (DataPart) -> Unit,
     val onConfirm: () -> Unit,
     val onDismiss: () -> Unit,
+    /** Eine neue Spur einer GPX-Datei an- oder abwaehlen (Position in der Liste der Spuren). */
+    val onToggleTrack: (Int) -> Unit = {},
+    /** Alle (`true`) oder keine (`false`) neue Spur einer GPX-Datei waehlen. */
+    val onSelectAllTracks: (Boolean) -> Unit = {},
 )
 
 /**
@@ -225,6 +229,8 @@ internal fun DataTransferScreen(navController: NavController, pick: Boolean = fa
                         onToggle = vm::toggleImportPart,
                         onConfirm = vm::confirmImport,
                         onDismiss = vm::dismissImport,
+                        onToggleTrack = vm::toggleImportTrack,
+                        onSelectAllTracks = vm::setAllImportTracks,
                     ),
                 )
             }
@@ -460,7 +466,12 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
                 when (plan) {
                     is PartPlan.Trips -> TripsPreviewBody(plan.plan, meta = plan.meta)
                     is PartPlan.Logbook -> LogbookPreviewBody(plan.plan)
-                    is PartPlan.Tracks -> TracksPreviewBody(plan.plan)
+                    is PartPlan.Tracks -> TracksPreviewBody(
+                        plan.plan,
+                        excluded = state.excludedTracks,
+                        onToggleTrack = actions.onToggleTrack,
+                        onSelectAll = actions.onSelectAllTracks,
+                    )
                     is PartPlan.DtcHistory -> DtcHistoryPreviewBody(plan.plan)
                     is PartPlan.Settings -> SettingsPreviewBody(plan.plan)
                     is PartPlan.Counters -> CountersPreviewBody(plan)

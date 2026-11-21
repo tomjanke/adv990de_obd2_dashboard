@@ -146,6 +146,53 @@ class TrackImportPlanTest {
     }
 
     @Test
+    fun `only the new tracks can be chosen and the duplicates are skipped in the indices`() {
+        val points = line(4)
+        val existing = trackFingerprint("Old", points)!!
+        val plan = planTrackImport(file(GpxTrack("A", line(3)), GpxTrack("Old", points), GpxTrack("B", line(3, 12.0))), listOf(existing), fallback)
+
+        assertEquals(listOf(0, 2), plan.newIndices)
+    }
+
+    @Test
+    fun `without removes the chosen new tracks and keeps the duplicates and the counters`() {
+        val points = line(4)
+        val existing = trackFingerprint("Old", points)!!
+        val plan = planTrackImport(
+            file(GpxTrack("A", line(3)), GpxTrack("Old", points), GpxTrack("B", line(3, 12.0)), GpxTrack("C", line(3, 13.0)), rejected = 5, waypoints = 2),
+            listOf(existing),
+            fallback,
+        )
+
+        val reduced = plan.without(setOf(0, 3))
+
+        assertEquals(listOf("B"), reduced.toInsert.map { it.name })
+        assertEquals("the duplicate stays counted", 1, reduced.duplicateTracks)
+        assertEquals(5, reduced.rejectedPoints)
+        assertEquals(2, reduced.ignoredWaypoints)
+    }
+
+    @Test
+    fun `without an empty set is the same plan`() {
+        val plan = planTrackImport(file(GpxTrack("A", line(3))), emptyList(), fallback)
+
+        assertTrue(plan.without(emptySet()) === plan)
+    }
+
+    @Test
+    fun `without never removes a duplicate and ignores positions that do not exist`() {
+        val points = line(4)
+        val existing = trackFingerprint("Old", points)!!
+        val plan = planTrackImport(file(GpxTrack("Old", points), GpxTrack("A", line(3))), listOf(existing), fallback)
+
+        val reduced = plan.without(setOf(0, 17))
+
+        assertEquals(2, reduced.items.size)
+        assertEquals(1, reduced.duplicateTracks)
+        assertEquals(listOf("A"), reduced.toInsert.map { it.name })
+    }
+
+    @Test
     fun `an empty track has no fingerprint`() {
         assertNull(trackFingerprint("x", emptyList()))
     }

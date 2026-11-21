@@ -1,15 +1,26 @@
 package de.adv990de.obd2.ui.transfer
 
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
@@ -43,6 +54,7 @@ import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.tripimport.readTripCsv
 import de.adv990de.obd2.ui.formatDateTime
 import de.adv990de.obd2.ui.logbook.messageRes
+import de.adv990de.obd2.ui.theme.MIN_TOUCH_TARGET
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.StatusColors
 import java.io.StringReader
@@ -104,39 +116,85 @@ internal fun TripsPreviewBody(plan: TripImportPlan, modifier: Modifier = Modifie
     }
 }
 
-/** Hoechstens so viele neue Spuren nennt die Vorschau einzeln; der Rest steht als „… und N weitere“ (eine Datei kann hunderte Spuren haben). */
-internal const val MAX_LISTED_TRACKS = 20
+/**
+ * Hoechstens so viele neue Spuren zeigt die Vorschau mit eigenem Kaestchen; der Rest steht als „… und N weitere“ und folgt nur „Alle auswaehlen“ und „Keine auswaehlen“ (eine Datei kann hunderte
+ * Spuren haben, und alle Zeilen entstehen auf einmal).
+ */
+internal const val MAX_LISTED_TRACKS = 200
+
+internal fun transferImportTrackTestTag(index: Int) = "transfer_import_track_$index"
+internal const val TRANSFER_TRACKS_SELECTED_TEST_TAG = "transfer_import_tracks_selected"
+internal const val TRANSFER_TRACKS_ALL_TEST_TAG = "transfer_import_tracks_all"
+internal const val TRANSFER_TRACKS_NONE_TEST_TAG = "transfer_import_tracks_none"
 
 /**
- * Die Vorschau der Tracks einer GPX-Datei: die neuen Spuren (Name, Laenge, Punkte), die schon vorhandenen, Spuren ohne Zeit, uebersprungene Punkte und Wegpunkte, die
- * (noch) nicht uebernommen werden. Alles oder nichts: es gibt keine Auswahl je Spur, nur das Kaestchen des Teils.
+ * Die Vorschau der Tracks einer GPX-Datei: die neuen Spuren (Name, Laenge, Punkte) mit je einem Kaestchen, die schon vorhandenen (nie waehlbar), Spuren ohne Zeit, uebersprungene Punkte und
+ * Wegpunkte, die (noch) nicht uebernommen werden. [excluded] sind die abgewaehlten Spuren (Positionen in [TrackImportPlan.items]), [onToggleTrack] schaltet eine um, [onSelectAll] waehlt alle
+ * (`true`) oder keine (`false`). Die Hinweise zu Spuren ohne Zeit gelten fuer die **gewaehlten** Spuren; uebersprungene Punkte und Wegpunkte gehoeren zur ganzen Datei.
  */
 @Composable
-internal fun TracksPreviewBody(plan: TrackImportPlan, modifier: Modifier = Modifier) {
-    val fresh = plan.toInsert
+internal fun TracksPreviewBody(
+    plan: TrackImportPlan,
+    modifier: Modifier = Modifier,
+    excluded: Set<Int> = emptySet(),
+    onToggleTrack: (Int) -> Unit = {},
+    onSelectAll: (Boolean) -> Unit = {},
+) {
+    val fresh = plan.newIndices
+    val chosenPlan = plan.without(excluded)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             plan.items.isEmpty() -> Text(stringResource(R.string.track_import_no_points), style = MaterialTheme.typography.titleMedium)
             fresh.isEmpty() -> Text(stringResource(R.string.track_import_nothing_new), style = MaterialTheme.typography.titleMedium)
             else -> {
                 Text(pluralStringResource(R.plurals.track_import_new, fresh.size, fresh.size), style = MaterialTheme.typography.titleMedium)
-                fresh.take(MAX_LISTED_TRACKS).forEach { track ->
+                if (fresh.size > 1) {
                     Text(
-                        pluralStringResource(R.plurals.track_import_item, track.pointCount, track.pointCount, track.name, formatTrackDistance(track.distanceM)),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp),
+                        stringResource(R.string.track_import_selected, chosenPlan.toInsert.size, fresh.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag(TRANSFER_TRACKS_SELECTED_TEST_TAG),
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { onSelectAll(true) }, modifier = Modifier.heightIn(min = MIN_TOUCH_TARGET).testTag(TRANSFER_TRACKS_ALL_TEST_TAG)) {
+                            Text(stringResource(R.string.track_import_select_all))
+                        }
+                        TextButton(onClick = { onSelectAll(false) }, modifier = Modifier.heightIn(min = MIN_TOUCH_TARGET).testTag(TRANSFER_TRACKS_NONE_TEST_TAG)) {
+                            Text(stringResource(R.string.track_import_select_none))
+                        }
+                    }
+                }
+                fresh.take(MAX_LISTED_TRACKS).forEach { index ->
+                    val track = plan.items[index]
+                    TrackChoiceRow(
+                        text = pluralStringResource(R.plurals.track_import_item, track.pointCount, track.pointCount, track.name, formatTrackDistance(track.distanceM)),
+                        checked = index !in excluded,
+                        onToggle = { onToggleTrack(index) },
+                        modifier = Modifier.testTag(transferImportTrackTestTag(index)),
                     )
                 }
                 if (fresh.size > MAX_LISTED_TRACKS) {
                     val more = fresh.size - MAX_LISTED_TRACKS
-                    Text(pluralStringResource(R.plurals.trip_import_more_rows, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                    Text(pluralStringResource(R.plurals.track_import_more_not_listed, more, more), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }
         if (plan.duplicateTracks > 0) Text(pluralStringResource(R.plurals.track_import_duplicates, plan.duplicateTracks, plan.duplicateTracks))
-        if (plan.withoutTime > 0) Text(pluralStringResource(R.plurals.track_import_no_time, plan.withoutTime, plan.withoutTime), color = StatusColors.warningOn(MaterialTheme.colorScheme.surface))
+        if (chosenPlan.withoutTime > 0) Text(pluralStringResource(R.plurals.track_import_no_time, chosenPlan.withoutTime, chosenPlan.withoutTime), color = StatusColors.warningOn(MaterialTheme.colorScheme.surface))
         if (plan.ignoredWaypoints > 0) Text(pluralStringResource(R.plurals.track_import_waypoints, plan.ignoredWaypoints, plan.ignoredWaypoints))
         if (plan.rejectedPoints > 0) Text(pluralStringResource(R.plurals.track_import_rejected_points, plan.rejectedPoints, plan.rejectedPoints), color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** Eine Spur mit Kaestchen (Ganz-Zeilen-Toggle mit der Rolle Checkbox, ≥ 56 dp). */
+@Composable
+private fun TrackChoiceRow(text: String, checked: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().heightIn(min = MIN_TOUCH_TARGET).toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() }),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Spacer(Modifier.width(12.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -393,7 +451,7 @@ private fun PreviewTracksPreviewBodyLight() {
 @Preview(name = "TracksPreviewBody (dark)", showBackground = true)
 @Composable
 private fun PreviewTracksPreviewBodyDark() {
-    PreviewTheme(dark = true) { TracksPreviewBody(previewTrackPlan(), Modifier.padding(16.dp)) }
+    PreviewTheme(dark = true) { TracksPreviewBody(previewTrackPlan(), Modifier.padding(16.dp), excluded = setOf(1)) }
 }
 
 @Preview(name = "SettingsPreviewBody (light)", showBackground = true)

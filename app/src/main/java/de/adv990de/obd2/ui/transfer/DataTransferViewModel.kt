@@ -20,6 +20,7 @@ import de.adv990de.obd2.transfer.NotAPackageException
 import de.adv990de.obd2.transfer.PackageFormat
 import de.adv990de.obd2.transfer.PartPlan
 import de.adv990de.obd2.track.GpxFileException
+import de.adv990de.obd2.track.TrackImportPlan
 import de.adv990de.obd2.transfer.TransferFileException
 import de.adv990de.obd2.transfer.TransferPreview
 import de.adv990de.obd2.transfer.PartOutcome
@@ -54,7 +55,11 @@ enum class TransferMode { EXPORT, IMPORT }
 sealed interface TransferImportState {
     data object Idle : TransferImportState
     data object Working : TransferImportState
-    data class Preview(val preview: TransferPreview, val selected: Set<DataPart>) : TransferImportState
+    /**
+     * [excludedTracks]: die neuen Spuren einer GPX-Datei (Positionen in `TrackImportPlan.items`), die der Nutzer abgewaehlt hat; leer = alle gewaehlt. Nur das ViewModel aendert es, der Importer
+     * bekommt beim Bestaetigen einen gekuerzten Plan.
+     */
+    data class Preview(val preview: TransferPreview, val selected: Set<DataPart>, val excludedTracks: Set<Int> = emptySet()) : TransferImportState
     data class Done(val result: TransferResult) : TransferImportState
     /** [fileName]: der Name der gewaehlten Datei, soweit das System ihn nennt (sonst `null`); die Meldung zeigt ihn an, damit eine falsch gewaehlte Datei auffaellt. */
     data class Failed(val text: UiText, val fileName: String? = null) : TransferImportState
@@ -232,8 +237,45 @@ class DataTransferViewModel @Inject constructor(
         val state = _importState.value as? TransferImportState.Preview ?: return
         val plan = state.preview.parts[part] ?: return
         if (plan is PartPlan.Unreadable) return
-        val selected = if (part in state.selected) state.selected - part else state.selected + part
-        _importState.value = state.copy(selected = selected)
+        if (part in state.selected) {
+            _importState.value = state.copy(selected = state.selected - part)
+            return
+        }
+        // Wieder eingeschaltet, aber jede Spur war abgewaehlt: ein Teil ohne Spur schriebe nichts, also sind wieder alle gewaehlt.
+        val tracks = (plan as? PartPlan.Tracks)?.plan
+        val excluded = if (tracks != null && tracks.newIndices.all { it in state.excludedTracks }) emptySet() else state.excludedTracks
+        _importState.value = state.copy(selected = state.selected + part, excludedTracks = excluded)
+    }
+
+    /**
+     * Waehlt eine neue Spur der GPX-Datei an oder ab ([index] = Position in `TrackImportPlan.items`). Eine doppelte Spur oder eine Position, die es nicht gibt, bleibt unberuehrt. Ist keine
+     * neue Spur mehr gewaehlt, geht der Teil „Tracks“ aus, mit der ersten gewaehlten Spur wieder an.
+     */
+    fun toggleImportTrack(index: Int) {
+        val state = _importState.value as? TransferImportState.Preview ?: return
+        val plan = (state.preview.parts[DataPart.TRACKS] as? PartPlan.Tracks)?.plan ?: return
+        if (index !in plan.newIndices) return
+        val excluded = if (index in state.excludedTracks) state.excludedTracks - index else state.excludedTracks + index
+        _importState.value = state.copy(selected = withTracksPart(state.selected, plan, excluded), excludedTracks = excluded)
+    }
+
+    /** „Alle“ oder „Keine“: alle neuen Spuren der GPX-Datei an- oder abwaehlen (der Teil „Tracks“ folgt). */
+    fun setAllImportTracks(chosen: Boolean) {
+        val state = _importState.value as? TransferImportState.Preview ?: return
+        val plan = (state.preview.parts[DataPart.TRACKS] as? PartPlan.Tracks)?.plan ?: return
+        val excluded = if (chosen) emptySet() else plan.newIndices.toSet()
+        _importState.value = state.copy(selected = withTracksPart(state.selected, plan, excluded), excludedTracks = excluded)
+    }
+
+    /** Der Teil „Tracks“ ist gewaehlt, solange mindestens eine neue Spur gewaehlt ist. */
+    private fun withTracksPart(selected: Set<DataPart>, plan: TrackImportPlan, excluded: Set<Int>): Set<DataPart> =
+        if (plan.newIndices.any { it !in excluded }) selected + DataPart.TRACKS else selected - DataPart.TRACKS
+
+    /** Die Vorschau, wie der Importer sie bekommt: bei abgewaehlten Spuren mit dem gekuerzten Plan des Teils „Tracks“, sonst unveraendert (dieselbe Instanz). */
+    private fun previewWithChosenTracks(state: TransferImportState.Preview): TransferPreview {
+        if (state.excludedTracks.isEmpty()) return state.preview
+        val plan = state.preview.parts[DataPart.TRACKS] as? PartPlan.Tracks ?: return state.preview
+        return state.preview.copy(parts = state.preview.parts + (DataPart.TRACKS to PartPlan.Tracks(plan.plan.without(state.excludedTracks))))
     }
 
     /** Bestaetigt die Vorschau und schreibt die gewaehlten Teile. Ohne Vorschau, mit leerer Auswahl oder waehrend gearbeitet wird, passiert nichts. */
@@ -243,7 +285,7 @@ class DataTransferViewModel @Inject constructor(
         _importState.value = TransferImportState.Working
         viewModelScope.launch {
             try {
-                val result = importer.apply(state.preview, state.selected)
+                val result = importer.apply(previewWithChosenTracks(state), state.selected)
                 logFailedParts(result)
                 _importState.value = TransferImportState.Done(result)
                 refreshCounts()

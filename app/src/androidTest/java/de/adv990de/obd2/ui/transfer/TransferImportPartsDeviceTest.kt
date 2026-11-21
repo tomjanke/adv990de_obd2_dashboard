@@ -6,11 +6,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.adv990de.obd2.R
 import de.adv990de.obd2.logbook.ImportPlan
@@ -30,6 +37,7 @@ import de.adv990de.obd2.tripimport.RejectedRow
 import de.adv990de.obd2.tripimport.TripImportPlan
 import de.adv990de.obd2.tripimport.readTripCsv
 import de.adv990de.obd2.ui.formatDateTime
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Rule
 import org.junit.Test
@@ -292,10 +300,14 @@ class TransferImportPartsDeviceTest {
         duplicate = duplicate,
     )
 
-    private fun showTracks(plan: TrackImportPlan) {
-        composeRule.setContent { Column(Modifier.verticalScroll(rememberScrollState())) { TracksPreviewBody(plan) } }
+    private fun showTracks(plan: TrackImportPlan, excluded: Set<Int> = emptySet(), onToggle: (Int) -> Unit = {}, onAll: (Boolean) -> Unit = {}) {
+        composeRule.setContent {
+            Column(Modifier.verticalScroll(rememberScrollState())) { TracksPreviewBody(plan, excluded = excluded, onToggleTrack = onToggle, onSelectAll = onAll) }
+        }
         composeRule.waitForIdle()
     }
+
+    private fun trackRow(index: Int) = composeRule.onNodeWithTag(transferImportTrackTestTag(index))
 
     @Test
     fun theTracksPreviewListsEveryNewTrackWithItsLengthAndPoints() {
@@ -355,11 +367,101 @@ class TransferImportPartsDeviceTest {
     }
 
     @Test
-    fun onlyTheFirstTwentyNewTracksAreListedAndTheRestIsCounted() {
-        showTracks(TrackImportPlan(List(25) { item("Track number ${it + 1}") }, 0, 0))
+    fun everyNewTrackHasACheckboxThatIsOnAndADuplicateHasNone() {
+        showTracks(TrackImportPlan(listOf(item("New one"), item("Old one", duplicate = true), item("Other")), 0, 0))
 
-        composeRule.onNodeWithText("Track number 20", substring = true).performScrollTo().assertIsDisplayed()
-        composeRule.onAllNodesWithText("Track number 21", substring = true).assertCountEquals(0)
-        composeRule.onNodeWithText(plural(R.plurals.trip_import_more_rows, 5)).performScrollTo().assertIsDisplayed()
+        trackRow(0).performScrollTo().assertIsOn()
+        trackRow(2).performScrollTo().assertIsOn()
+        trackRow(1).assertDoesNotExist()
+    }
+
+    @Test
+    fun aTrackThatWasChosenAwayShowsAnEmptyCheckbox() {
+        showTracks(TrackImportPlan(listOf(item("A"), item("B"), item("C")), 0, 0), excluded = setOf(1))
+
+        trackRow(0).performScrollTo().assertIsOn()
+        trackRow(1).performScrollTo().assertIsOff()
+        trackRow(2).performScrollTo().assertIsOn()
+    }
+
+    @Test
+    fun tappingATrackRowReportsItsPositionInTheFile() {
+        val toggled = mutableListOf<Int>()
+        showTracks(TrackImportPlan(listOf(item("A"), item("Old", duplicate = true), item("C")), 0, 0), onToggle = { toggled += it })
+
+        trackRow(2).performScrollTo().performClick()
+
+        assertEquals(listOf(2), toggled)
+    }
+
+    @Test
+    fun everyTrackRowIsAtLeastAsHighAsATouchTarget() {
+        showTracks(TrackImportPlan(listOf(item("A"), item("B")), 0, 0))
+
+        trackRow(0).performScrollTo().assertHeightIsAtLeast(56.dp)
+        trackRow(1).performScrollTo().assertHeightIsAtLeast(56.dp)
+    }
+
+    @Test
+    fun theCountNamesHowManyTracksAreChosen() {
+        showTracks(TrackImportPlan(listOf(item("A"), item("B"), item("C")), 0, 0), excluded = setOf(0))
+
+        composeRule.onNodeWithTag(TRANSFER_TRACKS_SELECTED_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.track_import_selected, 2, 3)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aSingleNewTrackNeedsNeitherACountNorAllAndNone() {
+        showTracks(TrackImportPlan(listOf(item("A"), item("Old", duplicate = true)), 0, 0))
+
+        composeRule.onAllNodesWithTag(TRANSFER_TRACKS_SELECTED_TEST_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TRANSFER_TRACKS_ALL_TEST_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TRANSFER_TRACKS_NONE_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun allAndNoneReportWhatTheyChoose() {
+        val chosen = mutableListOf<Boolean>()
+        showTracks(TrackImportPlan(listOf(item("A"), item("B")), 0, 0), onAll = { chosen += it })
+
+        composeRule.onNodeWithTag(TRANSFER_TRACKS_NONE_TEST_TAG).performScrollTo().assertHeightIsAtLeast(56.dp).performClick()
+        composeRule.onNodeWithTag(TRANSFER_TRACKS_ALL_TEST_TAG).performScrollTo().assertHeightIsAtLeast(56.dp).performClick()
+
+        assertEquals(listOf(false, true), chosen)
+    }
+
+    @Test
+    fun theHintForTracksWithoutTimesCountsOnlyTheChosenOnes() {
+        val plan = TrackImportPlan(listOf(item("Planned", startMs = null), item("Ridden")), 0, 0)
+
+        showTracks(plan, excluded = setOf(0))
+
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_no_time, 1)).assertCountEquals(0)
+        // Eine Zeile mit der Zahl 0 waere genauso falsch wie die mit 1: auch sie darf nicht erscheinen.
+        composeRule.onAllNodesWithText(plural(R.plurals.track_import_no_time, 0)).assertCountEquals(0)
+    }
+
+    @Test
+    fun theHintForTracksWithoutTimesShowsWhileSuchATrackIsChosen() {
+        showTracks(TrackImportPlan(listOf(item("Planned", startMs = null), item("Ridden")), 0, 0))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_no_time, 1)).assertIsDisplayed()
+    }
+
+    @Test
+    fun skippedPointsAndWaypointsStayEvenWhenEveryTrackIsChosenAway() {
+        showTracks(TrackImportPlan(listOf(item("A")), rejectedPoints = 3, ignoredWaypoints = 2), excluded = setOf(0))
+
+        composeRule.onNodeWithText(plural(R.plurals.track_import_rejected_points, 3)).assertIsDisplayed()
+        composeRule.onNodeWithText(plural(R.plurals.track_import_waypoints, 2)).assertIsDisplayed()
+    }
+
+    @Test
+    fun onlyTheFirstTwoHundredNewTracksGetARowAndTheRestIsCounted() {
+        showTracks(TrackImportPlan(List(205) { item("Track number ${it + 1}") }, 0, 0))
+
+        trackRow(199).performScrollTo().assertIsDisplayed()
+        trackRow(200).assertDoesNotExist()
+        composeRule.onNodeWithText(plural(R.plurals.track_import_more_not_listed, 5)).performScrollTo().assertIsDisplayed()
     }
 }

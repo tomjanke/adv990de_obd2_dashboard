@@ -45,4 +45,19 @@ class DataTransferScreenSourceTest {
         assertTrue("beide stehen im Effekt", flagAt >= 0 && launchAt >= 0)
         assertTrue("der Merker wird vor dem Start gesetzt (ein Abbruch oder eine Drehung mittendrin oeffnet nichts neu)", flagAt < launchAt)
     }
+
+    @Test
+    fun `the choice of single tracks and all or none reach the view model`() {
+        val actions = text.substringAfter("actions = ImportActions(").take(500)
+        assertTrue("ein Tipp auf eine Spur", actions.contains("onToggleTrack = vm::toggleImportTrack"))
+        assertTrue("Alle und Keine", actions.contains("onSelectAllTracks = vm::setAllImportTracks"))
+    }
+
+    @Test
+    fun `the tracks preview gets the chosen tracks and both actions`() {
+        val call = text.substringAfter("is PartPlan.Tracks -> TracksPreviewBody(").substringBefore("is PartPlan.DtcHistory")
+        assertTrue("die abgewaehlten Spuren des Zustands", call.contains("excluded = state.excludedTracks"))
+        assertTrue("der Tipp auf eine Spur", call.contains("onToggleTrack = actions.onToggleTrack"))
+        assertTrue("Alle und Keine", call.contains("onSelectAll = actions.onSelectAllTracks"))
+    }
 }

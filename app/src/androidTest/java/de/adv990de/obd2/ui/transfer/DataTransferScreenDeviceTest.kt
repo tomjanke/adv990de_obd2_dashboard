@@ -35,6 +35,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ExportCounts
 import de.adv990de.obd2.logbook.ImportPlan
+import de.adv990de.obd2.track.TrackImportItem
+import de.adv990de.obd2.track.TrackImportPlan
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.OdometerDecision
@@ -731,5 +734,24 @@ class DataTransferScreenDeviceTest {
         showImport(TransferImportState.Done(TransferResult(linkedMapOf(DataPart.COUNTERS to PartOutcome.Done(count = 2)))))
 
         composeRule.onNodeWithText(string(R.string.transfer_result_done, string(R.string.transfer_part_counters), string(R.string.transfer_done_counters))).assertIsDisplayed()
+    }
+
+    @Test
+    fun theTracksPreviewHandsTheChoiceOfASingleTrackAndAllAndNoneToTheActions() {
+        val toggledTracks = mutableListOf<Int>()
+        val all = mutableListOf<Boolean>()
+        val actions = ImportActions({}, {}, {}, {}, onToggleTrack = { toggledTracks += it }, onSelectAllTracks = { all += it })
+        fun track(name: String) = TrackImportItem(
+            name, listOf(TrackPoint(null, 10.0, 20.0, null, null, null), TrackPoint(null, 10.001, 20.0, null, null, null)), distanceM = 111, startMs = null, endMs = null, duplicate = false,
+        )
+        val state = preview(linkedMapOf(DataPart.TRACKS to PartPlan.Tracks(TrackImportPlan(listOf(track("A"), track("B")), 0, 0)))).copy(excludedTracks = setOf(1))
+        composeRule.setContent { PreviewTheme(dark = false) { Scaffolded(1f, null) { DataTransferImportContent(state, actions) } } }
+
+        tag(transferImportTrackTestTag(0)).performScrollTo().assertIsOn()
+        tag(transferImportTrackTestTag(1)).performScrollTo().assertIsOff().performClick()
+        tag(TRANSFER_TRACKS_NONE_TEST_TAG).performScrollTo().performClick()
+
+        assertEquals(listOf(1), toggledTracks)
+        assertEquals(listOf(false), all)
     }
 }

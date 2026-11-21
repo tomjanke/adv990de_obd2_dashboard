@@ -896,6 +896,13 @@
         <item quantity="one">%1$d waypoint is not imported (waypoints are not shown yet)</item>
         <item quantity="other">%1$d waypoints are not imported (waypoints are not shown yet)</item>
     </plurals>
+    <string name="track_import_selected">%1$d of %2$d selected</string>
+    <string name="track_import_select_all">Select all</string>
+    <string name="track_import_select_none">Select none</string>
+    <plurals name="track_import_more_not_listed">
+        <item quantity="one">… and %1$d more (only selectable with “Select all” and “Select none”)</item>
+        <item quantity="other">… and %1$d more (only selectable with “Select all” and “Select none”)</item>
+    </plurals>
     <plurals name="track_import_done">
         <item quantity="one">%1$d track imported</item>
         <item quantity="other">%1$d tracks imported</item>
