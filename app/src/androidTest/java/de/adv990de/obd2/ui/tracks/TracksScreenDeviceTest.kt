@@ -236,8 +236,31 @@ class TracksScreenDeviceTest {
     private val points = List(30) { i -> TrackPoint(null, 50.0 + 0.002 * Math.sin(i / 5.0), 10.0 + 0.0005 * i, null, null, null) }
     private val bounds = TrackBounds(points.minOf { it.lat }, points.maxOf { it.lat }, points.minOf { it.lon }, points.maxOf { it.lon })
 
-    private fun showDetail(state: TrackDetailState, onSave: () -> Unit = {}, onShare: () -> Unit = {}, exporting: Boolean = false) {
-        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(state, onBack = {}, onSave = onSave, onShare = onShare, exporting = exporting) } }
+    private fun showDetail(state: TrackDetailState, onSave: () -> Unit = {}, onShare: () -> Unit = {}, exporting: Boolean = false, onFollow: () -> Unit = {}) {
+        composeRule.setContent { PreviewTheme(dark = false) { TrackDetailContent(state, onBack = {}, onSave = onSave, onShare = onShare, onFollow = onFollow, exporting = exporting) } }
+    }
+
+    // ── Nachfahren (Task 9): der Knopf in der Ansicht ─────────────────────────
+
+    @Test
+    fun aReadyTrack_offersFollowing_as56dpButton_andReportsTheTap() {
+        var follows = 0
+        composeRule.setContent {
+            AppTheme(colorScheme = androidx.compose.material3.lightColorScheme()) {
+                TrackDetailContent(TrackDetailState.Ready(track(1, "Runde"), points, bounds), onBack = {}, onFollow = { follows++ })
+            }
+        }
+
+        composeRule.onNodeWithTag(TRACK_FOLLOW_OPEN_TEST_TAG).assertIsDisplayed().assertIsEnabled().assertTouchTargetAtLeast56(composeRule.density)
+        composeRule.onNodeWithContentDescription(string(R.string.track_follow_open)).assertIsDisplayed()
+        composeRule.onNodeWithTag(TRACK_FOLLOW_OPEN_TEST_TAG).performClick()
+        assertEquals(1, follows)
+    }
+
+    @Test
+    fun aTrackWithoutPoints_hasNothingToFollow() {
+        showDetail(TrackDetailState.Ready(track(1), emptyList(), null))
+        composeRule.onNodeWithTag(TRACK_FOLLOW_OPEN_TEST_TAG).assertDoesNotExist()
     }
 
     @Test

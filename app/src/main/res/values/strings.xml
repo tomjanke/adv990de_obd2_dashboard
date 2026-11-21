@@ -837,6 +837,19 @@
     <string name="track_detail_not_found">This track no longer exists.</string>
     <string name="track_detail_failed">The track could not be read.</string>
     <string name="track_detail_empty">This track has no points.</string>
+    <string name="track_follow_title">Follow track</string>
+    <string name="track_follow_open">Follow this track</string>
+    <string name="track_follow_too_short">This track is too short to follow.</string>
+    <string name="track_follow_dir_forward">As recorded</string>
+    <string name="track_follow_dir_reverse">Reverse</string>
+    <string name="track_follow_dir_cd">Direction</string>
+    <string name="track_follow_stat_off">From track</string>
+    <string name="track_follow_stat_done">Covered</string>
+    <string name="track_follow_stat_left">Remaining</string>
+    <string name="track_follow_searching">Waiting for your position…</string>
+    <string name="track_follow_permission">Following needs your precise location.</string>
+    <string name="track_follow_note">Your position is only used on this screen. It is not saved and not logged.</string>
+    <string name="track_follow_summary">%1$s from the track, %2$s covered, %3$s remaining</string>
     <string name="track_cd_export_save">Save as GPX</string>
     <string name="track_cd_export_share">Share as GPX</string>
     <string name="track_export_chooser">Share track (GPX)</string>
@@ -896,7 +909,7 @@
         <item quantity="one">%1$d waypoint is not imported (waypoints are not shown yet)</item>
         <item quantity="other">%1$d waypoints are not imported (waypoints are not shown yet)</item>
     </plurals>
-    <string name="track_import_selected">%1$d of %2$d selected</string>
+    <string name="track_import_selected" tools:ignore="PluralsCandidate">%1$d of %2$d selected</string>
     <string name="track_import_select_all">Select all</string>
     <string name="track_import_select_none">Select none</string>
     <plurals name="track_import_more_not_listed">

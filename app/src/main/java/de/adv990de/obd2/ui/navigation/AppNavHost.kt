@@ -29,6 +29,7 @@ import de.adv990de.obd2.ui.logbook.LOG_STATS_TYPE_ARG
 import de.adv990de.obd2.ui.logbook.LogEntryScreen
 import de.adv990de.obd2.ui.tracks.TRACK_ID_ARG
 import de.adv990de.obd2.ui.tracks.TrackDetailScreen
+import de.adv990de.obd2.ui.tracks.TrackFollowScreen
 import de.adv990de.obd2.ui.tracks.TracksScreen
 import de.adv990de.obd2.ui.logbook.LogbookStatsScreen
 import de.adv990de.obd2.ui.vehicleinfo.VehicleInfoScreen
@@ -79,6 +80,10 @@ fun AppNavHost(navController: NavHostController) {
                 Screen.TrackDetail.route,
                 arguments = listOf(navArgument(TRACK_ID_ARG) { type = NavType.LongType }),
             ) { TrackDetailScreen(navController) }
+            composable(
+                Screen.TrackFollow.route,
+                arguments = listOf(navArgument(TRACK_ID_ARG) { type = NavType.LongType }),
+            ) { TrackFollowScreen(navController) }
             // Die Detailseite der Auswertung; die Art (FUEL, OIL oder COOLANT) steht in der Route.
             composable(
                 Screen.LogbookStats.route,

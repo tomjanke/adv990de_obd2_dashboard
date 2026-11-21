@@ -65,6 +65,12 @@ internal const val TRACK_PAN_DOWN_TEST_TAG = "track_pan_down"
 internal const val TRACK_PAN_LEFT_TEST_TAG = "track_pan_left"
 internal const val TRACK_PAN_RIGHT_TEST_TAG = "track_pan_right"
 
+/**
+ * Die eigene Position beim Nachfahren: der Punkt [point] und die Richtung des Tracks dort ([bearingDeg], 0 = Nord, im Uhrzeigersinn). Gezeichnet als Pfeil in Fahrtrichtung des Tracks —
+ * **nicht** die eigene Fahrtrichtung (ein Fix der Aufzeichnung traegt keinen Kurs). **Positionen sind sensibel:** nichts hiervon geht in ein Log.
+ */
+internal data class TrackMarker(val point: TrackPoint, val bearingDeg: Double)
+
 /** Rand um den angepassten Track, damit Start- und Zielmarke nicht an der Kante kleben. */
 private val CANVAS_PADDING = 32.dp
 
@@ -86,7 +92,7 @@ private val ViewStateSaver = listSaver<TrackViewState, Double>(
  * **Positionen sind sensibel:** nichts hiervon geht in ein Log.
  */
 @Composable
-internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifier: Modifier = Modifier) {
+internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifier: Modifier = Modifier, marker: TrackMarker? = null) {
     var state by rememberSaveable(stateSaver = ViewStateSaver) { mutableStateOf(TrackViewState()) }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -106,6 +112,7 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
             bounds = bounds,
             view = state.resolve(fit),
             size = size,
+            marker = marker,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(TRACK_CANVAS_TEST_TAG)
@@ -133,12 +140,13 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
 }
 
 @Composable
-private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: TrackView, size: IntSize, modifier: Modifier) {
+private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: TrackView, size: IntSize, marker: TrackMarker?, modifier: Modifier) {
     val line = MaterialTheme.colorScheme.primary
     val startColor = MaterialTheme.colorScheme.tertiary
     val endColor = MaterialTheme.colorScheme.onSurface
     val halo = MaterialTheme.colorScheme.surface
     val ink = MaterialTheme.colorScheme.onSurfaceVariant
+    val markerColor = MaterialTheme.colorScheme.onSurface
     val textStyle = MaterialTheme.typography.labelMedium.asLiveValue().copy(color = MaterialTheme.colorScheme.onSurface)
     val measurer = rememberTextMeasurer()
     val northLabel = stringResource(R.string.track_north).take(1)
@@ -180,6 +188,27 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
         }
         drawCircle(halo, r + 2.dp.toPx(), at(0))
         drawCircle(startColor, r, at(0))
+
+        // Die eigene Position: ein Pfeil in Richtung des Tracks, auf einem Ring in der Flaechenfarbe (lesbar auf Linie und Grund).
+        if (marker != null) {
+            val m = toScreen(view, w, h, projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat))
+            val centre = Offset(m.x.toFloat(), m.y.toFloat())
+            val rad = Math.toRadians(marker.bearingDeg)
+            val dir = Offset(Math.sin(rad).toFloat(), -Math.cos(rad).toFloat())
+            val side = Offset(-dir.y, dir.x)
+            fun arrow(scale: Float) = Path().apply {
+                val tip = centre + dir * (18.dp.toPx() * scale)
+                val left = centre - dir * (10.dp.toPx() * scale) + side * (11.dp.toPx() * scale)
+                val right = centre - dir * (10.dp.toPx() * scale) - side * (11.dp.toPx() * scale)
+                moveTo(tip.x, tip.y)
+                lineTo(left.x, left.y)
+                lineTo(centre.x, centre.y)
+                lineTo(right.x, right.y)
+                close()
+            }
+            drawPath(arrow(1.35f), halo)
+            drawPath(arrow(1f), markerColor)
+        }
 
         // Massstabsleiste unten links
         val margin = 12.dp.toPx()

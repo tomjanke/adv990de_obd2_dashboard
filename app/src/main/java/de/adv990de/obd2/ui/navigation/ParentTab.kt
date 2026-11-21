@@ -14,7 +14,8 @@ internal fun parentTab(route: String?): Screen? = when (route) {
     Screen.LogEntry.route,
     Screen.LogbookStats.route,
     Screen.Tracks.route,
-    Screen.TrackDetail.route -> Screen.TripsAndFaults
+    Screen.TrackDetail.route,
+    Screen.TrackFollow.route -> Screen.TripsAndFaults
     Screen.Settings.route,
     Screen.VehicleInfo.route,
     Screen.AppInfo.route,

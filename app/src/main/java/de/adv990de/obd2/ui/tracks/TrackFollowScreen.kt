@@ -1,0 +1,338 @@
+package de.adv990de.obd2.ui.tracks
+
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.res.Configuration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
+import de.adv990de.obd2.R
+import de.adv990de.obd2.track.FollowDirection
+import de.adv990de.obd2.track.FollowResult
+import de.adv990de.obd2.track.TrackBounds
+import de.adv990de.obd2.track.TrackPoint
+import de.adv990de.obd2.ui.components.EmptyState
+import de.adv990de.obd2.ui.components.LiveValueText
+import de.adv990de.obd2.ui.components.SectionLabel
+import de.adv990de.obd2.ui.navigation.rememberClosePage
+import de.adv990de.obd2.ui.permission.appSettingsIntent
+import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
+import de.adv990de.obd2.ui.settings.PermissionHintRow
+import de.adv990de.obd2.ui.theme.PreviewTheme
+import de.adv990de.obd2.ui.theme.asLiveValue
+
+internal const val FOLLOW_DIRECTION_FORWARD_TEST_TAG = "follow_direction_forward"
+internal const val FOLLOW_DIRECTION_REVERSE_TEST_TAG = "follow_direction_reverse"
+internal const val FOLLOW_STAT_OFF_TEST_TAG = "follow_stat_off"
+internal const val FOLLOW_STAT_DONE_TEST_TAG = "follow_stat_done"
+internal const val FOLLOW_STAT_LEFT_TEST_TAG = "follow_stat_left"
+internal const val FOLLOW_SEARCHING_TEST_TAG = "follow_searching"
+internal const val FOLLOW_PERMISSION_HINT_TEST_TAG = "follow_permission_hint"
+internal const val FOLLOW_NOTE_TEST_TAG = "follow_note"
+internal const val FOLLOW_TOO_SHORT_TEST_TAG = "follow_too_short"
+internal const val FOLLOW_PROGRESS_TEST_TAG = "follow_progress"
+
+/**
+ * Das Nachfahren eines Tracks (Route `track_follow/{id}`): die Karte mit der eigenen Position, daneben oder darunter Abstand zum Track, Zurueckgelegtes und Rest. **Keine Routenfuehrung**,
+ * kein Ton, keine Ansage. Der Bildschirm bleibt an, solange die Seite sichtbar ist (wie das Dashboard). Die Position wird nur hier verwendet, nicht gespeichert und nicht geloggt.
+ */
+@Composable
+fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = hiltViewModel()) {
+    val track by vm.track.collectAsStateWithLifecycle()
+    val direction by vm.direction.collectAsStateWithLifecycle()
+    val reading by vm.reading.collectAsStateWithLifecycle()
+    val permission = rememberLocationPermissionState()
+    val context = LocalContext.current
+
+    // Wie im Dashboard: der Bildschirm bleibt an, solange die Seite sichtbar ist.
+    DisposableEffect(Unit) {
+        val window = (context as? android.app.Activity)?.window
+        window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
+
+    // Die Berechtigung kann sich ausserhalb der App aendern (`permission` liest bei jedem ON_RESUME neu): das ViewModel liest mit.
+    LaunchedEffect(permission.fine, permission.coarse) { vm.refreshPermission() }
+
+    // Beim ersten Oeffnen ohne den genauen Standort fragt das System einmal; abgelehnt bleibt die Hinweiszeile, die in die App-Einstellungen fuehrt.
+    var asked by rememberSaveable { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permission.refresh() }
+    LaunchedEffect(permission.fine) {
+        if (!permission.fine && !asked) {
+            asked = true
+            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
+
+    TrackFollowContent(
+        track = track,
+        direction = direction,
+        reading = reading,
+        permissionMissing = !permission.fine,
+        onDirection = vm::setDirection,
+        onBack = rememberClosePage(navController),
+        onOpenSettings = { openAppSettings(context) },
+    )
+}
+
+private fun openAppSettings(context: Context) {
+    try {
+        context.startActivity(appSettingsIntent(context.packageName))
+    } catch (_: ActivityNotFoundException) {
+        // kein Einstellungsbildschirm erreichbar: es gibt nichts weiter zu tun
+    }
+}
+
+/** Zustandslos fuer Vorschauen und Tests. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TrackFollowContent(
+    track: FollowTrackState,
+    direction: FollowDirection,
+    reading: FollowReading,
+    permissionMissing: Boolean,
+    onDirection: (FollowDirection) -> Unit,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+) {
+    val ready = track as? FollowTrackState.Ready
+    val title = when (track) {
+        is FollowTrackState.Ready -> track.name
+        is FollowTrackState.TooShort -> track.name
+        else -> stringResource(R.string.track_follow_title)
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title, maxLines = 1) },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.heightIn(min = 56.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
+                    }
+                },
+            )
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when (track) {
+                FollowTrackState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                FollowTrackState.NotFound -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_not_found))
+                FollowTrackState.Failed -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_failed))
+                is FollowTrackState.TooShort -> EmptyState(Icons.Default.Place, stringResource(R.string.track_follow_too_short), Modifier.testTag(FOLLOW_TOO_SHORT_TEST_TAG))
+                is FollowTrackState.Ready -> if (ready != null) ReadyContent(ready, direction, reading, permissionMissing, onDirection, onOpenSettings)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadyContent(
+    track: FollowTrackState.Ready,
+    direction: FollowDirection,
+    reading: FollowReading,
+    permissionMissing: Boolean,
+    onDirection: (FollowDirection) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val marker = (reading as? FollowReading.Following)?.let { TrackMarker(it.position, it.result.bearingDeg) }
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val panel: @Composable (Modifier) -> Unit = { modifier ->
+        FollowPanel(direction, reading, permissionMissing, onDirection, onOpenSettings, modifier)
+    }
+    if (landscape) {
+        Row(Modifier.fillMaxSize()) {
+            TrackMapView(track.drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker)
+            panel(Modifier.width(260.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp))
+        }
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            TrackMapView(track.drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker)
+            panel(Modifier.fillMaxWidth().padding(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun FollowPanel(
+    direction: FollowDirection,
+    reading: FollowReading,
+    permissionMissing: Boolean,
+    onDirection: (FollowDirection) -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DirectionChoice(direction, onDirection)
+        if (permissionMissing) {
+            PermissionHintRow(
+                text = stringResource(R.string.track_follow_permission),
+                buttonLabel = stringResource(R.string.settings_permission_open_settings),
+                onOpenSettings = onOpenSettings,
+                modifier = Modifier.testTag(FOLLOW_PERMISSION_HINT_TEST_TAG),
+            )
+        } else if (reading is FollowReading.Following) {
+            FollowStats(reading.result)
+        } else {
+            Text(
+                stringResource(R.string.track_follow_searching),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag(FOLLOW_SEARCHING_TEST_TAG),
+            )
+        }
+        Text(
+            stringResource(R.string.track_follow_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(FOLLOW_NOTE_TEST_TAG),
+        )
+    }
+}
+
+/** Die zwei Richtungen als Segmente (mindestens 56 dp hoch, eine Handschuh-Geste genuegt: ein Tipp). */
+@Composable
+private fun DirectionChoice(direction: FollowDirection, onDirection: (FollowDirection) -> Unit) {
+    val description = stringResource(R.string.track_follow_dir_cd)
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = description }) {
+        val options = listOf(
+            Triple(FollowDirection.FORWARD, R.string.track_follow_dir_forward, FOLLOW_DIRECTION_FORWARD_TEST_TAG),
+            Triple(FollowDirection.REVERSE, R.string.track_follow_dir_reverse, FOLLOW_DIRECTION_REVERSE_TEST_TAG),
+        )
+        options.forEachIndexed { index, (value, label, tag) ->
+            SegmentedButton(
+                selected = direction == value,
+                onClick = { onDirection(value) },
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                modifier = Modifier.heightIn(min = 56.dp).testTag(tag),
+            ) { Text(stringResource(label), maxLines = 1) }
+        }
+    }
+}
+
+/** Abstand zum Track, Zurueckgelegtes, Rest (Plex Mono, `tnum`) und der Fortschritt als Balken; eine Beschreibung fuer TalkBack fasst es zusammen. */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun FollowStats(result: FollowResult) {
+    val locale = LocalLocale.current.platformLocale
+    val off = formatTrackDistance(Math.round(result.distanceToTrackM), locale)
+    val done = formatTrackDistance(Math.round(result.alongM), locale)
+    val left = formatTrackDistance(Math.round(result.remainingM), locale)
+    val summary = stringResource(R.string.track_follow_summary, off, done, left)
+    Column(Modifier.semantics(mergeDescendants = true) { contentDescription = summary }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Die drei Zahlen brechen um, wo die Breite nicht reicht (schmales Fenster, Panel im Querformat, grosse Schrift): keine wird abgeschnitten.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Stat(R.string.track_follow_stat_off, off, FOLLOW_STAT_OFF_TEST_TAG)
+            Stat(R.string.track_follow_stat_done, done, FOLLOW_STAT_DONE_TEST_TAG)
+            Stat(R.string.track_follow_stat_left, left, FOLLOW_STAT_LEFT_TEST_TAG)
+        }
+        LinearProgressIndicator(progress = { result.progress.toFloat() }, modifier = Modifier.fillMaxWidth().testTag(FOLLOW_PROGRESS_TEST_TAG))
+    }
+}
+
+@Composable
+private fun Stat(labelRes: Int, value: String, tag: String) {
+    Column {
+        SectionLabel(stringResource(labelRes))
+        LiveValueText(
+            value,
+            style = MaterialTheme.typography.titleLarge.asLiveValue(),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.testTag(tag),
+        )
+    }
+}
+
+// region — Previews
+
+/** Eine erfundene Strecke bei 50 N, 10 E — nie ein echter Weg. */
+private fun previewPoints(): List<TrackPoint> = List(80) { i ->
+    TrackPoint(null, 50.0 + 0.003 * Math.sin(i / 80.0 * 6.0), 10.0 + 0.006 * i / 80.0, null, null, null)
+}
+
+private fun previewReady(): FollowTrackState.Ready {
+    val points = previewPoints()
+    val bounds = TrackBounds(points.minOf { it.lat }, points.maxOf { it.lat }, points.minOf { it.lon }, points.maxOf { it.lon })
+    return FollowTrackState.Ready("Sonntagsrunde", points, points, bounds)
+}
+
+private fun previewFollowing(): FollowReading.Following {
+    val position = previewPoints()[30]
+    return FollowReading.Following(
+        position,
+        FollowResult(distanceToTrackM = 12.0, alongM = 2_300.0, remainingM = 3_850.0, totalM = 6_150.0, segmentIndex = 30, bearingDeg = 80.0),
+    )
+}
+
+@Composable
+private fun TrackFollowPreviewContent(reading: FollowReading, permissionMissing: Boolean = false, direction: FollowDirection = FollowDirection.FORWARD) {
+    TrackFollowContent(previewReady(), direction, reading, permissionMissing, onDirection = {}, onBack = {})
+}
+
+@Preview(name = "TrackFollow · following · light", showBackground = true, heightDp = 640, widthDp = 420)
+@Composable
+private fun PreviewTrackFollowFollowingLight() = PreviewTheme(dark = false) { TrackFollowPreviewContent(previewFollowing()) }
+
+@Preview(name = "TrackFollow · following · dark", showBackground = true, heightDp = 640, widthDp = 420)
+@Composable
+private fun PreviewTrackFollowFollowingDark() = PreviewTheme(dark = true) { TrackFollowPreviewContent(previewFollowing(), direction = FollowDirection.REVERSE) }
+
+@Preview(name = "TrackFollow · searching · dark", showBackground = true, heightDp = 640, widthDp = 420)
+@Composable
+private fun PreviewTrackFollowSearchingDark() = PreviewTheme(dark = true) { TrackFollowPreviewContent(FollowReading.Searching) }
+
+@Preview(name = "TrackFollow · no permission · light", showBackground = true, heightDp = 640, widthDp = 420)
+@Composable
+private fun PreviewTrackFollowNoPermissionLight() = PreviewTheme(dark = false) { TrackFollowPreviewContent(FollowReading.NoPermission, permissionMissing = true) }
+
+// endregion

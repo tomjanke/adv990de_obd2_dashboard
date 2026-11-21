@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +59,8 @@ import de.adv990de.obd2.ui.components.ExportFeedbackEffects
 import de.adv990de.obd2.ui.components.LiveValueText
 import de.adv990de.obd2.ui.components.SectionLabel
 import de.adv990de.obd2.ui.formatDateTime
+import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.navigation.rememberClosePage
 import de.adv990de.obd2.ui.theme.PreviewTheme
 import de.adv990de.obd2.ui.theme.asLiveValue
@@ -67,6 +70,7 @@ import kotlinx.coroutines.launch
 internal const val TRACK_EXPORT_SAVE_TEST_TAG = "track_export_save"
 internal const val TRACK_EXPORT_SHARE_TEST_TAG = "track_export_share"
 internal const val TRACK_EXPORT_NOTE_TEST_TAG = "track_export_note"
+internal const val TRACK_FOLLOW_OPEN_TEST_TAG = "track_follow_open"
 
 /** The MIME type of the file dialog for "save as GPX". */
 private const val GPX_MIME = "application/gpx+xml"
@@ -105,6 +109,7 @@ fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = h
         onBack = rememberClosePage(navController),
         onSave = onSave,
         onShare = vm::share,
+        onFollow = { (state as? TrackDetailState.Ready)?.let { navController.openSubPage(Screen.TrackFollow.routeFor(it.summary.id)) } },
         exporting = exporting,
         snackbarHostState = snackbarHostState,
     )
@@ -117,6 +122,7 @@ internal fun TrackDetailContent(
     onBack: () -> Unit,
     onSave: () -> Unit = {},
     onShare: () -> Unit = {},
+    onFollow: () -> Unit = {},
     exporting: Boolean = false,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -134,6 +140,9 @@ internal fun TrackDetailContent(
                 },
                 actions = {
                     if (canExport) {
+                        IconButton(onClick = onFollow, modifier = Modifier.heightIn(min = 56.dp).testTag(TRACK_FOLLOW_OPEN_TEST_TAG)) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.track_follow_open))
+                        }
                         IconButton(onClick = onSave, enabled = !exporting, modifier = Modifier.heightIn(min = 56.dp).testTag(TRACK_EXPORT_SAVE_TEST_TAG)) {
                             Icon(AppIcons.Download, contentDescription = stringResource(R.string.track_cd_export_save))
                         }

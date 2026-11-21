@@ -43,6 +43,11 @@ sealed class Screen(val route: String) {
         fun routeFor(id: Long) = "track_detail/$id"
     }
 
+    /** Das Nachfahren eines Tracks (Position gegen die Linie, ohne Routenfuehrung). Die Id steht in der Route wie bei [TrackDetail]. */
+    object TrackFollow : Screen("track_follow/{id}") {
+        fun routeFor(id: Long) = "track_follow/$id"
+    }
+
     /**
      * Die Seite „Daten sichern und wiederherstellen“ (Einstellungen → Info & Wartung) und ihre Abkuerzungen aus den Symbolen der Listen. Die Argumente sind alle optional:
      * `mode` (`export`/`import`), `part` (der Name einer [DataPart]-Art, leer = keine) und `pick` (der Dateidialog des Imports oeffnet sofort). Die Route ist das **Muster**
