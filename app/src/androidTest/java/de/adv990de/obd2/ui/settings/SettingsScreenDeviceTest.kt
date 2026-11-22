@@ -163,6 +163,13 @@ class SettingsScreenDeviceTest {
         scrollToClearView(testTag)
     }
 
+    /** Steuert die Zeile neu an und loest den Klick ueber die Semantik aus (ohne Koordinaten): nach `scrollToClearView` kann sie im Querformat ausserhalb des komponierten Bereichs liegen. */
+    private fun clickSwitchRow(testTag: String) {
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(testTag))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(testTag).performSemanticsAction(SemanticsActions.OnClick)
+    }
+
     private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) =
         waitUntilSwitchIsOn(GPS_SPEED_SWITCH_TEST_TAG, expected)
 
@@ -228,7 +235,7 @@ class SettingsScreenDeviceTest {
         launchSettingsScreen()
         waitUntilGpsSpeedSwitchIsOn(expected = false)
 
-        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
+        clickSwitchRow(GPS_SPEED_SWITCH_TEST_TAG)
         waitUntilGpsSpeedSwitchIsOn(expected = true)
 
         // ACCESS_FINE_LOCATION is pre-granted by permissionRule, so this must have taken the
@@ -244,7 +251,7 @@ class SettingsScreenDeviceTest {
         launchSettingsScreen()
         waitUntilGpsSpeedSwitchIsOn(expected = true)
 
-        composeRule.onNodeWithTag(GPS_SPEED_SWITCH_TEST_TAG).performClick()
+        clickSwitchRow(GPS_SPEED_SWITCH_TEST_TAG)
         waitUntilGpsSpeedSwitchIsOn(expected = false)
 
         assertEquals(false, appPreferences.useGpsSpeed.first())
@@ -266,7 +273,7 @@ class SettingsScreenDeviceTest {
         launchSettingsScreen()
         waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = false)
 
-        composeRule.onNodeWithTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG).performClick()
+        clickSwitchRow(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG)
         waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = true)
 
         assertEquals(true, appPreferences.hideNavOnDrive.first())
@@ -283,7 +290,7 @@ class SettingsScreenDeviceTest {
         launchSettingsScreen()
         waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = true)
 
-        composeRule.onNodeWithTag(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG).performClick()
+        clickSwitchRow(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG)
         waitUntilSwitchIsOn(HIDE_NAV_ON_DRIVE_SWITCH_TEST_TAG, expected = false)
 
         assertEquals(false, appPreferences.hideNavOnDrive.first())
