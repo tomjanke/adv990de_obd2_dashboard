@@ -17,6 +17,13 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.centerRight
+import androidx.compose.ui.test.centerLeft
+import androidx.compose.ui.test.center
+import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -35,6 +42,7 @@ import de.adv990de.obd2.ui.assertTouchTargetAtLeast56
 import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.PreviewTheme
+import de.adv990de.obd2.ui.theme.StatusColors
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,6 +54,7 @@ import org.junit.runner.RunWith
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -227,10 +236,10 @@ class TrackFollowScreenDeviceTest {
 
     private val colors = lightColorScheme()
 
-    private fun showMap(marker: TrackMarker?) {
+    private fun showMap(marker: TrackMarker?, orientable: Boolean = false) {
         composeRule.setContent {
             MaterialTheme(colorScheme = colors, typography = AppTypography) {
-                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), marker)
+                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), marker, orientable)
             }
         }
         composeRule.waitForIdle()
@@ -259,7 +268,7 @@ class TrackFollowScreenDeviceTest {
         val x = (centre.first + (dx * aheadDp + (-dy) * acrossDp) * d).roundToInt()
         val y = (centre.second + (dy * aheadDp + dx * acrossDp) * d).roundToInt()
         if (x !in 0 until map.width || y !in 0 until map.height) return false
-        return map[x, y].near(colors.onSurface)
+        return map[x, y].near(StatusColors.OwnPosition)
     }
 
     @Test
@@ -375,7 +384,7 @@ class TrackFollowScreenDeviceTest {
         val n = 60
         val hits = (8..n - 8).count { k ->
             val t = k / n.toDouble()
-            pixelAt(a.first + (b.first - a.first) * t, a.second + (b.second - a.second) * t)?.near(colors.onSurface, 0.08f) == true
+            pixelAt(a.first + (b.first - a.first) * t, a.second + (b.second - a.second) * t)?.near(StatusColors.OwnPosition, 0.08f) == true
         }
         return hits / (n - 15).toDouble()
     }
@@ -390,7 +399,7 @@ class TrackFollowScreenDeviceTest {
         val b = screenOf(foot)
         assertTrue("die Linie ist gestrichelt gezeichnet, also teils in der Farbe des Markers", dashedShare(a, b) > 0.25)
         val ring = pixelAt(b.first, b.second)
-        assertTrue("am Fusspunkt sitzt ein Punkt", ring != null && ring.near(colors.onSurface, 0.08f))
+        assertTrue("am Fusspunkt sitzt ein Punkt", ring != null && ring.near(StatusColors.OwnPosition, 0.08f))
     }
 
     @Test
@@ -405,7 +414,7 @@ class TrackFollowScreenDeviceTest {
         val (x, y) = screenOf(foot)
         // der Pfeil deckt den Fusspunkt: die Linie zu sich selbst wird nicht gezeichnet (kein Strich quer durch den Pfeil, kein Punkt daneben)
         assertTrue(markerAt(screenOf(foot), 90.0, aheadDp = 8.0, acrossDp = 0.0))
-        assertFalse("kein Fusspunkt-Kreis neben dem Pfeil", pixelAt(x, y - 9 * composeRule.density.density)?.near(colors.onSurface, 0.08f) == true && pixelAt(x, y + 9 * composeRule.density.density)?.near(colors.onSurface, 0.08f) == true)
+        assertFalse("kein Fusspunkt-Kreis neben dem Pfeil", pixelAt(x, y - 9 * composeRule.density.density)?.near(StatusColors.OwnPosition, 0.08f) == true && pixelAt(x, y + 9 * composeRule.density.density)?.near(StatusColors.OwnPosition, 0.08f) == true)
     }
 
     @Test
@@ -420,7 +429,7 @@ class TrackFollowScreenDeviceTest {
         assertTrue("und ist dort gezeichnet (Spitze nach Norden)", markerAt(shown.x to shown.y, 0.0, aheadDp = 8.0, acrossDp = 0.0))
     }
 
-    /** Wie viele Bildpunkte der Zeichnung in der Farbe des Markers stehen (Pfeil, Linie, Fusspunkt, Text des Abstands). */
+    /** Wie viele Bildpunkte der Zeichnung in der Textfarbe stehen (der Text des Abstands; die Zielmarke ist in beiden Faellen gleich). */
     private fun markerColouredPixels(): Int {
         val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
         var n = 0
@@ -461,7 +470,7 @@ class TrackFollowScreenDeviceTest {
         val share = dashedShare(screenOf(awayFromTheTrack), screenOf(foot))
         assertTrue("die gestrichelte Linie fuehrt von der Position zum Track (Anteil $share)", share > 0.12)
         val (fx, fy) = screenOf(foot)
-        assertTrue("am Fusspunkt sitzt ein Punkt in der Farbe des Markers", pixelAt(fx, fy)?.near(colors.onSurface, 0.08f) == true)
+        assertTrue("am Fusspunkt sitzt ein Punkt in der Farbe des Markers", pixelAt(fx, fy)?.near(StatusColors.OwnPosition, 0.08f) == true)
     }
 
     @Test
@@ -473,7 +482,301 @@ class TrackFollowScreenDeviceTest {
         showMap(TrackMarker(near, bearingDeg = 0.0, foot = foot, distanceLabel = "5 m"))
 
         val (x, y) = screenOf(foot)
-        assertFalse("am Fusspunkt steht kein Punkt in der Farbe des Markers", pixelAt(x, y)?.near(colors.onSurface, 0.08f) == true)
+        assertFalse("am Fusspunkt steht kein Punkt in der Farbe des Markers", pixelAt(x, y)?.near(StatusColors.OwnPosition, 0.08f) == true)
         assertTrue("dort liegt die Linie des Tracks", pixelAt(x, y)?.near(colors.primary) == true)
+    }
+
+    // ── Der Abstandstext liegt neben der Linie ────────────────────────────────
+
+    @Test
+    fun theDistanceLabel_doesNotCoverTheLine() {
+        var label by androidx.compose.runtime.mutableStateOf<String?>("133 m")
+        composeRule.setContent {
+            MaterialTheme(colorScheme = colors, typography = AppTypography) {
+                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), TrackMarker(awayFromTheTrack, 90.0, foot, label))
+            }
+        }
+        composeRule.waitForIdle()
+        val a = screenOf(awayFromTheTrack)
+        val b = screenOf(foot)
+        val withLabel = dashedShare(a, b)
+        label = null
+        composeRule.waitForIdle()
+        val without = dashedShare(a, b)
+        assertTrue("die Linie ist mit Text so sichtbar wie ohne (mit $withLabel, ohne $without)", withLabel >= without - 0.05)
+    }
+
+    // ── Position in Blau ──────────────────────────────────────────────────────
+
+    @Test
+    fun thePosition_hasItsOwnColour_notThatOfTheGoalMark() {
+        assertFalse("die Farbe der Position ist nicht die der Zielmarke", StatusColors.OwnPosition.near(colors.onSurface, 0.2f))
+        assertFalse("und nicht die der Linie", StatusColors.OwnPosition.near(colors.primary, 0.2f))
+        assertFalse("und nicht die der Startmarke", StatusColors.OwnPosition.near(colors.tertiary, 0.2f))
+    }
+
+    // ── Ausrichtung der Karte ─────────────────────────────────────────────────
+
+    private val here = points[10]
+    private val orientationMarker = TrackMarker(here, bearingDeg = 90.0)
+
+    private fun canvasSize(): Pair<Double, Double> {
+        val image = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage()
+        return image.width.toDouble() to image.height.toDouble()
+    }
+
+    private fun headingFrame(): HeadingFrame {
+        val (w, h) = canvasSize()
+        return HeadingFrame(w, h, marginPx = 22 * composeRule.density.density.toDouble())
+    }
+
+    /** Der Schwerpunkt der Bildpunkte in der Farbe der Position: bei einem Marker ohne Linie der Pfeil. */
+    private fun markerCentroid(): Pair<Double, Double> {
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+        var n = 0
+        var sx = 0.0
+        var sy = 0.0
+        for (y in 0 until map.height) for (x in 0 until map.width) if (map[x, y].near(StatusColors.OwnPosition, 0.08f)) { n++; sx += x; sy += y }
+        assertTrue("der Marker ist gezeichnet", n > 20)
+        return sx / n to sy / n
+    }
+
+    private fun toggleOrientation() {
+        composeRule.onNodeWithTag(TRACK_ORIENTATION_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun theOrientationButton_isThereWhenTheMapCanBeOriented_with56dp() {
+        showMap(orientationMarker, orientable = true)
+        composeRule.onNodeWithTag(TRACK_ORIENTATION_TEST_TAG).assertIsDisplayed().assertTouchTargetAtLeast56(composeRule.density)
+    }
+
+    @Test
+    fun theOrientationButton_isNotThereWithoutThat() {
+        showMap(orientationMarker, orientable = false)
+        composeRule.onNodeWithTag(TRACK_ORIENTATION_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun inTheDirectionOfTravelMode_thePositionStandsLowInTheMiddle_andItsArrowPointsUp() {
+        showMap(orientationMarker, orientable = true)
+        // Norden oben: der Pfeil zeigt nach Osten (Kurs 90), nicht nach oben.
+        assertTrue(markerAt(screenOf(here), 90.0, aheadDp = 8.0, acrossDp = 0.0))
+        toggleOrientation()
+
+        val (w, h) = canvasSize()
+        val (cx, cy) = markerCentroid()
+        assertEquals("waagerecht in der Mitte", w / 2, cx, 4.0 * composeRule.density.density)
+        assertTrue("und tief im Bild (Pfeil um 65 % der Hoehe)", abs(cy - h * HEADING_ANCHOR_Y) < 12 * composeRule.density.density)
+        assertTrue("der Pfeil zeigt jetzt nach oben", markerAt(w / 2 to h * HEADING_ANCHOR_Y, 0.0, aheadDp = 8.0, acrossDp = 0.0))
+    }
+
+    @Test
+    fun inTheDirectionOfTravelMode_theTrackIsDrawnSoTheBearingIsUp() {
+        showMap(orientationMarker, orientable = true)
+        toggleOrientation()
+        // Der Track laeuft nach Osten (Kurs 90): ein Punkt gut 35 m weiter vorn muss jetzt ueber der Position liegen, auf der Linie (nicht unter dem Knopffeld rechts unten).
+        val ahead = points[11]
+        val frame = headingFrame()
+        val view = frame.viewFor(HeadingViewState(), projectLon(here.lon, bounds.minLon), projectLat(here.lat), rotationDeg = 90.0)
+        val p = toScreen(view, frame.widthPx, frame.heightPx, projectLon(ahead.lon, bounds.minLon), projectLat(ahead.lat))
+        assertTrue("vorn liegt oben im Bild", p.y < frame.heightPx * HEADING_ANCHOR_Y - 20)
+        assertTrue("dort laeuft die Linie des Tracks (bei ${p.x}, ${p.y})", pixelAt(p.x, p.y)?.near(colors.primary) == true)
+    }
+
+    @Test
+    fun inTheDirectionOfTravelMode_aFingerMovesTheMap_andThePositionFollowsIt() {
+        showMap(orientationMarker, orientable = true)
+        toggleOrientation()
+        val (x0, y0) = markerCentroid()
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { swipe(start = center, end = center.copy(x = center.x - 160f, y = center.y - 50f), durationMillis = 300) }
+        composeRule.waitForIdle()
+        val (x1, y1) = markerCentroid()
+        assertTrue("die Position ist nach links gewandert (vorher $x0, nachher $x1)", x1 < x0 - 60)
+        assertTrue("und nach oben (vorher $y0, nachher $y1)", y1 < y0 - 10)
+    }
+
+    @Test
+    fun inTheDirectionOfTravelMode_thePositionCanNeverBeSweptOutOfTheImage() {
+        showMap(orientationMarker, orientable = true)
+        toggleOrientation()
+        repeat(3) {
+            composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { swipe(start = centerRight.copy(x = centerRight.x - 2f), end = centerLeft, durationMillis = 200) }
+        }
+        composeRule.waitForIdle()
+        val (w, h) = canvasSize()
+        val (x, y) = markerCentroid()
+        assertTrue("die Position steht im Bild ($x, $y)", x in 0.0..w && y in 0.0..h)
+    }
+
+    @Test
+    fun theMiddleButton_bringsThePositionBackToItsPlace_inTheDirectionOfTravelMode() {
+        showMap(orientationMarker, orientable = true)
+        toggleOrientation()
+        val (x0, y0) = markerCentroid()
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { swipe(start = center, end = center.copy(x = center.x - 160f), durationMillis = 300) }
+        composeRule.waitForIdle()
+        assertTrue("verschoben", markerCentroid().first < x0 - 60)
+
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        val (x1, y1) = markerCentroid()
+        assertEquals(x0, x1, 3.0)
+        assertEquals(y0, y1, 3.0)
+    }
+
+    @Test
+    fun aDoubleTap_bringsThePositionBackToItsPlace_inTheDirectionOfTravelMode() {
+        showMap(orientationMarker, orientable = true)
+        toggleOrientation()
+        val (x0, y0) = markerCentroid()
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { swipe(start = center, end = center.copy(x = center.x - 160f), durationMillis = 300) }
+        composeRule.waitForIdle()
+        assertTrue("verschoben", markerCentroid().first < x0 - 60)
+
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { doubleClick(center) }
+        composeRule.waitForIdle()
+        val (x1, y1) = markerCentroid()
+        assertEquals(x0, x1, 3.0)
+        assertEquals(y0, y1, 3.0)
+    }
+
+    @Test
+    fun theMiddleButton_isAlwaysDescribedForWhatItDoes() {
+        showMap(orientationMarker, orientable = true)
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+        toggleOrientation()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_recentre_cd))
+        composeRule.onNodeWithTag(TRACK_ORIENTATION_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_orientation_to_north))
+        toggleOrientation()
+        composeRule.onNodeWithTag(TRACK_ORIENTATION_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_orientation_to_heading))
+    }
+
+    @Test
+    fun backToNorth_theFittedViewIsThereAgain() {
+        showMap(orientationMarker, orientable = true)
+        val fittedStart = screenOf(points[0])
+        toggleOrientation()
+        toggleOrientation()
+        assertTrue("Norden oben: die Startmarke steht wieder am Anfang", run {
+            val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+            val x = fittedStart.first.roundToInt()
+            val y = fittedStart.second.roundToInt()
+            x in 0 until map.width && y in 0 until map.height && map[x, y].near(colors.tertiary)
+        })
+        assertTrue("und der Pfeil zeigt wieder nach Osten", markerAt(screenOf(here), 90.0, aheadDp = 8.0, acrossDp = 0.0))
+    }
+
+    @Test
+    fun withoutAPosition_theDirectionOfTravelModeStaysNorthUp() {
+        showMap(null, orientable = true)
+        val fittedStart = screenOf(points[0])
+        toggleOrientation()
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+        val x = fittedStart.first.roundToInt()
+        val y = fittedStart.second.roundToInt()
+        assertTrue("ohne Position kein Drehen: die Startmarke bleibt", x in 0 until map.width && y in 0 until map.height && map[x, y].near(colors.tertiary))
+    }
+
+    @Test
+    fun theNorthArrow_pointsNorth_alsoWhenTheMapIsTurned() {
+        showMap(orientationMarker, orientable = true)
+        val d = composeRule.density.density.toDouble()
+        val (w, _) = canvasSize()
+        val pivotX = w - 44 * d
+        val pivotY = 50 * d
+        val ink = colors.onSurfaceVariant
+        // Norden oben: die Pfeilspitze liegt ueber dem Drehpunkt.
+        assertTrue("Nordpfeil zeigt nach oben", pixelAt(pivotX, pivotY - 6 * d)?.near(ink, 0.1f) == true)
+        assertFalse(pixelAt(pivotX - 6 * d, pivotY)?.near(ink, 0.1f) == true)
+        toggleOrientation()
+        // Der Kurs ist Osten (90): Osten liegt oben, Norden damit links.
+        assertTrue("Nordpfeil zeigt nach links", pixelAt(pivotX - 6 * d, pivotY)?.near(ink, 0.1f) == true)
+        assertFalse(pixelAt(pivotX, pivotY - 6 * d)?.near(ink, 0.1f) == true)
+    }
+
+    // ── Richtung: die Woerter sind ganz zu lesen ──────────────────────────────
+
+    private fun assertWholeTextShown(text: String) {
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        val r = results.first()
+        assertEquals("„$text“ steht auf einer Zeile", 1, r.lineCount)
+        assertEquals("„$text“ ist ganz da, nicht abgeschnitten", text.length, r.getLineEnd(0))
+        assertFalse("„$text“ ragt nicht ueber seinen Platz", r.didOverflowWidth)
+    }
+
+    private fun directionWordsAreWhole(orientation: Int, fontScale: Float) {
+        requestOrientation(orientation)
+        composeRule.setContent {
+            val base = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale)) {
+                AppTheme(colorScheme = colors, typography = AppTypography) { TrackFollowContent(ready, FollowDirection.FORWARD, following(), false, {}, {}) }
+            }
+        }
+        composeRule.waitForIdle()
+        assertWholeTextShown(string(R.string.track_follow_dir_forward))
+        assertWholeTextShown(string(R.string.track_follow_dir_reverse))
+    }
+
+    @Test fun theDirectionWords_areWhole_inPortrait() = directionWordsAreWhole(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, 1f)
+
+    @Test fun theDirectionWords_areWhole_inLandscape() = directionWordsAreWhole(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, 1f)
+
+    @Test fun theDirectionWords_areWhole_inLandscapeWithALargeSystemFont() = directionWordsAreWhole(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, 1.3f)
+
+    @Test
+    fun theSelectedDirectionSegment_hasNoCheckmark_soTheWordStaysCentred() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        composeRule.setContent {
+            AppTheme(colorScheme = colors, typography = AppTypography) { TrackFollowContent(ready, FollowDirection.FORWARD, following(), false, {}, {}) }
+        }
+        composeRule.waitForIdle()
+        val segment = composeRule.onNodeWithTag(FOLLOW_DIRECTION_FORWARD_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val word = composeRule.onNodeWithText(string(R.string.track_follow_dir_forward), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val d = composeRule.density.density
+        assertEquals("das Wort steht in der Mitte des Segments (kein Haken daneben)", segment.center.x, word.center.x, 2f * d)
+    }
+
+    // ── Ohne Position bleibt die Ansicht „Fahrtrichtung oben“ aus ─────────────
+
+    @Test
+    fun withoutAPosition_theMiddleButtonStaysTheFitButton_afterTheToggle() {
+        showMap(null, orientable = true)
+        toggleOrientation()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+    }
+
+    // ── Der Abstandstext steht in der Naehe der Mitte der Linie ───────────────
+
+    private fun inkPixels(): Set<Long> {
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+        val out = HashSet<Long>()
+        for (y in 0 until map.height) for (x in 0 until map.width) if (map[x, y].near(colors.onSurface, 0.08f)) out += x.toLong() * 100_000 + y
+        return out
+    }
+
+    @Test
+    fun theDistanceLabel_sitsCloseToTheMiddleOfTheLine() {
+        var label by androidx.compose.runtime.mutableStateOf<String?>("133 m")
+        composeRule.setContent {
+            MaterialTheme(colorScheme = colors, typography = AppTypography) {
+                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), TrackMarker(awayFromTheTrack, 90.0, foot, label))
+            }
+        }
+        composeRule.waitForIdle()
+        val with = inkPixels()
+        label = null
+        composeRule.waitForIdle()
+        val text = with - inkPixels()
+        assertTrue("der Text zeichnet Bildpunkte", text.size > 40)
+        val cx = text.sumOf { it / 100_000 }.toDouble() / text.size
+        val cy = text.sumOf { it % 100_000 }.toDouble() / text.size
+        val a = screenOf(awayFromTheTrack)
+        val b = screenOf(foot)
+        val d = composeRule.density.density
+        val dist = hypot(cx - (a.first + b.first) / 2, cy - (a.second + b.second) / 2)
+        assertTrue("der Text liegt neben der Mitte der Linie (Abstand ${dist / d} dp)", dist < 60 * d)
     }
 }

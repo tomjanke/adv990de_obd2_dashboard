@@ -840,7 +840,7 @@
     <string name="track_follow_title">Follow track</string>
     <string name="track_follow_open">Follow this track</string>
     <string name="track_follow_too_short">This track is too short to follow.</string>
-    <string name="track_follow_dir_forward">As recorded</string>
+    <string name="track_follow_dir_forward">Forward</string>
     <string name="track_follow_dir_reverse">Reverse</string>
     <string name="track_follow_dir_cd">Direction</string>
     <string name="track_follow_stat_off">From track</string>
@@ -856,8 +856,10 @@
     <string name="track_export_note">The GPX file contains the positions of this track, point by point. Whoever you share it with gets the route.</string>
     <string name="track_zoom_in">Zoom in</string>
     <string name="track_zoom_out">Zoom out</string>
-    <string name="track_fit">Fit</string>
     <string name="track_fit_cd">Fit track to the screen</string>
+    <string name="track_recentre_cd">Centre on my position</string>
+    <string name="track_orientation_to_heading">Turn the map to the direction of travel</string>
+    <string name="track_orientation_to_north">Turn the map to north</string>
     <string name="track_pan_up">Move up</string>
     <string name="track_pan_down">Move down</string>
     <string name="track_pan_left">Move left</string>

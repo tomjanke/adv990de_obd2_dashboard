@@ -1,5 +1,8 @@
 package de.adv990de.obd2.ui.tracks
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +54,7 @@ import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.ui.components.AppIcons
 import de.adv990de.obd2.ui.theme.PreviewTheme
+import de.adv990de.obd2.ui.theme.StatusColors
 import de.adv990de.obd2.ui.theme.asLiveValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -57,6 +62,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.ui.graphics.vector.ImageVector
 
 internal const val TRACK_CANVAS_TEST_TAG = "track_canvas"
 internal const val TRACK_ZOOM_IN_TEST_TAG = "track_zoom_in"
@@ -66,6 +72,7 @@ internal const val TRACK_PAN_UP_TEST_TAG = "track_pan_up"
 internal const val TRACK_PAN_DOWN_TEST_TAG = "track_pan_down"
 internal const val TRACK_PAN_LEFT_TEST_TAG = "track_pan_left"
 internal const val TRACK_PAN_RIGHT_TEST_TAG = "track_pan_right"
+internal const val TRACK_ORIENTATION_TEST_TAG = "track_orientation"
 
 /**
  * Die eigene Position beim Nachfahren: der Punkt [point] und die Richtung des Tracks dort ([bearingDeg], 0 = Nord, im Uhrzeigersinn). Gezeichnet als Pfeil in Fahrtrichtung des Tracks —
@@ -93,22 +100,48 @@ private val ViewStateSaver = listSaver<TrackViewState, Double>(
     restore = { TrackViewState(it[0], it[1], it[2]) },
 )
 
+private val HeadingStateSaver = listSaver<HeadingViewState, Double>(
+    save = { listOf(it.zoom, it.offsetX, it.offsetY) },
+    restore = { HeadingViewState(it[0], it[1], it[2]) },
+)
+
+/** So lange dreht sich die Karte zum neuen Kurs. */
+private const val ROTATION_MILLIS = 350
+
 /**
  * Die Ansicht eines Tracks: der Linienzug an die Flaeche angepasst (Mercator, Seitenverhaeltnis erhalten), Start- und Zielmarke, Massstabsleiste, Nordpfeil — **ohne Kartenhintergrund**
- * (K0). Zoomen und Verschieben mit **Knoepfen** in der Ecke (Handschuh-Regel), zusaetzlich **Zwei-Finger-Zoom**, Ziehen und Doppeltipp = anpassen; eine Geste ist nie der einzige Weg.
- * **Der Track verlaesst den Rahmen nie:** herausgezoomt wird nur bis „angepasst“, verschoben nur, solange der Ausschnitt im Rechteck des Tracks samt Rand bleibt ([TrackFrame]).
+ * (K0). Zoomen und Verschieben mit **Knoepfen** in der Ecke (Handschuh-Regel), zusaetzlich **Ziehen mit einem Finger**, **Zwei-Finger-Zoom** und Doppeltipp = Ausgangsansicht; eine Geste ist
+ * nie der einzige Weg. **Norden oben:** der Track verlaesst den Rahmen nie — herausgezoomt wird nur bis „angepasst“, verschoben nur, solange der Ausschnitt im Rechteck des Tracks samt Rand
+ * bleibt ([TrackFrame]); ein Track, der das Fenster in einer Richtung nicht fuellt, laesst sich in dieser Richtung nicht verschieben.
+ *
+ * Mit [orientable] und einer Position ([marker]) gibt es den Knopf „Fahrtrichtung oben“: die Karte folgt dann der Position und dreht sich so, dass die Richtung des Tracks oben steht
+ * ([HeadingFrame]); dort verschiebt ein Finger immer (die Position bleibt im Bild), Doppeltipp und der mittlere Knopf holen die Position zurueck in die Mitte. Der Nordpfeil dreht mit.
  *
  * [points] sind die Punkte der Zeichnung (schon ausgeduennt), [bounds] das Rechteck **aller** Punkte. Der Zustand ueberlebt eine Drehung ([TrackViewState] ist relativ zur angepassten Ansicht).
  * **Positionen sind sensibel:** nichts hiervon geht in ein Log.
  */
 @Composable
-internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifier: Modifier = Modifier, marker: TrackMarker? = null) {
+internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifier: Modifier = Modifier, marker: TrackMarker? = null, orientable: Boolean = false) {
     var state by rememberSaveable(stateSaver = ViewStateSaver) { mutableStateOf(TrackViewState()) }
+    var headingState by rememberSaveable(stateSaver = HeadingStateSaver) { mutableStateOf(HeadingViewState()) }
+    var headingMode by rememberSaveable { mutableStateOf(false) }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val paddingPx = with(density) { CANVAS_PADDING.toPx() }.toDouble()
+    val marginPx = with(density) { MARKER_EDGE_MARGIN.toPx() }.toDouble()
     val frame = remember(bounds, size, paddingPx) { trackFrame(bounds, size.width.toDouble(), size.height.toDouble(), paddingPx) }
+    val headingFrame = remember(size, marginPx) { HeadingFrame(size.width.toDouble(), size.height.toDouble(), marginPx) }
     val currentFrame by rememberUpdatedState(frame)
+    val currentHeadingFrame by rememberUpdatedState(headingFrame)
+    // „Fahrtrichtung oben“ braucht eine Position; ohne sie (Suche, keine Berechtigung) bleibt es bei Norden oben, der Wunsch bleibt gemerkt.
+    val headingActive = orientable && headingMode && marker != null && size.width > 0 && size.height > 0
+    val headingActiveNow by rememberUpdatedState(headingActive)
+    val rotation = rememberMapRotation(headingActive, marker?.bearingDeg ?: 0.0)
+    val view = if (headingActive && marker != null) {
+        headingFrame.viewFor(headingState, projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat), rotation)
+    } else {
+        state.resolved(frame)
+    }
 
     Box(
         modifier
@@ -120,33 +153,85 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
         TrackCanvas(
             points = points,
             bounds = bounds,
-            view = state.resolved(frame),
+            view = view,
             size = size,
             marker = marker,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(TRACK_CANVAS_TEST_TAG)
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state = TrackViewState() }) }
                 .pointerInput(Unit) {
-                    // Ein Finger verschiebt, zwei Finger zoomen um ihren Mittelpunkt (und verschieben); eine Drehung der Finger wird ignoriert: Norden bleibt oben.
+                    detectTapGestures(onDoubleTap = { if (headingActiveNow) headingState = HeadingViewState() else state = TrackViewState() })
+                }
+                .pointerInput(Unit) {
+                    // Ein Finger verschiebt, zwei Finger zoomen um ihren Mittelpunkt (und verschieben); eine Drehung der Finger wird ignoriert: die Ausrichtung der Karte bestimmt der Knopf.
                     // Der Zustand wird hier direkt gelesen, nicht ueber rememberUpdatedState: kommen mehrere Ereignisse vor der naechsten Komposition, rechnet jedes auf dem Ergebnis des vorigen.
                     detectTransformGestures { centroid, pan, zoom, _ ->
-                        state = state.transformedBy(centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble(), currentFrame)
+                        if (headingActiveNow) {
+                            headingState = currentHeadingFrame.transformedBy(headingState, centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble())
+                        } else {
+                            state = state.transformedBy(centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble(), currentFrame)
+                        }
                     }
                 },
         )
-        val panStep = minOf(size.width, size.height) * PAN_STEP_SHARE
+        val panStep = (minOf(size.width, size.height) * PAN_STEP_SHARE).toDouble()
+        // Die Knoepfe zoomen und verschieben in beiden Ansichten gleich; in der Ansicht „Fahrtrichtung oben“ zoomen sie um die Position, damit sie stehen bleibt.
+        fun zoomButton(factor: Double) {
+            if (headingActive) {
+                val m = headingFrame.markerOf(headingState)
+                headingState = headingFrame.zoomedAround(headingState, factor, m.x, m.y)
+            } else {
+                state = state.zoomedBy(factor, frame)
+            }
+        }
+        fun panButton(dxPx: Double, dyPx: Double) {
+            if (headingActive) headingState = headingFrame.pannedBy(headingState, dxPx, dyPx) else state = state.pannedBy(dxPx, dyPx, frame)
+        }
         TrackControls(
-            onZoomIn = { state = state.zoomedBy(ZOOM_STEP, frame) },
-            onZoomOut = { state = state.zoomedBy(1 / ZOOM_STEP, frame) },
-            onFit = { state = state.fitted() },
+            onZoomIn = { zoomButton(ZOOM_STEP) },
+            onZoomOut = { zoomButton(1 / ZOOM_STEP) },
+            onFit = { if (headingActive) headingState = HeadingViewState() else state = state.fitted() },
             // Eine Taste verschiebt den Ausschnitt in ihre Richtung: der Inhalt wandert dagegen.
-            onUp = { state = state.pannedBy(0.0, panStep.toDouble(), frame) },
-            onDown = { state = state.pannedBy(0.0, -panStep.toDouble(), frame) },
-            onLeft = { state = state.pannedBy(panStep.toDouble(), 0.0, frame) },
-            onRight = { state = state.pannedBy(-panStep.toDouble(), 0.0, frame) },
+            onUp = { panButton(0.0, panStep) },
+            onDown = { panButton(0.0, -panStep) },
+            onLeft = { panButton(panStep, 0.0) },
+            onRight = { panButton(-panStep, 0.0) },
+            centred = headingActive,
+            orientable = orientable,
+            headingUp = headingMode,
+            onOrientation = {
+                headingMode = !headingMode
+                headingState = HeadingViewState()
+            },
             modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
         )
+    }
+}
+
+/**
+ * Der Winkel, um den die Karte gedreht ist (der Kurs oben): ohne „Fahrtrichtung oben“ 0, sonst der Kurs [targetDeg]. Beim Einschalten steht er sofort richtig (die Karte kreist nicht ein),
+ * danach dreht sie sich bei jeder Kursaenderung den kuerzesten Weg in [ROTATION_MILLIS] ms.
+ */
+@Composable
+private fun rememberMapRotation(active: Boolean, targetDeg: Double): Double {
+    val angle = remember { Animatable(0f) }
+    var primed by remember { mutableStateOf(false) }
+    LaunchedEffect(active, targetDeg) {
+        if (!active) {
+            angle.snapTo(0f)
+            primed = false
+        } else if (!primed) {
+            angle.snapTo(targetDeg.toFloat())
+            primed = true
+        } else {
+            val goal = angle.value + shortestTurnDeg(angle.value.toDouble(), targetDeg).toFloat()
+            angle.animateTo(goal, tween(ROTATION_MILLIS, easing = EaseOutCubic))
+        }
+    }
+    return when {
+        !active -> 0.0
+        !primed -> targetDeg
+        else -> angle.value.toDouble()
     }
 }
 
@@ -157,7 +242,8 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
     val endColor = MaterialTheme.colorScheme.onSurface
     val halo = MaterialTheme.colorScheme.surface
     val ink = MaterialTheme.colorScheme.onSurfaceVariant
-    val markerColor = MaterialTheme.colorScheme.onSurface
+    val markerColor = StatusColors.OwnPosition
+    val ringColor = StatusColors.OwnPositionRing
     val textStyle = MaterialTheme.typography.labelMedium.asLiveValue().copy(color = MaterialTheme.colorScheme.onSurface)
     val measurer = rememberTextMeasurer()
     val northLabel = stringResource(R.string.track_north).take(1)
@@ -212,21 +298,26 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
                 val foot = Offset(f.x.toFloat(), f.y.toFloat())
                 if ((real - foot).getDistance() > DISTANCE_LINE_MIN.toPx()) {
                     drawLine(halo, real, foot, strokeWidth = 5.dp.toPx())
-                    drawLine(markerColor, real, foot, strokeWidth = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx())))
-                    drawCircle(halo, 6.dp.toPx(), foot)
-                    drawCircle(markerColor, 3.5.dp.toPx(), foot)
+                    drawLine(markerColor, real, foot, strokeWidth = 2.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx())))
+                    drawCircle(ringColor, 6.dp.toPx(), foot)
+                    drawCircle(markerColor, 4.dp.toPx(), foot)
                     if (marker.distanceLabel != null) {
+                        // Der Text steht neben der Linie, nicht auf ihr: auf der Mitte verdeckte er bei kurzem Abstand fast die ganze Linie.
                         val text = measurer.measure(marker.distanceLabel, textStyle)
-                        val mid = Offset((centre.x + foot.x) / 2, (centre.y + foot.y) / 2)
                         val pad = 4.dp.toPx()
-                        val left = (mid.x - text.size.width / 2f).coerceIn(pad, (this.size.width - text.size.width - pad).coerceAtLeast(pad))
-                        val top = (mid.y - text.size.height / 2f).coerceIn(pad, (this.size.height - text.size.height - pad).coerceAtLeast(pad))
-                        drawRect(halo.copy(alpha = 0.88f), Offset(left - pad, top - pad / 2), androidx.compose.ui.geometry.Size(text.size.width + 2 * pad, text.size.height + pad))
-                        drawText(text, topLeft = Offset(left, top))
+                        val boxW = text.size.width + 2 * pad
+                        val boxH = text.size.height + pad
+                        val box = distanceLabelTopLeft(
+                            foot.x.toDouble(), foot.y.toDouble(), centre.x.toDouble(), centre.y.toDouble(),
+                            boxW.toDouble(), boxH.toDouble(), gapPx = 6.dp.toPx().toDouble(), widthPx = w, heightPx = h, padPx = 4.dp.toPx().toDouble(),
+                        )
+                        drawRect(halo.copy(alpha = 0.9f), Offset(box.x.toFloat(), box.y.toFloat()), androidx.compose.ui.geometry.Size(boxW, boxH))
+                        drawText(text, topLeft = Offset(box.x.toFloat() + pad, box.y.toFloat() + pad / 2))
                     }
                 }
             }
-            val rad = Math.toRadians(marker.bearingDeg)
+            // Der Pfeil zeigt in die Richtung des Tracks; steht der Kurs oben (Karte gedreht), zeigt er nach oben.
+            val rad = Math.toRadians(marker.bearingDeg - view.rotationDeg)
             val dir = Offset(Math.sin(rad).toFloat(), -Math.cos(rad).toFloat())
             val side = Offset(-dir.y, dir.x)
             fun arrow(scale: Float) = Path().apply {
@@ -239,7 +330,7 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
                 lineTo(right.x, right.y)
                 close()
             }
-            drawPath(arrow(1.35f), halo)
+            drawPath(arrow(1.35f), ringColor)
             drawPath(arrow(1f), markerColor)
         }
 
@@ -256,19 +347,27 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
         val label = measurer.measure(barLabel, textStyle)
         drawText(label, topLeft = Offset(x0, y - tick - label.size.height - 2.dp.toPx()))
 
-        // Nordpfeil oben rechts: Norden ist immer oben
-        val ax = this.size.width - margin - 12.dp.toPx()
-        val ay = margin + 28.dp.toPx()
+        // Nordpfeil oben rechts: er zeigt nach Norden, auch wenn die Karte gedreht ist (Fahrtrichtung oben); ohne Drehung steht er senkrecht.
+        val pivot = Offset(this.size.width - 44.dp.toPx(), 50.dp.toPx())
+        val turn = Math.toRadians(-view.rotationDeg)
+        val cs = Math.cos(turn).toFloat()
+        val sn = Math.sin(turn).toFloat()
+        fun north(dx: Float, dy: Float) = Offset(pivot.x + dx * cs - dy * sn, pivot.y + dx * sn + dy * cs)
         val arrow = Path().apply {
-            moveTo(ax, ay - 20.dp.toPx())
-            lineTo(ax + 8.dp.toPx(), ay + 4.dp.toPx())
-            lineTo(ax, ay)
-            lineTo(ax - 8.dp.toPx(), ay + 4.dp.toPx())
+            val tip = north(0f, -12.dp.toPx())
+            val right = north(8.dp.toPx(), 12.dp.toPx())
+            val notch = north(0f, 8.dp.toPx())
+            val left = north(-8.dp.toPx(), 12.dp.toPx())
+            moveTo(tip.x, tip.y)
+            lineTo(right.x, right.y)
+            lineTo(notch.x, notch.y)
+            lineTo(left.x, left.y)
             close()
         }
         drawPath(arrow, ink)
         val n = measurer.measure(northLabel, textStyle)
-        drawText(n, topLeft = Offset(ax - n.size.width / 2f, ay - 20.dp.toPx() - n.size.height - 2.dp.toPx()))
+        val nCentre = north(0f, -12.dp.toPx() - n.size.height / 2f - 2.dp.toPx())
+        drawText(n, topLeft = Offset(nCentre.x - n.size.width / 2f, nCentre.y - n.size.height / 2f))
     }
 }
 
@@ -281,9 +380,14 @@ private fun TrackControls(
     onDown: () -> Unit,
     onLeft: () -> Unit,
     onRight: () -> Unit,
+    centred: Boolean,
+    orientable: Boolean,
+    headingUp: Boolean,
+    onOrientation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Eine 3 x 3 Kreuzbelegung in der Ecke: Zoom + oben Zoom -, links Anpassen rechts, unten. Halbdurchsichtig, damit der Track darunter lesbar bleibt.
+    // Eine 3 x 3 Kreuzbelegung in der Ecke: Zoom + oben Zoom -, links Anpassen rechts, unten; unten links die Ausrichtung (nur beim Nachfahren). Halbdurchsichtig, damit der Track darunter lesbar bleibt.
+    // Alle Knoepfe sind Symbole: ein Wort („Anpassen“) brach in dem 56-dp-Knopf um.
     Surface(modifier, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), shape = androidx.compose.ui.graphics.RectangleShape) {
         Column {
             Row {
@@ -293,11 +397,21 @@ private fun TrackControls(
             }
             Row {
                 ControlIconButton(onLeft, Icons.Default.KeyboardArrowLeft, R.string.track_pan_left, TRACK_PAN_LEFT_TEST_TAG)
-                FitButton(onFit)
+                // In der Ansicht „Fahrtrichtung oben“ holt die Mitte die Position zurueck, sonst den ganzen Track ins Bild.
+                ControlIconButton(onFit, if (centred) MapIcons.Recentre else MapIcons.Fit, if (centred) R.string.track_recentre_cd else R.string.track_fit_cd, TRACK_FIT_TEST_TAG)
                 ControlIconButton(onRight, Icons.Default.KeyboardArrowRight, R.string.track_pan_right, TRACK_PAN_RIGHT_TEST_TAG)
             }
             Row {
-                Box(Modifier.size(CONTROL_SIZE))
+                if (orientable) {
+                    ControlIconButton(
+                        onOrientation,
+                        if (headingUp) MapIcons.HeadingUp else MapIcons.NorthUp,
+                        if (headingUp) R.string.track_orientation_to_north else R.string.track_orientation_to_heading,
+                        TRACK_ORIENTATION_TEST_TAG,
+                    )
+                } else {
+                    Box(Modifier.size(CONTROL_SIZE))
+                }
                 ControlIconButton(onDown, Icons.Default.KeyboardArrowDown, R.string.track_pan_down, TRACK_PAN_DOWN_TEST_TAG)
             }
         }
@@ -305,7 +419,7 @@ private fun TrackControls(
 }
 
 @Composable
-private fun ControlIconButton(onClick: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector, descriptionRes: Int, tag: String) {
+private fun ControlIconButton(onClick: () -> Unit, icon: ImageVector, descriptionRes: Int, tag: String) {
     IconButton(onClick = onClick, modifier = Modifier.size(CONTROL_SIZE).testTag(tag)) {
         Icon(icon, contentDescription = stringResource(descriptionRes))
     }
@@ -317,14 +431,6 @@ private fun ZoomOutButton(onClick: () -> Unit) {
     val description = stringResource(R.string.track_zoom_out)
     TextButton(onClick = onClick, modifier = Modifier.size(CONTROL_SIZE).testTag(TRACK_ZOOM_OUT_TEST_TAG).semantics { contentDescription = description }) {
         Text("−", style = MaterialTheme.typography.headlineSmall)
-    }
-}
-
-@Composable
-private fun FitButton(onClick: () -> Unit) {
-    val description = stringResource(R.string.track_fit_cd)
-    TextButton(onClick = onClick, modifier = Modifier.size(CONTROL_SIZE).testTag(TRACK_FIT_TEST_TAG).semantics { contentDescription = description }) {
-        Text(stringResource(R.string.track_fit), style = MaterialTheme.typography.labelMedium)
     }
 }
 

@@ -60,6 +60,16 @@ object StatusColors {
         )
     }
 
+    /**
+     * Die eigene Position in der Karte der Tracks: ein kraeftiges Blau, in jedem Farbschema dasselbe. Es ist weder die Linie des Tracks (`primary`) noch die Startmarke (`tertiary`) noch die
+     * Zielmarke (`onSurface`) und hebt sich von allen ab; Kontrast gegen die dunklen Cockpit-Flaechen und die helle Standardflaeche je rund 4,3:1 (gerechnet). Dazu der weisse Ring [OwnPositionRing],
+     * der Pfeil und Linie auch auf dem Track lesbar macht. Nur fuer die Position, kein Statussignal.
+     */
+    val OwnPosition = Color(0xFF2F6BFF)
+
+    /** Der Ring um den Pfeil der eigenen Position (und um den Fusspunkt): weiss, damit der Pfeil auf Linie und Grund nie verschwindet. */
+    val OwnPositionRing = Color(0xFFFFFFFF)
+
     /** Actionable redline / fault / hard limit hit. */
     val Critical = Color(0xFFEF4444)
 

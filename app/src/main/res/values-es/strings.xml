@@ -879,7 +879,7 @@
     <string name="track_follow_title">Seguir ruta</string>
     <string name="track_follow_open">Seguir esta ruta</string>
     <string name="track_follow_too_short">Esta ruta es demasiado corta para seguirla.</string>
-    <string name="track_follow_dir_forward">Como se grabó</string>
+    <string name="track_follow_dir_forward">Adelante</string>
     <string name="track_follow_dir_reverse">Al revés</string>
     <string name="track_follow_dir_cd">Sentido</string>
     <string name="track_follow_stat_off">De la ruta</string>
@@ -895,8 +895,10 @@
     <string name="track_export_note">El archivo GPX contiene las posiciones de esta ruta, punto por punto. Quien lo reciba de ti conocerá el recorrido.</string>
     <string name="track_zoom_in">Acercar</string>
     <string name="track_zoom_out">Alejar</string>
-    <string name="track_fit">Ajustar</string>
     <string name="track_fit_cd">Ajustar la ruta a la pantalla</string>
+    <string name="track_recentre_cd">Centrar en mi posición</string>
+    <string name="track_orientation_to_heading">Orientar el mapa en el sentido de la marcha</string>
+    <string name="track_orientation_to_north">Orientar el mapa al norte</string>
     <string name="track_pan_up">Mover arriba</string>
     <string name="track_pan_down">Mover abajo</string>
     <string name="track_pan_left">Mover a la izquierda</string>

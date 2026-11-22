@@ -840,7 +840,7 @@
     <string name="track_follow_title">Track nachfahren</string>
     <string name="track_follow_open">Diesen Track nachfahren</string>
     <string name="track_follow_too_short">Dieser Track ist zu kurz zum Nachfahren.</string>
-    <string name="track_follow_dir_forward">Wie aufgezeichnet</string>
+    <string name="track_follow_dir_forward">Vorwärts</string>
     <string name="track_follow_dir_reverse">Rückwärts</string>
     <string name="track_follow_dir_cd">Richtung</string>
     <string name="track_follow_stat_off">Abstand</string>
@@ -856,8 +856,10 @@
     <string name="track_export_note">Die GPX-Datei enthält die Positionen dieses Tracks, Punkt für Punkt. Wer sie von dir bekommt, kennt den Weg.</string>
     <string name="track_zoom_in">Vergrößern</string>
     <string name="track_zoom_out">Verkleinern</string>
-    <string name="track_fit">Anpassen</string>
     <string name="track_fit_cd">Track an den Bildschirm anpassen</string>
+    <string name="track_recentre_cd">Auf meine Position zentrieren</string>
+    <string name="track_orientation_to_heading">Karte nach Fahrtrichtung ausrichten</string>
+    <string name="track_orientation_to_north">Karte nach Norden ausrichten</string>
     <string name="track_pan_up">Nach oben schieben</string>
     <string name="track_pan_down">Nach unten schieben</string>
     <string name="track_pan_left">Nach links schieben</string>

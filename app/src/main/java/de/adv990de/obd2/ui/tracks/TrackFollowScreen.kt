@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -54,6 +55,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -198,12 +200,12 @@ private fun ReadyContent(
     }
     if (landscape) {
         Row(Modifier.fillMaxSize()) {
-            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker)
+            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker, orientable = true)
             panel(Modifier.width(260.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp))
         }
     } else {
         Column(Modifier.fillMaxSize()) {
-            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker)
+            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker, orientable = true)
             panel(Modifier.fillMaxWidth().padding(12.dp))
         }
     }
@@ -246,7 +248,10 @@ private fun FollowPanel(
     }
 }
 
-/** Die zwei Richtungen als Segmente (mindestens 56 dp hoch, eine Handschuh-Geste genuegt: ein Tipp). */
+/**
+ * Die zwei Richtungen als Segmente (mindestens 56 dp hoch, eine Handschuh-Geste genuegt: ein Tipp). Ohne Haekchen im Segment (die gewaehlte Haelfte ist gefuellt): das Haekchen nahm dem Wort
+ * die Breite, „Wie aufgezeichnet“ war im schmalen Fenster nicht lesbar. Das Wort schrumpft notfalls, statt abgeschnitten zu werden.
+ */
 @Composable
 private fun DirectionChoice(direction: FollowDirection, onDirection: (FollowDirection) -> Unit) {
     val description = stringResource(R.string.track_follow_dir_cd)
@@ -261,7 +266,15 @@ private fun DirectionChoice(direction: FollowDirection, onDirection: (FollowDire
                 onClick = { onDirection(value) },
                 shape = SegmentedButtonDefaults.itemShape(index, options.size),
                 modifier = Modifier.heightIn(min = 56.dp).testTag(tag),
-            ) { Text(stringResource(label), maxLines = 1) }
+                icon = {},
+            ) {
+                Text(
+                    stringResource(label),
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
+                )
+            }
         }
     }
 }

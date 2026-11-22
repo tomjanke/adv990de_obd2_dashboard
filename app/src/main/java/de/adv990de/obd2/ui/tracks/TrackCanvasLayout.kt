@@ -36,8 +36,11 @@ data class ScreenPoint(val x: Double, val y: Double)
 /**
  * Die Ansicht: [cx], [cy] ist der Punkt der Kartenebene in der Mitte der Flaeche, [pxPerUnit] der Massstab (Bildpunkte je Einheit der Ebene). Die Ansicht kennt die Groesse der Flaeche
  * nicht — die kommt bei jeder Umrechnung mit, damit eine Drehung (andere Flaeche) die Ansicht nicht verschiebt.
+ *
+ * [rotationDeg] ist der Kurs (0 = Nord, im Uhrzeigersinn), der im Bild **oben** steht: 0 = Norden oben, 90 = Osten oben. [anchorY] ist die Hoehe (Anteil der Flaeche von oben), auf der der
+ * Punkt ([cx], [cy]) gezeichnet wird und um die gedreht wird: 0,5 = Mitte.
  */
-data class TrackView(val cx: Double, val cy: Double, val pxPerUnit: Double)
+data class TrackView(val cx: Double, val cy: Double, val pxPerUnit: Double, val rotationDeg: Double = 0.0, val anchorY: Double = 0.5)
 
 /** Der y-Wert der Mercator-Ebene zu einer Breite in Grad. */
 fun projectLat(latDeg: Double): Double {
@@ -51,9 +54,17 @@ fun unprojectLat(y: Double): Double = Math.toDegrees(kotlin.math.atan(kotlin.mat
 /** Der x-Wert der Ebene zu einer Laenge in Grad, gemessen von [refLonDeg] (der kurze Weg ueber die Datumsgrenze). */
 fun projectLon(lonDeg: Double, refLonDeg: Double): Double = Math.toRadians(wrapLonDegrees(lonDeg - refLonDeg))
 
-/** Der Bildpunkt zu einem Punkt der Ebene; Norden ist oben. */
-fun toScreen(view: TrackView, widthPx: Double, heightPx: Double, x: Double, y: Double) =
-    ScreenPoint(widthPx / 2 + (x - view.cx) * view.pxPerUnit, heightPx / 2 - (y - view.cy) * view.pxPerUnit)
+/** Der Bildpunkt zu einem Punkt der Ebene; ohne Drehung ist Norden oben, sonst steht der Kurs [TrackView.rotationDeg] oben. */
+fun toScreen(view: TrackView, widthPx: Double, heightPx: Double, x: Double, y: Double): ScreenPoint {
+    val dx = (x - view.cx) * view.pxPerUnit
+    val dy = -(y - view.cy) * view.pxPerUnit
+    if (view.rotationDeg == 0.0) return ScreenPoint(widthPx / 2 + dx, heightPx * view.anchorY + dy)
+    val r = Math.toRadians(view.rotationDeg)
+    val c = cos(r)
+    val s = kotlin.math.sin(r)
+    // Die Karte dreht sich gegen den Uhrzeigersinn um den Kurs, damit er nach oben zeigt.
+    return ScreenPoint(widthPx / 2 + dx * c + dy * s, heightPx * view.anchorY - dx * s + dy * c)
+}
 
 /** Die Ansicht, in der der ganze Track mit [paddingPx] Rand auf die Flaeche passt, mittig und mit erhaltenem Seitenverhaeltnis. */
 fun fitView(bounds: TrackBounds, widthPx: Double, heightPx: Double, paddingPx: Double): TrackView {
@@ -189,4 +200,112 @@ data class TrackViewState(val zoom: Double = 1.0, val dx: Double = 0.0, val dy: 
     fun fitted() = TrackViewState()
 
     private fun from(view: TrackView, fit: TrackView) = TrackViewState(view.pxPerUnit / fit.pxPerUnit, view.cx - fit.cx, view.cy - fit.cy)
+}
+
+
+/**
+ * Wo der Abstandstext steht: **neben** der Linie vom Fusspunkt ([footX], [footY]) zur Position ([posX], [posY]), nicht auf ihr — sonst verdeckt er bei kurzem Abstand die ganze Linie. Das ist die
+ * obere linke Ecke des Textfelds ([textW] mal [textH] Bildpunkte). Das Feld sitzt senkrecht zur Linie auf der Mitte, so weit weg, dass es die Linie nicht beruehrt ([gapPx] Luft), und bevorzugt
+ * **oberhalb**; liegt es dort ausserhalb der Flaeche ([widthPx] mal [heightPx], Rand [padPx]), nimmt es die andere Seite, wenn dort weniger fehlt. Liegt auch das ausserhalb, wird es in die
+ * Flaeche geschoben (dann kann es die Linie beruehren).
+ */
+fun distanceLabelTopLeft(
+    footX: Double, footY: Double, posX: Double, posY: Double,
+    textW: Double, textH: Double, gapPx: Double, widthPx: Double, heightPx: Double, padPx: Double,
+): ScreenPoint {
+    val midX = (footX + posX) / 2
+    val midY = (footY + posY) / 2
+    val dx = posX - footX
+    val dy = posY - footY
+    val len = kotlin.math.hypot(dx, dy)
+    // Ohne Linie (Laenge 0) bleibt nur der Mittelpunkt; gerufen wird das nur fuer eine sichtbare Linie.
+    val nx = if (len == 0.0) 0.0 else -dy / len
+    val ny = if (len == 0.0) -1.0 else dx / len
+    val reach = kotlin.math.abs(nx) * textW / 2 + kotlin.math.abs(ny) * textH / 2 + gapPx
+    fun overflow(cx: Double, cy: Double): Double {
+        val l = cx - textW / 2
+        val t = cy - textH / 2
+        return max(0.0, padPx - l) + max(0.0, l + textW - (widthPx - padPx)) + max(0.0, padPx - t) + max(0.0, t + textH - (heightPx - padPx))
+    }
+    // Die Seite nach oben (ny < 0) zuerst, bei einer senkrechten Linie die nach rechts.
+    val upSign = if (ny < 0 || (ny == 0.0 && nx > 0)) 1.0 else -1.0
+    val preferredX = midX + nx * reach * upSign
+    val preferredY = midY + ny * reach * upSign
+    val otherX = midX - nx * reach * upSign
+    val otherY = midY - ny * reach * upSign
+    val (cx, cy) = if (overflow(otherX, otherY) < overflow(preferredX, preferredY)) otherX to otherY else preferredX to preferredY
+    val left = (cx - textW / 2).coerceIn(padPx, max(padPx, widthPx - textW - padPx))
+    val top = (cy - textH / 2).coerceIn(padPx, max(padPx, heightPx - textH - padPx))
+    return ScreenPoint(left, top)
+}
+
+/** So viele Meter zeigt die kuerzere Seite der Flaeche in der Ansicht „Fahrtrichtung oben“ bei Zoom 1 (rund 400 m: die naechsten Kurven vor einem). */
+const val HEADING_DEFAULT_SPAN_M = 400.0
+
+/** Auf dieser Hoehe (Anteil von oben) steht die eigene Position in der Ansicht „Fahrtrichtung oben“: unten im Bild, damit mehr vom Weg voraus zu sehen ist. */
+const val HEADING_ANCHOR_Y = 0.65
+
+/** Wie weit man in der Ansicht „Fahrtrichtung oben“ hinein- und herauszoomen darf, als Vielfaches von Zoom 1 (rund 50 m bis 3,2 km). */
+const val HEADING_MIN_ZOOM = 0.125
+const val HEADING_MAX_ZOOM = 8.0
+
+/**
+ * Die Ansicht „Fahrtrichtung oben“: die Karte folgt der eigenen Position und ist so gedreht, dass der Kurs oben steht. [zoom] ist ein Vielfaches des Massstabs, der [HEADING_DEFAULT_SPAN_M]
+ * auf die kuerzere Seite der Flaeche bringt; ([offsetX], [offsetY]) ist die Verschiebung der Position aus ihrem Ruheplatz ([HEADING_ANCHOR_Y], Mitte) in Bildpunkten: der Nutzer kann mit einem
+ * Finger vorausschauen. Alles hier ist Bildschirmgeometrie um die Position — die Weltkoordinaten kommen erst in [HeadingFrame.viewFor] dazu. Die Position bleibt immer im Bild
+ * ([HeadingFrame.marginPx] innen), sie ist nie weggeschoben.
+ */
+data class HeadingViewState(val zoom: Double = 1.0, val offsetX: Double = 0.0, val offsetY: Double = 0.0)
+
+/** Die Flaeche der Ansicht „Fahrtrichtung oben“ ([widthPx] mal [heightPx]) und der Rand [marginPx], den die Position zum Bildrand haelt. */
+data class HeadingFrame(val widthPx: Double, val heightPx: Double, val marginPx: Double) {
+    private val anchorX get() = widthPx / 2
+    private val anchorY get() = heightPx * HEADING_ANCHOR_Y
+
+    /** Wo die Position bei [state] im Bild steht. */
+    fun markerOf(state: HeadingViewState) = ScreenPoint(anchorX + state.offsetX, anchorY + state.offsetY)
+
+    private fun clamped(x: Double, y: Double, zoom: Double): HeadingViewState {
+        val mx = x.coerceIn(min(marginPx, widthPx / 2), max(widthPx - marginPx, widthPx / 2))
+        val my = y.coerceIn(min(marginPx, heightPx / 2), max(heightPx - marginPx, heightPx / 2))
+        return HeadingViewState(zoom = zoom, offsetX = mx - anchorX, offsetY = my - anchorY)
+    }
+
+    /** Verschiebt den Inhalt um [dxPx], [dyPx] Bildpunkte (wie ein Finger auf Papier); die Position bleibt im Bild. */
+    fun pannedBy(state: HeadingViewState, dxPx: Double, dyPx: Double): HeadingViewState {
+        val m = markerOf(state)
+        return clamped(m.x + dxPx, m.y + dyPx, state.zoom)
+    }
+
+    /** Zoomt um [factor] um den Punkt ([focusX], [focusY]): der Punkt der Karte unter dem Finger bleibt stehen, die Position wandert mit; begrenzt auf [HEADING_MIN_ZOOM] bis [HEADING_MAX_ZOOM]. */
+    fun zoomedAround(state: HeadingViewState, factor: Double, focusX: Double, focusY: Double): HeadingViewState {
+        val zoom = (state.zoom * factor).coerceIn(HEADING_MIN_ZOOM, HEADING_MAX_ZOOM)
+        val k = zoom / state.zoom
+        val m = markerOf(state)
+        return clamped(focusX + (m.x - focusX) * k, focusY + (m.y - focusY) * k, zoom)
+    }
+
+    /** Eine Geste mit einem oder zwei Fingern: erst zoomen um den Mittelpunkt der Finger, dann verschieben. */
+    fun transformedBy(state: HeadingViewState, centroidX: Double, centroidY: Double, panXPx: Double, panYPx: Double, zoomFactor: Double): HeadingViewState =
+        pannedBy(zoomedAround(state, zoomFactor, centroidX, centroidY), panXPx, panYPx)
+
+    /** Die Ansicht der Karte: [positionX], [positionY] ist die Position in der Kartenebene, [rotationDeg] der Kurs, der oben steht. */
+    fun viewFor(state: HeadingViewState, positionX: Double, positionY: Double, rotationDeg: Double): TrackView {
+        val latDeg = unprojectLat(positionY)
+        val unitsAcrossShortSide = HEADING_DEFAULT_SPAN_M / (EARTH_RADIUS_M * cos(Math.toRadians(latDeg)))
+        val ppu = min(widthPx, heightPx) / unitsAcrossShortSide * state.zoom
+        // Der Mittelpunkt der Ansicht liegt auf dem Ruheplatz; die Position steht um (offsetX, offsetY) daneben. Rueckwaerts aus dem Bild in die Ebene rechnen (die Drehung umkehren).
+        val r = Math.toRadians(rotationDeg)
+        val c = cos(r)
+        val s = kotlin.math.sin(r)
+        val dx = state.offsetX * c - state.offsetY * s
+        val dy = state.offsetX * s + state.offsetY * c
+        return TrackView(cx = positionX - dx / ppu, cy = positionY + dy / ppu, pxPerUnit = ppu, rotationDeg = rotationDeg, anchorY = HEADING_ANCHOR_Y)
+    }
+}
+
+/** Der kuerzeste Winkel von [from] nach [to] in Grad, im Bereich (−180, 180]: so dreht die Karte nie den langen Weg. */
+fun shortestTurnDeg(from: Double, to: Double): Double {
+    val d = ((to - from) % 360.0 + 360.0) % 360.0
+    return if (d > 180.0) d - 360.0 else d
 }
