@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -88,6 +89,7 @@ internal const val FOLLOW_NOTE_TEST_TAG = "follow_note"
 internal const val FOLLOW_TOO_SHORT_TEST_TAG = "follow_too_short"
 internal const val FOLLOW_PROGRESS_TEST_TAG = "follow_progress"
 internal const val FOLLOW_STOP_TEST_TAG = "follow_stop"
+internal const val FOLLOW_STOP_BAR_TEST_TAG = "follow_stop_bar"
 
 /**
  * Das Nachfahren eines Tracks (Route `track_follow/{id}`): die Karte mit der eigenen Position, daneben oder darunter Abstand zum Track, Zurueckgelegtes und Rest. **Keine Routenfuehrung**,
@@ -173,6 +175,16 @@ internal fun TrackFollowContent(
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.heightIn(min = 56.dp)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back_desc))
+                    }
+                },
+                actions = {
+                    // Der Stopp steht auch in der Kopfzeile: der Knopf im Bedienblock ist nur mit Blick nach unten zu finden.
+                    if (ready != null) {
+                        val stopDescription = stringResource(R.string.track_follow_stop)
+                        TextButton(
+                            onClick = onStop,
+                            modifier = Modifier.heightIn(min = 56.dp).testTag(FOLLOW_STOP_BAR_TEST_TAG).semantics { contentDescription = stopDescription },
+                        ) { Text(stringResource(R.string.track_follow_stop_short)) }
                     }
                 },
             )

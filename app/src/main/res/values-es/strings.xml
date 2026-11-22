@@ -890,6 +890,7 @@
     <string name="track_follow_note">Tu posición solo se usa mientras sigues una ruta y la app está visible. No se guarda ni se registra.</string>
     <string name="tracks_msg_follow_active">Se está siguiendo una ruta. Termínalo antes de grabar.</string>
     <string name="track_follow_stop">Terminar seguimiento</string>
+    <string name="track_follow_stop_short">Terminar</string>
     <string name="track_follow_replace_title">¿Seguir otra ruta?</string>
     <string name="track_follow_replace_text">Estás siguiendo «%1$s». Termina al empezar esta.</string>
     <string name="track_follow_replace_confirm">Seguir esta</string>

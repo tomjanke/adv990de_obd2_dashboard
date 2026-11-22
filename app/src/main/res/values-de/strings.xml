@@ -851,6 +851,7 @@
     <string name="track_follow_note">Deine Position wird nur verwendet, solange du einem Track folgst und die App sichtbar ist. Sie wird nicht gespeichert und nicht protokolliert.</string>
     <string name="tracks_msg_follow_active">Das Nachfahren läuft. Beende es, bevor du aufzeichnest.</string>
     <string name="track_follow_stop">Nachfahren beenden</string>
+    <string name="track_follow_stop_short">Beenden</string>
     <string name="track_follow_replace_title">Anderen Track nachfahren?</string>
     <string name="track_follow_replace_text">Du fährst gerade „%1$s“ nach. Das endet, wenn du diesen startest.</string>
     <string name="track_follow_replace_confirm">Diesen nachfahren</string>

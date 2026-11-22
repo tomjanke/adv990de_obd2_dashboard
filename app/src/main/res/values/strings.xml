@@ -851,6 +851,7 @@
     <string name="track_follow_note">Your position is only used while you follow a track and the app is visible. It is not saved and not logged.</string>
     <string name="tracks_msg_follow_active">Following is running. End it before you record.</string>
     <string name="track_follow_stop">End following</string>
+    <string name="track_follow_stop_short">End</string>
     <string name="track_follow_replace_title">Follow another track?</string>
     <string name="track_follow_replace_text">You are following “%1$s”. That ends when you start this one.</string>
     <string name="track_follow_replace_confirm">Follow this one</string>

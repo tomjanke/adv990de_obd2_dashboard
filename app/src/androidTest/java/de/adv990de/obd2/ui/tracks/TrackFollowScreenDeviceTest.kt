@@ -808,6 +808,16 @@ class TrackFollowScreenDeviceTest {
     }
 
     @Test
+    fun theHeaderHasAStopAction_thatReportsTheTap() {
+        var stops = 0
+        show(reading = following(), onStop = { stops++ })
+        composeRule.onNodeWithTag(FOLLOW_STOP_BAR_TEST_TAG).assertIsDisplayed().assertTouchTargetAtLeast56(composeRule.density)
+        composeRule.onNodeWithText(string(R.string.track_follow_stop_short)).assertIsDisplayed()
+        composeRule.onNodeWithTag(FOLLOW_STOP_BAR_TEST_TAG).performClick()
+        assertEquals(1, stops)
+    }
+
+    @Test
     fun theStopButton_isThereWithoutAPositionToo() {
         show(reading = FollowReading.Searching)
         composeRule.onNodeWithTag(FOLLOW_STOP_TEST_TAG).assertIsDisplayed()
