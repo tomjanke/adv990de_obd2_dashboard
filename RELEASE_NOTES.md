@@ -1,5 +1,21 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.47.1 (versionCode 170)
+
+**Verbessert: Die Karte beim Nachfahren lässt sich zoomen, der Track bleibt im Rahmen, und eine Linie zeigt den Abstand zum Track.** Außerdem wird „Rückwärts“ jetzt richtig gezeichnet.
+
+### Was sich ändert
+
+- **Zoomen mit zwei Fingern:** die Karte (Track-Ansicht und Nachfahren) zoomt um den Mittelpunkt der beiden Finger; Ziehen mit einem Finger verschiebt, Doppeltipp passt wieder an, die Knöpfe bleiben. Eine Drehung der Finger wird ignoriert, Norden bleibt oben.
+- **Der Track bleibt im Rahmen:** weder Zoomen noch Verschieben schieben ihn aus dem Bild; herausgezoomt wird nur bis „angepasst“, und die Zeichnung wird am Rand der Karte abgeschnitten. Ist der Ausschnitt in einer Richtung größer als der Track, steht er dort mittig — der Punkt unter den Fingern bleibt deshalb nur in der Richtung stehen, in der noch Spielraum ist.
+- **Abstand zum Track in der Karte beim Nachfahren:** vom nächsten Punkt auf dem Track führt eine gestrichelte Linie zu deiner Position (dem Pfeil in Richtung des Tracks), mit dem Abstand daneben; liegst du außerhalb des Bildes, sitzt der Pfeil am Rand. Unter rund 28 dp Abstand wird keine Linie gezeichnet. Die Linie führt zum **nächsten Punkt des Tracks**; bei Schleifen und Rückwegen kann das ein anderer Teil sein als der, auf dem du gerade fährst.
+- **„Rückwärts“ wird richtig gezeichnet:** die Linie läuft in der gewählten Richtung, Start- und Zielmarke tauschen die Plätze.
+- **Geprüft:** JVM 4076 Tests, Geräte-Suite 1108 Tests (Pixel 8 Pro) und Lint ohne Fehler; die Zeichnung ist als Bildpunkte gelesen (Fußpunkt, Linie, Abstandstext, Zuschneiden, Zoom um die Finger), mit Mutationsproben abgesichert: von 30 Änderungen wurden 22 sofort erkannt, die übrigen 8 erst nach zusätzlichen Tests und dann alle.
+- **Nicht gesehen:** nie mit einem echten GPS-Fix und nie auf einer Fahrt; die Karte wurde nicht von Hand am Telefon bedient (nur Geräte-Tests mit eingespielten Gesten und gerenderte Vorschauen); die Bedienknöpfe unten rechts können den Start, das Ziel oder die eigene Position verdecken; die Abstandsangabe liegt auf der Mitte der Linie und deckt sie bei kurzem Abstand teilweise ab; spanische Texte unverändert (meine Übersetzung).
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.47.0 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend, die Position wird weder gespeichert noch protokolliert.
+
+---
+
 ## Version 1.47.0 (versionCode 169)
 
 **Neu: Tracks lassen sich einlesen, nachfahren und im Sicherungspaket mitnehmen.** Damit ist der Funktionsumfang „Tracks“ (F8) vollständig, bis auf einen Kartenhintergrund.
