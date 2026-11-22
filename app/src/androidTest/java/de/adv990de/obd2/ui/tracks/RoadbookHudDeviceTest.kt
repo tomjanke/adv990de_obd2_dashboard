@@ -46,6 +46,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Locale
+import androidx.compose.ui.test.performSemanticsAction
 import kotlin.math.abs
 
 /** Das Roadbook-HUD auf dem Geraet: Zahlen, Balken, Pfeil als Bildpunkte, die zwei Groessen, das Ein- und Ausblenden. Alle Koordinaten sind erfunden. */
@@ -115,8 +116,8 @@ class RoadbookHudDeviceTest {
         assertEquals(1, count(ROADBOOK_NEXT_TEST_TAG))
         tag(ROADBOOK_NEXT_TEST_TAG).assertTextEquals(composeRule.activity.getString(R.string.roadbook_then, kindText(next), formatRoadbookDistance(90.0, locale)))
         val size = composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(144f, size.width.value, 1f)
-        assertEquals(88f, size.height.value, 1f)
+        assertEquals(150f, size.width.value, 1f)
+        assertEquals(194f, size.height.value, 1f)
     }
 
     @Test
@@ -265,10 +266,10 @@ class RoadbookHudDeviceTest {
         }
         composeRule.waitForIdle()
         val map = composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(160f, map.width.value, 1f)
-        assertEquals(102f, map.height.value, 1f)
+        assertEquals(240f, map.width.value, 1f)
+        assertEquals(222f, map.height.value, 1f)
         val b = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
-        assertEquals("102 dp map + 16 dp padding + 2 dp border", 120f, b.height.value, 3f)
+        assertEquals("222 dp map + 16 dp padding + 2 dp border", 240f, b.height.value, 3f)
     }
 
     // ── Platz ─────────────────────────────────────────────────────────────────
@@ -296,7 +297,37 @@ class RoadbookHudDeviceTest {
         composeRule.waitForIdle()
         val b = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
         assertEquals(440f, b.width.value, 1f)
-        assertTrue("about 106 dp high, only slightly into the row where the tile values start (${b.height})", abs(b.height.value - 106f) < 6f)
+        assertTrue("about 212 dp high, twice as high as up to 1.48.1 (${b.height})", abs(b.height.value - 212f) < 6f)
+        assertTextsFit()
+    }
+
+    @Test
+    fun theTallVersionAt624DpKeepsDistanceNextTurnAndMapApart() {
+        composeRule.setContent {
+            AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+                Column(Modifier.width(624.dp)) { RoadbookHudView(hud(distance = 1250.0, next = Maneuver(330.0, 340.0, 350.0, -70.0, ManeuverKind.NORMAL)), compact = false, tall = true, modifier = Modifier.fillMaxWidth()) }
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(624f, composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot().width.value, 1f)
+        assertTextsFit()
+    }
+
+    /** Entfernung und Folgezeile liegen im HUD, links von der Karte und ohne den Pfeil zu beruehren; die Entfernung ist nicht kleiner als ihr Minimum geschrumpft und nicht abgeschnitten. */
+    private fun assertTextsFit() {
+        val hudB = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
+        val arrow = composeRule.onNodeWithTag(ROADBOOK_ARROW_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
+        val map = composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
+        for (tag in listOf(ROADBOOK_DISTANCE_TEST_TAG, ROADBOOK_NEXT_TEST_TAG, ROADBOOK_BAR_TEST_TAG)) {
+            val n = composeRule.onNodeWithTag(tag, useUnmergedTree = true).getBoundsInRoot()
+            assertTrue("$tag right of the arrow (${n.left} vs ${arrow.right})", n.left.value >= arrow.right.value - 0.5f)
+            assertTrue("$tag left of the map (${n.right} vs ${map.left})", n.right.value <= map.left.value + 0.5f)
+            assertTrue("$tag inside the HUD", n.top.value >= hudB.top.value && n.bottom.value <= hudB.bottom.value)
+        }
+        val result = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithTag(ROADBOOK_DISTANCE_TEST_TAG, useUnmergedTree = true).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(result) }
+        assertEquals("the distance stays on one line", 1, result.single().lineCount)
+        assertTrue("the distance is not cut off", !result.single().didOverflowWidth)
     }
 
     // ── Ein- und Ausblenden ───────────────────────────────────────────────────

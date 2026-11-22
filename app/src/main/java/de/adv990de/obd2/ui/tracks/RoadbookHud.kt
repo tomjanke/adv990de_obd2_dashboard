@@ -52,7 +52,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import de.adv990de.obd2.R
 import de.adv990de.obd2.track.Maneuver
 import de.adv990de.obd2.track.ManeuverKind
@@ -72,17 +75,26 @@ internal const val ROADBOOK_MAP_TEST_TAG = "roadbook_map"
 internal const val ROADBOOK_NEXT_TEST_TAG = "roadbook_next"
 
 /**
- * Wie gross die Teile des HUD sind (dp): voll im Dashboard, kompakt auf der Kartenseite (dort zeigt die Karte den Track schon). Die volle Fassung ist **rund 106 dp hoch** (88 dp Inhalt,
- * 8 dp Rand, 1 dp Rahmen); im **Querformat** ([tall], der Nutzer faehrt meist quer) **rund 120 dp** mit groesserer Karte (160 × 102 dp) und Pfeil. Die Kacheln sind 170 dp (Hochformat)
- * bzw. rund 180 dp (Querformat mit Tankzeile) hoch, ihr Wert beginnt rund 97 bzw. 107 dp unter der Oberkante: das HUD reicht damit knapp in die Wertzeile, die obere Leerzeile der Ziffern bleibt frei.
+ * Wie gross die Teile des HUD sind (dp): voll im Dashboard, kompakt auf der Kartenseite (dort zeigt die Karte den Track schon). Die volle Fassung ist **rund 212 dp hoch** (194 dp Karte,
+ * 16 dp Rand, 2 dp Rahmen, doppelt so hoch wie bis 1.48.1); im **Querformat** ([tall], der Nutzer faehrt meist quer) **rund 240 dp hoch (hoechstens die Flaeche ueber dem Hauptmenue, im Querformat rund 220 dp) und 624 dp breit** (30 Prozent breiter als die 480 dp
+ * bis 1.48.1) mit Karte 240 × 222 dp und Pfeil 128 dp; die Schrift waechst mit. Die Kacheln sind 170 dp (Hochformat) bzw. rund 180 dp (Querformat mit Tankzeile) hoch: solange das HUD steht,
+ * **deckt es die obere Kachelreihe samt Werten ganz ab** (Wunsch des Nutzers, 2026-11-22). Es steht nur, solange eine Richtungsaenderung naht.
  */
-private val FULL_ARROW = 64.dp
-private val TALL_ARROW = 72.dp
-private val COMPACT_ARROW = 40.dp
-private val MAP_WIDTH = 144.dp
-private val MAP_HEIGHT = 88.dp
-private val TALL_MAP_WIDTH = 160.dp
-private val TALL_MAP_HEIGHT = 102.dp
+/** Die Masse einer Fassung des HUD: Pfeil, Karte (null = keine Karte), Schrift der Entfernung (Sollgroesse und kleinste) und der Folgezeile, Hoehe des Balkens, Abstand, Staerke der Karten-Linien. */
+private class HudSizes(
+    val arrow: Dp,
+    val mapWidth: Dp?,
+    val mapHeight: Dp?,
+    val distanceSize: TextUnit,
+    val distanceMinSize: TextUnit,
+    val bar: Dp,
+    val gap: Dp,
+    val mapScale: Float,
+)
+
+private val COMPACT_SIZES = HudSizes(40.dp, null, null, 0.sp, 0.sp, 4.dp, 8.dp, 1f)
+private val FULL_SIZES = HudSizes(112.dp, 150.dp, 194.dp, 36.sp, 22.sp, 10.dp, 10.dp, 1.7f)
+private val TALL_SIZES = HudSizes(128.dp, 240.dp, 222.dp, 44.sp, 28.sp, 12.dp, 10.dp, 2.0f)
 
 /** So lange laufen Deckkraft, Balken und Karte von einem Fix zum naechsten (die Position kommt im Sekundentakt): so springt nichts, es gleitet. */
 private const val FIX_GLIDE_MS = 1_000
@@ -153,27 +165,29 @@ internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modif
         shape = RectangleShape,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
     ) {
-        Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            ManeuverArrow(hud.maneuver, Modifier.size(if (compact) COMPACT_ARROW else if (tall) TALL_ARROW else FULL_ARROW).testTag(ROADBOOK_ARROW_TEST_TAG))
+        val sizes = if (compact) COMPACT_SIZES else if (tall) TALL_SIZES else FULL_SIZES
+        Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(sizes.gap), verticalAlignment = Alignment.CenterVertically) {
+            ManeuverArrow(hud.maneuver, Modifier.size(sizes.arrow).testTag(ROADBOOK_ARROW_TEST_TAG))
             Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 LiveValueText(
                     distance,
-                    style = (if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall).asLiveValue(),
+                    style = (if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall.copy(fontSize = sizes.distanceSize, lineHeight = sizes.distanceSize * 1.15f)).asLiveValue(),
                     color = MaterialTheme.colorScheme.onSurface,
+                    minFontSize = if (compact) TextUnit.Unspecified else sizes.distanceMinSize,
                     modifier = Modifier.testTag(ROADBOOK_DISTANCE_TEST_TAG),
                 )
-                ProgressBar(hud.progress, Modifier.fillMaxWidth().height(if (compact) 4.dp else 6.dp).testTag(ROADBOOK_BAR_TEST_TAG))
+                ProgressBar(hud.progress, Modifier.fillMaxWidth().height(sizes.bar).testTag(ROADBOOK_BAR_TEST_TAG))
                 val next = hud.next
                 if (!compact && next != null && hud.nextDistanceM != null) {
                     Text(
                         stringResource(R.string.roadbook_then, maneuverKindText(next), formatRoadbookDistance(hud.nextDistanceM, locale)),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.testTag(ROADBOOK_NEXT_TEST_TAG),
                     )
                 }
             }
-            if (!compact) RoadbookMiniMap(hud, Modifier.size(width = if (tall) TALL_MAP_WIDTH else MAP_WIDTH, height = if (tall) TALL_MAP_HEIGHT else MAP_HEIGHT).testTag(ROADBOOK_MAP_TEST_TAG))
+            if (!compact) RoadbookMiniMap(hud, Modifier.size(width = sizes.mapWidth!!, height = sizes.mapHeight!!).testTag(ROADBOOK_MAP_TEST_TAG), sizes.mapScale)
         }
     }
 }
@@ -251,7 +265,7 @@ private fun DrawScope.drawFlag(color: androidx.compose.ui.graphics.Color, s: Flo
 
 /** Der Streckenausschnitt: der Linienzug in Fahrtrichtung oben, das Passierte gedaempft, der Scheitelpunkt als Punkt und die eigene Position als Pfeil unten (wie in der Karte). */
 @Composable
-private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier) {
+private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier, scale: Float = 1f) {
     val line = MaterialTheme.colorScheme.primary
     val behind = MaterialTheme.colorScheme.outline
     val halo = MaterialTheme.colorScheme.surface
@@ -282,18 +296,18 @@ private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier) {
             val b = pts[i]
             // Was hinter der Position liegt (weiter unten als sie), ist passiert.
             val passed = (a.y + b.y) / 2f > map.position.y
-            drawLine(if (passed) behind else line, Offset(a.x, a.y), Offset(b.x, b.y), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(if (passed) behind else line, Offset(a.x, a.y), Offset(b.x, b.y), strokeWidth = 3.dp.toPx() * scale, cap = StrokeCap.Round)
         }
         map.apex?.let {
-            drawCircle(halo, 6.dp.toPx(), Offset(it.x, it.y))
-            drawCircle(apexColor, 4.dp.toPx(), Offset(it.x, it.y))
+            drawCircle(halo, 6.dp.toPx() * scale, Offset(it.x, it.y))
+            drawCircle(apexColor, 4.dp.toPx() * scale, Offset(it.x, it.y))
         }
         val c = Offset(map.position.x, map.position.y)
-        fun arrow(scale: Float) = Path().apply {
-            moveTo(c.x, c.y - 11.dp.toPx() * scale)
-            lineTo(c.x - 7.dp.toPx() * scale, c.y + 6.dp.toPx() * scale)
-            lineTo(c.x, c.y + 2.dp.toPx() * scale)
-            lineTo(c.x + 7.dp.toPx() * scale, c.y + 6.dp.toPx() * scale)
+        fun arrow(k: Float) = Path().apply {
+            moveTo(c.x, c.y - 11.dp.toPx() * k * scale)
+            lineTo(c.x - 7.dp.toPx() * k * scale, c.y + 6.dp.toPx() * k * scale)
+            lineTo(c.x, c.y + 2.dp.toPx() * k * scale)
+            lineTo(c.x + 7.dp.toPx() * k * scale, c.y + 6.dp.toPx() * k * scale)
             close()
         }
         drawPath(arrow(1.3f), StatusColors.OwnPositionRing)
