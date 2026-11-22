@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertIsDisplayed
@@ -206,16 +208,20 @@ class TrackFollowScreenDeviceTest {
 
     // ── Ausrichtung ───────────────────────────────────────────────────────────
 
-    @Test
-    fun inBothOrientations_numbersMapAndDirectionAreAllVisible() {
-        for (orientation in listOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)) {
-            requestOrientation(orientation)
-            show(reading = following())
-            composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).assertIsDisplayed()
-            composeRule.onNodeWithTag(FOLLOW_DIRECTION_FORWARD_TEST_TAG).assertIsDisplayed()
-            composeRule.onNodeWithTag(FOLLOW_STAT_LEFT_TEST_TAG, useUnmergedTree = true).assertIsDisplayed()
-        }
+    /** setContent darf je Test nur einmal laufen (steht das Telefon schon in der Ausrichtung, baut sie die Activity nicht neu): je Ausrichtung ein Test. */
+    private fun numbersMapAndDirectionAreAllVisibleIn(orientation: Int) {
+        requestOrientation(orientation)
+        show(reading = following())
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(FOLLOW_DIRECTION_FORWARD_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(FOLLOW_STAT_LEFT_TEST_TAG, useUnmergedTree = true).assertIsDisplayed()
     }
+
+    @Test
+    fun inPortrait_numbersMapAndDirectionAreAllVisible() = numbersMapAndDirectionAreAllVisibleIn(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+
+    @Test
+    fun inLandscape_numbersMapAndDirectionAreAllVisible() = numbersMapAndDirectionAreAllVisibleIn(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 
     // ── Marker als Bildpunkte ─────────────────────────────────────────────────
 
@@ -291,5 +297,183 @@ class TrackFollowScreenDeviceTest {
         // PreviewTheme (Hell und Dunkel) komponiert die Seite mit dem Marker ohne Fehler: die Zeichnung haengt nur an Farben des Themes.
         composeRule.setContent { PreviewTheme(dark = true) { TrackFollowContent(ready, FollowDirection.FORWARD, following(), false, {}, {}) } }
         composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).assertIsDisplayed()
+    }
+
+    // ── Rueckwaerts: die Zeichnung folgt der Richtung ─────────────────────────
+
+    /**
+     * Eine Schleife, deren Anfang links oben und deren Ende links in der Mitte liegt: beide Enden liegen frei (rechts oben der Nordpfeil, unten rechts die Knoepfe, unten links die Leiste decken
+     * sonst die Marke ab).
+     */
+    private val loop = listOf(
+        TrackPoint(null, 50.002, 10.000, null, null, null),
+        TrackPoint(null, 50.002, 10.010, null, null, null),
+        TrackPoint(null, 49.998, 10.010, null, null, null),
+        TrackPoint(null, 49.998, 10.000, null, null, null),
+        TrackPoint(null, 50.000, 10.000, null, null, null),
+    )
+    private val loopBounds = TrackBounds(loop.minOf { it.lat }, loop.maxOf { it.lat }, loop.minOf { it.lon }, loop.maxOf { it.lon })
+    private val loopReady = FollowTrackState.Ready("Schleife", loop, loop, loopBounds)
+
+    private fun showLoop(direction: FollowDirection) {
+        composeRule.setContent { AppTheme(colorScheme = colors, typography = AppTypography) { TrackFollowContent(loopReady, direction, FollowReading.Searching, false, {}, {}) } }
+        composeRule.waitForIdle()
+    }
+
+    private fun startMarkAt(p: TrackPoint): Boolean {
+        val image = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage()
+        val fit = fitView(loopBounds, image.width.toDouble(), image.height.toDouble(), paddingPx = 32 * composeRule.density.density.toDouble())
+        val s = toScreen(TrackViewState().resolve(fit), image.width.toDouble(), image.height.toDouble(), projectLon(p.lon, loopBounds.minLon), projectLat(p.lat))
+        val map = image.toPixelMap()
+        val px = s.x.roundToInt()
+        val py = s.y.roundToInt()
+        if (px !in 0 until map.width || py !in 0 until map.height) return false
+        return map[px, py].near(colors.tertiary)
+    }
+
+    @Test
+    fun forwards_theStartMarkSitsAtTheRecordedStart() {
+        showLoop(FollowDirection.FORWARD)
+        assertTrue("Start am aufgezeichneten Anfang", startMarkAt(loop.first()))
+        assertFalse("nicht am aufgezeichneten Ende", startMarkAt(loop.last()))
+    }
+
+    @Test
+    fun backwards_theStartAndGoalMarksChangePlaces() {
+        showLoop(FollowDirection.REVERSE)
+        assertTrue("rueckwaerts faehrt man am aufgezeichneten Ende los", startMarkAt(loop.last()))
+        assertFalse("und der aufgezeichnete Anfang ist das Ziel", startMarkAt(loop.first()))
+    }
+
+    @Test
+    fun switchingTheDirection_redrawsTheMarks() {
+        var direction by androidx.compose.runtime.mutableStateOf(FollowDirection.FORWARD)
+        composeRule.setContent { AppTheme(colorScheme = colors, typography = AppTypography) { TrackFollowContent(loopReady, direction, FollowReading.Searching, false, { direction = it }, {}) } }
+        composeRule.waitForIdle()
+        assertTrue(startMarkAt(loop.first()))
+
+        composeRule.onNodeWithTag(FOLLOW_DIRECTION_REVERSE_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        assertTrue("nach dem Tipp auf „Rueckwaerts“ sitzt der Start am anderen Ende", startMarkAt(loop.last()))
+
+        composeRule.onNodeWithTag(FOLLOW_DIRECTION_FORWARD_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        assertTrue("und zurueck", startMarkAt(loop.first()))
+    }
+
+    // ── Position und Abstand in der Karte ─────────────────────────────────────
+
+    private fun pixelAt(x: Double, y: Double): Color? {
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+        val px = x.roundToInt()
+        val py = y.roundToInt()
+        return if (px in 0 until map.width && py in 0 until map.height) map[px, py] else null
+    }
+
+    /** Ein Prozentsatz der Stuetzstellen zwischen [a] und [b] (ohne die Enden), an denen die Farbe des Markers liegt: die gestrichelte Linie. */
+    private fun dashedShare(a: Pair<Double, Double>, b: Pair<Double, Double>): Double {
+        val n = 60
+        val hits = (8..n - 8).count { k ->
+            val t = k / n.toDouble()
+            pixelAt(a.first + (b.first - a.first) * t, a.second + (b.second - a.second) * t)?.near(colors.onSurface, 0.08f) == true
+        }
+        return hits / (n - 15).toDouble()
+    }
+
+    private val foot = points[10]
+    private val awayFromTheTrack = TrackPoint(null, foot.lat + 0.0012, foot.lon, null, null, null)
+
+    @Test
+    fun theDistanceLine_leadsFromThePositionToTheFootOnTheTrack() {
+        showMap(TrackMarker(awayFromTheTrack, bearingDeg = 90.0, foot = foot, distanceLabel = "133 m"))
+        val a = screenOf(awayFromTheTrack)
+        val b = screenOf(foot)
+        assertTrue("die Linie ist gestrichelt gezeichnet, also teils in der Farbe des Markers", dashedShare(a, b) > 0.25)
+        val ring = pixelAt(b.first, b.second)
+        assertTrue("am Fusspunkt sitzt ein Punkt", ring != null && ring.near(colors.onSurface, 0.08f))
+    }
+
+    @Test
+    fun withoutAFootPoint_thereIsNoDistanceLine() {
+        showMap(TrackMarker(awayFromTheTrack, bearingDeg = 90.0))
+        assertTrue("keine Linie", dashedShare(screenOf(awayFromTheTrack), screenOf(foot)) < 0.05)
+    }
+
+    @Test
+    fun aPositionOnTheTrack_needsNoDistanceLine() {
+        showMap(TrackMarker(foot, bearingDeg = 90.0, foot = foot, distanceLabel = "0 m"))
+        val (x, y) = screenOf(foot)
+        // der Pfeil deckt den Fusspunkt: die Linie zu sich selbst wird nicht gezeichnet (kein Strich quer durch den Pfeil, kein Punkt daneben)
+        assertTrue(markerAt(screenOf(foot), 90.0, aheadDp = 8.0, acrossDp = 0.0))
+        assertFalse("kein Fusspunkt-Kreis neben dem Pfeil", pixelAt(x, y - 9 * composeRule.density.density)?.near(colors.onSurface, 0.08f) == true && pixelAt(x, y + 9 * composeRule.density.density)?.near(colors.onSurface, 0.08f) == true)
+    }
+
+    @Test
+    fun aPositionFarOutsideTheFrame_isShownAtTheEdgeAndStillPointsAlongTheTrack() {
+        val far = TrackPoint(null, foot.lat + 0.05, foot.lon + 0.05, null, null, null)
+        showMap(TrackMarker(far, bearingDeg = 0.0, foot = foot, distanceLabel = "7 km"))
+        val image = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage()
+        val (x, y) = screenOf(far)
+        assertTrue("die echte Stelle liegt ausserhalb des Bildes", x > image.width || x < 0 || y > image.height || y < 0)
+        val shown = clampToFrame(x, y, image.width.toDouble(), image.height.toDouble(), 22 * composeRule.density.density.toDouble())
+        assertTrue("der Pfeil sitzt am Rand, im Bild", shown.x in 0.0..image.width.toDouble() && shown.y in 0.0..image.height.toDouble())
+        assertTrue("und ist dort gezeichnet (Spitze nach Norden)", markerAt(shown.x to shown.y, 0.0, aheadDp = 8.0, acrossDp = 0.0))
+    }
+
+    /** Wie viele Bildpunkte der Zeichnung in der Farbe des Markers stehen (Pfeil, Linie, Fusspunkt, Text des Abstands). */
+    private fun markerColouredPixels(): Int {
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).captureToImage().toPixelMap()
+        var n = 0
+        for (y in 0 until map.height) for (x in 0 until map.width) if (map[x, y].near(colors.onSurface, 0.08f)) n++
+        return n
+    }
+
+    @Test
+    fun theDistanceLabel_isDrawnNextToTheLine_andGoneWithoutIt() {
+        var label by androidx.compose.runtime.mutableStateOf<String?>("1234 m")
+        composeRule.setContent {
+            MaterialTheme(colorScheme = colors, typography = AppTypography) {
+                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), TrackMarker(awayFromTheTrack, 90.0, foot, label))
+            }
+        }
+        composeRule.waitForIdle()
+        val withLabel = markerColouredPixels()
+
+        label = null
+        composeRule.waitForIdle()
+        val without = markerColouredPixels()
+
+        assertTrue("der Text des Abstands zeichnet Bildpunkte (mit $withLabel, ohne $without)", withLabel > without + 40)
+    }
+
+    @Test
+    fun aPositionOffTheTrack_onTheFullPage_showsTheLineToTheTrack() {
+        // Die ganze Seite, nicht nur die Karte: der Fusspunkt des Ergebnisses muss bis zur Zeichnung durchgereicht werden. Hochformat, damit die Karte hoch genug fuer die Strecke ueber dem Track ist.
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        val reading = FollowReading.Following(
+            awayFromTheTrack,
+            FollowResult(distanceToTrackM = 133.0, alongM = 2_300.0, remainingM = 3_850.0, totalM = 6_150.0, segmentIndex = 10, bearingDeg = 80.0, foot = foot),
+        )
+        composeRule.setContent { AppTheme(colorScheme = colors, typography = AppTypography) { TrackFollowContent(ready, FollowDirection.FORWARD, reading, false, {}, {}) } }
+        composeRule.waitForIdle()
+
+        // Die Schilder des Abstands decken einen Teil der Linie ab: der Anteil liegt unter dem der blossen Karte, aber weit ueber 0 (ohne Fusspunkt 0).
+        val share = dashedShare(screenOf(awayFromTheTrack), screenOf(foot))
+        assertTrue("die gestrichelte Linie fuehrt von der Position zum Track (Anteil $share)", share > 0.12)
+        val (fx, fy) = screenOf(foot)
+        assertTrue("am Fusspunkt sitzt ein Punkt in der Farbe des Markers", pixelAt(fx, fy)?.near(colors.onSurface, 0.08f) == true)
+    }
+
+    @Test
+    fun aPositionCloseToTheTrack_needsNoLine_andNoDotAtTheFoot() {
+        // 20 dp neben dem Track: unter der Mindestlaenge der Linie (28 dp). Der Fusspunkt liegt auf der Linie des Tracks; ein Kreis in der Farbe des Markers waere dort zu sehen.
+        val f = fitView(bounds, 400.0 * composeRule.density.density, 300.0 * composeRule.density.density, paddingPx = 32 * composeRule.density.density.toDouble())
+        val unitsFor20Dp = 20 * composeRule.density.density / f.pxPerUnit
+        val near = TrackPoint(null, unprojectLat(projectLat(foot.lat) + unitsFor20Dp), foot.lon, null, null, null)
+        showMap(TrackMarker(near, bearingDeg = 0.0, foot = foot, distanceLabel = "5 m"))
+
+        val (x, y) = screenOf(foot)
+        assertFalse("am Fusspunkt steht kein Punkt in der Farbe des Markers", pixelAt(x, y)?.near(colors.onSurface, 0.08f) == true)
+        assertTrue("dort liegt die Linie des Tracks", pixelAt(x, y)?.near(colors.primary) == true)
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -185,19 +186,24 @@ private fun ReadyContent(
     onDirection: (FollowDirection) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val marker = (reading as? FollowReading.Following)?.let { TrackMarker(it.position, it.result.bearingDeg) }
+    val locale = LocalLocale.current.platformLocale
+    val marker = (reading as? FollowReading.Following)?.let {
+        TrackMarker(it.position, it.result.bearingDeg, it.result.foot, formatTrackDistance(Math.round(it.result.distanceToTrackM), locale))
+    }
+    // Rueckwaerts wird die Linie umgekehrt gezeichnet: die Startmarke sitzt dann am aufgezeichneten Ende, die Zielmarke am Anfang — dort, wo man losfaehrt und ankommt.
+    val drawn = remember(track.drawn, direction) { if (direction == FollowDirection.REVERSE) track.drawn.asReversed() else track.drawn }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val panel: @Composable (Modifier) -> Unit = { modifier ->
         FollowPanel(direction, reading, permissionMissing, onDirection, onOpenSettings, modifier)
     }
     if (landscape) {
         Row(Modifier.fillMaxSize()) {
-            TrackMapView(track.drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker)
+            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker)
             panel(Modifier.width(260.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp))
         }
     } else {
         Column(Modifier.fillMaxSize()) {
-            TrackMapView(track.drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker)
+            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker)
             panel(Modifier.fillMaxWidth().padding(12.dp))
         }
     }
@@ -307,10 +313,12 @@ private fun previewReady(): FollowTrackState.Ready {
 }
 
 private fun previewFollowing(): FollowReading.Following {
-    val position = previewPoints()[30]
+    val foot = previewPoints()[30]
+    // Die erfundene Position liegt rund 100 m neben dem Track: so zeigt die Vorschau auch die gestrichelte Abstandslinie mit dem Fusspunkt und dem Abstand.
+    val position = TrackPoint(null, foot.lat - 0.0009, foot.lon, null, null, null)
     return FollowReading.Following(
         position,
-        FollowResult(distanceToTrackM = 12.0, alongM = 2_300.0, remainingM = 3_850.0, totalM = 6_150.0, segmentIndex = 30, bearingDeg = 80.0),
+        FollowResult(distanceToTrackM = 100.0, alongM = 2_300.0, remainingM = 3_850.0, totalM = 6_150.0, segmentIndex = 30, bearingDeg = 80.0, foot = foot),
     )
 }
 

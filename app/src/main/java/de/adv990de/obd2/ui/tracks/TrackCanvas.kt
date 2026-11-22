@@ -3,7 +3,7 @@ package de.adv990de.obd2.ui.tracks
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +31,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
@@ -67,12 +69,19 @@ internal const val TRACK_PAN_RIGHT_TEST_TAG = "track_pan_right"
 
 /**
  * Die eigene Position beim Nachfahren: der Punkt [point] und die Richtung des Tracks dort ([bearingDeg], 0 = Nord, im Uhrzeigersinn). Gezeichnet als Pfeil in Fahrtrichtung des Tracks —
- * **nicht** die eigene Fahrtrichtung (ein Fix der Aufzeichnung traegt keinen Kurs). **Positionen sind sensibel:** nichts hiervon geht in ein Log.
+ * **nicht** die eigene Fahrtrichtung (ein Fix der Aufzeichnung traegt keinen Kurs). [foot] ist der naechste Punkt des Tracks und [distanceLabel] der Abstand dorthin als Text: zusammen die
+ * gestrichelte Abstandslinie in der Karte. Liegt die Position ausserhalb des Bildes, sitzt der Pfeil am Rand. **Positionen sind sensibel:** nichts hiervon geht in ein Log.
  */
-internal data class TrackMarker(val point: TrackPoint, val bearingDeg: Double)
+internal data class TrackMarker(val point: TrackPoint, val bearingDeg: Double, val foot: TrackPoint? = null, val distanceLabel: String? = null)
 
 /** Rand um den angepassten Track, damit Start- und Zielmarke nicht an der Kante kleben. */
 private val CANVAS_PADDING = 32.dp
+
+/** So weit innen sitzt der Pfeil der eigenen Position am Rand, wenn sie ausserhalb des Bildes liegt. */
+private val MARKER_EDGE_MARGIN = 22.dp
+
+/** Liegen Pfeil und Fusspunkt naeher als das beieinander, bleibt die Abstandslinie weg (der Pfeil deckt sie ohnehin). */
+private val DISTANCE_LINE_MIN = 28.dp
 
 /** Die Knoepfe sind 56 dp gross (Handschuh-Regel); ein Zoomschritt ist ein Faktor 2, ein Verschiebeschritt ein Viertel der kleineren Seite der Flaeche. */
 private val CONTROL_SIZE = 56.dp
@@ -86,7 +95,8 @@ private val ViewStateSaver = listSaver<TrackViewState, Double>(
 
 /**
  * Die Ansicht eines Tracks: der Linienzug an die Flaeche angepasst (Mercator, Seitenverhaeltnis erhalten), Start- und Zielmarke, Massstabsleiste, Nordpfeil — **ohne Kartenhintergrund**
- * (K0). Zoomen und Verschieben mit **Knoepfen** in der Ecke (Handschuh-Regel), zusaetzlich Ziehen und Doppeltipp = anpassen; ein Wischen ist nie der einzige Weg.
+ * (K0). Zoomen und Verschieben mit **Knoepfen** in der Ecke (Handschuh-Regel), zusaetzlich **Zwei-Finger-Zoom**, Ziehen und Doppeltipp = anpassen; eine Geste ist nie der einzige Weg.
+ * **Der Track verlaesst den Rahmen nie:** herausgezoomt wird nur bis „angepasst“, verschoben nur, solange der Ausschnitt im Rechteck des Tracks samt Rand bleibt ([TrackFrame]).
  *
  * [points] sind die Punkte der Zeichnung (schon ausgeduennt), [bounds] das Rechteck **aller** Punkte. Der Zustand ueberlebt eine Drehung ([TrackViewState] ist relativ zur angepassten Ansicht).
  * **Positionen sind sensibel:** nichts hiervon geht in ein Log.
@@ -97,20 +107,20 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val paddingPx = with(density) { CANVAS_PADDING.toPx() }.toDouble()
-    val fit = remember(bounds, size) { fitView(bounds, size.width.toDouble(), size.height.toDouble(), paddingPx) }
-    val currentState by rememberUpdatedState(state)
-    val currentFit by rememberUpdatedState(fit)
+    val frame = remember(bounds, size, paddingPx) { trackFrame(bounds, size.width.toDouble(), size.height.toDouble(), paddingPx) }
+    val currentFrame by rememberUpdatedState(frame)
 
     Box(
         modifier
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            .onSizeChanged { size = it },
+            .onSizeChanged { size = it }
+            .clipToBounds(),
     ) {
         TrackCanvas(
             points = points,
             bounds = bounds,
-            view = state.resolve(fit),
+            view = state.resolved(frame),
             size = size,
             marker = marker,
             modifier = Modifier
@@ -118,22 +128,23 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
                 .testTag(TRACK_CANVAS_TEST_TAG)
                 .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state = TrackViewState() }) }
                 .pointerInput(Unit) {
-                    detectDragGestures { change, drag ->
-                        change.consume()
-                        state = currentState.pannedBy(drag.x.toDouble(), drag.y.toDouble(), currentFit)
+                    // Ein Finger verschiebt, zwei Finger zoomen um ihren Mittelpunkt (und verschieben); eine Drehung der Finger wird ignoriert: Norden bleibt oben.
+                    // Der Zustand wird hier direkt gelesen, nicht ueber rememberUpdatedState: kommen mehrere Ereignisse vor der naechsten Komposition, rechnet jedes auf dem Ergebnis des vorigen.
+                    detectTransformGestures { centroid, pan, zoom, _ ->
+                        state = state.transformedBy(centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble(), currentFrame)
                     }
                 },
         )
         val panStep = minOf(size.width, size.height) * PAN_STEP_SHARE
         TrackControls(
-            onZoomIn = { state = state.zoomedBy(ZOOM_STEP, fit) },
-            onZoomOut = { state = state.zoomedBy(1 / ZOOM_STEP, fit) },
+            onZoomIn = { state = state.zoomedBy(ZOOM_STEP, frame) },
+            onZoomOut = { state = state.zoomedBy(1 / ZOOM_STEP, frame) },
             onFit = { state = state.fitted() },
             // Eine Taste verschiebt den Ausschnitt in ihre Richtung: der Inhalt wandert dagegen.
-            onUp = { state = state.pannedBy(0.0, panStep.toDouble(), fit) },
-            onDown = { state = state.pannedBy(0.0, -panStep.toDouble(), fit) },
-            onLeft = { state = state.pannedBy(panStep.toDouble(), 0.0, fit) },
-            onRight = { state = state.pannedBy(-panStep.toDouble(), 0.0, fit) },
+            onUp = { state = state.pannedBy(0.0, panStep.toDouble(), frame) },
+            onDown = { state = state.pannedBy(0.0, -panStep.toDouble(), frame) },
+            onLeft = { state = state.pannedBy(panStep.toDouble(), 0.0, frame) },
+            onRight = { state = state.pannedBy(-panStep.toDouble(), 0.0, frame) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
         )
     }
@@ -189,10 +200,32 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
         drawCircle(halo, r + 2.dp.toPx(), at(0))
         drawCircle(startColor, r, at(0))
 
-        // Die eigene Position: ein Pfeil in Richtung des Tracks, auf einem Ring in der Flaechenfarbe (lesbar auf Linie und Grund).
+        // Die eigene Position: ein Pfeil in Richtung des Tracks, auf einem Ring in der Flaechenfarbe (lesbar auf Linie und Grund). Ausserhalb des Bildes sitzt er am Rand;
+        // vom Fusspunkt auf dem Track fuehrt eine gestrichelte Linie zur Position, mit dem Abstand daneben.
         if (marker != null) {
             val m = toScreen(view, w, h, projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat))
-            val centre = Offset(m.x.toFloat(), m.y.toFloat())
+            val shown = clampToFrame(m.x, m.y, w, h, MARKER_EDGE_MARGIN.toPx().toDouble())
+            val centre = Offset(shown.x.toFloat(), shown.y.toFloat())
+            val real = Offset(m.x.toFloat(), m.y.toFloat())
+            if (marker.foot != null) {
+                val f = toScreen(view, w, h, projectLon(marker.foot.lon, bounds.minLon), projectLat(marker.foot.lat))
+                val foot = Offset(f.x.toFloat(), f.y.toFloat())
+                if ((real - foot).getDistance() > DISTANCE_LINE_MIN.toPx()) {
+                    drawLine(halo, real, foot, strokeWidth = 5.dp.toPx())
+                    drawLine(markerColor, real, foot, strokeWidth = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx())))
+                    drawCircle(halo, 6.dp.toPx(), foot)
+                    drawCircle(markerColor, 3.5.dp.toPx(), foot)
+                    if (marker.distanceLabel != null) {
+                        val text = measurer.measure(marker.distanceLabel, textStyle)
+                        val mid = Offset((centre.x + foot.x) / 2, (centre.y + foot.y) / 2)
+                        val pad = 4.dp.toPx()
+                        val left = (mid.x - text.size.width / 2f).coerceIn(pad, (this.size.width - text.size.width - pad).coerceAtLeast(pad))
+                        val top = (mid.y - text.size.height / 2f).coerceIn(pad, (this.size.height - text.size.height - pad).coerceAtLeast(pad))
+                        drawRect(halo.copy(alpha = 0.88f), Offset(left - pad, top - pad / 2), androidx.compose.ui.geometry.Size(text.size.width + 2 * pad, text.size.height + pad))
+                        drawText(text, topLeft = Offset(left, top))
+                    }
+                }
+            }
             val rad = Math.toRadians(marker.bearingDeg)
             val dir = Offset(Math.sin(rad).toFloat(), -Math.cos(rad).toFloat())
             val side = Offset(-dir.y, dir.x)

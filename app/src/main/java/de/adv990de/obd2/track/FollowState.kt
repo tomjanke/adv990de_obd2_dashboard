@@ -37,6 +37,13 @@ class FollowLine private constructor(val points: List<TrackPoint>) {
     fun alongOf(segment: Int, fraction: Double): Double =
         cumulativeM[segment] + fraction * (cumulativeM[segment + 1] - cumulativeM[segment])
 
+    /** Der Punkt auf Teilstueck [segment] an der Stelle [fraction] (0 bis 1): zwischen den zwei Endpunkten, der kurze Weg ueber die Datumsgrenze. */
+    fun footPoint(segment: Int, fraction: Double): TrackPoint {
+        val a = points[segment]
+        val b = points[segment + 1]
+        return TrackPoint(null, a.lat + fraction * (b.lat - a.lat), a.lon + fraction * wrapLonDegrees(b.lon - a.lon), null, null, null)
+    }
+
     /** Die Richtung von Teilstueck [segment] in Grad (0 = Nord, im Uhrzeigersinn); ein Teilstueck ohne Laenge nimmt das naechste mit Laenge, sonst das vorige. */
     fun bearingAt(segment: Int): Double {
         fun hasLength(i: Int) = cumulativeM[i + 1] - cumulativeM[i] > 0.0
@@ -72,6 +79,8 @@ data class FollowResult(
     val totalM: Double,
     val segmentIndex: Int,
     val bearingDeg: Double,
+    /** Der Fusspunkt auf der Linie (der naechste Punkt des Tracks): das Ende der Abstandslinie in der Karte; `null` nur in Tests und Vorschauen. */
+    val foot: TrackPoint? = null,
 ) {
     /** Der Fortschritt von 0 bis 1. */
     val progress: Double get() = if (totalM > 0.0) (alongM / totalM).coerceIn(0.0, 1.0) else 0.0
@@ -148,6 +157,7 @@ class FollowTracker(private val line: FollowLine) {
             totalM = line.totalM,
             segmentIndex = chosen.segmentIndex,
             bearingDeg = line.bearingAt(chosen.segmentIndex),
+            foot = line.footPoint(chosen.segmentIndex, chosen.fraction),
         )
     }
 

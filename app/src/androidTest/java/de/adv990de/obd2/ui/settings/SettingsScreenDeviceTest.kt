@@ -147,9 +147,11 @@ class SettingsScreenDeviceTest {
      *  the initially-composed [LazyColumn] viewport (since the reconnect-base-delay field landed
      *  right above these switches), so `onNodeWithTag` alone would never find them. */
     private fun waitUntilSwitchIsOn(testTag: String, expected: Boolean) {
-        scrollToClearView(testTag)
+        // Die Zeile wird in jedem Durchlauf neu angesteuert: ein Schalter, der umspringt, kann das Layout verschieben (im Querformat, 448 dp hoch, schiebt es die Zeile aus dem komponierten Bereich),
+        // und eine nicht komponierte Zeile gibt es im Baum nicht. Erst danach wird sie fuer den naechsten Klick frei gestellt.
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
+                composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(testTag))
                 if (expected) {
                     composeRule.onNodeWithTag(testTag).assertIsOn()
                 } else {
@@ -157,6 +159,7 @@ class SettingsScreenDeviceTest {
                 }
             }.isSuccess
         }
+        scrollToClearView(testTag)
     }
 
     private fun waitUntilGpsSpeedSwitchIsOn(expected: Boolean) =
@@ -449,7 +452,8 @@ class SettingsScreenDeviceTest {
             scrollTo(str(summary))
             composeRule.onNodeWithText(str(summary)).assertIsDisplayed()
 
-            composeRule.onNodeWithText(str(title)).performClick()
+            // Ohne Koordinaten: im Querformat liegt eine bis zur Oberkante gescrollte Zeile hinter der Kopfleiste, ein Klick auf ihre Mitte traefe die Leiste (s. scrollToClearView).
+            composeRule.onNodeWithText(str(title)).performSemanticsAction(SemanticsActions.OnClick)
             composeRule.waitForIdle()
             assertEquals(route, navController.currentDestination?.route)
 

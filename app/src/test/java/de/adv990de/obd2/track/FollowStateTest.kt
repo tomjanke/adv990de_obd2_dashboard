@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 /** Nachfahren: Abstand, Strecke, Rest und Richtung auf einem Track. Alle Koordinaten sind erfunden (um 50 N, 10 E). */
 class FollowStateTest {
@@ -198,5 +199,49 @@ class FollowStateTest {
         val r = tracker(line).update(at(100.0, eastM = 60.0))!!
         assertEquals(0.0, r.distanceToTrackM, 1.0)
         assertEquals("the late pass, not the first 60 m away", 4_840.0, r.alongM, 10.0)
+    }
+
+    // ── Fusspunkt: das Ende der Abstandslinie in der Karte ────────────────────
+
+    @Test
+    fun `the foot point is the nearest point of the track`() {
+        val r = tracker(north(11)).update(at(400.0, eastM = 50.0))!!
+        val foot = r.foot!!
+        assertEquals(at(400.0).lat, foot.lat, 1e-5)
+        assertEquals(10.0, foot.lon, 1e-9)
+        assertEquals("der Abstand zur Position ist der Abstand der Antwort", r.distanceToTrackM, distanceM(at(400.0, eastM = 50.0), foot), 1.0)
+    }
+
+    @Test
+    fun `the foot point of a position before the start is the start`() {
+        val foot = tracker(north(11)).update(at(-300.0))!!.foot!!
+        assertEquals(at(0.0).lat, foot.lat, 1e-9)
+        assertEquals(at(0.0).lon, foot.lon, 1e-9)
+    }
+
+    @Test
+    fun `the foot point of the reverse direction is on the same road`() {
+        val position = at(400.0, eastM = 50.0)
+        val forward = tracker(north(11)).update(position)!!.foot!!
+        val reverse = tracker(north(11), FollowDirection.REVERSE).update(position)!!.foot!!
+        assertEquals(forward.lat, reverse.lat, 1e-9)
+        assertEquals(forward.lon, reverse.lon, 1e-9)
+    }
+
+    @Test
+    fun `the foot point agrees with the distance on a longer drive with noise`() {
+        val t = tracker(north(21))
+        t.update(at(500.0))
+        val position = at(470.0, eastM = 25.0)
+        val r = t.update(position)!!
+        assertEquals(r.distanceToTrackM, distanceM(position, r.foot!!), 1.0)
+    }
+
+    @Test
+    fun `the foot point of a part across the date line is on the short way`() {
+        val line = listOf(p(50.0, 179.999), p(50.0, -179.999))
+        val foot = tracker(line).update(p(50.0002, 180.0))!!.foot!!
+        assertEquals("zwischen den Endpunkten, nicht einmal um die Erde", 180.0, abs(foot.lon), 1e-3)
+        assertEquals(50.0, foot.lat, 1e-6)
     }
 }

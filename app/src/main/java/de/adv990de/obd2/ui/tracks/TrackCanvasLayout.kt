@@ -27,8 +27,8 @@ private const val MIN_SPAN_UNITS = 200.0 / EARTH_RADIUS_M
 /** Wie weit man hineinzoomen darf, als Vielfaches der angepassten Ansicht. */
 const val MAX_ZOOM_IN = 256.0
 
-/** Wie weit man herauszoomen darf, als Vielfaches der angepassten Ansicht (kleiner 1 = der Track wird kleiner als die Flaeche). */
-const val MIN_ZOOM_OUT = 0.5
+/** Wie weit man herauszoomen darf, als Vielfaches der angepassten Ansicht: **1** = nie kleiner als angepasst, der Track verlaesst den Rahmen nicht (Nutzerwunsch 2026-11-22). */
+const val MIN_ZOOM_OUT = 1.0
 
 /** Ein Punkt auf der Zeichenflaeche in Bildpunkten, Ursprung links oben. */
 data class ScreenPoint(val x: Double, val y: Double)
@@ -95,20 +95,95 @@ fun scaleBar(view: TrackView, centerLatDeg: Double, maxBarPx: Double): ScaleBar 
 fun scaleBarUnit(metres: Int): Pair<Int, Boolean> = if (metres >= 1_000) metres / 1_000 to true else metres to false
 
 /**
+ * Der Rahmen einer Zeichnung: die Flaeche ([widthPx] mal [heightPx]), der Rand [paddingPx] und das Rechteck des Tracks in der Kartenebene. Die Ansicht muss darin bleiben: ihr sichtbarer
+ * Ausschnitt liegt immer **im Rechteck des Tracks samt Rand** — der Track verlaesst den Rahmen nie. Ist der Ausschnitt in einer Richtung groesser als das Rechteck (angepasst und kaum
+ * hineingezoomt), steht die Mitte fest auf der Mitte des Tracks.
+ */
+data class TrackFrame(
+    val widthPx: Double,
+    val heightPx: Double,
+    val paddingPx: Double,
+    val minX: Double,
+    val maxX: Double,
+    val minY: Double,
+    val maxY: Double,
+    val fit: TrackView,
+) {
+    /** Schiebt die Mitte von [view] so weit, dass der Ausschnitt im Rechteck des Tracks samt Rand liegt. */
+    fun clamp(view: TrackView): TrackView {
+        val ppu = view.pxPerUnit
+        val pad = paddingPx / ppu
+        val halfW = widthPx / 2 / ppu
+        val halfH = heightPx / 2 / ppu
+        return view.copy(cx = clampAxis(view.cx, minX - pad + halfW, maxX + pad - halfW, (minX + maxX) / 2), cy = clampAxis(view.cy, minY - pad + halfH, maxY + pad - halfH, (minY + maxY) / 2))
+    }
+
+    private fun clampAxis(value: Double, lo: Double, hi: Double, middle: Double) = if (lo > hi) middle else value.coerceIn(lo, hi)
+
+    /** Zoomt um [factor] so, dass der Punkt unter dem Finger ([focusX], [focusY] in Bildpunkten) stehen bleibt; Massstab und Rahmen wie [zoomBy] und [clamp]. */
+    fun zoomAround(view: TrackView, factor: Double, focusX: Double, focusY: Double): TrackView {
+        val zoomed = zoomBy(view, factor, fit)
+        val mapX = view.cx + (focusX - widthPx / 2) / view.pxPerUnit
+        val mapY = view.cy - (focusY - heightPx / 2) / view.pxPerUnit
+        val moved = zoomed.copy(cx = mapX - (focusX - widthPx / 2) / zoomed.pxPerUnit, cy = mapY + (focusY - heightPx / 2) / zoomed.pxPerUnit)
+        return clamp(moved)
+    }
+}
+
+/** Der Rahmen eines Tracks mit dem Rechteck [bounds] auf einer Flaeche; seine angepasste Ansicht ist [fitView]. */
+fun trackFrame(bounds: TrackBounds, widthPx: Double, heightPx: Double, paddingPx: Double): TrackFrame = TrackFrame(
+    widthPx = widthPx,
+    heightPx = heightPx,
+    paddingPx = paddingPx,
+    minX = 0.0,
+    maxX = projectLon(bounds.maxLon, bounds.minLon),
+    minY = projectLat(bounds.minLat),
+    maxY = projectLat(bounds.maxLat),
+    fit = fitView(bounds, widthPx, heightPx, paddingPx),
+)
+
+/**
+ * Wo ein Punkt gezeichnet wird, der ausserhalb der Flaeche liegt: auf dem Rand ([marginPx] innen), auf dem Strahl von der Mitte zum Punkt. Liegt er im Bild, bleibt er, wo er ist.
+ * So bleibt die eigene Position auch dann sichtbar, wenn sie weit vom Track entfernt ist.
+ */
+fun clampToFrame(x: Double, y: Double, widthPx: Double, heightPx: Double, marginPx: Double): ScreenPoint {
+    val dx = x - widthPx / 2
+    val dy = y - heightPx / 2
+    val halfW = max(0.0, widthPx / 2 - marginPx)
+    val halfH = max(0.0, heightPx / 2 - marginPx)
+    val tx = if (dx == 0.0) Double.POSITIVE_INFINITY else halfW / kotlin.math.abs(dx)
+    val ty = if (dy == 0.0) Double.POSITIVE_INFINITY else halfH / kotlin.math.abs(dy)
+    val t = min(tx, ty)
+    if (t >= 1.0) return ScreenPoint(x, y)
+    return ScreenPoint(widthPx / 2 + dx * t, heightPx / 2 + dy * t)
+}
+
+/**
  * Was der Nutzer an der Ansicht verstellt hat, **relativ zur angepassten Ansicht**: [zoom] ist ein Vielfaches ihres Massstabs, [dx] und [dy] sind die Verschiebung ihrer Mitte in Einheiten der
  * Kartenebene. So ueberlebt der Zustand eine Drehung (die Flaeche wird eine andere, die angepasste Ansicht mit ihr): derselbe Ausschnitt der Gegend bleibt im Bild, statt dass dieselben
- * Bildpunkte gelten. Der Ausgangszustand [TrackViewState] ist die angepasste Ansicht.
+ * Bildpunkte gelten. Der Ausgangszustand [TrackViewState] ist die angepasste Ansicht. Jede Aenderung bleibt im [TrackFrame]: der Track verlaesst den Rahmen nie.
  */
 data class TrackViewState(val zoom: Double = 1.0, val dx: Double = 0.0, val dy: Double = 0.0) {
 
-    /** Die Ansicht dieses Zustands auf einer Flaeche, deren angepasste Ansicht [fit] ist. */
+    /** Die Ansicht dieses Zustands auf einer Flaeche, deren angepasste Ansicht [fit] ist (ohne den Rahmen, s. [resolved]). */
     fun resolve(fit: TrackView) = TrackView(cx = fit.cx + dx, cy = fit.cy + dy, pxPerUnit = fit.pxPerUnit * zoom)
 
-    /** Zoomt um [factor] um die Mitte, begrenzt wie [zoomBy]. */
-    fun zoomedBy(factor: Double, fit: TrackView): TrackViewState = from(zoomBy(resolve(fit), factor, fit), fit)
+    /** Die Ansicht im Rahmen: nach einer Drehung kann der gespeicherte Zustand auf der neuen Flaeche ausserhalb liegen und wird zurueckgeholt. */
+    fun resolved(frame: TrackFrame): TrackView = frame.clamp(resolve(frame.fit))
 
-    /** Verschiebt den Inhalt um [dxPx], [dyPx] Bildpunkte, wie [panBy]. */
-    fun pannedBy(dxPx: Double, dyPx: Double, fit: TrackView): TrackViewState = from(panBy(resolve(fit), dxPx, dyPx), fit)
+    /** Zoomt um [factor] um die Mitte, begrenzt wie [zoomBy] und im Rahmen. */
+    fun zoomedBy(factor: Double, frame: TrackFrame): TrackViewState = zoomedAround(factor, frame.widthPx / 2, frame.heightPx / 2, frame)
+
+    /** Zoomt um [factor] um den Punkt ([focusX], [focusY]) in Bildpunkten, der unter dem Finger stehen bleibt. */
+    fun zoomedAround(factor: Double, focusX: Double, focusY: Double, frame: TrackFrame): TrackViewState =
+        from(frame.zoomAround(resolved(frame), factor, focusX, focusY), frame.fit)
+
+    /** Verschiebt den Inhalt um [dxPx], [dyPx] Bildpunkte, wie [panBy], aber nie aus dem Rahmen. */
+    fun pannedBy(dxPx: Double, dyPx: Double, frame: TrackFrame): TrackViewState = from(frame.clamp(panBy(resolved(frame), dxPx, dyPx)), frame.fit)
+
+    /** Eine Geste mit zwei Fingern (oder einem): erst zoomen um den Mittelpunkt der Finger, dann verschieben; beides im Rahmen. */
+    fun transformedBy(centroidX: Double, centroidY: Double, panXPx: Double, panYPx: Double, zoomFactor: Double, frame: TrackFrame): TrackViewState =
+        zoomedAround(zoomFactor, centroidX, centroidY, frame).pannedBy(panXPx, panYPx, frame)
 
     /** Zurueck auf die angepasste Ansicht. */
     fun fitted() = TrackViewState()
