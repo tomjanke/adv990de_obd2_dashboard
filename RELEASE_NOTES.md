@@ -1,5 +1,21 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.47.0 (versionCode 169)
+
+**Neu: Tracks lassen sich einlesen, nachfahren und im Sicherungspaket mitnehmen.** Damit ist der Funktionsumfang „Tracks“ (F8) vollständig, bis auf einen Kartenhintergrund.
+
+### Was sich ändert
+
+- **GPX einlesen:** das Symbol „Importieren“ in der Kopfleiste der Track-Liste öffnet die Seite „Daten sichern und wiederherstellen“ im Importmodus. Eine GPX-Datei (oder `tracks.gpx` in einem Paket) wird mit **Vorschau und einem Kästchen je Spur** eingelesen: Name, Strecke, Punkte, Spuren ohne Zeit, übersprungene Punkte. **Dubletten** (gleicher Name, gleiche Punktzahl, gleicher erster und letzter Punkt) werden nur gezählt und sind nie wählbar; „Alle auswählen“ und „Keine auswählen“ gibt es ab zwei neuen Spuren. Geschrieben wird erst nach „Importieren“, ganz oder gar nicht. Wegpunkte werden gelesen, aber nicht übernommen.
+- **Nachfahren:** in der Ansicht eines Tracks öffnet „Diesen Track nachfahren“ eine Seite mit der Karte und deiner **eigenen Position**, dem **Abstand zum Track**, dem Zurückgelegten und dem Rest, einem Fortschrittsbalken und der Wahl „Wie aufgezeichnet | Rückwärts“. **Keine Routenführung:** kein Ton, keine Ansage, keine Warnung bei Abweichung — die App zeigt nur, wo du stehst. Die Position wird nur auf dieser Seite verwendet und weder gespeichert noch protokolliert; der Bildschirm bleibt an, solange die Seite sichtbar ist.
+- **Tracks im Sicherungspaket:** auf der Seite „Daten sichern und wiederherstellen“ gibt es den Teil **Tracks** (`tracks.gpx`, ein `<trk>` je beendetem Track, älteste zuerst). Er ist **nie vorgewählt** und nur im Paket, nicht als CSV. **Die Datei enthält deine Wege** — ein Hinweis sagt es; wer das Paket bekommt, kennt deine Routen.
+- **Geprüft:** JVM 4054 Tests, Geräte-Suite 1092 Tests (Pixel 8 Pro) und Lint ohne Fehler, Mutationsproben an Kern, ViewModels, Exporter und Oberfläche (die Zeilen der Auswahl, des Nachfahrens und des Exports sind je mit Proben abgesichert).
+- **Nicht gesehen:** nie mit einem echten GPS-Fix und nie auf einer Fahrt; die Zuordnung bei Schleifen, Rückwegen und GPS-Sprüngen beruht auf geschätzten Werten, nicht auf echten Strecken; keine GPX-Datei aus einer fremden App (Garmin, Komoot, Karten-App) eingelesen und keine Datei dieser App dort geöffnet; Dateidialog und Teilen-Menü nicht von Hand bedient; der Akkuverbrauch eines Positionsfixes je Sekunde beim Nachfahren ist nicht gemessen; für sehr viele oder sehr lange Tracks gibt es im Export keinen Hinweis (der Import lehnt über 64 MiB oder 2 Millionen Punkte ab). Die spanischen Texte sind meine Übersetzung, nicht gegengelesen.
+- **Noch nicht da:** Kartenhintergrund.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.46.3 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1; ein neuer Eintrag `tracks.gpx`, ältere Apps ignorieren ihn), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.46.3 (versionCode 168)
 
 **Geändert: Die Nachtstufe der Helligkeit ist dunkler.** Auf deiner Fahrt im Dunkeln (Log: 21 lx) war die Nachtstufe mit 20 % noch zu hell, die Blendung war aber „viel besser“ als vorher. Die Nachtstufe steht jetzt auf 10 %.
