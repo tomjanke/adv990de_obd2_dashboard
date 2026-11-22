@@ -157,11 +157,12 @@ class MapFileStore(
      */
     suspend fun import(open: () -> InputStream?, knownSize: Long? = null): MapImportResult = changeLock.withLock {
         withContext(Dispatchers.IO) {
+            // Zuerst den Ordner: `File.usableSpace` meldet fuer einen Pfad, den es nicht gibt, 0 — beim ersten Einspielen waere sonst jede Datei „zu gross fuer den freien Platz“ (am Gerät gefunden).
+            dir.mkdirs()
             if (knownSize != null) {
                 if (knownSize > maxBytes) return@withContext MapImportResult.Failure(MapProblem.TOO_LARGE)
                 if (knownSize + MAP_SPACE_MARGIN_BYTES > usableSpace()) return@withContext MapImportResult.Failure(MapProblem.NO_SPACE)
             }
-            dir.mkdirs()
             val tmp = tempFile // eine liegengebliebene Zwischendatei wird beim Schreiben ueberschrieben
             var keep = false
             try {

@@ -135,6 +135,7 @@ fun TrackDetailScreen(
         },
         exporting = exporting,
         snackbarHostState = snackbarHostState,
+        tiles = tiles,
     )
 
     when (val dialog = followDialog) {

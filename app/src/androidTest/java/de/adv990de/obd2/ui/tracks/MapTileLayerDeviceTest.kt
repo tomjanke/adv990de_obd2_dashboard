@@ -29,6 +29,9 @@ import de.adv990de.obd2.map.MapTiles
 import de.adv990de.obd2.map.PmTilesArchive
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
+import de.adv990de.obd2.track.TrackSource
+import de.adv990de.obd2.track.TrackSummary
+import de.adv990de.obd2.ui.theme.AppTheme
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.MapColors
 import kotlinx.coroutines.runBlocking
@@ -143,6 +146,23 @@ class MapTileLayerDeviceTest {
         assertTrue("Startmarke", map.near(start.first, start.second, colors.tertiary.toArgb(), radius = 2))
         val onLine = (0 until map.height).any { y -> (0 until map.width).any { x -> map[x, y].near(colors.primary.toArgb()) } }
         assertTrue("Linie", onLine)
+    }
+
+    @Test
+    fun theDetailViewPassesTheMapOnToTheDrawing() {
+        val summary = TrackSummary(
+            id = 1, name = "Runde", source = TrackSource.RECORDED, startMs = 1_800_000_000_000, endMs = 1_800_003_725_000,
+            sessionId = null, distanceM = 1_000, ascentM = null, descentM = null, pointCount = points.size, createdMs = 1_800_000_000_000, running = false,
+        )
+        val mapTiles = tiles()
+        composeRule.setContent {
+            AppTheme(colorScheme = colors, typography = AppTypography) {
+                TrackDetailContent(TrackDetailState.Ready(summary, points, bounds), onBack = {}, tiles = mapTiles)
+            }
+        }
+        composeRule.waitForIdle()
+        waitForColourAt(lat0 - 0.002, lon0 - 0.003, palette.water)
+        composeRule.onNodeWithTag(MAP_ATTRIBUTION_TEST_TAG).assertIsDisplayed()
     }
 
     @Test

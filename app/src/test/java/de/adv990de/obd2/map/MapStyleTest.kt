@@ -86,6 +86,15 @@ class MapStyleTest {
             assertEquals(palette.water, stroke(style, "water", line("kind_detail" to "canal"))?.argb)
             assertEquals(palette.water, stroke(style, "water", line("kind_detail" to "ditch"))?.argb)
         }
+        // So steht es in einer echten Datei: die Art eines Wasserlaufs in `kind`.
+        for (style in listOf(view, hud)) {
+            assertEquals(palette.water, stroke(style, "water", line("kind" to "river"))?.argb)
+            assertEquals(palette.water, stroke(style, "water", line("kind" to "canal"))?.argb)
+            assertEquals(palette.water, stroke(style, "water", line("kind" to "stream"))?.argb)
+        }
+        assertTrue(stroke(view, "water", line("kind" to "river"))!!.widthDp > stroke(view, "water", line("kind" to "stream"))!!.widthDp)
+        assertNull(view.op("water", line("kind" to "dock"), 15.0))
+        assertNull(view.op("water", line("kind" to "dock", "kind_detail" to "river"), 15.0)) // `kind` hat Vorrang
         assertNull(view.op("water", line("kind_detail" to "dock"), 15.0))
         assertNull(view.op("water", line(), 15.0))
         assertNull(view.op("water", feature(TileGeometryType.POINT, "kind" to "lake"), 15.0))
@@ -146,6 +155,14 @@ class MapStyleTest {
         }
         for (kind in listOf("ferry", "pier", "aerialway", "aeroway", "invented")) assertNull(kind, road(view, kind))
         assertNull(road(view, null))
+    }
+
+    @Test
+    fun `a living street is a small road and a platform is not drawn`() {
+        assertEquals(palette.roadMinor, road(view, "other", "living_street")?.argb)
+        assertNull(road(view, "other", "platform"))
+        assertNull(road(view, "other", null))
+        assertNull(road(view, "aeroway", "runway"))
     }
 
     @Test

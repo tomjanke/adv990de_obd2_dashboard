@@ -35,6 +35,8 @@ private val DETAIL_IGNORED = setOf("steps", "sidewalk", "crossing", "corridor", 
 /** Die Strassenklasse; `null` fuer das, was nie gezeichnet wird (Treppen, Gehwege, Faehren, Rollbahnen, Seilbahnen ...). Zuerst entscheidet `kind_detail`, dann `kind`. */
 fun roadClass(kind: String?, detail: String?): RoadClass? {
     if (detail == "track") return RoadClass.TRACK
+    // Verkehrsberuhigte Strassen stehen als kind „other“ mit kind_detail „living_street“ (echte Datei, 2026-11-22): eine Strasse wie jede kleine.
+    if (kind == "other" && detail == "living_street") return RoadClass.MINOR
     if (detail != null && detail in DETAIL_IGNORED) return null
     if (kind == "rail") return RoadClass.RAIL
     if (detail != null && detail in DETAIL_SERVICE) return RoadClass.SERVICE
@@ -112,7 +114,8 @@ class MapStyle(private val palette: MapPalette, val profile: MapProfile) {
 
     private fun water(feature: TileFeature, zoom: Double): DrawOp? = when (feature.type) {
         TileGeometryType.POLYGON -> DrawOp.Fill(palette.water, ORDER_WATER_FILL)
-        TileGeometryType.LINESTRING -> when (feature.string("kind_detail")) {
+        // In einer echten Datei (Protomaps 4.15, Frankfurt, 2026-11-22) steht die Art eines Wasserlaufs in `kind` („river“, „canal“), `kind_detail` fehlt; die Doku nannte `kind_detail`: beides gilt.
+        TileGeometryType.LINESTRING -> when (feature.string("kind") ?: feature.string("kind_detail")) {
             "river", "canal" -> DrawOp.Line(palette.water, roadWidthDp(RoadClass.MINOR, zoom), ORDER_WATER_LINE)
             "stream", "ditch", "drain" -> DrawOp.Line(palette.water, roadWidthDp(RoadClass.SERVICE, zoom), ORDER_WATER_LINE)
             else -> null

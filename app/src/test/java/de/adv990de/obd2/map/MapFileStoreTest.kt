@@ -136,6 +136,16 @@ class MapFileStoreTest {
     }
 
     @Test
+    fun `the first import into a folder that does not exist yet sees the real free space`() {
+        val fresh = java.io.File(tmp.root, "never-created")
+        assertFalse(fresh.exists())
+        val bytes = good()
+        // Mit dem echten usableSpace (Standard): fuer einen Pfad, den es nicht gibt, meldet File 0 — der Ordner muss vorher da sein.
+        val result = runBlocking { MapFileStore(fresh).import({ ByteArrayInputStream(bytes) }, bytes.size.toLong()) }
+        assertTrue(result.toString(), result is MapImportResult.Success)
+    }
+
+    @Test
     fun `a source exactly at the limit is accepted`() {
         val bytes = good()
         assertTrue(import(store(max = bytes.size.toLong()), bytes, size = bytes.size.toLong()) is MapImportResult.Success)
