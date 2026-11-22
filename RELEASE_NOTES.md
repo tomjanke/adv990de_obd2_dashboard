@@ -1,5 +1,20 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.48.1 (versionCode 173)
+
+**Verbessert: Das Roadbook-HUD ist größer, die Karte zeigt die Strecke voraus, und das Ein- und Ausblenden ist weich.**
+
+### Was sich ändert
+
+- **Größer:** im Hochformat rund 106 dp hoch (Karte 144 × 88 dp, Pfeil 64 dp), im Querformat rund 120 dp (Karte 160 × 102 dp, Pfeil 72 dp, 480 dp breit). Es reicht damit knapp in die Wertzeile der oberen Kacheln, die Ziffern bleiben frei (gerechnet, auf der echten Querformat-Kachel mit Tankzeile nicht nachgemessen).
+- **Kartenausschnitt auf die Strecke zugeschnitten:** der Maßstab ist so gewählt, dass die ganze Strecke voraus samt Kurvenscheitel und 20 m hinter dir hineinpassen; die Strecke wird rund 1,5-mal größer gezeichnet als vorher. **Deine Position liegt immer im Bild**, mit Rand: vor einer Rechtskurve links unten, vor einer Linkskurve rechts unten, auf der Geraden mittig.
+- **Weiches Ein- und Ausblenden:** Einblenden rund 0,6 s mit sanftem Auslauf, Ausblenden rund 0,9 s, die nächste Richtungsänderung wird übergeblendet. Deckkraft, Balken und die Karte gleiten von einem GPS-Fix zum nächsten, statt im Sekundentakt zu springen (die Karte läuft dabei rund 1 s hinter dem Fix her).
+- **Geprüft:** JVM 4178 Tests, Geräte-Suite 1187 Tests (Pixel 8 Pro; im vollen Lauf waren sieben Tests rot, vier davon durch einen Fehler im Test bei Querformat, inzwischen behoben und einzeln grün; ein zweiter voller Lauf fand nicht statt), Lint ohne Fehler. Die Glättung ist an einer Aufnahme vom Pixel gemessen (Einblenden vorher rund 0,15 s mit Sprüngen im Sekundentakt, jetzt rund 0,56 s stetig).
+- **Nicht gesehen:** nie mit einem echten GPS-Fix und nie auf einer Fahrt; das HUD verdeckt, solange es steht, einen größeren Teil der oberen Kachelreihe als zuvor.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.48.0 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.48.0 (versionCode 172)
 
 **Neu: Nachfahren als Sitzung mit Roadbook-Anzeige und Auto-Zoom.** Du startest das Nachfahren auf der Seite eines Tracks und wechselst dann zum Dashboard: dort zeigt der Aufnahmeknopf das Nachfahren als **grünen Kreis mit kleinem Play-Dreieck**, und kurz vor einer bedeutsamen Richtungsänderung blendet sich eine dezente **Roadbook-Anzeige** ein.
