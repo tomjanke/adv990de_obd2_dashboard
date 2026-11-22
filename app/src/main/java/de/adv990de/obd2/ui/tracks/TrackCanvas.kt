@@ -51,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import de.adv990de.obd2.R
+import de.adv990de.obd2.map.MapTiles
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.ui.components.AppIcons
@@ -74,6 +75,8 @@ internal const val TRACK_PAN_DOWN_TEST_TAG = "track_pan_down"
 internal const val TRACK_PAN_LEFT_TEST_TAG = "track_pan_left"
 internal const val TRACK_PAN_RIGHT_TEST_TAG = "track_pan_right"
 internal const val TRACK_ORIENTATION_TEST_TAG = "track_orientation"
+internal const val MAP_NOT_COVERING_TEST_TAG = "map_not_covering"
+internal const val MAP_ATTRIBUTION_TEST_TAG = "map_attribution"
 
 /**
  * Die eigene Position beim Nachfahren: der Punkt [point] und die Richtung des Tracks dort ([bearingDeg], 0 = Nord, im Uhrzeigersinn). Gezeichnet als Pfeil in Fahrtrichtung des Tracks —
@@ -132,6 +135,7 @@ internal fun TrackMapView(
     marker: TrackMarker? = null,
     orientable: Boolean = false,
     autoSpanM: Double? = null,
+    tiles: MapTiles? = null,
 ) {
     var state by rememberSaveable(stateSaver = ViewStateSaver) { mutableStateOf(TrackViewState()) }
     var headingState by rememberSaveable(stateSaver = HeadingStateSaver) { mutableStateOf(HeadingViewState()) }
@@ -189,6 +193,7 @@ internal fun TrackMapView(
             view = view,
             size = size,
             marker = marker,
+            tiles = tiles,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(TRACK_CANVAS_TEST_TAG)
@@ -217,6 +222,10 @@ internal fun TrackMapView(
                     }
                 },
         )
+        if (tiles != null) {
+            val covers = remember(tiles, bounds) { tiles.coversArea(bounds.minLat, bounds.minLon, bounds.maxLat, bounds.maxLon) }
+            MapNotices(covers, Modifier.align(Alignment.TopStart).padding(8.dp))
+        }
         val panStep = (minOf(size.width, size.height) * PAN_STEP_SHARE).toDouble()
         // Die Knoepfe zoomen und verschieben in beiden Ansichten gleich; in der Ansicht „Fahrtrichtung oben“ zoomen sie um die Position, damit sie stehen bleibt.
         fun zoomButton(factor: Double) {
@@ -294,8 +303,34 @@ private fun rememberMapRotation(active: Boolean, targetDeg: Double): Double {
     }
 }
 
+/** Der Hinweis, dass die Karte den Track nicht abdeckt, und die Quellenangabe der Kartendaten (Pflicht der ODbL), links oben ueber der Karte. */
 @Composable
-private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: TrackView, size: IntSize, marker: TrackMarker?, modifier: Modifier) {
+private fun MapNotices(covers: Boolean, modifier: Modifier) {
+    Column(modifier, verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+        val shape = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+        if (!covers) {
+            Text(
+                stringResource(R.string.map_not_covering),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.testTag(MAP_NOT_COVERING_TEST_TAG).background(shape).padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        } else {
+            Text(
+                stringResource(R.string.map_attribution),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag(MAP_ATTRIBUTION_TEST_TAG).background(shape).padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: TrackView, size: IntSize, marker: TrackMarker?, tiles: MapTiles?, modifier: Modifier) {
+    val layer = rememberMapTileLayer(tiles)
+    val visible = if (layer != null) remember(layer, view, size) { layer.visibleFor(view, size.width.toDouble(), size.height.toDouble(), bounds.minLon) } else null
+    if (layer != null && visible != null) layer.RequestTiles(visible)
     val line = MaterialTheme.colorScheme.primary
     val startColor = MaterialTheme.colorScheme.tertiary
     val endColor = MaterialTheme.colorScheme.onSurface
@@ -324,6 +359,7 @@ private fun TrackCanvas(points: List<TrackPoint>, bounds: TrackBounds, view: Tra
 
     Canvas(modifier.semantics { contentDescription = description }) {
         if (size.width == 0 || size.height == 0 || points.isEmpty()) return@Canvas
+        if (layer != null && visible != null) drawMapTiles(layer, visible, view, bounds.minLon)
         val w = size.width.toDouble()
         val h = size.height.toDouble()
         fun at(i: Int): Offset {

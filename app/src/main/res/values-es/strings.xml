@@ -1011,4 +1011,28 @@
         <item quantity="many">%1$d rutas importadas</item>
         <item quantity="other">%1$d rutas importadas</item>
     </plurals>
+
+    <!-- Karte (PMTiles) -->
+    <string name="map_attribution">© colaboradores de OpenStreetMap</string>
+    <string name="map_not_covering">El mapa no cubre este recorrido</string>
+    <string name="settings_map_group">Mapa</string>
+    <string name="settings_map_title">Archivo de mapa</string>
+    <string name="settings_map_none">Sin archivo de mapa. Toca para elegir un archivo PMTiles con teselas vectoriales (datos de OpenStreetMap, esquema Protomaps). Se lee desde el teléfono; no se descarga nada.</string>
+    <string name="settings_map_ready">%1$s · %2$s</string>
+    <string name="settings_map_default_name">Mapa</string>
+    <string name="settings_map_working">Cargando el archivo de mapa …</string>
+    <string name="settings_map_broken">El archivo de mapa no sirve. Toca para sustituirlo.</string>
+    <string name="settings_map_coverage">Zona: %1$.2f a %2$.2f °N, %3$.2f a %4$.2f °E</string>
+    <string name="settings_map_zoom">Niveles de zoom %1$d a %2$d</string>
+    <string name="settings_map_replace">Elegir otro archivo</string>
+    <string name="settings_map_remove">Quitar</string>
+    <string name="settings_map_remove_title">¿Quitar el mapa?</string>
+    <string name="settings_map_remove_message">El archivo se borra del teléfono. Los recorridos se muestran sin mapa hasta que cargues otro archivo.</string>
+    <string name="settings_map_failed_title">No se cargó el archivo de mapa</string>
+    <string name="settings_map_problem_not_pmtiles">No es un archivo PMTiles (versión 3).</string>
+    <string name="settings_map_problem_not_vector">El archivo contiene imágenes ráster; solo se admiten teselas vectoriales.</string>
+    <string name="settings_map_problem_unsupported">Las teselas usan una compresión que la app no lee (solo ninguna y gzip).</string>
+    <string name="settings_map_problem_too_large">El archivo es demasiado grande (límite 8 GiB).</string>
+    <string name="settings_map_problem_no_space">No hay espacio libre suficiente en el teléfono.</string>
+    <string name="settings_map_problem_unreadable">No se pudo leer el archivo.</string>
 </resources>

@@ -37,6 +37,15 @@ internal fun LazyListScope.recordingSection(
 }
 
 
+/** Die Gruppe „Karte“: die Datei mit den Kacheln fuer die Trackansicht (nicht im Sicherungspaket, nicht heruntergeladen). */
+internal fun LazyListScope.mapSection(mapVm: MapSettingsViewModel) {
+    item { SettingsGroupHeader(stringResource(R.string.settings_map_group)) }
+    item {
+        MapSettingSection(mapVm)
+        HorizontalDivider()
+    }
+}
+
 internal fun LazyListScope.vehicleSection(
     navController: NavController,
     fuel: FuelSettingsUi,

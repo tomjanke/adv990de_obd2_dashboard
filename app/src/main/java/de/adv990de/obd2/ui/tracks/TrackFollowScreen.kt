@@ -62,6 +62,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.map.MapTiles
 import de.adv990de.obd2.track.FollowDirection
 import de.adv990de.obd2.track.FollowReading
 import de.adv990de.obd2.track.FollowResult
@@ -98,7 +99,8 @@ internal const val FOLLOW_STOP_BAR_TEST_TAG = "follow_stop_bar"
  * verwendet, solange das Nachfahren laeuft und die App sichtbar ist, nicht gespeichert und nicht geloggt.
  */
 @Composable
-fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = hiltViewModel()) {
+fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = hiltViewModel(), mapVm: MapLayerViewModel = hiltViewModel()) {
+    val tiles by mapVm.tiles.collectAsStateWithLifecycle()
     val track by vm.track.collectAsStateWithLifecycle()
     val direction by vm.direction.collectAsStateWithLifecycle()
     val reading by vm.reading.collectAsStateWithLifecycle()
@@ -138,6 +140,7 @@ fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = h
             vm.stop()
             close()
         },
+        tiles = tiles,
     )
 }
 
@@ -161,6 +164,7 @@ internal fun TrackFollowContent(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onStop: () -> Unit = {},
+    tiles: MapTiles? = null,
 ) {
     val ready = track as? FollowTrackState.Ready
     val title = when (track) {
@@ -197,7 +201,7 @@ internal fun TrackFollowContent(
                 FollowTrackState.NotFound -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_not_found))
                 FollowTrackState.Failed -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_failed))
                 is FollowTrackState.TooShort -> EmptyState(Icons.Default.Place, stringResource(R.string.track_follow_too_short), Modifier.testTag(FOLLOW_TOO_SHORT_TEST_TAG))
-                is FollowTrackState.Ready -> if (ready != null) ReadyContent(ready, direction, reading, permissionMissing, onDirection, onOpenSettings, onStop)
+                is FollowTrackState.Ready -> if (ready != null) ReadyContent(ready, direction, reading, permissionMissing, onDirection, onOpenSettings, onStop, tiles)
             }
         }
     }
@@ -212,6 +216,7 @@ private fun ReadyContent(
     onDirection: (FollowDirection) -> Unit,
     onOpenSettings: () -> Unit,
     onStop: () -> Unit,
+    tiles: MapTiles?,
 ) {
     val locale = LocalLocale.current.platformLocale
     val marker = (reading as? FollowReading.Following)?.let {
@@ -227,7 +232,7 @@ private fun ReadyContent(
     // Die Karte mit dem kompakten HUD obenauf (mittig, ohne den Bedienblock unten rechts zu beruehren).
     val map: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
-            TrackMapView(drawn, track.bounds, Modifier.fillMaxSize(), marker, orientable = true, autoSpanM = following?.autoSpanM)
+            TrackMapView(drawn, track.bounds, Modifier.fillMaxSize(), marker, orientable = true, autoSpanM = following?.autoSpanM, tiles = tiles)
             FadingRoadbookHud(following?.hud, compact = true, modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 8.dp, end = 72.dp))
         }
     }

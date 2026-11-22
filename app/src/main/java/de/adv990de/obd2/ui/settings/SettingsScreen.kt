@@ -56,6 +56,7 @@ fun SettingsScreen(
     crashVm: CrashReportingSettingsViewModel = hiltViewModel(),
     fuelVm: FuelSettingsViewModel = hiltViewModel(),
     alarmVm: AlarmSettingsViewModel = hiltViewModel(),
+    mapVm: MapSettingsViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val logOnlyDtc by recordingVm.logOnlyDtc.collectAsStateWithLifecycle()
@@ -393,6 +394,7 @@ fun SettingsScreen(
                 onCoolantWarningChange = alarmVm::setCoolantWarningC,
             )
             recordingSection(logOnlyDtc, recordingVm)
+            mapSection(mapVm)
             vehicleSection(
                 navController,
                 FuelSettingsUi(fuelRangeFullKm, fuelLearned, fuelCapacityDl, fuelReserveKm),

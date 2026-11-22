@@ -962,4 +962,28 @@
         <item quantity="one">%1$d Track importiert</item>
         <item quantity="other">%1$d Tracks importiert</item>
     </plurals>
+
+    <!-- Karte (PMTiles) -->
+    <string name="map_attribution">© OpenStreetMap-Mitwirkende</string>
+    <string name="map_not_covering">Die Karte deckt diesen Track nicht ab</string>
+    <string name="settings_map_group">Karte</string>
+    <string name="settings_map_title">Kartendatei</string>
+    <string name="settings_map_none">Keine Kartendatei. Tippen, um eine PMTiles-Datei mit Vektorkacheln zu wählen (OpenStreetMap-Daten, Schema Protomaps). Sie wird vom Telefon gelesen; es wird nichts heruntergeladen.</string>
+    <string name="settings_map_ready">%1$s · %2$s</string>
+    <string name="settings_map_default_name">Karte</string>
+    <string name="settings_map_working">Kartendatei wird eingespielt …</string>
+    <string name="settings_map_broken">Die Kartendatei ist nicht brauchbar. Tippen zum Ersetzen.</string>
+    <string name="settings_map_coverage">Gebiet: %1$.2f bis %2$.2f °N, %3$.2f bis %4$.2f °O</string>
+    <string name="settings_map_zoom">Zoomstufen %1$d bis %2$d</string>
+    <string name="settings_map_replace">Andere Datei wählen</string>
+    <string name="settings_map_remove">Entfernen</string>
+    <string name="settings_map_remove_title">Karte entfernen?</string>
+    <string name="settings_map_remove_message">Die Datei wird vom Telefon gelöscht. Tracks erscheinen ohne Karte, bis du wieder eine Datei einspielst.</string>
+    <string name="settings_map_failed_title">Die Kartendatei wurde nicht eingespielt</string>
+    <string name="settings_map_problem_not_pmtiles">Das ist keine PMTiles-Datei (Version 3).</string>
+    <string name="settings_map_problem_not_vector">Die Datei enthält Rasterbilder; unterstützt sind nur Vektorkacheln.</string>
+    <string name="settings_map_problem_unsupported">Die Kacheln nutzen eine Kompression, die die App nicht liest (nur keine und gzip).</string>
+    <string name="settings_map_problem_too_large">Die Datei ist zu groß (Grenze 8 GiB).</string>
+    <string name="settings_map_problem_no_space">Auf dem Telefon ist nicht genug Platz frei.</string>
+    <string name="settings_map_problem_unreadable">Die Datei ließ sich nicht lesen.</string>
 </resources>

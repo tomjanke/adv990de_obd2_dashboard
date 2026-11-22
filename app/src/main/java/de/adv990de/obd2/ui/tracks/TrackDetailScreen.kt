@@ -51,6 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
+import de.adv990de.obd2.map.MapTiles
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
@@ -79,8 +80,14 @@ private const val GPX_MIME = "application/gpx+xml"
 
 /** Die Ansicht eines Tracks (Route `track_detail/{id}`): Zeichnung ohne Karte, darunter oder daneben die Kennzahlen; in der Kopfleiste „als GPX speichern“ und „als GPX teilen“. */
 @Composable
-fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = hiltViewModel(), followVm: FollowStatusViewModel = hiltViewModel()) {
+fun TrackDetailScreen(
+    navController: NavController,
+    vm: TrackDetailViewModel = hiltViewModel(),
+    followVm: FollowStatusViewModel = hiltViewModel(),
+    mapVm: MapLayerViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val tiles by mapVm.tiles.collectAsStateWithLifecycle()
     val followInfo by followVm.info.collectAsStateWithLifecycle()
     val recordingActive by followVm.recordingActive.collectAsStateWithLifecycle()
     // „Nachfahren“: laeuft eine Aufzeichnung, geht es nicht (Hinweis); laeuft schon ein anderer Track, fragt ein Dialog vorher; sonst oeffnet es die Karte, die die Sitzung beginnt.
@@ -161,6 +168,7 @@ internal fun TrackDetailContent(
     onFollow: () -> Unit = {},
     exporting: Boolean = false,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    tiles: MapTiles? = null,
 ) {
     val title = (state as? TrackDetailState.Ready)?.summary?.name ?: stringResource(R.string.track_detail_title)
     // Exportieren kann man nur, was Punkte hat (ein leerer Track haette nur eine nutzlose Datei).
@@ -197,14 +205,14 @@ internal fun TrackDetailContent(
                 TrackDetailState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 TrackDetailState.NotFound -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_not_found))
                 TrackDetailState.Failed -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_failed))
-                is TrackDetailState.Ready -> ReadyContent(state)
+                is TrackDetailState.Ready -> ReadyContent(state, tiles)
             }
         }
     }
 }
 
 @Composable
-private fun ReadyContent(state: TrackDetailState.Ready) {
+private fun ReadyContent(state: TrackDetailState.Ready, tiles: MapTiles?) {
     val bounds = state.bounds
     if (bounds == null) {
         EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_empty))
@@ -213,7 +221,7 @@ private fun ReadyContent(state: TrackDetailState.Ready) {
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     if (landscape) {
         Row(Modifier.fillMaxSize()) {
-            TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxSize())
+            TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxSize(), tiles = tiles)
             Column(Modifier.width(240.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TrackStatsPanel(state.summary, Modifier.fillMaxWidth())
                 ExportNote()
@@ -221,7 +229,7 @@ private fun ReadyContent(state: TrackDetailState.Ready) {
         }
     } else {
         Column(Modifier.fillMaxSize()) {
-            TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxWidth())
+            TrackMapView(state.points, bounds, Modifier.weight(1f).fillMaxWidth(), tiles = tiles)
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TrackStatsPanel(state.summary, Modifier.fillMaxWidth())
                 ExportNote()
