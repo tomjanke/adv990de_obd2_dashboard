@@ -1450,7 +1450,7 @@ Anlass: der Befund der QS-Durchsicht (der Export der Fahrten kennt keine Grenze,
 
 ```bash
 ./gradlew :app:testDebugUnitTest          # 4178 JVM-Unit-Tests
-./gradlew :app:connectedDebugAndroidTest  # 1187 Instrumentation-Tests (Gerät nötig)
+./gradlew :app:connectedDebugAndroidTest  # 1188 Instrumentation-Tests (Gerät nötig)
 ./gradlew assembleDebug                    # APK
 ./gradlew assembleRelease                  # signiert via env-vars (s. README)
 ```

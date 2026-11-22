@@ -1,5 +1,20 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.48.2 (versionCode 174)
+
+**Verbessert: Das Roadbook-HUD ist doppelt so hoch und im Querformat 30 % breiter; Pfeil, Karte und Schrift wachsen mit.**
+
+### Was sich ändert
+
+- **Größer:** im Querformat 624 dp breit (vorher 480) und so hoch, wie die Fläche über dem Hauptmenü es zulässt (rund 220 dp, vorher 120); im Hochformat rund 212 dp hoch (vorher 106), dort bleibt es über die volle Breite. Der Pfeil ist 128 dp groß (vorher 72), die Karte im Querformat 240 × 222 dp (vorher 160 × 102), im Hochformat 150 × 194 dp.
+- **Schrift und Karte wachsen mit:** die Entfernung steht in 44 sp (Querformat; vorher 24 sp) und schrumpft bei langen Werten wie „1,2 km“, die Zeile „danach …“ ist größer, Linien, Scheitelpunkt und Positionspfeil der Karte sind entsprechend dicker.
+- **Preis:** solange das HUD steht, deckt es im Querformat die ganze obere Fläche mit den Kachelwerten und der Tankzeile ab, im Hochformat die obere Kachelreihe. Es erscheint nur kurz vor einer Richtungsänderung. Die Beschriftung leerer Kacheln kann durch die halbtransparente Fläche (92 %) schwach durchscheinen.
+- **Geprüft:** JVM 4178 Tests, Geräte-Suite voll 1188 Tests (Pixel 8 Pro, Querformat), davon ein Lauf mit einem Fehler in einem Einstellungs-Test (Platz im Querformat, im Test behoben, Klasse 23/23). Neuer Test: Entfernung, „danach …“ und Karte bleiben im breiten HUD auseinander und werden nicht abgeschnitten.
+- **Nicht gesehen:** nie mit einem echten GPS-Fix und nie auf einer Fahrt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.48.1 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.48.1 (versionCode 173)
 
 **Verbessert: Das Roadbook-HUD ist größer, die Karte zeigt die Strecke voraus, und das Ein- und Ausblenden ist weich.**

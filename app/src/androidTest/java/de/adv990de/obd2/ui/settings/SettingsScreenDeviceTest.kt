@@ -137,6 +137,12 @@ class SettingsScreenDeviceTest {
         composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG)
             .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -300f) }
         composeRule.waitForIdle()
+        // Liegt die Zeile nahe am Listenende (Querformat, wenig Hoehe), schiebt das Zurueckscrollen sie aus dem Bild: dann wieder an die Zeile.
+        val visible = runCatching { composeRule.onNodeWithTag(testTag).assertIsDisplayed() }.isSuccess
+        if (!visible) {
+            composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(testTag))
+            composeRule.waitForIdle()
+        }
     }
 
     /** Polls (like `SimulatedDashboardTest.awaitLiveTiles()`) instead of a single `waitForIdle()`:
