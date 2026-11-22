@@ -80,6 +80,15 @@ class RoadbookTrackerTest {
     }
 
     @Test
+    fun `after the dwell time the hysteresis band is the only reason to stay`() {
+        val t = tracker(turn(1_000.0, 90.0))
+        val late = ROADBOOK_MIN_DWELL_MS + 1_000
+        assertNotNull(t.at(850.0, nowMs = 0)) // 150 m: sichtbar
+        assertNotNull("164 m is inside the 165 m band", t.at(836.0, nowMs = late))
+        assertNull("166 m is outside the band", t.at(834.0, nowMs = late + 10))
+    }
+
+    @Test
     fun `a hud that was never shown does not stay`() {
         val t = tracker(turn(1_000.0, 90.0))
         assertNull(t.at(800.0, nowMs = 0))

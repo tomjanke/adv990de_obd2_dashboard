@@ -95,6 +95,18 @@ class ManeuversTest {
     }
 
     @Test
+    fun `two right angles to the right 100 m apart are one turn, 150 m apart they are two`() {
+        // Rechts, d Meter geradeaus, rechts: die Luecke zwischen den beiden Aenderungen entscheidet ueber das Zusammenfassen (Grenze 40 m).
+        fun rights(d: Double) = maneuvers(path(0.0 to 0.0, 300.0 to 0.0, 300.0 to d, 0.0 to d, 0.0 to d + 300.0)).filter { it.isRight }
+        val close = rights(100.0)
+        assertEquals("a gap under the limit merges into one", 1, close.size)
+        assertEquals(180.0, close.single().turnDeg, 20.0)
+        val far = rights(150.0)
+        assertEquals("a gap over the limit stays two", 2, far.size)
+        assertEquals(90.0, far[0].turnDeg, 20.0)
+    }
+
+    @Test
     fun `jitter on a straight line is no turn`() {
         val jittery = (0..200).map { i -> at(i * 5.0, if (i % 2 == 0) 3.0 else -3.0) }
         assertTrue(maneuvers(jittery).isEmpty())

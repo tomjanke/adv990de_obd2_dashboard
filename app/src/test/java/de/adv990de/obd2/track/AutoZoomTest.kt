@@ -19,6 +19,21 @@ class AutoZoomTest {
     }
 
     @Test
+    fun `the limits are 150 m, 1500 m and 300 m without a speed`() {
+        assertEquals(150.0, autoZoomTargetSpanM(0f), 0.0)
+        assertEquals(1_500.0, autoZoomTargetSpanM(500f), 0.0)
+        assertEquals(300.0, autoZoomTargetSpanM(null), 0.0)
+        // Das Kappen greift erst bei hoher Geschwindigkeit: 150 km/h sind noch nicht am Anschlag.
+        assertTrue(autoZoomTargetSpanM(150f) < 1_500.0)
+        assertTrue(autoZoomTargetSpanM(300f) <= 1_500.0)
+    }
+
+    @Test
+    fun `the first value without a speed is 300 m`() {
+        assertEquals(300.0, AutoZoom().update(null, 0), 0.0)
+    }
+
+    @Test
     fun `a faster ride always zooms out`() {
         var last = 0.0
         for (v in listOf(0f, 20f, 40f, 60f, 80f, 100f, 120f, 140f)) {

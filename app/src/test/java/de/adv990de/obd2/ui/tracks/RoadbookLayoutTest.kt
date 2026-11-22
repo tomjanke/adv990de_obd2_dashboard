@@ -78,6 +78,14 @@ class RoadbookLayoutTest {
     }
 
     @Test
+    fun `the position stands at 85 percent of the height`() {
+        val path = listOf(at(0.0, 0.0), at(100.0, 0.0))
+        val map = roadbookMap(path, path[0], bearingDeg = 0.0, apex = null, widthPx = 120f, heightPx = 200f)
+        assertEquals(170f, map.position.y, 0.01f)
+        assertEquals(60f, map.position.x, 0.01f)
+    }
+
+    @Test
     fun `the course is up whatever its compass direction`() {
         // Ein Weg nach Osten mit Kurs 90 Grad zeigt in der Karte ebenfalls nach oben.
         val east = listOf(at(0.0, 0.0), at(0.0, 100.0), at(0.0, 200.0))
