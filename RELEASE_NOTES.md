@@ -1,5 +1,23 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.47.2 (versionCode 171)
+
+**Verbessert: Die Karte beim Nachfahren zeigt deine Position farbig, lässt sich in Fahrtrichtung ausrichten, und zwei Darstellungsfehler sind behoben.**
+
+### Was sich ändert
+
+- **Fahrtrichtung oben:** auf der Nachfahren-Seite schaltet ein zusätzlicher Knopf (unten links im Bedienfeld) die Karte um. Die Karte dreht sich so, dass die **Richtung des Tracks an deiner Position** nach oben zeigt; deine Position steht unten in der Mitte (Bild: 65 % der Höhe), sodass mehr Strecke voraus zu sehen ist. Ein Finger verschiebt die Karte — und damit deine Position, die sich nie aus dem Bild schieben lässt —, zwei Finger zoomen um die Finger, der mittlere Knopf und ein Doppeltipp holen die Position zurück. Der Nordpfeil dreht mit. Ein zweiter Tipp auf den Knopf führt zur angepassten Ansicht mit Norden oben zurück; ohne Position bleibt es bei Norden oben. Die Drehung dauert 350 ms und nimmt den kürzeren Weg.
+- **Verschieben mit einem Finger:** in der Ansicht mit Norden oben gilt weiter die strenge Regel „der Track bleibt im Rahmen“ (Wunsch aus 1.47.1) — ein Finger verschiebt dort nur, wo der Track das Fenster in der Richtung überragt; bei „angepasst“ bewegt sich nichts. Die freie Ansicht gibt es in „Fahrtrichtung oben“.
+- **Deine Position in Farbe:** Pfeil, gestrichelte Abstandslinie und Fußpunkt sind blau (mit weißem Ring) und damit nicht mehr von der Zielmarke zu unterscheiden.
+- **Der Abstandstext verdeckt die Linie nicht mehr:** er steht neben der Linie, bevorzugt darüber, und wechselt die Seite oder rückt, wenn er sonst aus dem Bild ragte.
+- **„Vorwärts“ statt „Wie aufgezeichnet“:** das Wort war im Knopf nicht lesbar (Englisch „Forward“, Spanisch „Adelante“); die Auswahlsegmente zeigen keinen Haken mehr, und die Schrift schrumpft statt abgeschnitten zu werden.
+- **Kartenknöpfe als Symbole:** „Anpassen“ brach im Knopf zu „Anpasse“ um; alle Knöpfe sind jetzt Symbole mit Beschreibung für TalkBack.
+- **Geprüft:** JVM 4098 Tests, Geräte-Suite 1128 Tests (Pixel 8 Pro, Hochformat) und Lint ohne Fehler; die Zeichnung ist als Bildpunkte gelesen (Pfeil, Richtung, Abstandstext, Nordpfeil, Verschieben, Doppeltipp). **Mutationsproben:** 18 Änderungen, davon 4 zuerst nicht erkannt (Ankerlage der Position, Verhalten ohne Position, Abstand des Textes, Haken im Segment) — nach zusätzlichen Tests alle erkannt.
+- **Nicht gesehen:** nie mit einem echten GPS-Fix und nie auf einer Fahrt; die Karte wurde nicht von Hand am Telefon bedient (Geräte-Tests mit eingespielten Gesten und gerenderte Vorschauen); die Drehung folgt der **Richtung des Tracks**, nicht dem GPS-Kurs (bei Schleifen und Rückwegen kann sie an einer Stelle der falschen Hälfte folgen); die Bedienknöpfe (168 dp) können Position oder Track weiter verdecken; der Lauf wurde nur im Hochformat gemacht (das Telefon dreht der Nutzer); spanische Texte sind meine Übersetzung.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.47.1 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), das Fahrzeug bleibt strikt lesend, die Position wird weder gespeichert noch protokolliert.
+
+---
+
 ## Version 1.47.1 (versionCode 170)
 
 **Verbessert: Die Karte beim Nachfahren lässt sich zoomen, der Track bleibt im Rahmen, und eine Linie zeigt den Abstand zum Track.** Außerdem wird „Rückwärts“ jetzt richtig gezeichnet.
