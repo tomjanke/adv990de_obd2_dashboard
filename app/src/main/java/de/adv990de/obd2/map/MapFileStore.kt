@@ -1,6 +1,7 @@
 package de.adv990de.obd2.map
 
 import de.adv990de.obd2.transfer.jsonDepthWithin
+import android.annotation.SuppressLint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -132,6 +133,8 @@ class FileSource(file: File) : RandomAccessSource, Closeable {
  */
 class MapFileStore(
     private val dir: File,
+    // Nur eine untere Schranke: die App behauptet nie mehr freien Platz, als da ist; sie raeumt keine fremden Zwischenspeicher (getAllocatableBytes) und braucht das nicht.
+    @SuppressLint("UsableSpace")
     private val usableSpace: () -> Long = { dir.usableSpace },
     private val maxBytes: Long = MAX_MAP_BYTES,
 ) {

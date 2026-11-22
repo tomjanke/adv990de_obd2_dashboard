@@ -123,11 +123,12 @@ class MapTileLayerDeviceTest {
         show(tiles())
         val water = lat0 - 0.002 to lon0 - 0.003
         val woodLeft = lat0 + 0.001 to lon0 - 0.003
-        val woodRight = lat0 - 0.002 to lon0 + 0.003
+        // Mitte oben (zwischen den beiden Armen des V): unten rechts liegen die Bedienknoepfe der Karte.
+        val woodMiddle = lat0 + 0.0015 to lon0
         waitForColourAt(water.first, water.second, palette.water)
         val map = canvas().captureToImage().toPixelMap()
         pixelOf(woodLeft.first, woodLeft.second).let { assertTrue("Wald oben links", map.near(it.first, it.second, palette.wood)) }
-        pixelOf(woodRight.first, woodRight.second).let { assertTrue("Wald rechts unten", map.near(it.first, it.second, palette.wood)) }
+        pixelOf(woodMiddle.first, woodMiddle.second).let { assertTrue("Wald oben in der Mitte", map.near(it.first, it.second, palette.wood)) }
         // Die Hauptstrasse liegt bei 7/16 der Kachelhoehe von oben, also 1/16 ueber der Mitte; ein paar Bildpunkte Spielraum fuer die Strichbreite und das Runden.
         val roadLat = unprojectLat(planeY(TILE_Y, 7.0 / 16))
         pixelOf(roadLat, lon0 + 0.003).let { assertTrue("Hauptstrasse", map.near(it.first, it.second, palette.roadMajor, radius = 4)) }

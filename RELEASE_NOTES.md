@@ -1,5 +1,21 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.0 (versionCode 175)
+
+**Neu: Karte hinter dem Track — aus einer Datei auf dem Telefon.**
+
+### Was sich ändert
+
+- **Kartendatei einspielen:** Einstellungen → Gruppe „Karte“ → „Kartendatei“. Die App liest eine **PMTiles-Datei** (Version 3, Vektorkacheln im Schema der Protomaps-Basiskarte, OpenStreetMap-Daten; Kacheln ohne Packung oder mit gzip; höchstens 8 GiB). Sie wird in den App-Speicher kopiert und geprüft; eine falsche oder kaputte Datei lässt die bisherige Karte stehen und nennt den Grund. Die Zeile zeigt Name, Ausdehnung, Zoomstufen und Größe, „Andere Datei wählen“ und „Entfernen“ (mit Rückfrage). **Es wird nichts heruntergeladen, die App nutzt dafür kein Netz.**
+- **Kartenebene:** die Ansicht eines Tracks und die Nachfahren-Seite zeichnen **hinter der Linie** Wald, Wiese, Acker, Gebüsch, Wasser und Wege (Straßen nach Klassen, Feldwege, Pfade, Bahn); Gebäude, Namen und Grenzen nicht. Die Farben leiten sich aus dem Farbschema ab (Kontrast zum Grund, die Linie bleibt die klarste Form). Zoom, Verschieben und „Fahrtrichtung oben“ gelten für die Karte mit. Liegt der Track außerhalb der Datei, steht „Die Karte deckt diesen Track nicht ab“, sonst „© OpenStreetMap-Mitwirkende“.
+- **Ohne Datei** zeichnen die Ansichten wie vorher. Die Kartendatei ist **nicht** im Sicherungspaket.
+- **Geprüft:** JVM 4374 Tests, Geräte-Suite voll 1201 Tests (Pixel 8 Pro, Hochformat; ein Test war vom Querformat abhängig, im Test behoben), Lint ohne Fehler. Die Karte ist **nur gegen eine kleine erfundene Testdatei** gezeichnet (Wald, Wasser und Straße als Bildpunkte gelesen), die Bausteine (PMTiles-Leser, Kachel-Dekoder, Stil) mit Mutationsproben.
+- **Nicht belegt:** nie mit einer echten Kartendatei und nie auf einer Fahrt; die Zeichenzeit ist auf dem Pixel nicht gemessen; Farben und Kontrastziele sind Schätzungen; die Namen der Schichten stammen aus der Dokumentation der Protomaps-Karten, nicht aus einer geprüften Datei.
+- **Noch nicht da:** die Karte im HUD des Dashboards und das Herunterladen von Kacheln je Track.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.48.2 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz und keine neue Berechtigung, das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.48.2 (versionCode 174)
 
 **Verbessert: Das Roadbook-HUD ist doppelt so hoch und im Querformat 30 % breiter; Pfeil, Karte und Schrift wachsen mit.**

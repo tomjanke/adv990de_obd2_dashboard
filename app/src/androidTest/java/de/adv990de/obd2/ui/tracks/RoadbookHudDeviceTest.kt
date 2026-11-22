@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.getValue
@@ -305,7 +306,8 @@ class RoadbookHudDeviceTest {
     fun theTallVersionAt624DpKeepsDistanceNextTurnAndMapApart() {
         composeRule.setContent {
             AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
-                Column(Modifier.width(624.dp)) { RoadbookHudView(hud(distance = 1250.0, next = Maneuver(330.0, 340.0, 350.0, -70.0, ManeuverKind.NORMAL)), compact = false, tall = true, modifier = Modifier.fillMaxWidth()) }
+                // requiredWidth: im Hochformat ist das Fenster nur 448 dp breit, width wuerde auf diese Breite geklemmt.
+                Column(Modifier.requiredWidth(624.dp)) { RoadbookHudView(hud(distance = 1250.0, next = Maneuver(330.0, 340.0, 350.0, -70.0, ManeuverKind.NORMAL)), compact = false, tall = true, modifier = Modifier.fillMaxWidth()) }
             }
         }
         composeRule.waitForIdle()
