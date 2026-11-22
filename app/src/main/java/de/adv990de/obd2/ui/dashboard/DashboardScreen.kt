@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -40,8 +41,12 @@ import de.adv990de.obd2.ui.components.FuelGaugeRow
 import de.adv990de.obd2.ui.components.FuelResetDialog
 import de.adv990de.obd2.ui.fuel.FuelGaugeViewModel
 import de.adv990de.obd2.ui.navigation.Screen
+import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.tracks.FadingRoadbookHud
+import de.adv990de.obd2.ui.tracks.FollowMenuDialog
+import de.adv990de.obd2.ui.tracks.FollowStatusViewModel
 import de.adv990de.obd2.ui.tracks.RecordingButton
 import de.adv990de.obd2.ui.tracks.StopRecordingDialog
 import de.adv990de.obd2.ui.tracks.TracksMessageEffect
@@ -57,6 +62,7 @@ fun DashboardScreen(
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     fuelVm: FuelGaugeViewModel = hiltViewModel(),
     tracksVm: TracksViewModel = hiltViewModel(),
+    followVm: FollowStatusViewModel = hiltViewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val placeholderReadings by vm.placeholderReadings.collectAsStateWithLifecycle()
@@ -89,6 +95,27 @@ fun DashboardScreen(
     val recording by tracksVm.recording.collectAsStateWithLifecycle()
     val trackMessage by tracksVm.message.collectAsStateWithLifecycle()
     val startRecording = rememberStartRecording(tracksVm, locationPermission)
+    // Nachfahren: das Dashboard zeigt es nur als gruenen Knopf (Dialog: zur Karte oder beenden) und, vor einer bedeutsamen Richtungsaenderung, das Roadbook-HUD. Das HUD sammelt nur, solange das
+    // Dashboard sichtbar ist (und startet dann den Ortungsdienst einer laufenden Sitzung); das Alarmband hat Vorrang vor ihm.
+    val followInfo by followVm.info.collectAsStateWithLifecycle()
+    val roadbookHud by followVm.hud.collectAsStateWithLifecycle()
+    var followMenu: Boolean by rememberSaveable { mutableStateOf(false) }
+    if (followMenu) {
+        followInfo?.let { info ->
+            FollowMenuDialog(
+                info = info,
+                onOpenMap = {
+                    followMenu = false
+                    navController.openSubPage(Screen.TrackFollow.routeFor(info.trackId))
+                },
+                onStop = {
+                    followMenu = false
+                    followVm.stop()
+                },
+                onDismiss = { followMenu = false },
+            )
+        } ?: run { followMenu = false }
+    }
     var stopRecordingConfirmation: Boolean by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     TracksMessageEffect(trackMessage, tracksVm::consumeMessage, snackbarHostState)
@@ -180,7 +207,13 @@ fun DashboardScreen(
                 alertsEnabled = rpmAlertsEnabled(isLive, demoRpm),
                 digitsEnabled = rpmDigitsEnabled(isLive, demoRpm),
                 trailingContent = {
-                    RecordingButton(recording, onStart = startRecording, onStopRequest = { stopRecordingConfirmation = true })
+                    RecordingButton(
+                        recording,
+                        onStart = startRecording,
+                        onStopRequest = { stopRecordingConfirmation = true },
+                        following = followInfo != null,
+                        onFollowMenu = { followMenu = true },
+                    )
                     ConnectionIndicator(
                         isConnected = state.isConnected,
                         isReconnecting = state.isReconnecting,
@@ -257,6 +290,12 @@ fun DashboardScreen(
                     isLandscape = isLandscape,
                     tileHeight = tileHeight,
                     onLongPress = { pickerSlot = it },
+                )
+                // Das Roadbook-HUD liegt oben auf dem Raster, mittig (Querformat) bzw. ueber die Breite (Hochformat); das Alarmband hat Vorrang.
+                FadingRoadbookHud(
+                    hud = if (alarms.isEmpty()) roadbookHud else null,
+                    compact = false,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 8.dp, end = 8.dp).then(if (isLandscape) Modifier.width(380.dp) else Modifier.fillMaxWidth()),
                 )
                 alarms.firstOrNull()?.let { alarm ->
                     AlarmBanner(

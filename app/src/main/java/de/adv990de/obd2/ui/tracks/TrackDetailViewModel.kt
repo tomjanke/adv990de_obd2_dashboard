@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.TrackExporter
 import de.adv990de.obd2.data.TrackRepository
 import de.adv990de.obd2.data.trackFileName
+import de.adv990de.obd2.track.TRACK_DRAW_POINTS
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSummary
@@ -27,8 +28,6 @@ import javax.inject.Inject
 /** Der Name des Navigationsarguments mit der Id des Tracks (s. `Screen.TrackDetail`). */
 const val TRACK_ID_ARG = "id"
 
-/** So viele Punkte zeichnet die Ansicht hoechstens; ein Track mit mehr wird fuer die Zeichnung ausgeduennt (Kennzahlen und Export rechnen mit allen). */
-const val TRACK_DRAW_POINTS = 2_000
 
 sealed interface TrackDetailState {
     data object Loading : TrackDetailState

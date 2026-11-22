@@ -18,6 +18,7 @@ import de.adv990de.obd2.logbook.LogType
 import de.adv990de.obd2.bluetooth.BtType
 import de.adv990de.obd2.bluetooth.ScannedDevice
 import de.adv990de.obd2.obd.PidRegistry
+import de.adv990de.obd2.track.RoadbookSensitivity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -57,6 +58,8 @@ class AppPreferences @Inject constructor(
         // DataStore: `log_only_discovered_pids`, `unlogged_pid_ids`, `logged_pid_ids`. Diese Namen nicht mit anderer Bedeutung wiederverwenden.
         private val KEY_HIDE_NAV_ON_DRIVE = booleanPreferencesKey("hide_nav_on_drive")
         private val KEY_DIM_IN_DARK = booleanPreferencesKey("dim_in_dark")
+        private val KEY_ROADBOOK_ENABLED = booleanPreferencesKey("roadbook_enabled")
+        private val KEY_ROADBOOK_SENSITIVITY = intPreferencesKey("roadbook_sensitivity")
         private val KEY_CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         private val KEY_USE_GPS_SPEED = booleanPreferencesKey("use_gps_speed")
         // Nicht mehr gelesen (seit 2026-11-10: kein Hintergrund-Standort mehr), aber bei Nutzern noch im DataStore: `background_location_prompted`.
@@ -173,6 +176,27 @@ class AppPreferences @Inject constructor(
 
     suspend fun setDimInDark(enabled: Boolean) {
         dataStore.edit { it[KEY_DIM_IN_DARK] = enabled }
+    }
+
+    /** Ob das Roadbook-HUD beim Nachfahren erscheint (Standard **an**). Der Schluessel ist persistierter Zustand — nie umbenennen. */
+    val roadbookEnabled: Flow<Boolean> = data.map { prefs -> prefs[KEY_ROADBOOK_ENABLED] ?: true }
+
+    suspend fun setRoadbookEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_ROADBOOK_ENABLED] = enabled }
+    }
+
+    /**
+     * Wie viele Richtungsaenderungen das HUD zeigt: 1 = nur scharfe, **2 = Standard**, 3 = auch leichte ([de.adv990de.obd2.track.RoadbookSensitivity]). Ein unbekannter gespeicherter Wert
+     * liest als Standard. Der Schluessel ist persistierter Zustand — nie umbenennen.
+     */
+    val roadbookSensitivity: Flow<Int> = data.map { prefs ->
+        val stored = prefs[KEY_ROADBOOK_SENSITIVITY]
+        if (stored != null && stored in RoadbookSensitivity.OPTIONS) stored else RoadbookSensitivity.DEFAULT_LEVEL
+    }
+
+    suspend fun setRoadbookSensitivity(level: Int) {
+        require(level in RoadbookSensitivity.OPTIONS) { "Unbekannte Empfindlichkeit: $level" }
+        dataStore.edit { it[KEY_ROADBOOK_SENSITIVITY] = level }
     }
 
     /**

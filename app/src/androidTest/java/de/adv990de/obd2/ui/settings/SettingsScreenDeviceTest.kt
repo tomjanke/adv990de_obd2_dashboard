@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.runtime.remember
@@ -304,6 +305,78 @@ class SettingsScreenDeviceTest {
         composeRule.onNodeWithTag(DIM_IN_DARK_SWITCH_TEST_TAG).performClick()
         waitUntilSwitchIsOn(DIM_IN_DARK_SWITCH_TEST_TAG, expected = true)
         assertEquals(true, appPreferences.dimInDark.first())
+    }
+
+    // ── Roadbook: Schalter (Standard an) und Empfindlichkeit (nur bei eingeschaltetem Roadbook) ────────
+
+    private fun sensitivityOption(level: Int) = composeRule.onNode(
+        hasText(composeRule.activity.getString(
+            when (level) {
+                1 -> R.string.roadbook_sens_only_sharp
+                2 -> R.string.roadbook_sens_default
+                else -> R.string.roadbook_sens_also_slight
+            },
+        )) and hasAnyAncestor(hasTestTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG)),
+    )
+
+    @Test
+    fun roadbookSwitch_isOnByDefault_andTurnsOffAndOn() = runBlocking {
+        launchSettingsScreen()
+        waitUntilSwitchIsOn(ROADBOOK_SWITCH_TEST_TAG, expected = true)
+        assertEquals(true, appPreferences.roadbookEnabled.first())
+
+        composeRule.onNodeWithTag(ROADBOOK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(ROADBOOK_SWITCH_TEST_TAG, expected = false)
+        assertEquals(false, appPreferences.roadbookEnabled.first())
+
+        composeRule.onNodeWithTag(ROADBOOK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(ROADBOOK_SWITCH_TEST_TAG, expected = true)
+        assertEquals(true, appPreferences.roadbookEnabled.first())
+    }
+
+    @Test
+    fun roadbookSwitch_showsTitleAndDescription_andTouchesNoOtherSwitch() = runBlocking {
+        appPreferences.setDimInDark(true)
+        launchSettingsScreen()
+        scrollToClearView(ROADBOOK_SWITCH_TEST_TAG)
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_roadbook)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.settings_roadbook_desc)).assertIsDisplayed()
+        composeRule.onNodeWithTag(ROADBOOK_SWITCH_TEST_TAG).assertHeightIsAtLeast(64.dp)
+
+        composeRule.onNodeWithTag(ROADBOOK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(ROADBOOK_SWITCH_TEST_TAG, expected = false)
+        assertEquals(true, appPreferences.dimInDark.first())
+    }
+
+    @Test
+    fun roadbookSensitivity_isStandardByDefault_andWritesOnlyItsKey() = runBlocking {
+        launchSettingsScreen()
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG))
+        for (level in 1..3) sensitivityOption(level).assertIsDisplayed().assertHeightIsAtLeast(56.dp)
+        sensitivityOption(2).assertIsSelected()
+        assertEquals(2, appPreferences.roadbookSensitivity.first())
+
+        sensitivityOption(1).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { runBlocking { appPreferences.roadbookSensitivity.first() } == 1 }
+        sensitivityOption(1).assertIsSelected()
+        sensitivityOption(2).assertIsNotSelected()
+        assertEquals("the switch is untouched", true, appPreferences.roadbookEnabled.first())
+
+        sensitivityOption(3).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { runBlocking { appPreferences.roadbookSensitivity.first() } == 3 }
+    }
+
+    @Test
+    fun roadbookSensitivity_isHiddenWhileTheRoadbookIsOff() = runBlocking<Unit> {
+        appPreferences.setRoadbookEnabled(false)
+        launchSettingsScreen()
+        scrollToClearView(ROADBOOK_SWITCH_TEST_TAG)
+        composeRule.onAllNodesWithTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG).assertCountEquals(0)
+
+        composeRule.onNodeWithTag(ROADBOOK_SWITCH_TEST_TAG).performClick()
+        waitUntilSwitchIsOn(ROADBOOK_SWITCH_TEST_TAG, expected = true)
+        composeRule.onNodeWithTag(SETTINGS_LIST_TEST_TAG).performScrollToNode(hasTestTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG))
+        composeRule.onNodeWithTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG).assertIsDisplayed()
     }
 
     @Test

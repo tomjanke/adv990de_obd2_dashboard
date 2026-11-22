@@ -1,0 +1,41 @@
+package de.adv990de.obd2.ui.tracks
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import de.adv990de.obd2.track.FollowInfo
+import de.adv990de.obd2.track.FollowReading
+import de.adv990de.obd2.track.FollowSession
+import de.adv990de.obd2.track.RecordingState
+import de.adv990de.obd2.track.RoadbookHud
+import de.adv990de.obd2.track.TrackRecorder
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import javax.inject.Inject
+
+/**
+ * Was Dashboard und Track-Ansicht vom Nachfahren wissen muessen, ohne die Karte zu kennen: wem gefolgt wird (Knopf, Dialog), das Roadbook-HUD und ob gerade aufgezeichnet wird (dann
+ * laesst sich kein Track nachfahren). Das HUD laeuft nur, solange es jemand sammelt — das Dashboard, **solange es sichtbar ist**.
+ */
+@HiltViewModel
+class FollowStatusViewModel @Inject constructor(
+    private val session: FollowSession,
+    recorder: TrackRecorder,
+) : ViewModel() {
+
+    val info: StateFlow<FollowInfo?> = session.info
+
+    /** Das Roadbook-HUD, solange eines anzuzeigen ist. Das Sammeln startet den Ortungsdienst, wenn eine Sitzung laeuft (und haelt ihn nach dem Abmelden fuenf Sekunden). */
+    val hud: StateFlow<RoadbookHud?> = session.reading
+        .map { (it as? FollowReading.Following)?.hud }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Laeuft oder beginnt gerade eine Aufzeichnung? Dann laesst sich kein Track nachfahren. */
+    val recordingActive: StateFlow<Boolean> = recorder.state
+        .map { it is RecordingState.Recording || it is RecordingState.Starting }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, recorder.state.value.let { it is RecordingState.Recording || it is RecordingState.Starting })
+
+    fun stop() = session.stop()
+}

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import android.net.Uri
 import de.adv990de.obd2.data.TrackExporter
 import de.adv990de.obd2.data.TrackRepository
+import de.adv990de.obd2.track.TRACK_DRAW_POINTS
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.TrackSource
 import de.adv990de.obd2.track.TrackSummary

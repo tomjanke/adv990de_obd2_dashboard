@@ -14,6 +14,8 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -35,7 +37,12 @@ import de.adv990de.obd2.R
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.track.FollowDirection
+import de.adv990de.obd2.track.FollowReading
 import de.adv990de.obd2.track.FollowResult
+import de.adv990de.obd2.track.FollowTrackState
+import de.adv990de.obd2.track.Maneuver
+import de.adv990de.obd2.track.ManeuverKind
+import de.adv990de.obd2.track.RoadbookHud
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.ui.assertTouchTargetAtLeast56
@@ -100,10 +107,11 @@ class TrackFollowScreenDeviceTest {
         permissionMissing: Boolean = false,
         onDirection: (FollowDirection) -> Unit = {},
         onOpenSettings: () -> Unit = {},
+        onStop: () -> Unit = {},
     ) {
         composeRule.setContent {
             AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
-                TrackFollowContent(track, direction, reading, permissionMissing, onDirection, onBack = {}, onOpenSettings = onOpenSettings)
+                TrackFollowContent(track, direction, reading, permissionMissing, onDirection, onBack = {}, onOpenSettings = onOpenSettings, onStop = onStop)
             }
         }
         composeRule.waitForIdle()
@@ -236,10 +244,10 @@ class TrackFollowScreenDeviceTest {
 
     private val colors = lightColorScheme()
 
-    private fun showMap(marker: TrackMarker?, orientable: Boolean = false) {
+    private fun showMap(marker: TrackMarker?, orientable: Boolean = false, autoSpanM: Double? = null) {
         composeRule.setContent {
             MaterialTheme(colorScheme = colors, typography = AppTypography) {
-                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), marker, orientable)
+                TrackMapView(points, bounds, Modifier.size(width = 400.dp, height = 300.dp), marker, orientable, autoSpanM)
             }
         }
         composeRule.waitForIdle()
@@ -778,5 +786,141 @@ class TrackFollowScreenDeviceTest {
         val d = composeRule.density.density
         val dist = hypot(cx - (a.first + b.first) / 2, cy - (a.second + b.second) / 2)
         assertTrue("der Text liegt neben der Mitte der Linie (Abstand ${dist / d} dp)", dist < 60 * d)
+    }
+
+    // ── Roadbook-HUD und „Nachfahren beenden“ auf der Seite ────────────────────
+
+    private val sampleHud = RoadbookHud(
+        maneuver = Maneuver(220.0, 240.0, 260.0, 95.0, ManeuverKind.NORMAL), distanceM = 240.0, triggerM = 400.0, next = null, nextDistanceM = null,
+        path = points.take(5), apex = points[3], position = points[0], bearingDeg = 0.0,
+    )
+
+    private fun followingWithHud() = following().copy(hud = sampleHud)
+
+    @Test
+    fun theStopButton_is56dp_andReportsTheTap() {
+        var stops = 0
+        show(reading = following(), onStop = { stops++ })
+        composeRule.onNodeWithTag(FOLLOW_STOP_TEST_TAG).assertIsDisplayed().assertTouchTargetAtLeast56(composeRule.density)
+        composeRule.onNodeWithText(string(R.string.track_follow_stop)).assertIsDisplayed()
+        composeRule.onNodeWithTag(FOLLOW_STOP_TEST_TAG).performClick()
+        assertEquals(1, stops)
+    }
+
+    @Test
+    fun theStopButton_isThereWithoutAPositionToo() {
+        show(reading = FollowReading.Searching)
+        composeRule.onNodeWithTag(FOLLOW_STOP_TEST_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aHudInTheReading_showsTheCompactHudOnTheMap_withoutItsOwnMap() {
+        show(reading = followingWithHud())
+        composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTag(ROADBOOK_HUD_TEST_TAG).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).assertDoesNotExist()
+        val hud = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
+        val map = composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).getBoundsInRoot()
+        assertTrue("the HUD sits on the map (top ${hud.top}, map top ${map.top})", hud.top >= map.top && hud.bottom <= map.bottom && hud.right <= map.right)
+    }
+
+    @Test
+    fun noHudInTheReading_noHudOnThePage() {
+        show(reading = following())
+        composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun theHudDoesNotCoverTheControlsOrTheNorthArrowInBothOrientations() {
+        for (orientation in listOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)) {
+            requestOrientation(orientation)
+            show(reading = followingWithHud())
+            composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTag(ROADBOOK_HUD_TEST_TAG).fetchSemanticsNodes().isNotEmpty() }
+            val hud = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
+            for (tag in listOf(TRACK_ZOOM_IN_TEST_TAG, TRACK_FIT_TEST_TAG, TRACK_ORIENTATION_TEST_TAG, TRACK_PAN_DOWN_TEST_TAG)) {
+                val b = composeRule.onNodeWithTag(tag).getBoundsInRoot()
+                val overlaps = hud.left < b.right && b.left < hud.right && hud.top < b.bottom && b.top < hud.bottom
+                assertFalse("the HUD must not cover $tag in orientation $orientation", overlaps)
+            }
+        }
+    }
+
+    // ── Auto-Zoom: die Karte folgt der Position, auch in Norden oben ───────────
+
+    private val inFollowing = points[5]
+
+    /** Der Schwerpunkt des Markers in Dichte-unabhaengigen dp. */
+    private fun markerCentroidDp(): Pair<Double, Double> {
+        val (x, y) = markerCentroid()
+        val d = composeRule.density.density
+        return x / d to y / d
+    }
+
+    @Test
+    fun withAnAutoSpan_northUpFollowsThePosition() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = 300.0)
+        val (x, _) = markerCentroidDp()
+        assertEquals("the position is in the middle of the map", 200.0, x, 4.0)
+    }
+
+    @Test
+    fun withoutAnAutoSpan_northUpStaysTheOverview() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = null)
+        val (x, _) = markerCentroidDp()
+        assertTrue("the whole track is fitted, the position is left of the middle ($x)", x < 140.0)
+    }
+
+    @Test
+    fun theCentreButton_switchesBetweenFollowingAndTheOverview() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = 300.0)
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_recentre_cd))
+        assertTrue("the overview shows the whole track (${markerCentroidDp().first})", markerCentroidDp().first < 140.0)
+
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+        assertEquals(200.0, markerCentroidDp().first, 4.0)
+    }
+
+    @Test
+    fun aManualZoomLeavesFollowing_andADoubleTapBringsItBack() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = 300.0)
+        composeRule.onNodeWithTag(TRACK_ZOOM_IN_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_recentre_cd))
+
+        composeRule.onNodeWithTag(TRACK_CANVAS_TEST_TAG).performTouchInput { doubleClick(center) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+        assertEquals(200.0, markerCentroidDp().first, 4.0)
+    }
+
+    @Test
+    fun aManualPanLeavesFollowing() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = 300.0)
+        composeRule.onNodeWithTag(TRACK_PAN_LEFT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_recentre_cd))
+    }
+
+    @Test
+    fun withoutAnAutoSpan_theCentreButtonStaysTheFitButton() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = null)
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(TRACK_FIT_TEST_TAG).assertContentDescriptionEquals(string(R.string.track_fit_cd))
+    }
+
+    @Test
+    fun withAnAutoSpan_headingUpKeepsThePositionAtItsAnchor() {
+        showMap(TrackMarker(inFollowing, bearingDeg = 80.0), orientable = true, autoSpanM = 600.0)
+        toggleOrientation()
+        val (_, y) = markerCentroid()
+        val (_, h) = canvasSize()
+        assertEquals(HEADING_ANCHOR_Y * h, y, 0.03 * h)
     }
 }

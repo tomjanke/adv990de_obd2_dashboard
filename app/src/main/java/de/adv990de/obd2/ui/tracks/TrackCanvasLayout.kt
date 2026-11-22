@@ -141,6 +141,19 @@ data class TrackFrame(
     }
 }
 
+/** Der Massstab (Bildpunkte je Einheit der Ebene), bei dem die kuerzere Seite einer Flaeche von [widthPx] mal [heightPx] genau [spanM] Meter auf der Breite [latDeg] zeigt. */
+fun ppuForSpan(widthPx: Double, heightPx: Double, spanM: Double, latDeg: Double): Double =
+    min(widthPx, heightPx) / (spanM / (EARTH_RADIUS_M * cos(Math.toRadians(latDeg))))
+
+/**
+ * Die Ansicht, die der Position folgt (Norden oben, Nachfahren): Mitte auf der Position, Massstab fuer [spanM] Meter auf der kurzen Seite — nie kleiner als die angepasste Ansicht —, und
+ * im Rahmen: der Ausschnitt bleibt im Rechteck des Tracks samt Rand, der Track verlaesst den Rahmen auch hier nie (nahe dem Rand des Tracks steht die Position dann nicht in der Mitte).
+ */
+fun TrackFrame.followView(positionX: Double, positionY: Double, spanM: Double): TrackView {
+    val ppu = max(fit.pxPerUnit, ppuForSpan(widthPx, heightPx, spanM, unprojectLat(positionY)))
+    return clamp(TrackView(cx = positionX, cy = positionY, pxPerUnit = ppu))
+}
+
 /** Der Rahmen eines Tracks mit dem Rechteck [bounds] auf einer Flaeche; seine angepasste Ansicht ist [fitView]. */
 fun trackFrame(bounds: TrackBounds, widthPx: Double, heightPx: Double, paddingPx: Double): TrackFrame = TrackFrame(
     widthPx = widthPx,
@@ -200,6 +213,11 @@ data class TrackViewState(val zoom: Double = 1.0, val dx: Double = 0.0, val dy: 
     fun fitted() = TrackViewState()
 
     private fun from(view: TrackView, fit: TrackView) = TrackViewState(view.pxPerUnit / fit.pxPerUnit, view.cx - fit.cx, view.cy - fit.cy)
+
+    companion object {
+        /** Der Zustand, der genau die Ansicht [view] ergibt (relativ zur angepassten [fit]): so uebernimmt eine Handbewegung die Ansicht, die gerade der Position folgte. */
+        fun of(view: TrackView, fit: TrackView) = TrackViewState(view.pxPerUnit / fit.pxPerUnit, view.cx - fit.cx, view.cy - fit.cy)
+    }
 }
 
 
@@ -289,11 +307,13 @@ data class HeadingFrame(val widthPx: Double, val heightPx: Double, val marginPx:
     fun transformedBy(state: HeadingViewState, centroidX: Double, centroidY: Double, panXPx: Double, panYPx: Double, zoomFactor: Double): HeadingViewState =
         pannedBy(zoomedAround(state, zoomFactor, centroidX, centroidY), panXPx, panYPx)
 
-    /** Die Ansicht der Karte: [positionX], [positionY] ist die Position in der Kartenebene, [rotationDeg] der Kurs, der oben steht. */
-    fun viewFor(state: HeadingViewState, positionX: Double, positionY: Double, rotationDeg: Double): TrackView {
+    /**
+     * Die Ansicht der Karte: [positionX], [positionY] ist die Position in der Kartenebene, [rotationDeg] der Kurs, der oben steht. [spanM] sind die Meter, die die kuerzere Seite der Flaeche
+     * bei Zoom 1 zeigt: [HEADING_DEFAULT_SPAN_M], beim Nachfahren die Spanne nach Geschwindigkeit ([de.adv990de.obd2.track.AutoZoom]); der Zoom des Nutzers ist ein Faktor darauf.
+     */
+    fun viewFor(state: HeadingViewState, positionX: Double, positionY: Double, rotationDeg: Double, spanM: Double = HEADING_DEFAULT_SPAN_M): TrackView {
         val latDeg = unprojectLat(positionY)
-        val unitsAcrossShortSide = HEADING_DEFAULT_SPAN_M / (EARTH_RADIUS_M * cos(Math.toRadians(latDeg)))
-        val ppu = min(widthPx, heightPx) / unitsAcrossShortSide * state.zoom
+        val ppu = ppuForSpan(widthPx, heightPx, spanM, latDeg) * state.zoom
         // Der Mittelpunkt der Ansicht liegt auf dem Ruheplatz; die Position steht um (offsetX, offsetY) daneben. Rueckwaerts aus dem Bild in die Ebene rechnen (die Drehung umkehren).
         val r = Math.toRadians(rotationDeg)
         val c = cos(r)

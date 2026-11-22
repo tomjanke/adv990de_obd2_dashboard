@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.adv990de.obd2.data.TrackRepository
 import de.adv990de.obd2.di.ApplicationScope
+import de.adv990de.obd2.track.FollowSession
 import de.adv990de.obd2.track.RecordingState
 import de.adv990de.obd2.track.StartResult
 import de.adv990de.obd2.track.TrackRecorder
@@ -29,12 +30,13 @@ import javax.inject.Inject
 data class TracksUiState(val tracks: List<TrackSummary>?, val recording: RecordingState)
 
 /** Eine Rueckmeldung, die die Seite einmal zeigt (Snackbar). Der Text steht in der Oberflaeche, nicht hier. */
-enum class TracksMessage { NoPermission, NoLocationService, StartFailed, StopFailed, RenameFailed }
+enum class TracksMessage { NoPermission, NoLocationService, StartFailed, StopFailed, RenameFailed, FollowActive }
 
 @HiltViewModel
 class TracksViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val recorder: TrackRecorder,
+    private val follow: FollowSession,
     @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -82,6 +84,11 @@ class TracksViewModel @Inject constructor(
 
     /** Beginnt eine Aufzeichnung ([name] `null` = der Recorder benennt sie nach dem Beginn). Laeuft im app-weiten Scope: ein Verlassen der Seite bricht ein Anlegen nicht in der Mitte ab. */
     fun startRecording(name: String?) {
+        // Aufzeichnen und Nachfahren laufen nicht zugleich (Entscheidung des Nutzers 2026-11-22): erst das Nachfahren beenden.
+        if (follow.info.value != null) {
+            _message.value = TracksMessage.FollowActive
+            return
+        }
         appScope.launch {
             try {
                 when (recorder.start(name)) {

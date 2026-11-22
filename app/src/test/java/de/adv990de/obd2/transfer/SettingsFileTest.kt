@@ -14,7 +14,7 @@ class SettingsFileTest {
     @Test
     fun `the sample covers the catalog`() {
         assertEquals(SettingsCatalog.exported.map { it.key }, sampleSettings().keys.toList().let { k -> SettingsCatalog.exported.map { it.key }.filter { it in k } })
-        assertEquals(37, sampleSettings().size)
+        assertEquals(39, sampleSettings().size)
     }
 
     @Test

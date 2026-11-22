@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import de.adv990de.obd2.track.RoadbookSensitivity
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,6 +28,20 @@ class DisplaySettingsViewModel @Inject constructor(
 
     fun setDimInDark(enabled: Boolean) {
         viewModelScope.launch { appPreferences.setDimInDark(enabled) }
+    }
+
+    val roadbookEnabled: StateFlow<Boolean> = appPreferences.roadbookEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setRoadbookEnabled(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setRoadbookEnabled(enabled) }
+    }
+
+    val roadbookSensitivity: StateFlow<Int> = appPreferences.roadbookSensitivity
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RoadbookSensitivity.DEFAULT_LEVEL)
+
+    fun setRoadbookSensitivity(level: Int) {
+        viewModelScope.launch { appPreferences.setRoadbookSensitivity(level) }
     }
 
     val useGpsSpeed: StateFlow<Boolean> = appPreferences.useGpsSpeed

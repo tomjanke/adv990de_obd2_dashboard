@@ -7,6 +7,7 @@ import de.adv990de.obd2.fuel.FuelRangeLimits
 import de.adv990de.obd2.fuel.FuelReserveLimits
 import de.adv990de.obd2.logbook.MAINTENANCE_TYPES
 import de.adv990de.obd2.logbook.MaintenanceIntervalLimits
+import de.adv990de.obd2.track.RoadbookSensitivity
 import de.adv990de.obd2.obd.DerivedPids
 import de.adv990de.obd2.obd.PidRegistry
 import de.adv990de.obd2.ui.settings.GearLimits
@@ -58,6 +59,8 @@ object SettingsCatalog {
         flag("use_imperial", SettingsGroup.DISPLAY),
         flag("hide_nav_on_drive", SettingsGroup.DISPLAY),
         flag("dim_in_dark", SettingsGroup.DISPLAY),
+        flag("roadbook_enabled", SettingsGroup.DISPLAY),
+        SettingSpec("roadbook_sensitivity", SettingsGroup.DISPLAY, SettingKind.IntOf(RoadbookSensitivity.OPTIONS)),
         flag("use_gps_speed", SettingsGroup.DISPLAY),
         flag("rpm_dynamic_threshold", SettingsGroup.DISPLAY),
         // Die Spanne des Schiebereglers in den Einstellungen (RpmThresholdSection: 0f..10000f).

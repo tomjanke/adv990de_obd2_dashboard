@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -61,7 +62,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.track.FollowDirection
+import de.adv990de.obd2.track.FollowReading
 import de.adv990de.obd2.track.FollowResult
+import de.adv990de.obd2.track.FollowTrackState
 import de.adv990de.obd2.track.TrackBounds
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.ui.components.EmptyState
@@ -84,10 +87,13 @@ internal const val FOLLOW_PERMISSION_HINT_TEST_TAG = "follow_permission_hint"
 internal const val FOLLOW_NOTE_TEST_TAG = "follow_note"
 internal const val FOLLOW_TOO_SHORT_TEST_TAG = "follow_too_short"
 internal const val FOLLOW_PROGRESS_TEST_TAG = "follow_progress"
+internal const val FOLLOW_STOP_TEST_TAG = "follow_stop"
 
 /**
  * Das Nachfahren eines Tracks (Route `track_follow/{id}`): die Karte mit der eigenen Position, daneben oder darunter Abstand zum Track, Zurueckgelegtes und Rest. **Keine Routenfuehrung**,
- * kein Ton, keine Ansage. Der Bildschirm bleibt an, solange die Seite sichtbar ist (wie das Dashboard). Die Position wird nur hier verwendet, nicht gespeichert und nicht geloggt.
+ * kein Ton, keine Ansage; die Karte zoomt nach der Geschwindigkeit, und vor einer bedeutsamen Richtungsaenderung blendet das Roadbook-HUD (kompakt) oben in der Karte ein. Der Bildschirm bleibt
+ * an, solange die Seite sichtbar ist (wie das Dashboard). Das Nachfahren laeuft weiter, wenn man die Seite verlaesst (zum Dashboard), bis „Nachfahren beenden“. Die Position wird nur
+ * verwendet, solange das Nachfahren laeuft und die App sichtbar ist, nicht gespeichert und nicht geloggt.
  */
 @Composable
 fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = hiltViewModel()) {
@@ -117,14 +123,19 @@ fun TrackFollowScreen(navController: NavController, vm: TrackFollowViewModel = h
         }
     }
 
+    val close = rememberClosePage(navController)
     TrackFollowContent(
         track = track,
         direction = direction,
         reading = reading,
         permissionMissing = !permission.fine,
         onDirection = vm::setDirection,
-        onBack = rememberClosePage(navController),
+        onBack = close,
         onOpenSettings = { openAppSettings(context) },
+        onStop = {
+            vm.stop()
+            close()
+        },
     )
 }
 
@@ -147,6 +158,7 @@ internal fun TrackFollowContent(
     onDirection: (FollowDirection) -> Unit,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit = {},
+    onStop: () -> Unit = {},
 ) {
     val ready = track as? FollowTrackState.Ready
     val title = when (track) {
@@ -173,7 +185,7 @@ internal fun TrackFollowContent(
                 FollowTrackState.NotFound -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_not_found))
                 FollowTrackState.Failed -> EmptyState(Icons.Default.Place, stringResource(R.string.track_detail_failed))
                 is FollowTrackState.TooShort -> EmptyState(Icons.Default.Place, stringResource(R.string.track_follow_too_short), Modifier.testTag(FOLLOW_TOO_SHORT_TEST_TAG))
-                is FollowTrackState.Ready -> if (ready != null) ReadyContent(ready, direction, reading, permissionMissing, onDirection, onOpenSettings)
+                is FollowTrackState.Ready -> if (ready != null) ReadyContent(ready, direction, reading, permissionMissing, onDirection, onOpenSettings, onStop)
             }
         }
     }
@@ -187,6 +199,7 @@ private fun ReadyContent(
     permissionMissing: Boolean,
     onDirection: (FollowDirection) -> Unit,
     onOpenSettings: () -> Unit,
+    onStop: () -> Unit,
 ) {
     val locale = LocalLocale.current.platformLocale
     val marker = (reading as? FollowReading.Following)?.let {
@@ -195,17 +208,25 @@ private fun ReadyContent(
     // Rueckwaerts wird die Linie umgekehrt gezeichnet: die Startmarke sitzt dann am aufgezeichneten Ende, die Zielmarke am Anfang — dort, wo man losfaehrt und ankommt.
     val drawn = remember(track.drawn, direction) { if (direction == FollowDirection.REVERSE) track.drawn.asReversed() else track.drawn }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val following = reading as? FollowReading.Following
     val panel: @Composable (Modifier) -> Unit = { modifier ->
-        FollowPanel(direction, reading, permissionMissing, onDirection, onOpenSettings, modifier)
+        FollowPanel(direction, reading, permissionMissing, onDirection, onOpenSettings, onStop, modifier)
+    }
+    // Die Karte mit dem kompakten HUD obenauf (mittig, ohne den Bedienblock unten rechts zu beruehren).
+    val map: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier) {
+            TrackMapView(drawn, track.bounds, Modifier.fillMaxSize(), marker, orientable = true, autoSpanM = following?.autoSpanM)
+            FadingRoadbookHud(following?.hud, compact = true, modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 8.dp, end = 72.dp))
+        }
     }
     if (landscape) {
         Row(Modifier.fillMaxSize()) {
-            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxSize(), marker, orientable = true)
+            map(Modifier.weight(1f).fillMaxSize())
             panel(Modifier.width(260.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp))
         }
     } else {
         Column(Modifier.fillMaxSize()) {
-            TrackMapView(drawn, track.bounds, Modifier.weight(1f).fillMaxWidth(), marker, orientable = true)
+            map(Modifier.weight(1f).fillMaxWidth())
             panel(Modifier.fillMaxWidth().padding(12.dp))
         }
     }
@@ -218,6 +239,7 @@ private fun FollowPanel(
     permissionMissing: Boolean,
     onDirection: (FollowDirection) -> Unit,
     onOpenSettings: () -> Unit,
+    onStop: () -> Unit,
     modifier: Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -245,6 +267,9 @@ private fun FollowPanel(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(FOLLOW_NOTE_TEST_TAG),
         )
+        OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag(FOLLOW_STOP_TEST_TAG)) {
+            Text(stringResource(R.string.track_follow_stop))
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package de.adv990de.obd2.ui.tracks
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -108,6 +109,9 @@ private val HeadingStateSaver = listSaver<HeadingViewState, Double>(
 /** So lange dreht sich die Karte zum neuen Kurs. */
 private const val ROTATION_MILLIS = 350
 
+/** So lange gleitet die Karte zu einer neuen Spanne (Auto-Zoom). */
+private const val SPAN_MILLIS = 600
+
 /**
  * Die Ansicht eines Tracks: der Linienzug an die Flaeche angepasst (Mercator, Seitenverhaeltnis erhalten), Start- und Zielmarke, Massstabsleiste, Nordpfeil — **ohne Kartenhintergrund**
  * (K0). Zoomen und Verschieben mit **Knoepfen** in der Ecke (Handschuh-Regel), zusaetzlich **Ziehen mit einem Finger**, **Zwei-Finger-Zoom** und Doppeltipp = Ausgangsansicht; eine Geste ist
@@ -121,10 +125,19 @@ private const val ROTATION_MILLIS = 350
  * **Positionen sind sensibel:** nichts hiervon geht in ein Log.
  */
 @Composable
-internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifier: Modifier = Modifier, marker: TrackMarker? = null, orientable: Boolean = false) {
+internal fun TrackMapView(
+    points: List<TrackPoint>,
+    bounds: TrackBounds,
+    modifier: Modifier = Modifier,
+    marker: TrackMarker? = null,
+    orientable: Boolean = false,
+    autoSpanM: Double? = null,
+) {
     var state by rememberSaveable(stateSaver = ViewStateSaver) { mutableStateOf(TrackViewState()) }
     var headingState by rememberSaveable(stateSaver = HeadingStateSaver) { mutableStateOf(HeadingViewState()) }
     var headingMode by rememberSaveable { mutableStateOf(false) }
+    // „Der Position folgen“ in der Ansicht Norden oben (nur beim Nachfahren mit Auto-Zoom): ein Eingriff von Hand beendet es, Doppeltipp und der mittlere Knopf holen es zurueck.
+    var follow by rememberSaveable { mutableStateOf(true) }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val paddingPx = with(density) { CANVAS_PADDING.toPx() }.toDouble()
@@ -137,10 +150,30 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
     val headingActive = orientable && headingMode && marker != null && size.width > 0 && size.height > 0
     val headingActiveNow by rememberUpdatedState(headingActive)
     val rotation = rememberMapRotation(headingActive, marker?.bearingDeg ?: 0.0)
-    val view = if (headingActive && marker != null) {
-        headingFrame.viewFor(headingState, projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat), rotation)
-    } else {
-        state.resolved(frame)
+    val autoAvailable = orientable && marker != null && autoSpanM != null && size.width > 0 && size.height > 0
+    val autoAvailableNow by rememberUpdatedState(autoAvailable)
+    // Die Spanne aendert sich im Sekundentakt der Position; die Karte gleitet dorthin, statt zu springen.
+    val animatedSpan by animateFloatAsState(
+        targetValue = (autoSpanM ?: HEADING_DEFAULT_SPAN_M).toFloat(),
+        animationSpec = tween(SPAN_MILLIS, easing = EaseOutCubic),
+        label = "autoSpan",
+    )
+    val spanM = if (autoSpanM != null) animatedSpan.toDouble() else HEADING_DEFAULT_SPAN_M
+    val northFollowing = autoAvailable && !headingMode && follow
+    val northFollowingNow by rememberUpdatedState(northFollowing)
+    val view = when {
+        headingActive && marker != null ->
+            headingFrame.viewFor(headingState, projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat), rotation, spanM)
+        northFollowing && marker != null -> frame.followView(projectLon(marker.point.lon, bounds.minLon), projectLat(marker.point.lat), spanM)
+        else -> state.resolved(frame)
+    }
+    val currentView by rememberUpdatedState(view)
+    // Ein Eingriff von Hand (Verschieben, Zoomen) beendet das Folgen und uebernimmt die Ansicht, wie sie gerade ist.
+    fun leaveFollow() {
+        if (northFollowingNow) {
+            state = TrackViewState.of(currentView, currentFrame.fit)
+            follow = false
+        }
     }
 
     Box(
@@ -160,7 +193,16 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
                 .fillMaxSize()
                 .testTag(TRACK_CANVAS_TEST_TAG)
                 .pointerInput(Unit) {
-                    detectTapGestures(onDoubleTap = { if (headingActiveNow) headingState = HeadingViewState() else state = TrackViewState() })
+                    detectTapGestures(
+                        onDoubleTap = {
+                            if (headingActiveNow) {
+                                headingState = HeadingViewState()
+                            } else {
+                                state = TrackViewState()
+                                if (autoAvailableNow) follow = true
+                            }
+                        },
+                    )
                 }
                 .pointerInput(Unit) {
                     // Ein Finger verschiebt, zwei Finger zoomen um ihren Mittelpunkt (und verschieben); eine Drehung der Finger wird ignoriert: die Ausrichtung der Karte bestimmt der Knopf.
@@ -169,6 +211,7 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
                         if (headingActiveNow) {
                             headingState = currentHeadingFrame.transformedBy(headingState, centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble())
                         } else {
+                            leaveFollow()
                             state = state.transformedBy(centroid.x.toDouble(), centroid.y.toDouble(), pan.x.toDouble(), pan.y.toDouble(), zoom.toDouble(), currentFrame)
                         }
                     }
@@ -181,22 +224,38 @@ internal fun TrackMapView(points: List<TrackPoint>, bounds: TrackBounds, modifie
                 val m = headingFrame.markerOf(headingState)
                 headingState = headingFrame.zoomedAround(headingState, factor, m.x, m.y)
             } else {
+                leaveFollow()
                 state = state.zoomedBy(factor, frame)
             }
         }
         fun panButton(dxPx: Double, dyPx: Double) {
-            if (headingActive) headingState = headingFrame.pannedBy(headingState, dxPx, dyPx) else state = state.pannedBy(dxPx, dyPx, frame)
+            if (headingActive) {
+                headingState = headingFrame.pannedBy(headingState, dxPx, dyPx)
+            } else {
+                leaveFollow()
+                state = state.pannedBy(dxPx, dyPx, frame)
+            }
         }
         TrackControls(
             onZoomIn = { zoomButton(ZOOM_STEP) },
             onZoomOut = { zoomButton(1 / ZOOM_STEP) },
-            onFit = { if (headingActive) headingState = HeadingViewState() else state = state.fitted() },
+            // Die Mitte: in „Fahrtrichtung oben“ die Position zurueck in die Mitte; in Norden oben mit Position wechselt sie zwischen dem ganzen Track und dem Folgen, sonst der ganze Track.
+            onFit = {
+                when {
+                    headingActive -> headingState = HeadingViewState()
+                    autoAvailable -> {
+                        state = TrackViewState()
+                        follow = !follow
+                    }
+                    else -> state = state.fitted()
+                }
+            },
             // Eine Taste verschiebt den Ausschnitt in ihre Richtung: der Inhalt wandert dagegen.
             onUp = { panButton(0.0, panStep) },
             onDown = { panButton(0.0, -panStep) },
             onLeft = { panButton(panStep, 0.0) },
             onRight = { panButton(-panStep, 0.0) },
-            centred = headingActive,
+            centred = headingActive || (autoAvailable && !follow),
             orientable = orientable,
             headingUp = headingMode,
             onOrientation = {

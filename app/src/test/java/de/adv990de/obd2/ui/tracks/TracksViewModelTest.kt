@@ -2,6 +2,8 @@ package de.adv990de.obd2.ui.tracks
 
 import androidx.lifecycle.ViewModel
 import de.adv990de.obd2.data.TrackRepository
+import de.adv990de.obd2.track.FollowInfo
+import de.adv990de.obd2.track.FollowSession
 import de.adv990de.obd2.track.RecordingState
 import de.adv990de.obd2.track.StartResult
 import de.adv990de.obd2.track.TrackRecorder
@@ -56,11 +58,13 @@ class TracksViewModelTest {
         val repo: TrackRepository,
         val recorder: TrackRecorder,
         val vm: TracksViewModel,
+        val followInfo: MutableStateFlow<FollowInfo?>,
     )
 
     private fun fixture(vararg initial: TrackSummary, activeId: Long? = null): Fixture {
         val tracks = MutableStateFlow(initial.toList())
         val recording = MutableStateFlow<RecordingState>(RecordingState.Idle)
+        val followInfo = MutableStateFlow<FollowInfo?>(null)
         val repo = mockk<TrackRepository> {
             every { this@mockk.tracks } returns tracks
             every { activeTrackId } returns activeId
@@ -75,8 +79,9 @@ class TracksViewModelTest {
             coEvery { start(any()) } returns StartResult.Started
             coEvery { stop() } returns Unit
         }
-        val vm = TracksViewModel(repo, recorder, CoroutineScope(testDispatcher + Job()))
-        return Fixture(tracks, recording, repo, recorder, vm)
+        val follow = mockk<FollowSession> { every { info } returns followInfo }
+        val vm = TracksViewModel(repo, recorder, follow, CoroutineScope(testDispatcher + Job()))
+        return Fixture(tracks, recording, repo, recorder, vm, followInfo)
     }
 
     private fun TestScope.collect(vm: TracksViewModel) {
@@ -100,7 +105,7 @@ class TracksViewModelTest {
             every { activeTrackId } returns null
         }
         val recorder = mockk<TrackRecorder> { every { state } returns MutableStateFlow(RecordingState.Idle) }
-        val vm = TracksViewModel(repo, recorder, CoroutineScope(testDispatcher + Job()))
+        val vm = TracksViewModel(repo, recorder, mockk<FollowSession> { every { info } returns MutableStateFlow(null) }, CoroutineScope(testDispatcher + Job()))
         collect(vm)
         runCurrent()
 
@@ -283,6 +288,30 @@ class TracksViewModelTest {
             runCurrent()
             assertEquals(result.name, message, f.vm.message.value)
         }
+    }
+
+    @Test
+    fun `no recording starts while a track is followed`() = runTest {
+        val f = fixture()
+        f.followInfo.value = FollowInfo(5, "Runde")
+        f.vm.startRecording("Runde")
+        runCurrent()
+        assertEquals(TracksMessage.FollowActive, f.vm.message.value)
+        coVerify(exactly = 0) { f.recorder.start(any()) }
+    }
+
+    @Test
+    fun `a recording starts again once the following has ended`() = runTest {
+        val f = fixture()
+        f.followInfo.value = FollowInfo(5, "Runde")
+        f.vm.startRecording(null)
+        runCurrent()
+        f.vm.consumeMessage()
+        f.followInfo.value = null
+        f.vm.startRecording(null)
+        runCurrent()
+        assertNull(f.vm.message.value)
+        coVerify(exactly = 1) { f.recorder.start(null) }
     }
 
     @Test

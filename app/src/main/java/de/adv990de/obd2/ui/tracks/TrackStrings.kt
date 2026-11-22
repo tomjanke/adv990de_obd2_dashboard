@@ -30,6 +30,7 @@ internal fun tracksMessageText(message: TracksMessage): String = stringResource(
         TracksMessage.StartFailed -> R.string.tracks_msg_start_failed
         TracksMessage.StopFailed -> R.string.tracks_msg_stop_failed
         TracksMessage.RenameFailed -> R.string.tracks_msg_rename_failed
+        TracksMessage.FollowActive -> R.string.tracks_msg_follow_active
     },
 )
 

@@ -173,6 +173,8 @@ class BottomNavTest {
             every { weatherLocationPrompted } returns flowOf(false)
             every { rpmBlinkThreshold } returns flowOf(0)
             every { rpmDynamicThreshold } returns flowOf(false)
+            every { roadbookEnabled } returns flowOf(true)
+            every { roadbookSensitivity } returns flowOf(2)
         }
         return DisplaySettingsViewModel(prefs)
     }

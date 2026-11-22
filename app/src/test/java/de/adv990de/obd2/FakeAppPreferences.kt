@@ -23,6 +23,8 @@ internal fun fakeAppPreferences(
     logOnlyDtcSessions: Boolean = false,
     hideNavOnDrive: Boolean = false,
     dimInDark: Boolean = true,
+    roadbookEnabled: Boolean = true,
+    roadbookSensitivity: Int = 2,
     crashReportsEnabled: Boolean = true,
     useGpsSpeed: Boolean = false,
     weatherLocationPrompted: Boolean = false,
@@ -51,6 +53,8 @@ internal fun fakeAppPreferences(
     every { this@mockk.logOnlyDtcSessions } returns flowOf(logOnlyDtcSessions)
     every { this@mockk.hideNavOnDrive } returns flowOf(hideNavOnDrive)
     every { this@mockk.dimInDark } returns flowOf(dimInDark)
+    every { this@mockk.roadbookEnabled } returns flowOf(roadbookEnabled)
+    every { this@mockk.roadbookSensitivity } returns flowOf(roadbookSensitivity)
     every { this@mockk.crashReportsEnabled } returns flowOf(crashReportsEnabled)
     every { this@mockk.useGpsSpeed } returns flowOf(useGpsSpeed)
     every { this@mockk.weatherLocationPrompted } returns flowOf(weatherLocationPrompted)

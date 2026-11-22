@@ -261,6 +261,44 @@ class AppPreferencesTest {
         assertEquals(false, prefs.dimInDark.first())
     }
 
+    // ── Roadbook (2026-11-22) ─────────────────────────────────────────────────
+
+    @Test
+    fun `the roadbook is on by default with the standard sensitivity`() = runTest {
+        val prefs = makePreferences()
+        assertEquals(true, prefs.roadbookEnabled.first())
+        assertEquals(2, prefs.roadbookSensitivity.first())
+    }
+
+    @Test
+    fun `the roadbook settings persist under their keys`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        prefs.setRoadbookEnabled(false)
+        prefs.setRoadbookSensitivity(3)
+        assertEquals(false, store.data.first()[booleanPreferencesKey("roadbook_enabled")])
+        assertEquals(3, store.data.first()[androidx.datastore.preferences.core.intPreferencesKey("roadbook_sensitivity")])
+        store.edit { it[booleanPreferencesKey("roadbook_enabled")] = true }
+        store.edit { it[androidx.datastore.preferences.core.intPreferencesKey("roadbook_sensitivity")] = 1 }
+        assertEquals(true, prefs.roadbookEnabled.first())
+        assertEquals(1, prefs.roadbookSensitivity.first())
+    }
+
+    @Test
+    fun `an unknown stored sensitivity reads as the standard and the setter refuses one`() = runTest {
+        val (prefs, store) = makePreferencesWithDataStore()
+        val key = androidx.datastore.preferences.core.intPreferencesKey("roadbook_sensitivity")
+        store.edit { it[key] = 7 }
+        assertEquals(2, prefs.roadbookSensitivity.first())
+        store.edit { it[key] = 0 }
+        assertEquals(2, prefs.roadbookSensitivity.first())
+        try {
+            prefs.setRoadbookSensitivity(4)
+            org.junit.Assert.fail("level 4 must be refused")
+        } catch (_: IllegalArgumentException) {
+        }
+        assertEquals("a refused value writes nothing", 0, store.data.first()[key])
+    }
+
     // ── crashReportsEnabled (QS B33) ──────────────────────────────────────────
 
     @Test

@@ -99,4 +99,10 @@ object StatusColors {
      * light/dark schemes.
      */
     val TrafficLightGreen = Color(0xFF22C55E)
+
+    /**
+     * Das Play-Dreieck auf dem gruenen Knopf des Nachfahrens im Dashboard ([TrafficLightGreen] als Flaeche, 2026-11-22, Nutzerwunsch): Tailwind Green 950, dunkel — Weiss hat auf diesem
+     * Gruen nur rund 2,3:1, das Dunkelgruen rund 6,8:1 (gerechnet).
+     */
+    val OnTrafficLightGreen = Color(0xFF052E16)
 }

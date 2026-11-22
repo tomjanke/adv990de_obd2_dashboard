@@ -6,6 +6,9 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+/** So viele Punkte zeichnet die Ansicht hoechstens; ein Track mit mehr wird fuer die Zeichnung ausgeduennt (Kennzahlen und Export rechnen mit allen). */
+const val TRACK_DRAW_POINTS = 2_000
+
 /**
  * Duennt einen Linienzug auf hoechstens [maxPoints] Punkte aus (Douglas-Peucker, aber nach **Zahl** statt nach Toleranz): Anfang und Ende bleiben, dann kommt der Punkt dazu, der am
  * weitesten von der Verbindung seiner Nachbarn liegt, und so weiter, bis [maxPoints] erreicht sind oder kein Punkt mehr abweicht. Die Reihenfolge bleibt, es entstehen keine neuen Punkte.

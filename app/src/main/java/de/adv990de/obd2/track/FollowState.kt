@@ -44,6 +44,14 @@ class FollowLine private constructor(val points: List<TrackPoint>) {
         return TrackPoint(null, a.lat + fraction * (b.lat - a.lat), a.lon + fraction * wrapLonDegrees(b.lon - a.lon), null, null, null)
     }
 
+    /** Der Punkt der Linie [alongM] Meter vom Anfang (auf die Linie begrenzt). */
+    fun pointAt(alongM: Double): TrackPoint {
+        val clamped = alongM.coerceIn(0.0, totalM)
+        val segment = segmentAt(clamped)
+        val len = cumulativeM[segment + 1] - cumulativeM[segment]
+        return footPoint(segment, if (len > 0.0) ((clamped - cumulativeM[segment]) / len).coerceIn(0.0, 1.0) else 0.0)
+    }
+
     /** Die Richtung von Teilstueck [segment] in Grad (0 = Nord, im Uhrzeigersinn); ein Teilstueck ohne Laenge nimmt das naechste mit Laenge, sonst das vorige. */
     fun bearingAt(segment: Int): Double {
         fun hasLength(i: Int) = cumulativeM[i + 1] - cumulativeM[i] > 0.0

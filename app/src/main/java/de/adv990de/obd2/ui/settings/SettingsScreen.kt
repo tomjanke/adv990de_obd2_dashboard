@@ -37,6 +37,7 @@ import androidx.navigation.NavController
 import de.adv990de.obd2.R
 import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.location.LocationPermissions
+import de.adv990de.obd2.track.RoadbookSensitivity
 import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.permission.appSettingsIntent
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
@@ -129,6 +130,8 @@ fun SettingsScreen(
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
     val theme by displayVm.theme.collectAsStateWithLifecycle()
     val dimInDark by displayVm.dimInDark.collectAsStateWithLifecycle()
+    val roadbookEnabled by displayVm.roadbookEnabled.collectAsStateWithLifecycle()
+    val roadbookSensitivity by displayVm.roadbookSensitivity.collectAsStateWithLifecycle()
     val showAllBtDevices by vm.showAllBtDevices.collectAsStateWithLifecycle()
     LaunchedEffect(showAllBtDevices) { vm.loadDevices() }
     val rpmBlinkThreshold by displayVm.rpmBlinkThreshold.collectAsStateWithLifecycle()
@@ -259,6 +262,41 @@ fun SettingsScreen(
                     modifier = Modifier.testTag(DIM_IN_DARK_SWITCH_TEST_TAG),
                 )
                 HorizontalDivider()
+            }
+            item {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.settings_roadbook),
+                    summary = stringResource(R.string.settings_roadbook_desc),
+                    checked = roadbookEnabled,
+                    onCheckedChange = { displayVm.setRoadbookEnabled(it) },
+                    modifier = Modifier.testTag(ROADBOOK_SWITCH_TEST_TAG),
+                )
+                HorizontalDivider()
+            }
+            if (roadbookEnabled) {
+                item {
+                    val labels = mapOf(
+                        RoadbookSensitivity.ONLY_SHARP.level to stringResource(R.string.roadbook_sens_only_sharp),
+                        RoadbookSensitivity.STANDARD.level to stringResource(R.string.roadbook_sens_default),
+                        RoadbookSensitivity.ALSO_SLIGHT.level to stringResource(R.string.roadbook_sens_also_slight),
+                    )
+                    val descriptions = mapOf(
+                        RoadbookSensitivity.ONLY_SHARP.level to stringResource(R.string.roadbook_sens_only_sharp_desc),
+                        RoadbookSensitivity.STANDARD.level to stringResource(R.string.roadbook_sens_default_desc),
+                        RoadbookSensitivity.ALSO_SLIGHT.level to stringResource(R.string.roadbook_sens_also_slight_desc),
+                    )
+                    ChoiceSetting(
+                        headline = stringResource(R.string.settings_roadbook_sensitivity),
+                        supportingText = stringResource(R.string.settings_roadbook_sensitivity_desc),
+                        options = RoadbookSensitivity.OPTIONS,
+                        selected = roadbookSensitivity,
+                        onSelect = displayVm::setRoadbookSensitivity,
+                        modifier = Modifier.testTag(ROADBOOK_SENSITIVITY_CHOICE_TEST_TAG),
+                        optionLabel = { labels.getValue(it) },
+                        optionDescription = { descriptions.getValue(it) },
+                    )
+                    HorizontalDivider()
+                }
             }
             item {
                 SettingsSwitchRow(

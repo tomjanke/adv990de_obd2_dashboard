@@ -35,6 +35,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -77,8 +79,12 @@ private const val GPX_MIME = "application/gpx+xml"
 
 /** Die Ansicht eines Tracks (Route `track_detail/{id}`): Zeichnung ohne Karte, darunter oder daneben die Kennzahlen; in der Kopfleiste „als GPX speichern“ und „als GPX teilen“. */
 @Composable
-fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = hiltViewModel()) {
+fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = hiltViewModel(), followVm: FollowStatusViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val followInfo by followVm.info.collectAsStateWithLifecycle()
+    val recordingActive by followVm.recordingActive.collectAsStateWithLifecycle()
+    // „Nachfahren“: laeuft eine Aufzeichnung, geht es nicht (Hinweis); laeuft schon ein anderer Track, fragt ein Dialog vorher; sonst oeffnet es die Karte, die die Sitzung beginnt.
+    var followDialog: FollowDialog? by remember { mutableStateOf(null) }
     val saved by vm.saved.collectAsStateWithLifecycle()
     val exporting by vm.exporting.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -109,10 +115,40 @@ fun TrackDetailScreen(navController: NavController, vm: TrackDetailViewModel = h
         onBack = rememberClosePage(navController),
         onSave = onSave,
         onShare = vm::share,
-        onFollow = { (state as? TrackDetailState.Ready)?.let { navController.openSubPage(Screen.TrackFollow.routeFor(it.summary.id)) } },
+        onFollow = {
+            (state as? TrackDetailState.Ready)?.let { ready ->
+                val id = ready.summary.id
+                val running = followInfo
+                when {
+                    recordingActive -> followDialog = FollowDialog.Recording
+                    running != null && running.trackId != id -> followDialog = FollowDialog.Replace(id, running.name)
+                    else -> navController.openSubPage(Screen.TrackFollow.routeFor(id))
+                }
+            }
+        },
         exporting = exporting,
         snackbarHostState = snackbarHostState,
     )
+
+    when (val dialog = followDialog) {
+        FollowDialog.Recording -> FollowRecordingDialog(onDismiss = { followDialog = null })
+        is FollowDialog.Replace -> FollowReplaceDialog(
+            current = dialog.currentName,
+            onConfirm = {
+                followDialog = null
+                followVm.stop()
+                navController.openSubPage(Screen.TrackFollow.routeFor(dialog.trackId))
+            },
+            onDismiss = { followDialog = null },
+        )
+        null -> Unit
+    }
+}
+
+/** Eine Rueckfrage vor dem Nachfahren: eine Aufzeichnung laeuft, oder es wird schon einem anderen Track gefolgt. */
+private sealed interface FollowDialog {
+    data object Recording : FollowDialog
+    data class Replace(val trackId: Long, val currentName: String?) : FollowDialog
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
