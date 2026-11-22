@@ -115,8 +115,8 @@ class RoadbookHudDeviceTest {
         assertEquals(1, count(ROADBOOK_NEXT_TEST_TAG))
         tag(ROADBOOK_NEXT_TEST_TAG).assertTextEquals(composeRule.activity.getString(R.string.roadbook_then, kindText(next), formatRoadbookDistance(90.0, locale)))
         val size = composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(112f, size.width.value, 1f)
-        assertEquals(72f, size.height.value, 1f)
+        assertEquals(144f, size.width.value, 1f)
+        assertEquals(88f, size.height.value, 1f)
     }
 
     @Test
@@ -229,6 +229,48 @@ class RoadbookHudDeviceTest {
         assertTrue("the far one is lighter (${brightness(0)}) than the near one (${brightness(1)})", brightness(0) > brightness(1) + 0.15f)
     }
 
+    @Test
+    fun theOpacityGlidesBetweenTwoFixesInsteadOfJumping() {
+        var current by mutableStateOf(hud(distance = 400.0, trigger = 400.0))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+                Column(Modifier.background(Color.White).testTag("box")) { RoadbookHudView(current, compact = true) }
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(50)
+        fun darkest(): Float {
+            val image = composeRule.onNodeWithTag("box").captureToImage().toPixelMap()
+            var min = 3f
+            for (y in 0 until image.height) for (x in 0 until image.width) min = minOf(min, image[x, y].let { it.red + it.green + it.blue })
+            return min
+        }
+        val pale = darkest()
+        current = hud(distance = 100.0, trigger = 400.0) // ein Fix weiter, viel naeher: die Deckkraft springt im Wert von 0,6 auf 1,0
+        composeRule.mainClock.advanceTimeBy(50)
+        val shortlyAfter = darkest()
+        composeRule.mainClock.advanceTimeBy(450)
+        val halfway = darkest()
+        composeRule.mainClock.advanceTimeBy(1_500)
+        val done = darkest()
+        assertTrue("not a jump right after the fix ($pale -> $shortlyAfter)", shortlyAfter - pale < (pale - done) * 0.5f)
+        assertTrue("in between at half time ($pale, $halfway, $done)", halfway < pale - 0.05f && halfway > done + 0.05f)
+        assertTrue("it ends at the near value ($pale -> $done)", done < pale - 0.15f)
+    }
+
+    @Test
+    fun theTallVersionForLandscapeHasABiggerMap() {
+        composeRule.setContent {
+            AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) { RoadbookHudView(hud(), compact = false, tall = true) }
+        }
+        composeRule.waitForIdle()
+        val map = composeRule.onNodeWithTag(ROADBOOK_MAP_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(160f, map.width.value, 1f)
+        assertEquals(102f, map.height.value, 1f)
+        val b = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
+        assertEquals("102 dp map + 16 dp padding + 2 dp border", 120f, b.height.value, 3f)
+    }
+
     // ── Platz ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -248,13 +290,13 @@ class RoadbookHudDeviceTest {
     fun theFullVersionAtADashboardWidthHasItsDocumentedSize() {
         composeRule.setContent {
             AppTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
-                Column(Modifier.width(380.dp)) { RoadbookHudView(hud(next = Maneuver(330.0, 340.0, 350.0, -70.0, ManeuverKind.NORMAL)), compact = false, modifier = Modifier.fillMaxWidth()) }
+                Column(Modifier.width(440.dp)) { RoadbookHudView(hud(next = Maneuver(330.0, 340.0, 350.0, -70.0, ManeuverKind.NORMAL)), compact = false, modifier = Modifier.fillMaxWidth()) }
             }
         }
         composeRule.waitForIdle()
         val b = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
-        assertEquals(380f, b.width.value, 1f)
-        assertTrue("about 88 dp high, below the 97 dp where the tile values start (${b.height})", abs(b.height.value - 88f) < 6f)
+        assertEquals(440f, b.width.value, 1f)
+        assertTrue("about 106 dp high, only slightly into the row where the tile values start (${b.height})", abs(b.height.value - 106f) < 6f)
     }
 
     // ── Ein- und Ausblenden ───────────────────────────────────────────────────

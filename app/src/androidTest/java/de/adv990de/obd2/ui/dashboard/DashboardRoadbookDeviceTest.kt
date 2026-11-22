@@ -75,7 +75,7 @@ import org.junit.runner.RunWith
 
 /**
  * Das Nachfahren im **echten** Dashboard (Hilt, echtes `DashboardViewModel` und `FollowStatusViewModel`; die Sitzung selbst ist eine Attrappe mit zwei Fluessen): der gruene Knopf mit dem
- * Play-Dreieck, der Dialog „Zur Karte / Nachfahren beenden“, das Roadbook-HUD ueber dem Kachelraster (Querformat 380 dp breit, Hochformat ueber die Breite) und der Vorrang des Alarmbandes.
+ * Play-Dreieck, der Dialog „Zur Karte / Nachfahren beenden“, das Roadbook-HUD ueber dem Kachelraster (Querformat 480 dp breit, Hochformat ueber die Breite) und der Vorrang des Alarmbandes.
  * Die Kartenseite ist ein Platzhalter-Ziel: geprueft wird nur, dass „Zur Karte“ dorthin navigiert.
  */
 @HiltAndroidTest
@@ -225,8 +225,8 @@ class DashboardRoadbookDeviceTest {
         waitFor(ROADBOOK_HUD_TEST_TAG, present = true)
         assertEquals(1, count(ROADBOOK_MAP_TEST_TAG))
         val bounds = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
-        // Hochformat: ueber die Breite des Dashboards, nicht hoeher als rund 90 dp (sonst deckt es die Kachelwerte).
-        assertTrue("HUD zu hoch: ${bounds.height}", bounds.height.value <= 96f)
+        // Hochformat: ueber die Breite des Dashboards, nicht hoeher als rund 110 dp (sonst deckt es die Kachelwerte).
+        assertTrue("HUD zu hoch: ${bounds.height}", bounds.height.value <= 114f)
         val root = composeRule.onNodeWithTag(RECORDING_BUTTON_TEST_TAG).getBoundsInRoot()
         assertTrue(bounds.width.value > 300f)
         assertTrue(root.width.value > 0f)
@@ -236,14 +236,15 @@ class DashboardRoadbookDeviceTest {
     }
 
     @Test
-    fun theHudIs380DpWide_inLandscape() {
+    fun theHudIs480DpWideAndTall_inLandscape() {
         requestOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
         info.value = FollowInfo(7, "Sonntagsrunde")
         launch()
         reading.value = following(hud())
         waitFor(ROADBOOK_HUD_TEST_TAG, present = true)
         val bounds = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(380f, bounds.width.value, 20f)
+        assertEquals(480f, bounds.width.value, 20f)
+        assertEquals("taller than the portrait version (106 dp)", 120f, bounds.height.value, 6f)
     }
 
     @Test

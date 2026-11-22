@@ -33,20 +33,24 @@ internal data class MapPx(val x: Float, val y: Float)
 /** Die kleine Karte des HUD: der Linienzug, die Position, der Scheitelpunkt der Richtungsaenderung und die Zahl der Meter je Bildpunkt. */
 internal data class RoadbookMap(val line: List<MapPx>, val position: MapPx, val apex: MapPx?, val metresPerPx: Double)
 
-/** Auf dieser Hoehe (Anteil von oben) steht die eigene Position in der kleinen Karte: unten, damit der Weg voraus Platz hat. */
-internal const val ROADBOOK_MAP_ANCHOR_Y = 0.85f
+/** Der kleinste Ausschnitt voraus (Meter): auch eine Richtungsaenderung dicht vor der Position wird nicht ins Riesige gezogen. */
+internal const val ROADBOOK_MAP_MIN_AHEAD_M = 50.0
 
-/** Der kleinste Ausschnitt voraus (Meter): auch eine Richtungsaenderung dicht vor der Position zeigt noch etwas Weg dahinter. */
-internal const val ROADBOOK_MAP_MIN_AHEAD_M = 120.0
+/** So viel Weg bleibt hinter der Position im Bild (Meter): der Blick gehoert der Strecke, die noch vor einem liegt. */
+internal const val ROADBOOK_MAP_BEHIND_M = 20.0
 
-/** Die kleinste halbe Breite (Meter), damit eine gerade Linie nicht auf die ganze Breite gezogen wird. */
-internal const val ROADBOOK_MAP_MIN_HALF_WIDTH_M = 60.0
+/** Die kleinste Breite des Ausschnitts (Meter), damit eine gerade Linie nicht auf die ganze Breite gezogen wird. */
+internal const val ROADBOOK_MAP_MIN_WIDTH_M = 60.0
+
+/** Der Rand um den Inhalt als Anteil der Hoehe der Flaeche: Platz fuer den Pfeil der eigenen Position, damit er nie am Rand abgeschnitten wird. */
+internal const val ROADBOOK_MAP_PADDING_FRACTION = 0.12f
 
 /**
- * Legt den Ausschnitt in eine Flaeche von [widthPx] mal [heightPx]: **der Kurs steht oben** ([bearingDeg] ist die Richtung des Tracks an der Position), die Position bei
- * [ROADBOOK_MAP_ANCHOR_Y] mittig; der Massstab ist so, dass alles bis zum weitesten Punkt voraus ([ROADBOOK_MAP_MIN_AHEAD_M] mindestens) und seitlich ([ROADBOOK_MAP_MIN_HALF_WIDTH_M] mindestens)
- * hineinpasst. [apex] ist der Scheitelpunkt der Richtungsaenderung (`null`: ohne Punkt in der Karte).
- * Die Rechnung ist lokal (ebene Naeherung um die Position): fuer einen Ausschnitt von wenigen hundert Metern genau genug.
+ * Legt den Ausschnitt in eine Flaeche von [widthPx] mal [heightPx]: **der Kurs steht oben** ([bearingDeg] ist die Richtung des Tracks an der Position). Der Massstab ist so, dass die
+ * ganze Strecke voraus ([path] und [apex]) und [ROADBOOK_MAP_BEHIND_M] hinter der Position hineinpassen — mindestens [ROADBOOK_MAP_MIN_AHEAD_M] voraus und [ROADBOOK_MAP_MIN_WIDTH_M] breit.
+ * **Die eigene Position liegt immer im Bild, mit Rand** ([ROADBOOK_MAP_PADDING_FRACTION]): der Inhalt wird in der Flaeche zentriert, die Position steht also dort, wo die Strecke
+ * Platz laesst — vor einer Rechtskurve links unten, vor einer Linkskurve rechts unten, auf der Geraden in der Mitte. [apex] ist der Scheitelpunkt der Richtungsaenderung
+ * (`null`: ohne Punkt in der Karte). Die Rechnung ist lokal (ebene Naeherung um die Position): fuer einen Ausschnitt von wenigen hundert Metern genau genug.
  */
 internal fun roadbookMap(
     path: List<TrackPoint>,
@@ -67,18 +71,44 @@ internal fun roadbookMap(
         return (east * c - north * s) to (east * s + north * c)
     }
     val local = path.map(::local)
-    val ahead = max(ROADBOOK_MAP_MIN_AHEAD_M, local.maxOfOrNull { it.second } ?: 0.0)
-    val half = max(ROADBOOK_MAP_MIN_HALF_WIDTH_M, local.maxOfOrNull { abs(it.first) } ?: 0.0)
-    val up = ROADBOOK_MAP_ANCHOR_Y * heightPx
-    val perMetre = min(up / ahead, (widthPx / 2f) / half).toDouble().let { if (it <= 0.0) 1.0 else it }
-    // Nach hinten darf der Weg bis zum Rand laufen; was darueber hinausgeht, schneidet die Zeichnung ab.
-    fun px(l: Pair<Double, Double>) = MapPx((widthPx / 2f + l.first * perMetre).toFloat(), (up - l.second * perMetre).toFloat())
+    val apexLocal = apex?.let(::local)
+    val all = if (apexLocal != null) local + apexLocal else local
+    // Der Inhalt: die Position (0, 0) und alles voraus; was hinter der Position liegt, zaehlt nur bis ROADBOOK_MAP_BEHIND_M (die Zeichnung schneidet den Rest ab).
+    val maxY = max(0.0, all.maxOfOrNull { it.second } ?: 0.0)
+    val minX = min(0.0, all.minOfOrNull { it.first } ?: 0.0)
+    val maxX = max(0.0, all.maxOfOrNull { it.first } ?: 0.0)
+    val pad = ROADBOOK_MAP_PADDING_FRACTION * heightPx
+    val availW = (widthPx - 2f * pad).coerceAtLeast(1f)
+    val availH = (heightPx - 2f * pad).coerceAtLeast(1f)
+    // Der Massstab folgt den Mindestmassen, damit eine nahe Kurve nicht ins Riesige waechst; die Platzierung folgt den tatsaechlichen Massen.
+    val scaleAhead = max(ROADBOOK_MAP_MIN_AHEAD_M, maxY) + ROADBOOK_MAP_BEHIND_M
+    val scaleWidth = max(ROADBOOK_MAP_MIN_WIDTH_M, maxX - minX)
+    val perMetre = min(availH / scaleAhead, availW / scaleWidth).let { if (it <= 0.0 || !it.isFinite()) 1.0 else it }
+    val contentH = (maxY + ROADBOOK_MAP_BEHIND_M) * perMetre
+    val posY = pad + (availH - contentH) / 2.0 + maxY * perMetre
+    val xCentre = (minX + maxX) / 2.0
+    fun px(l: Pair<Double, Double>) = MapPx((widthPx / 2.0 + (l.first - xCentre) * perMetre).toFloat(), (posY - l.second * perMetre).toFloat())
     return RoadbookMap(
         line = local.map(::px),
-        position = MapPx(widthPx / 2f, up),
-        apex = apex?.let { px(local(it)) },
-        metresPerPx = if (perMetre > 0) 1.0 / perMetre else 1.0,
+        position = px(0.0 to 0.0),
+        apex = apexLocal?.let(::px),
+        metresPerPx = 1.0 / perMetre,
     )
+}
+
+/** Die eigene Lage in der kleinen Karte: Position und Kurs (Richtung des Tracks an der Position). */
+internal data class MapPose(val position: TrackPoint, val bearingDeg: Double)
+
+/**
+ * Die Lage zwischen zwei Fixen: [t] 0 ist [from], 1 ist [to]; der Kurs dreht den kuerzeren Weg (nie ueber Norden herum). Die Karte gleitet damit von einem Fix zum naechsten,
+ * statt im Sekundentakt zu springen. Fuer die wenigen Meter zwischen zwei Fixen genuegt die lineare Mischung von Breite und Laenge.
+ */
+internal fun interpolatePose(from: MapPose, to: MapPose, t: Float): MapPose {
+    val k = t.coerceIn(0f, 1f).toDouble()
+    val lat = from.position.lat + (to.position.lat - from.position.lat) * k
+    val lon = from.position.lon + wrapLonDegrees(to.position.lon - from.position.lon) * k
+    val bearing = (from.bearingDeg + shortestTurnDeg(from.bearingDeg, to.bearingDeg) * k + 360.0) % 360.0
+    return MapPose(TrackPoint(null, lat, lon, null, null, null), bearing)
 }
 
 /**

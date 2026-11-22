@@ -1,9 +1,17 @@
 package de.adv990de.obd2.ui.tracks
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,6 +29,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,13 +72,20 @@ internal const val ROADBOOK_MAP_TEST_TAG = "roadbook_map"
 internal const val ROADBOOK_NEXT_TEST_TAG = "roadbook_next"
 
 /**
- * Wie gross die Teile des HUD sind (dp): voll im Dashboard, kompakt auf der Kartenseite (dort zeigt die Karte den Track schon). Die volle Fassung ist **88 dp hoch** (72 dp Inhalt, 8 dp Rand):
- * im Hochformat sind die Kacheln 170 dp hoch und ihr Wert beginnt rund 97 dp unter der Oberkante — das HUD darf ihn nicht decken.
+ * Wie gross die Teile des HUD sind (dp): voll im Dashboard, kompakt auf der Kartenseite (dort zeigt die Karte den Track schon). Die volle Fassung ist **rund 106 dp hoch** (88 dp Inhalt,
+ * 8 dp Rand, 1 dp Rahmen); im **Querformat** ([tall], der Nutzer faehrt meist quer) **rund 120 dp** mit groesserer Karte (160 × 102 dp) und Pfeil. Die Kacheln sind 170 dp (Hochformat)
+ * bzw. rund 180 dp (Querformat mit Tankzeile) hoch, ihr Wert beginnt rund 97 bzw. 107 dp unter der Oberkante: das HUD reicht damit knapp in die Wertzeile, die obere Leerzeile der Ziffern bleibt frei.
  */
-private val FULL_ARROW = 56.dp
+private val FULL_ARROW = 64.dp
+private val TALL_ARROW = 72.dp
 private val COMPACT_ARROW = 40.dp
-private val MAP_WIDTH = 112.dp
-private val MAP_HEIGHT = 72.dp
+private val MAP_WIDTH = 144.dp
+private val MAP_HEIGHT = 88.dp
+private val TALL_MAP_WIDTH = 160.dp
+private val TALL_MAP_HEIGHT = 102.dp
+
+/** So lange laufen Deckkraft, Balken und Karte von einem Fix zum naechsten (die Position kommt im Sekundentakt): so springt nichts, es gleitet. */
+private const val FIX_GLIDE_MS = 1_000
 
 /** Der Text zu Art und Richtung einer Richtungsaenderung. */
 @Composable
@@ -83,15 +100,34 @@ internal fun maneuverKindText(maneuver: Maneuver): String = stringResource(
 )
 
 /**
- * Das Roadbook-HUD blendet ein, wenn [hud] da ist, und aus, wenn nicht (200 ms ein, 500 ms aus, ohne Federn): beim Ausblenden bleibt der letzte Stand stehen, bis er weg ist.
- * Es ist kein Knopf und nimmt keine Beruehrung an. [compact] ist die kleine Fassung der Kartenseite.
+ * Das Roadbook-HUD blendet ein, wenn [hud] da ist, und aus, wenn nicht: weich, ohne Federn (Einblenden 600 ms mit sanfter Beschleunigung und einem kurzen Gleiten von oben, Ausblenden 900 ms);
+ * beim Ausblenden bleibt der letzte Stand stehen, bis er weg ist. Folgt direkt die naechste Richtungsaenderung, blendet die Anzeige ueber (350 ms) statt umzuspringen.
+ * Es ist kein Knopf und nimmt keine Beruehrung an. [compact] ist die kleine Fassung der Kartenseite, [tall] die hoehere des Querformats.
  */
 @Composable
-internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Modifier = Modifier) {
+internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false) {
     var last by remember { mutableStateOf<RoadbookHud?>(null) }
     if (hud != null && last !== hud) last = hud
-    AnimatedVisibility(visible = hud != null, enter = fadeIn(tween(200)), exit = fadeOut(tween(500)), modifier = modifier) {
-        last?.let { RoadbookHudView(it, compact) }
+    AnimatedVisibility(
+        visible = hud != null,
+        enter = fadeIn(tween(600, easing = FastOutSlowInEasing)) + slideInVertically(tween(600, easing = FastOutSlowInEasing)) { -it / 8 },
+        exit = fadeOut(tween(900, easing = FastOutSlowInEasing)) + slideOutVertically(tween(900, easing = FastOutSlowInEasing)) { -it / 8 },
+        modifier = modifier,
+    ) {
+        val latest = last
+        if (latest != null) {
+            // Das Ueberblenden zeigt den alten Stand eingefroren (er wird gemerkt, solange er der aktuelle ist) und den neuen laufend.
+            val frozen = remember { HashMap<Double, RoadbookHud>() }
+            SideEffect { frozen[latest.maneuver.apexAlongM] = latest }
+            AnimatedContent(
+                targetState = latest.maneuver.apexAlongM,
+                transitionSpec = { fadeIn(tween(350, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(350, easing = FastOutSlowInEasing)) },
+                label = "roadbookManeuver",
+            ) { key ->
+                val shown = if (key == latest.maneuver.apexAlongM) latest else frozen[key]
+                if (shown != null) RoadbookHudView(shown, compact, tall = tall)
+            }
+        }
     }
 }
 
@@ -101,14 +137,16 @@ internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Mo
  * solange die Richtungsaenderung weit weg ist ([RoadbookHud.alpha]).
  */
 @Composable
-internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modifier = Modifier) {
+internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false) {
     val locale = LocalLocale.current.platformLocale
     val distance = formatRoadbookDistance(hud.distanceM, locale)
     val kind = maneuverKindText(hud.maneuver)
     val description = stringResource(R.string.roadbook_desc, distance, kind)
+    // Die Deckkraft folgt dem Sekundentakt der Position, gleitet aber dazwischen (kein Sprung je Fix).
+    val alpha by animateFloatAsState(hud.alpha, tween(FIX_GLIDE_MS, easing = LinearEasing), label = "roadbookAlpha")
     Surface(
         modifier = modifier
-            .graphicsLayer { alpha = hud.alpha }
+            .graphicsLayer { this.alpha = alpha }
             .testTag(ROADBOOK_HUD_TEST_TAG)
             .semantics(mergeDescendants = true) { contentDescription = description },
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
@@ -116,7 +154,7 @@ internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modif
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
     ) {
         Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            ManeuverArrow(hud.maneuver, Modifier.size(if (compact) COMPACT_ARROW else FULL_ARROW).testTag(ROADBOOK_ARROW_TEST_TAG))
+            ManeuverArrow(hud.maneuver, Modifier.size(if (compact) COMPACT_ARROW else if (tall) TALL_ARROW else FULL_ARROW).testTag(ROADBOOK_ARROW_TEST_TAG))
             Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 LiveValueText(
                     distance,
@@ -128,23 +166,24 @@ internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modif
                 val next = hud.next
                 if (!compact && next != null && hud.nextDistanceM != null) {
                     Text(
-                        stringResource(R.string.roadbook_then, maneuverKindText(next), formatRoadbookDistance(hud.nextDistanceM!!, locale)),
+                        stringResource(R.string.roadbook_then, maneuverKindText(next), formatRoadbookDistance(hud.nextDistanceM, locale)),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.testTag(ROADBOOK_NEXT_TEST_TAG),
                     )
                 }
             }
-            if (!compact) RoadbookMiniMap(hud, Modifier.size(width = MAP_WIDTH, height = MAP_HEIGHT).testTag(ROADBOOK_MAP_TEST_TAG))
+            if (!compact) RoadbookMiniMap(hud, Modifier.size(width = if (tall) TALL_MAP_WIDTH else MAP_WIDTH, height = if (tall) TALL_MAP_HEIGHT else MAP_HEIGHT).testTag(ROADBOOK_MAP_TEST_TAG))
         }
     }
 }
 
-/** Der Balken der Entfernung: leer bei der Einblendschwelle, voll an der Richtungsaenderung; keine Animation (er folgt dem Sekundentakt der Position). */
+/** Der Balken der Entfernung: leer bei der Einblendschwelle, voll an der Richtungsaenderung; er gleitet von einem Fix zum naechsten, statt je Sekunde zu springen. */
 @Composable
 private fun ProgressBar(progress: Float, modifier: Modifier) {
+    val shown by animateFloatAsState(progress.coerceIn(0f, 1f), tween(FIX_GLIDE_MS, easing = LinearEasing), label = "roadbookProgress")
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(MaterialTheme.colorScheme.primary).testTag(ROADBOOK_BAR_FILL_TEST_TAG))
+        Box(Modifier.fillMaxWidth(shown).fillMaxHeight().background(MaterialTheme.colorScheme.primary).testTag(ROADBOOK_BAR_FILL_TEST_TAG))
     }
 }
 
@@ -218,6 +257,16 @@ private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier) {
     val halo = MaterialTheme.colorScheme.surface
     val apexColor = MaterialTheme.colorScheme.onSurface
     val description = stringResource(R.string.roadbook_map_cd)
+    // Position und Kurs gleiten von einem Fix zum naechsten (die Karte wird je Bild aus der Zwischenlage gerechnet, nicht je Fix).
+    val glide = remember { Animatable(1f) }
+    var from by remember { mutableStateOf(MapPose(hud.position, hud.bearingDeg)) }
+    var to by remember { mutableStateOf(from) }
+    LaunchedEffect(hud.position, hud.bearingDeg) {
+        from = interpolatePose(from, to, glide.value)
+        to = MapPose(hud.position, hud.bearingDeg)
+        glide.snapTo(0f)
+        glide.animateTo(1f, tween(FIX_GLIDE_MS, easing = LinearEasing))
+    }
     Canvas(
         modifier
             .background(MaterialTheme.colorScheme.background)
@@ -225,7 +274,8 @@ private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier) {
             .clipToBounds()
             .semantics { contentDescription = description },
     ) {
-        val map = roadbookMap(hud.path, hud.position, hud.bearingDeg, hud.apex, size.width, size.height)
+        val pose = interpolatePose(from, to, glide.value)
+        val map = roadbookMap(hud.path, pose.position, pose.bearingDeg, hud.apex, size.width, size.height)
         val pts = map.line
         for (i in 1 until pts.size) {
             val a = pts[i - 1]

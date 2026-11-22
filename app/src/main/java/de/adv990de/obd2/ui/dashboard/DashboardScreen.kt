@@ -295,7 +295,8 @@ fun DashboardScreen(
                 FadingRoadbookHud(
                     hud = if (alarms.isEmpty()) roadbookHud else null,
                     compact = false,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 8.dp, end = 8.dp).then(if (isLandscape) Modifier.width(380.dp) else Modifier.fillMaxWidth()),
+                    tall = isLandscape,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = if (isLandscape) 4.dp else 8.dp, start = 8.dp, end = 8.dp).then(if (isLandscape) Modifier.width(480.dp) else Modifier.fillMaxWidth()),
                 )
                 alarms.firstOrNull()?.let { alarm ->
                     AlarmBanner(
