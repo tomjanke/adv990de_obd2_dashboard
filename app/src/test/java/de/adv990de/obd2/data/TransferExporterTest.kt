@@ -23,6 +23,12 @@ import de.adv990de.obd2.transfer.parseCountersJson
 import de.adv990de.obd2.transfer.parseManifest
 import de.adv990de.obd2.transfer.parseSettingsJson
 import de.adv990de.obd2.transfer.sampleSettings
+import de.adv990de.obd2.track.GpxFile
+import de.adv990de.obd2.track.TrackPoint
+import de.adv990de.obd2.track.TrackSource
+import de.adv990de.obd2.track.TrackSummary
+import de.adv990de.obd2.track.readGpx
+import org.kxml2.io.KXmlParser
 import io.mockk.CapturingSlot
 import io.mockk.Runs
 import io.mockk.clearAllMocks
@@ -76,7 +82,8 @@ class TransferExporterTest {
     private val settings = mockk<SettingsTransfer>()
     private val fuel = mockk<FuelRepository>()
     private val odometer = mockk<LogbookOdometer>()
-    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao), dtcRepo, settings, fuel, odometer).apply {
+    private val tracks = mockk<TrackRepository>()
+    private val exporter = TransferExporter(context, sessions, logbook, LogbookExporter(context, logbook), appLogs, AppLogExporter(context, appLogDao), dtcRepo, settings, fuel, odometer, tracks).apply {
         appVersion = "9.9.9"
         clockMs = { 1_700_000_000_000L }
     }
@@ -141,6 +148,7 @@ class TransferExporterTest {
 
     private fun stubData(tripIds: List<Long> = listOf(1L, 2L), tripRows: Long = 2L, logEntries: List<LogEntry> = entries, logCount: Int = logRows.size, meta: List<SessionMetaRow> = emptyList(), history: List<DtcHistoryEntry> = emptyList()) {
         coEvery { dtcRepo.all() } returns history
+        every { tracks.tracks } returns flowOf(emptyList())
         coEvery { sessionDao.metaByIds(any()) } answers { meta.filter { it.id in firstArg<List<Long>>() } }
         every { sessionDao.observeIds() } returns flowOf(tripIds)
         coEvery { sessionDao.idsWithReadings() } returns tripIds
@@ -151,6 +159,22 @@ class TransferExporterTest {
         coEvery { appLogDao.countAfter(0L) } returns logRows.size
         every { appLogs.logs } returns flowOf(List(logCount) { AppLogEntity(id = it + 1L, timestamp = 1L, level = "INFO", message = "m") })
     }
+
+    private fun summary(id: Long, name: String, pointCount: Int = 2, running: Boolean = false) = TrackSummary(
+        id = id, name = name, source = TrackSource.RECORDED, startMs = 1_000L, endMs = 61_000L, sessionId = null,
+        distanceM = 100, ascentM = null, descentM = null, pointCount = pointCount, createdMs = 1_000L, running = running,
+    )
+
+    /** Erfundene Punkte (um 50 N, 10 E): [count] Stueck ab [lat0]. */
+    private fun trackPoints(count: Int, lat0: Double = 50.0) = List(count) { TrackPoint(1_700_000_000_000L + it * 1_000L, lat0 + it * 0.0001, 10.0, 100f, 5f, 30f) }
+
+    /** Die Tracks der Datenbank, **neueste zuerst** (so liefert sie das Repository); [pointsOf] liefert die Punkte je Id. */
+    private fun stubTracks(list: List<TrackSummary>, pointsOf: (Long) -> List<TrackPoint> = { trackPoints(2) }) {
+        every { tracks.tracks } returns flowOf(list)
+        coEvery { tracks.points(any()) } answers { pointsOf(firstArg()) }
+    }
+
+    private fun gpxOf(file: File): GpxFile = readGpx(zipBytes(file, "tracks.gpx").inputStream(), newParser = { KXmlParser() })
 
     private fun exportedFiles(): List<File> = File(tempFolder.root, "exports").listFiles().orEmpty().filter { it.isFile }.sortedBy { it.name }
 
@@ -644,5 +668,146 @@ class TransferExporterTest {
         assertEquals(null, counts.of(DataPart.SETTINGS))
         assertEquals(null, counts.of(DataPart.COUNTERS))
         assertFalse(counts.isEmpty(DataPart.SETTINGS) || counts.isEmpty(DataPart.COUNTERS))
+    }
+
+    // --- Tracks im Paket ---
+
+    @Test
+    fun `the tracks follow the trips and precede the logbook in the package, one trk for every finished track, the oldest first`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(3, "Newest"), summary(2, "Middle"), summary(1, "Oldest")))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.LOGBOOK, DataPart.TRACKS, DataPart.TRIPS))
+
+        assertEquals(listOf("manifest.json", "trips.csv", "tracks.gpx", "logbook.csv"), zipNames(file.captured))
+        val gpx = gpxOf(file.captured)
+        assertEquals(listOf("Oldest", "Middle", "Newest"), gpx.tracks.map { it.name })
+        assertEquals(listOf(2, 2, 2), gpx.tracks.map { it.points.size })
+        val manifest = parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!
+        assertEquals(3, manifest.parts[DataPart.TRACKS])
+    }
+
+    @Test
+    fun `the points of a track reach the file unchanged`() = runTest {
+        stubData()
+        val original = trackPoints(5, lat0 = 50.25)
+        stubTracks(listOf(summary(1, "One", pointCount = 5))) { original }
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRACKS))
+
+        val back = gpxOf(file.captured).tracks.single().points
+        assertEquals(original.map { it.timeMs }, back.map { it.timeMs })
+        assertEquals(original.map { Math.round(it.lat * 1e7) }, back.map { Math.round(it.lat * 1e7) })
+        assertEquals(original.map { it.ele }, back.map { it.ele })
+    }
+
+    @Test
+    fun `the recording in progress and tracks without points are not part of the package`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(4, "Running", running = true), summary(3, "Empty", pointCount = 0), summary(2, "Done"), summary(1, "Also done")))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRACKS))
+
+        assertEquals(listOf("Also done", "Done"), gpxOf(file.captured).tracks.map { it.name })
+        assertEquals(2, parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts[DataPart.TRACKS])
+        coVerify(exactly = 0) { tracks.points(4L) }
+        coVerify(exactly = 0) { tracks.points(3L) }
+    }
+
+    @Test
+    fun `a track that is gone when it is written is left out of the file`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(2, "Gone"), summary(1, "Kept"))) { id -> if (id == 2L) emptyList() else trackPoints(2) }
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRACKS))
+
+        assertEquals(listOf("Kept"), gpxOf(file.captured).tracks.map { it.name })
+        // der Leser wirft eine Spur ohne Punkt ohnehin weg: in der Datei selbst darf sie gar nicht erst stehen
+        assertEquals(1, Regex("<trk>").findAll(String(zipBytes(file.captured, "tracks.gpx"), Charsets.UTF_8)).count())
+    }
+
+    @Test
+    fun `without a finished track the tracks alone are nothing to export and no file is left`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(1, "Running", running = true), summary(2, "Empty", pointCount = 0)))
+        stubEnvironment()
+        try {
+            exporter.share(request(DataPart.TRACKS))
+            fail("expected nothing to export")
+        } catch (e: IllegalStateException) {
+            assertEquals("Nothing to export", e.message)
+        }
+        assertTrue(exportedFiles().isEmpty())
+    }
+
+    @Test
+    fun `tracks without a finished track are skipped when other parts are chosen too`() = runTest {
+        stubData()
+        stubTracks(emptyList())
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(DataPart.TRACKS, DataPart.LOGBOOK))
+
+        assertEquals(listOf("manifest.json", "logbook.csv"), zipNames(file.captured))
+        assertFalse(DataPart.TRACKS in parseManifest(String(zipBytes(file.captured, "manifest.json"), Charsets.UTF_8))!!.parts)
+    }
+
+    @Test
+    fun `a package of the default parts holds no tracks and does not even ask for them`() = runTest {
+        stubData()
+        stubSettingsAndCounters()
+        stubTracks(listOf(summary(1, "Secret route")))
+        val file = slot<File>()
+        stubEnvironment(captured = file)
+        exporter.share(request(*DataPart.DEFAULT_EXPORT.toTypedArray()))
+
+        assertFalse("tracks.gpx" in zipNames(file.captured))
+        coVerify(exactly = 0) { tracks.points(any()) }
+    }
+
+    @Test
+    fun `the tracks are no csv`() = runTest {
+        stubData()
+        stubEnvironment()
+        try {
+            exporter.share(request(DataPart.TRACKS, format = ExportFormat.CSV))
+            fail("expected an IllegalArgumentException")
+        } catch (e: IllegalArgumentException) {
+            // erwartet: eine CSV-Datei gibt es nur fuer Fahrten, Logbuch und App-Log
+        }
+    }
+
+    @Test
+    fun `counts name the finished tracks only`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(4, "Running", running = true), summary(3, "Empty", pointCount = 0), summary(2, "Done"), summary(1, "Also done")))
+        assertEquals(2, exporter.counts().tracks)
+        assertEquals(2, exporter.counts().of(DataPart.TRACKS))
+        assertFalse(exporter.counts().isEmpty(DataPart.TRACKS))
+    }
+
+    @Test
+    fun `counts report no tracks as empty`() = runTest {
+        stubData()
+        assertEquals(0, exporter.counts().tracks)
+        assertTrue(exporter.counts().isEmpty(DataPart.TRACKS))
+    }
+
+    @Test
+    fun `tracks are written one after the other and a failure while writing leaves no file`() = runTest {
+        stubData()
+        stubTracks(listOf(summary(2, "Second"), summary(1, "First"))) { id -> if (id == 2L) throw IOException("disk") else trackPoints(2) }
+        stubEnvironment()
+        try {
+            exporter.share(request(DataPart.TRACKS))
+            fail("expected the IOException")
+        } catch (e: IOException) {
+            assertEquals("disk", e.message)
+        }
+        assertTrue(exportedFiles().isEmpty())
     }
 }

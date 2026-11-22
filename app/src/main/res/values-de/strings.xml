@@ -692,7 +692,7 @@
     <string name="transfer_format_csv">CSV</string>
     <string name="transfer_format_csv_hint">CSV geht nur für genau eines von Fahrten, Logbuch oder App-Log.</string>
     <string name="transfer_note_app_log">Der App-Log enthält den Namen deines Adapters und Fehlermeldungen.</string>
-    <string name="transfer_note_no_backup">Die App sichert nichts von selbst. Löschst du die App-Daten oder die App, sind Fahrten, Logbuch und Einstellungen weg. Bewahre die Datei außerhalb des Telefons auf.</string>
+    <string name="transfer_note_no_backup">Die App sichert nichts von selbst. Löschst du die App-Daten oder die App, sind Fahrten, Tracks, Logbuch und Einstellungen weg. Bewahre die Datei außerhalb des Telefons auf.</string>
     <string name="transfer_note_recording_excluded">Die laufende Aufzeichnung ist nicht dabei.</string>
     <string name="transfer_nothing_to_export">Nichts zu exportieren.</string>
     <string name="transfer_saved">Gespeichert.</string>
@@ -883,6 +883,11 @@
     <!-- GPX-Import (Tracks) -->
     <string name="track_import_fallback_name">Track %1$d</string>
     <string name="transfer_part_tracks">Tracks</string>
+    <plurals name="transfer_count_tracks">
+        <item quantity="one">%1$d Track</item>
+        <item quantity="other">%1$d Tracks</item>
+    </plurals>
+    <string name="transfer_note_tracks">Das Paket enthält die Positionen deiner Tracks, Punkt für Punkt. Wer die Datei bekommt, kennt deine Wege.</string>
     <plurals name="track_import_new">
         <item quantity="one">%1$d neuer Track</item>
         <item quantity="other">%1$d neue Tracks</item>

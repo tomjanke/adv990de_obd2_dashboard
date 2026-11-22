@@ -115,4 +115,36 @@ class GpxWriterTest {
         while (parser.next() != XmlPullParser.END_DOCUMENT) if (parser.eventType == XmlPullParser.START_TAG && parser.name == "trkpt") pts++
         assertEquals(50, pts)
     }
+
+    // --- mehrere Spuren in einer Datei (Sicherungspaket) ---
+
+    private fun writeMany(vararg tracks: Pair<String, List<TrackPoint>>): String = StringWriter().also { out ->
+        writeGpxHeader(out)
+        tracks.forEach { (name, points) -> writeGpxTrack(out, name, points) }
+        writeGpxFooter(out)
+    }.toString()
+
+    @Test
+    fun `a single track is the header, the track and the footer - byte for byte`() {
+        val points = listOf(p(1.0, 2.0, ele = 5f, timeMs = 1_700_000_000_000L), p(1.5, 2.5))
+        assertEquals(write("T", points), writeMany("T" to points))
+    }
+
+    @Test
+    fun `several tracks give one gpx file with one trk each in the given order`() {
+        val xml = writeMany("Erste" to listOf(p(1.0, 2.0)), "Zweite" to listOf(p(3.0, 4.0), p(3.5, 4.5)))
+        assertEquals(1, Regex("<gpx ").findAll(xml).count())
+        assertEquals(2, Regex("<trk>").findAll(xml).count())
+        assertTrue(xml.indexOf("Erste") < xml.indexOf("Zweite"))
+        val file = readGpx(xml.byteInputStream(), newParser = { KXmlParser() })
+        assertEquals(listOf("Erste", "Zweite"), file.tracks.map { it.name })
+        assertEquals(listOf(1, 2), file.tracks.map { it.points.size })
+    }
+
+    @Test
+    fun `a file without any track is still a well formed gpx file`() {
+        val xml = writeMany()
+        val file = readGpx(xml.byteInputStream(), newParser = { KXmlParser() })
+        assertTrue(file.tracks.isEmpty())
+    }
 }

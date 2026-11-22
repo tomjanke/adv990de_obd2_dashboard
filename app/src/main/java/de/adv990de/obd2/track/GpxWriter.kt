@@ -12,8 +12,22 @@ import java.util.Locale
  * **Die Datei enthaelt die Wege des Nutzers** — wer sie teilt, gibt sie weiter; die Oberflaeche sagt es.
  */
 fun writeGpx(out: Appendable, name: String, points: List<TrackPoint>) {
+    writeGpxHeader(out)
+    writeGpxTrack(out, name, points)
+    writeGpxFooter(out)
+}
+
+/**
+ * Dieselbe Datei in Teilen, damit mehrere Spuren in **einer** GPX-Datei stehen koennen (das Sicherungspaket): erst [writeGpxHeader], dann je Spur [writeGpxTrack], zuletzt [writeGpxFooter].
+ * Wer eine Spur nach der anderen schreibt, haelt nie mehr als die Punkte einer Spur im Speicher. [writeGpx] ist genau diese Folge mit einer Spur.
+ */
+fun writeGpxHeader(out: Appendable) {
     out.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
     out.append("<gpx version=\"1.1\" creator=\"OBD Dashboard\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+}
+
+/** Eine `trk` mit einer `trkseg` (Namen, Zahlen, Zeiten und Hoehen wie bei [writeGpx]). */
+fun writeGpxTrack(out: Appendable, name: String, points: List<TrackPoint>) {
     out.append("<trk>\n<name>").append(xmlText(name)).append("</name>\n<trkseg>\n")
     for (p in points) {
         out.append("<trkpt lat=\"").append(coordinate(p.lat)).append("\" lon=\"").append(coordinate(p.lon)).append("\">")
@@ -23,7 +37,11 @@ fun writeGpx(out: Appendable, name: String, points: List<TrackPoint>) {
         if (t != null && t in MIN_TIME_MS..MAX_TIME_MS) out.append("<time>").append(Instant.ofEpochMilli(t).toString()).append("</time>")
         out.append("</trkpt>\n")
     }
-    out.append("</trkseg>\n</trk>\n</gpx>\n")
+    out.append("</trkseg>\n</trk>\n")
+}
+
+fun writeGpxFooter(out: Appendable) {
+    out.append("</gpx>\n")
 }
 
 private const val MIN_TIME_MS = 0L

@@ -17,16 +17,16 @@ enum class DataPart(val importable: Boolean, val packageEntry: String) {
         /** Reihenfolge beim Einlesen (D9): der Kilometer-Anker der Zähler hängt am Logbuch. */
         val IMPORT_ORDER: List<DataPart> = listOf(LOGBOOK, TRIPS, TRACKS, DTC_HISTORY, SETTINGS, COUNTERS)
 
-        /**
-         * Teile, die diese Version ausgeben kann (die sechs alten); die Exportseite zeigt nur sie. Die Tracks lassen sich schon einlesen ([IMPORT_AVAILABLE]), aber noch nicht
-         * ausgeben (F8 Aufgabe 10): erst dann gehören sie hierher.
-         */
-        val AVAILABLE: Set<DataPart> = entries.toSet() - TRACKS
+        /** Teile, die diese Version ausgeben kann: alle; die Exportseite zeigt sie. */
+        val AVAILABLE: Set<DataPart> = entries.toSet()
 
         /** Teile, die diese Version einlesen kann: jeder einlesbare Teil. */
         val IMPORT_AVAILABLE: Set<DataPart> = entries.filter { it.importable }.toSet()
 
-        /** Vorgewählt von der Einstellungsseite (D5): alles Verfügbare außer dem App-Log. */
-        val DEFAULT_EXPORT: Set<DataPart> get() = AVAILABLE - APP_LOG
+        /**
+         * Vorgewählt von der Einstellungsseite (D5): alles Verfügbare außer dem App-Log (er enthält den Adapternamen) und den Tracks (sie enthalten die Wege des Nutzers, Punkt für
+         * Punkt): beides nur, wenn der Nutzer es selbst ankreuzt.
+         */
+        val DEFAULT_EXPORT: Set<DataPart> get() = AVAILABLE - APP_LOG - TRACKS
     }
 }

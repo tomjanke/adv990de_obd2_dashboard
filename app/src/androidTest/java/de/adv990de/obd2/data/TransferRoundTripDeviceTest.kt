@@ -16,6 +16,8 @@ import de.adv990de.obd2.idleObdRepository
 import de.adv990de.obd2.logbook.GpsOdometer
 import de.adv990de.obd2.logbook.LogEntry
 import de.adv990de.obd2.logbook.LogType
+import de.adv990de.obd2.track.GpxTrack
+import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.FileKind
@@ -70,6 +72,7 @@ class TransferRoundTripDeviceTest {
     @Inject lateinit var prefs: AppPreferences
     @Inject lateinit var fuel: FuelRepository
     @Inject lateinit var odometer: LogbookOdometer
+    @Inject lateinit var trackRepo: TrackRepository
 
     private val ctx: Context = ApplicationProvider.getApplicationContext()
     private val files = ArrayList<File>()
@@ -518,5 +521,76 @@ class TransferRoundTripDeviceTest {
         val f = tempFile("logbook-for-anchor.csv")
         logbookExporter.saveCsv(Uri.fromFile(f))
         return f.readText()
+    }
+
+    // ── Tracks im Paket ───────────────────────────────────────────────────────
+
+    /** Erfundene Wege (um 50 N, 10 E) mit Zeit und Hoehe: [count] Punkte ab [lat0]. */
+    private fun route(count: Int, lat0: Double) = List(count) { TrackPoint(start + it * 1_000L, lat0 + it * 0.0002, 10.0 + it * 0.0001, 100f + it, null, null) }
+
+    private suspend fun seedTracks() {
+        trackRepo.importTracks(listOf(GpxTrack("Morning loop", route(40, 50.0)), GpxTrack("Evening road", route(25, 50.5)))) { "Track $it" }
+    }
+
+    private suspend fun wipeTracks() = trackRepo.delete(trackRepo.tracks.first().map { it.id })
+
+    @Test
+    fun theTracksSurviveTheRound_samePointsSameNamesAndASecondRoundChangesNothing() = runBlocking {
+        seedTracks()
+        val before = trackRepo.tracks.first().sortedBy { it.id }.map { it.name to trackRepo.points(it.id) }
+
+        val file = saveRequest(setOf(DataPart.TRACKS), ExportFormat.PACKAGE, "tracks.zip")
+        wipeTracks()
+        assertEquals(0, countOf("tracks"))
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        assertEquals(listOf(DataPart.TRACKS), preview.parts.keys.toList())
+        assertEquals(2, (preview.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan.toInsert.size)
+        val result = importer.apply(preview, setOf(DataPart.TRACKS))
+        assertEquals(PartOutcome.Done(2), result.outcomes.getValue(DataPart.TRACKS))
+
+        val after = trackRepo.tracks.first().sortedBy { it.id }.map { it.name to trackRepo.points(it.id) }
+        assertEquals(before.map { it.first }, after.map { it.first })
+        for ((b, a) in before.zip(after)) {
+            assertEquals(b.second.size, a.second.size)
+            assertEquals(b.second.map { it.timeMs }, a.second.map { it.timeMs })
+            assertEquals(b.second.map { Math.round(it.lat * 1e7) }, a.second.map { Math.round(it.lat * 1e7) })
+            assertEquals(b.second.map { Math.round(it.lon * 1e7) }, a.second.map { Math.round(it.lon * 1e7) })
+            assertEquals(b.second.map { it.ele }, a.second.map { it.ele })
+        }
+
+        // ein zweites Einlesen derselben Datei findet nur noch Doppelte
+        val second = importer.inspect(Uri.fromFile(file), now, today)
+        val plan = (second.parts.getValue(DataPart.TRACKS) as PartPlan.Tracks).plan
+        assertTrue(plan.toInsert.isEmpty())
+        assertEquals(2, plan.duplicateTracks)
+        assertEquals(2, countOf("tracks"))
+    }
+
+    @Test
+    fun aPackageOfTheDefaultPartsCarriesNoTrackEvenWhenTracksExist() = runBlocking {
+        seed()
+        seedTracks()
+        val file = saveRequest(DataPart.DEFAULT_EXPORT, ExportFormat.PACKAGE, "no_tracks.zip")
+
+        java.util.zip.ZipFile(file).use { z -> assertTrue(z.entries().toList().none { it.name == "tracks.gpx" }) }
+        assertFalse(DataPart.TRACKS in importer.inspect(Uri.fromFile(file), now, today).parts)
+    }
+
+    @Test
+    fun theTracksAndTheOtherPartsTravelInOnePackageAndEachComesBack() = runBlocking {
+        seed()
+        seedTracks()
+        val file = saveRequest(setOf(DataPart.TRIPS, DataPart.TRACKS, DataPart.LOGBOOK), ExportFormat.PACKAGE, "all_three.zip")
+        wipe()
+        wipeTracks()
+
+        val preview = importer.inspect(Uri.fromFile(file), now, today)
+        assertEquals(listOf(DataPart.LOGBOOK, DataPart.TRIPS, DataPart.TRACKS), preview.parts.keys.toList())
+        importer.apply(preview, preview.parts.keys)
+
+        assertEquals(2, countOf("tracks"))
+        assertEquals(2, countOf("sessions"))
+        assertEquals(4, countOf("vehicle_log"))
     }
 }

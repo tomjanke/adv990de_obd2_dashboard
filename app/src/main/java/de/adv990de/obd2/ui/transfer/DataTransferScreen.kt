@@ -90,6 +90,7 @@ internal const val TRANSFER_NOTE_APP_LOG_TEST_TAG = "transfer_note_app_log"
 internal const val TRANSFER_NOTE_NO_BACKUP_TEST_TAG = "transfer_note_no_backup"
 internal const val TRANSFER_NOTE_RECORDING_TEST_TAG = "transfer_note_recording"
 internal const val TRANSFER_NOTE_VIN_TEST_TAG = "transfer_note_vin"
+internal const val TRANSFER_NOTE_TRACKS_TEST_TAG = "transfer_note_tracks"
 internal const val TRANSFER_NOTE_TRIPS_NEAR_LIMIT_TEST_TAG = "transfer_note_trips_near_limit"
 internal const val TRANSFER_NOTE_TRIPS_OVER_LIMIT_TEST_TAG = "transfer_note_trips_over_limit"
 internal const val TRANSFER_SAVE_TEST_TAG = "transfer_save"
@@ -350,8 +351,12 @@ internal fun DataTransferExportContent(state: ExportUi, actions: ExportActions, 
         if (DataPart.APP_LOG in state.selection) {
             Note(stringResource(R.string.transfer_note_app_log), Modifier.testTag(TRANSFER_NOTE_APP_LOG_TEST_TAG))
         }
-        // Zwei Hinweise nur der Export-Ansicht: die laufende Fahrt gehoert nicht in die Datei (nur bei gewaehlten Fahrten), und nichts sichert die Daten von selbst (immer).
-        if (DataPart.TRIPS in state.selection) {
+        // Die Tracks sind die Wege des Nutzers, Punkt fuer Punkt: wer das Paket bekommt, kennt sie.
+        if (DataPart.TRACKS in state.selection) {
+            Note(stringResource(R.string.transfer_note_tracks), Modifier.testTag(TRANSFER_NOTE_TRACKS_TEST_TAG))
+        }
+        // Zwei Hinweise nur der Export-Ansicht: die laufende Aufzeichnung (Fahrt oder Track) gehoert nicht in die Datei (nur bei gewaehlten Fahrten oder Tracks), und nichts sichert die Daten von selbst (immer).
+        if (DataPart.TRIPS in state.selection || DataPart.TRACKS in state.selection) {
             Note(stringResource(R.string.transfer_note_recording_excluded), Modifier.testTag(TRANSFER_NOTE_RECORDING_TEST_TAG))
         }
         // Das Paket traegt die FIN je Fahrt (trips_meta.csv); die CSV der Fahrten nicht.
@@ -497,7 +502,7 @@ private fun ImportPreview(state: TransferImportState.Preview, actions: ImportAct
 
 private val NO_EXPORT_ACTIONS = ExportActions({}, {}, {}, {})
 private val NO_IMPORT_ACTIONS = ImportActions({}, {}, {}, {})
-private val PREVIEW_COUNTS = ExportCounts(trips = 61, logbook = 104, appLog = 312)
+private val PREVIEW_COUNTS = ExportCounts(trips = 61, logbook = 104, appLog = 312, tracks = 7)
 
 @Composable
 private fun ExportPreviewScreen(mode: TransferMode = TransferMode.EXPORT, state: ExportUi) {

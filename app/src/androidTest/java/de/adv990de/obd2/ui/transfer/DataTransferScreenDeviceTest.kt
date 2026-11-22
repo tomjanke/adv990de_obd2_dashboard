@@ -284,6 +284,48 @@ class DataTransferScreenDeviceTest {
         composeRule.onAllNodesWithTag(TRANSFER_NOTE_RECORDING_TEST_TAG).assertCountEquals(0)
     }
 
+    // --- Tracks im Export ---
+
+    @Test
+    fun theTracksRowNamesTheNumberOfTracksAndIsUnchecked() {
+        showExport(exportUi(counts = ExportCounts(trips = 3, logbook = 2, appLog = 0, tracks = 7)))
+        tag(transferPartRowTestTag(DataPart.TRACKS)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_part_tracks), plural(R.plurals.transfer_count_tracks, 7))).assertIsDisplayed()
+        composeRule.onNode(isToggleable() and hasText("Tracks", substring = true)).assertIsOff()
+    }
+
+    @Test
+    fun theTracksRowIsGreyedOutWithoutATrack() {
+        showExport(exportUi(counts = ExportCounts(trips = 3, logbook = 2, appLog = 0, tracks = 0)))
+        composeRule.onNode(isToggleable() and hasText("Tracks", substring = true)).performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText(string(R.string.transfer_part_row, string(R.string.transfer_part_tracks), string(R.string.transfer_part_empty))).assertIsDisplayed()
+    }
+
+    @Test
+    fun theRoutesNoteShowsOnlyWithTheTracksChosen() {
+        showExport(exportUi(selection = setOf(DataPart.TRIPS, DataPart.LOGBOOK)))
+        composeRule.onAllNodesWithTag(TRANSFER_NOTE_TRACKS_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theRoutesNoteShowsWhenTheTracksAreChosen() {
+        showExport(exportUi(selection = setOf(DataPart.TRACKS)))
+        tag(TRANSFER_NOTE_TRACKS_TEST_TAG).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.transfer_note_tracks)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theRecordingHintShowsWithTheTracksAloneToo() {
+        showExport(exportUi(selection = setOf(DataPart.TRACKS)))
+        tag(TRANSFER_NOTE_RECORDING_TEST_TAG).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun theRoutesNoteIsNotCutOffAtNarrowWidthAndALargeFont() {
+        showExport(exportUi(selection = setOf(DataPart.TRACKS)), fontScale = 1.3f, width = 360)
+        tag(TRANSFER_NOTE_TRACKS_TEST_TAG).performScrollTo().assertIsDisplayed().assertNotCutOff()
+    }
+
     // --- Die Fahrten gegen die Grenze des Imports: Vorwarnung ab 80 %, Warnung ueber 100 % ---
 
     private val importLimit = de.adv990de.obd2.tripimport.tripImportRowLimit().toLong()

@@ -47,11 +47,13 @@ class DataPartTest {
         assertFalse(DataPart.APP_LOG in DataPart.DEFAULT_EXPORT)
         assertTrue(DataPart.AVAILABLE.containsAll(DataPart.DEFAULT_EXPORT))
         assertEquals(setOf(DataPart.TRIPS, DataPart.LOGBOOK, DataPart.SETTINGS, DataPart.COUNTERS, DataPart.DTC_HISTORY), DataPart.DEFAULT_EXPORT)
+        assertFalse("tracks hold the routes of the user and are never preselected", DataPart.TRACKS in DataPart.DEFAULT_EXPORT)
     }
 
     @Test
-    fun theExportOffersTheSixOldPartsAndNotYetTheTracks() {
-        assertEquals(DataPart.entries.toSet() - DataPart.TRACKS, DataPart.AVAILABLE)
+    fun theExportOffersEveryPartIncludingTheTracks() {
+        assertEquals(DataPart.entries.toSet(), DataPart.AVAILABLE)
+        assertTrue(DataPart.TRACKS in DataPart.AVAILABLE)
     }
 
     @Test
@@ -70,7 +72,7 @@ class DataPartTest {
     }
 
     @Test
-    fun theTracksCanBeImportedAlready() {
+    fun theTracksCanBeImportedAndExported() {
         assertTrue(DataPart.TRACKS.importable)
         assertEquals("tracks.gpx", DataPart.TRACKS.packageEntry)
         assertEquals(DataPart.entries.filter { it.importable }.toSet(), DataPart.IMPORT_AVAILABLE)

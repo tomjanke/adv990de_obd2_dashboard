@@ -6,6 +6,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.adv990de.obd2.BuildConfig
 import de.adv990de.obd2.fuel.FuelRepository
 import de.adv990de.obd2.logbook.logbookFileName
+import de.adv990de.obd2.track.writeGpxFooter
+import de.adv990de.obd2.track.writeGpxHeader
+import de.adv990de.obd2.track.writeGpxTrack
+import de.adv990de.obd2.track.TrackSummary
 import de.adv990de.obd2.transfer.DataPart
 import de.adv990de.obd2.transfer.ExportFormat
 import de.adv990de.obd2.transfer.PackageEntry
@@ -30,6 +34,8 @@ data class ExportCounts(
     val dtcHistory: Int = 0,
     /** Die Messwerte (Datenzeilen) der Fahrten, die der Export schreibt; die Seite haelt sie gegen die Grenze des Imports (`tripExportSize`). */
     val tripRows: Long = 0,
+    /** Die beendeten Tracks mit Punkten (die laufende Aufzeichnung ist nicht dabei, wie bei den Fahrten). */
+    val tracks: Int = 0,
 ) {
     /** `null` = keine Menge (Einstellungen und Zaehler sind immer vorhanden). */
     fun of(part: DataPart): Int? = when (part) {
@@ -37,8 +43,8 @@ data class ExportCounts(
         DataPart.LOGBOOK -> logbook
         DataPart.APP_LOG -> appLog
         DataPart.DTC_HISTORY -> dtcHistory
-        // Die Tracks lassen sich noch nicht ausgeben (F8 Aufgabe 10): keine Menge, die Exportseite zeigt sie nicht.
-        DataPart.SETTINGS, DataPart.COUNTERS, DataPart.TRACKS -> null
+        DataPart.TRACKS -> tracks
+        DataPart.SETTINGS, DataPart.COUNTERS -> null
     }
 
     fun isEmpty(part: DataPart): Boolean = of(part) == 0
@@ -68,6 +74,7 @@ class TransferExporter @Inject constructor(
     private val settings: SettingsTransfer,
     private val fuel: FuelRepository,
     private val odometer: LogbookOdometer,
+    private val tracks: TrackRepository,
 ) {
     private val files = CsvExportFiles(context)
 
@@ -80,7 +87,15 @@ class TransferExporter @Inject constructor(
         appLog = appLogs.logs.first().size,
         dtcHistory = dtcHistory.all().size,
         tripRows = sessions.exportableReadingCount(),
+        tracks = exportableTracks().size,
     )
+
+    /**
+     * Die Tracks, die ein Paket traegt: beendet und mit Punkten, die aeltesten zuerst (das Repository liefert die neuesten zuerst). Die laufende Aufzeichnung ist nicht dabei — ihre Datei
+     * waere ein halber Weg, und sie wuerde beim Einlesen als fertiger Track erscheinen.
+     */
+    private suspend fun exportableTracks(): List<TrackSummary> =
+        tracks.tracks.first().filter { !it.running && it.pointCount > 0 }.sortedBy { it.id }
 
     suspend fun share(request: ExportRequest): Uri {
         val csvPart = csvPartFor(request)
@@ -143,6 +158,21 @@ class TransferExporter @Inject constructor(
                 val withDetail = sessions.tripMeta(ids).filterValues { !it.isEmpty }.keys
                 val metaIds = ids.filter { it in withDetail }
                 if (metaIds.isNotEmpty()) body += PackageEntry(PackageFormat.TRIPS_META) { sessions.writeTripMetaCsv(it, metaIds) }
+            }
+        }
+        if (DataPart.TRACKS in chosen) {
+            val list = exportableTracks()
+            if (list.isNotEmpty()) {
+                written[DataPart.TRACKS] = list.size
+                body += PackageEntry(DataPart.TRACKS.packageEntry) { out ->
+                    // Eine Spur nach der anderen: nie die Punkte aller Tracks zugleich im Speicher. Ein Track, der inzwischen weg ist, entfaellt (die Zahl im Manifest zaehlt ihn dann mit).
+                    writeGpxHeader(out)
+                    for (track in list) {
+                        val points = tracks.points(track.id)
+                        if (points.isNotEmpty()) writeGpxTrack(out, track.name, points)
+                    }
+                    writeGpxFooter(out)
+                }
             }
         }
         if (DataPart.LOGBOOK in chosen) {

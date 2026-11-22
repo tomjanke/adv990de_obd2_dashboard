@@ -692,7 +692,7 @@
     <string name="transfer_format_csv">CSV</string>
     <string name="transfer_format_csv_hint">CSV works for exactly one of drives, logbook or app log.</string>
     <string name="transfer_note_app_log">The app log contains your adapter\'s name and error messages.</string>
-    <string name="transfer_note_no_backup">The app does not back anything up by itself. If you delete the app data or the app, drives, logbook and settings are gone. Keep the file somewhere other than this phone.</string>
+    <string name="transfer_note_no_backup">The app does not back anything up by itself. If you delete the app data or the app, drives, tracks, logbook and settings are gone. Keep the file somewhere other than this phone.</string>
     <string name="transfer_note_recording_excluded">The recording in progress is not included.</string>
     <string name="transfer_nothing_to_export">Nothing to export.</string>
     <string name="transfer_saved">Saved.</string>
@@ -883,6 +883,11 @@
     <!-- GPX import (tracks) -->
     <string name="track_import_fallback_name">Track %1$d</string>
     <string name="transfer_part_tracks">Tracks</string>
+    <plurals name="transfer_count_tracks">
+        <item quantity="one">%1$d track</item>
+        <item quantity="other">%1$d tracks</item>
+    </plurals>
+    <string name="transfer_note_tracks">The package contains the positions of your tracks, point by point. Whoever gets the file knows your routes.</string>
     <plurals name="track_import_new">
         <item quantity="one">%1$d new track</item>
         <item quantity="other">%1$d new tracks</item>

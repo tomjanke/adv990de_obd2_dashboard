@@ -69,7 +69,7 @@ class DataTransferViewModelTest {
     private val source = mockk<Uri>()
     private val target = mockk<Uri>()
     private val shareUri = mockk<Uri>()
-    private val fullCounts = ExportCounts(trips = 3, logbook = 2, appLog = 5, dtcHistory = 4)
+    private val fullCounts = ExportCounts(trips = 3, logbook = 2, appLog = 5, dtcHistory = 4, tracks = 2)
 
     private val entry = LogEntry(
         type = LogType.FUEL, date = LocalDate.of(2026, 10, 2), odometerKm = 40_362, amountMl = 14_370,
@@ -153,6 +153,38 @@ class DataTransferViewModelTest {
     }
 
     // ── Auswahl ───────────────────────────────────────────────────────────────
+
+    @Test
+    fun `the tracks are offered, never preselected and can be chosen and dropped`() = runTest {
+        val f = ready()
+        assertFalse("the routes of the user are never preselected", DataPart.TRACKS in f.vm.selection.value)
+        f.vm.toggle(DataPart.TRACKS)
+        assertTrue(DataPart.TRACKS in f.vm.selection.value)
+        f.vm.toggle(DataPart.TRACKS)
+        assertFalse(DataPart.TRACKS in f.vm.selection.value)
+    }
+
+    @Test
+    fun `without a finished track the tracks cannot be chosen`() = runTest {
+        val f = ready(counts = ExportCounts(trips = 3, logbook = 2, appLog = 5, tracks = 0))
+        f.vm.toggle(DataPart.TRACKS)
+        assertFalse(DataPart.TRACKS in f.vm.selection.value)
+    }
+
+    @Test
+    fun `the tracks are a package only - with csv wished the format stays a package`() = runTest {
+        val f = ready()
+        f.vm.setFormat(ExportFormat.CSV)
+        f.vm.toggle(DataPart.TRIPS)
+        f.vm.toggle(DataPart.LOGBOOK)
+        f.vm.toggle(DataPart.SETTINGS)
+        f.vm.toggle(DataPart.COUNTERS)
+        f.vm.toggle(DataPart.DTC_HISTORY)
+        f.vm.toggle(DataPart.TRACKS)
+        assertEquals(setOf(DataPart.TRACKS), f.vm.selection.value)
+        assertFalse(f.vm.csvAllowed.value)
+        assertEquals(ExportFormat.PACKAGE, f.vm.format.value)
+    }
 
     @Test
     fun `toggle adds and removes a part and the app log is selectable but not preselected`() = runTest {
