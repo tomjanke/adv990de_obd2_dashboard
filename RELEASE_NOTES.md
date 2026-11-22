@@ -1,5 +1,20 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.1 (versionCode 176)
+
+**Behoben: die Karte erschien in der Ansicht eines Tracks nicht; dazu zwei Fehler, die erst eine echte Kartendatei zeigte.**
+
+### Was sich ändert
+
+- **Ansicht eines Tracks zeigt die Karte:** in 1.49.0 holte die Ansicht die Karte, gab sie aber nie an die Zeichnung weiter — nur die Nachfahren-Seite zeigte sie. Die Geräte-Tests der Teile waren grün, der Fehler fiel erst beim Ansehen am Pixel mit einer echten Karte auf. Neu: ein Quelltext-Test, der die Durchreichung von der Seite bis zur Zeichnung festhält (beide Seiten), und ein Geräte-Test an der Ansicht.
+- **Einspielen beim ersten Mal:** die Prüfung des freien Platzes lief, bevor der Kartenordner existierte, und `File.usableSpace` meldet dann 0 — das erste Einspielen jeder Datei scheiterte mit „Nicht genug Platz“. Der Ordner wird jetzt vorher angelegt (neuer Test mit dem echten Wert).
+- **Flüsse und verkehrsberuhigte Straßen:** in einer echten Protomaps-Datei steht die Art eines Wasserlaufs in `kind` (nicht `kind_detail`, wie die Doku nahelegte): Flüsse und Kanäle wurden nicht gezeichnet; verkehrsberuhigte Straßen (`other`/`living_street`) fehlten. Beides wird jetzt gezeichnet.
+- **Mit echter Datei gesehen und gemessen:** ein Ausschnitt des Protomaps-Tagesbuilds vom 21.11.2026 (Raum Frankfurt, 32 MB, 1687 Kacheln, Stufen 0 bis 15) wird gelesen und gezeichnet (Wald, Wasser, Wege; Hell und Dunkel; vom Überblick bis 50 m Maßstab). Bildzeiten in der **Debug**-Variante am Pixel 8 Pro beim Verschieben der Ansicht (`dumpsys gfxinfo`, rund 730 Bilder): **mit Karte** 3,2 % ruckelnde Bilder, Median 12 ms, 90. Perzentil 18 ms, 99. Perzentil 23 ms (GPU 5/9/14 ms); **ohne Karte** 0,3 %, Median 9 ms, 99. Perzentil 14 ms (GPU 3/4/4 ms). Die Karte kostet beim Verschieben also rund 3 ms im Median und rund 9 ms im schlechtesten Prozent; in der Release-Variante und auf einer Fahrt nicht gemessen.
+- **Geprüft:** JVM 4380 Tests, Geräte-Suite voll, Lint ohne Fehler.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.0 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.49.0 (versionCode 175)
 
 **Neu: Karte hinter dem Track — aus einer Datei auf dem Telefon.**
