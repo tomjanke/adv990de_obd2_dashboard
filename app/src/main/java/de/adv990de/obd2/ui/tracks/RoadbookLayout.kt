@@ -5,6 +5,7 @@ import de.adv990de.obd2.track.Maneuver
 import de.adv990de.obd2.track.ManeuverKind
 import de.adv990de.obd2.track.TrackPoint
 import de.adv990de.obd2.track.wrapLonDegrees
+import de.adv990de.obd2.map.toPlane
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -94,6 +95,19 @@ internal fun roadbookMap(
         apex = apexLocal?.let(::px),
         metresPerPx = 1.0 / perMetre,
     )
+}
+
+/**
+ * Die Ansicht der Kartenkacheln, die zur kleinen Karte [this] passt: dieselbe Lage der Position im Bild ([RoadbookMap.position]), derselbe Massstab ([RoadbookMap.metresPerPx]) und der Kurs
+ * oben ([bearingDeg]). Die Ebene misst ihre Laenge von [position]`.lon` aus (Bezugslaenge fuer `tileToScreen`). Mercator ist winkeltreu: eine Einheit der Ebene sind an dieser Breite
+ * `EARTH_RADIUS_M · cos(lat)` Meter in beide Richtungen, so liegen Kacheln und Linie der kleinen Karte (ebene Naeherung) auf dem Bild deckungsgleich.
+ */
+internal fun RoadbookMap.trackView(position: TrackPoint, bearingDeg: Double, widthPx: Float, heightPx: Float): TrackView {
+    val pxPerUnit = EARTH_RADIUS_M * cos(Math.toRadians(position.lat)) / metresPerPx
+    val provisional = TrackView(cx = 0.0, cy = projectLat(position.lat), pxPerUnit = pxPerUnit, rotationDeg = bearingDeg, anchorY = 0.5)
+    // Mit der Position in der Bildmitte steht der gewuenschte Mittelpunkt dort, wo die Position hin soll, gespiegelt an der Mitte.
+    val (cx, cy) = toPlane(provisional, widthPx.toDouble(), heightPx.toDouble(), widthPx - this.position.x.toDouble(), heightPx - this.position.y.toDouble())
+    return provisional.copy(cx = cx, cy = cy)
 }
 
 /** Die eigene Lage in der kleinen Karte: Position und Kurs (Richtung des Tracks an der Position). */

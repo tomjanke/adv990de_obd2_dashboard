@@ -54,6 +54,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -114,11 +115,17 @@ class FollowRideSimulationDeviceTest {
         every { obdRepository.isConnectedFlow } returns MutableStateFlow(false)
     }
 
+    @javax.inject.Inject lateinit var mapRepository: de.adv990de.obd2.data.MapRepository
+
     private val metresPerDegLat = 111_195.0
 
-    /** Eine erfundene Strecke in Metern (Norden, Osten) ab einem Ursprung bei 50 N, 10 E. */
+    /** Der Ursprung der erfundenen Strecke: 50 N, 10 E; mit `mapFile` die Mitte der eingespielten Karte (sonst laege die Strecke ausserhalb ihrer Kacheln). */
+    private var originLat = 50.0
+    private var originLon = 10.0
+
+    /** Eine erfundene Strecke in Metern (Norden, Osten) ab dem Ursprung. */
     private fun at(northM: Double, eastM: Double) =
-        TrackPoint(null, 50.0 + northM / metresPerDegLat, 10.0 + eastM / (metresPerDegLat * cos(Math.toRadians(50.0))), null, null, null)
+        TrackPoint(null, originLat + northM / metresPerDegLat, originLon + eastM / (metresPerDegLat * cos(Math.toRadians(originLat))), null, null, null)
 
     /** Der Track: Geraden und Boegen (Radius 25 m, bei der Kehre 12 m), Punkte alle 10 m. */
     private fun inventedTrack(): List<TrackPoint> {
@@ -169,6 +176,15 @@ class FollowRideSimulationDeviceTest {
         assumeTrue("nur mit -e simulateRide true", args.getString("simulateRide") == "true")
         val portrait = args.getString("orientation") == "portrait"
         val speedUp = args.getString("speedUp")?.toDoubleOrNull() ?: 1.5
+        // Mit `mapFile` (Name einer Datei im App-Ordner `files/`, per `adb shell run-as … cp` dorthin gelegt) faehrt die Simulation ueber einer echten Karte: Tests nie mit Daten des Nutzers im Repository.
+        args.getString("mapFile")?.let { name ->
+            val file = java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, name)
+            val imported = kotlinx.coroutines.runBlocking { mapRepository.import(android.net.Uri.fromFile(file)) }
+            check(imported is de.adv990de.obd2.map.MapImportResult.Success) { "Karte nicht eingespielt: $imported" }
+            val ready = kotlinx.coroutines.runBlocking { mapRepository.state.first { it is de.adv990de.obd2.map.MapState.Ready } } as de.adv990de.obd2.map.MapState.Ready
+            originLat = (ready.info.minLat + ready.info.maxLat) / 2
+            originLon = (ready.info.minLon + ready.info.maxLon) / 2
+        }
 
         val line = FollowLine.of(inventedTrack(), FollowDirection.FORWARD)
         val maneuvers = detectManeuvers(line)

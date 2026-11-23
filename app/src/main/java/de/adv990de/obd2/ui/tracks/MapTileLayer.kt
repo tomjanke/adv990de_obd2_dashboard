@@ -4,6 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,19 +72,23 @@ internal fun TileScene.toPaths(): ScenePaths = ScenePaths(
 /** Der Zustand der Kartenebene einer Ansicht: die Kacheln samt Ablage; [revision] steigt mit jeder geladenen Kachel (das Zeichnen liest sie, damit es neu zeichnet). */
 internal class MapTileLayerState(val tiles: MapTiles, val cache: TileSceneCache<ScenePaths>, val revision: State<Int>)
 
-/** Die Karte hinter der Ansicht, oder `null` ohne Karte. Neu gebaut, wenn sich die Karte oder die Farben aendern (der Stil steckt in den Pfaden). */
+/**
+ * Die Karte hinter der Ansicht, oder `null` ohne Karte. Neu gebaut, wenn sich die Karte oder die Farben aendern (der Stil steckt in den Pfaden). [profile] waehlt Stil und Palette;
+ * das HUD ([MapProfile.HUD]) malt auf `background` (die Flaeche der Mini-Karte), die Trackansicht auf `surface`; [capacity] ist die Zahl der Kacheln, die die Ablage haelt.
+ */
 @Composable
-internal fun rememberMapTileLayer(tiles: MapTiles?): MapTileLayerState? {
+internal fun rememberMapTileLayer(tiles: MapTiles?, profile: MapProfile = MapProfile.TRACK_VIEW, capacity: Int = TILE_CACHE_SIZE): MapTileLayerState? {
     if (tiles == null) return null
     val scheme = MaterialTheme.colorScheme
-    val palette = remember(scheme.surface, scheme.onSurface, scheme.primary) {
-        MapPalette.derive(scheme.surface.toArgbInt(), scheme.onSurface.toArgbInt(), MapColors.tints(), MapProfile.TRACK_VIEW, scheme.primary.toArgbInt())
+    val ground = if (profile == MapProfile.HUD) scheme.background else scheme.surface
+    val palette = remember(ground, scheme.onSurface, scheme.primary, profile) {
+        MapPalette.derive(ground.toArgbInt(), scheme.onSurface.toArgbInt(), MapColors.tints(), profile, scheme.primary.toArgbInt())
     }
-    val style = remember(palette) { MapStyle(palette, MapProfile.TRACK_VIEW) }
+    val style = remember(palette, profile) { MapStyle(palette, profile) }
     val revision = remember(tiles, style) { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     return remember(tiles, style) {
-        val cache = TileSceneCache<ScenePaths>(capacity = TILE_CACHE_SIZE, scope = scope, onLoaded = { revision.intValue++ }) { key ->
+        val cache = TileSceneCache<ScenePaths>(capacity = capacity, scope = scope, onLoaded = { revision.intValue++ }) { key ->
             val bytes = tiles.archive.tile(key) ?: return@TileSceneCache null
             withContext(Dispatchers.Default) {
                 val tile = decodeVectorTile(bytes) ?: return@withContext null
@@ -90,6 +97,16 @@ internal fun rememberMapTileLayer(tiles: MapTiles?): MapTileLayerState? {
         }
         MapTileLayerState(tiles, cache, revision)
     }
+}
+
+/**
+ * Die Karte des Roadbook-HUD im Dashboard: nur gerufen, solange nachgefahren wird (danach wird die Ablage frei). `null` ohne eingespielte Karte — das HUD zeichnet dann wie vorher.
+ * Das Dashboard liest die Position nicht anders als bisher; die Karte kommt aus der Datei, ohne Netz.
+ */
+@Composable
+internal fun rememberHudMapLayer(vm: MapLayerViewModel = hiltViewModel()): MapTileLayerState? {
+    val tiles by vm.tiles.collectAsStateWithLifecycle()
+    return rememberMapTileLayer(tiles, MapProfile.HUD, HUD_TILE_CACHE_SIZE)
 }
 
 private fun Color.toArgbInt(): Int = toArgb()
@@ -103,10 +120,10 @@ private const val PRELOAD_MARGIN_PX = 96.0
 /** Die Kacheln, die [view] zeigt, und die der Stufe darunter (sie decken die Luecken, solange die feinere Stufe laedt). */
 internal class VisibleTiles(val keys: List<TileKey>, val parents: List<TileKey>)
 
-internal fun MapTileLayerState.visibleFor(view: TrackView, widthPx: Double, heightPx: Double, refLonDeg: Double): VisibleTiles {
+internal fun MapTileLayerState.visibleFor(view: TrackView, widthPx: Double, heightPx: Double, refLonDeg: Double, marginPx: Double = PRELOAD_MARGIN_PX): VisibleTiles {
     val header = tiles.archive.header
     val z = zoomFor(view.pxPerUnit, header.minZoom, header.maxZoom)
-    val keys = visibleTiles(view, widthPx, heightPx, refLonDeg, z, PRELOAD_MARGIN_PX)
+    val keys = visibleTiles(view, widthPx, heightPx, refLonDeg, z, marginPx)
     val parents = if (z - 1 >= header.minZoom) keys.map { TileKey(z - 1, it.x / 2, it.y / 2) }.distinct() else emptyList()
     return VisibleTiles(keys, parents)
 }

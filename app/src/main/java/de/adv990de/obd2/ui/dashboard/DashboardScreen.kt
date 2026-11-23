@@ -45,6 +45,7 @@ import de.adv990de.obd2.ui.navigation.openSubPage
 import de.adv990de.obd2.ui.permission.rememberLocationPermissionState
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.tracks.FadingRoadbookHud
+import de.adv990de.obd2.ui.tracks.rememberHudMapLayer
 import de.adv990de.obd2.ui.tracks.FollowMenuDialog
 import de.adv990de.obd2.ui.tracks.FollowStatusViewModel
 import de.adv990de.obd2.ui.tracks.RecordingButton
@@ -99,6 +100,8 @@ fun DashboardScreen(
     // Dashboard sichtbar ist (und startet dann den Ortungsdienst einer laufenden Sitzung); das Alarmband hat Vorrang vor ihm.
     val followInfo by followVm.info.collectAsStateWithLifecycle()
     val roadbookHud by followVm.hud.collectAsStateWithLifecycle()
+    // Die Karte der Mini-Karte gibt es nur, solange nachgefahren wird (danach ist die Ablage frei).
+    val hudMapLayer = if (followInfo != null) rememberHudMapLayer() else null
     var followMenu: Boolean by rememberSaveable { mutableStateOf(false) }
     if (followMenu) {
         followInfo?.let { info ->
@@ -296,6 +299,7 @@ fun DashboardScreen(
                     hud = if (alarms.isEmpty()) roadbookHud else null,
                     compact = false,
                     tall = isLandscape,
+                    mapLayer = hudMapLayer,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = if (isLandscape) 4.dp else 8.dp, start = 8.dp, end = 8.dp).then(if (isLandscape) Modifier.width(624.dp) else Modifier.fillMaxWidth()),
                 )
                 alarms.firstOrNull()?.let { alarm ->

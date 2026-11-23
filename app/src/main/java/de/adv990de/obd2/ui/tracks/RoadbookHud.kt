@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -96,6 +97,12 @@ private val COMPACT_SIZES = HudSizes(40.dp, null, null, 0.sp, 0.sp, 4.dp, 8.dp, 
 private val FULL_SIZES = HudSizes(112.dp, 150.dp, 194.dp, 36.sp, 22.sp, 10.dp, 10.dp, 1.7f)
 private val TALL_SIZES = HudSizes(128.dp, 240.dp, 222.dp, 44.sp, 28.sp, 12.dp, 10.dp, 2.0f)
 
+/** So weit ausserhalb der Mini-Karte werden Kacheln schon geholt (Bildpunkte): gross, weil sich die Karte beim Gleiten und in Kurven dreht und ihre Ecken sonst unbelegt blieben. */
+private const val HUD_TILE_MARGIN_PX = 260.0
+
+/** So viele Kacheln haelt die Ablage der HUD-Karte (ein Ausschnitt von wenigen hundert Metern braucht nur eine Handvoll; der Rest ist der Weg davor und dahinter). */
+internal const val HUD_TILE_CACHE_SIZE = 48
+
 /** So lange laufen Deckkraft, Balken und Karte von einem Fix zum naechsten (die Position kommt im Sekundentakt): so springt nichts, es gleitet. */
 private const val FIX_GLIDE_MS = 1_000
 
@@ -117,7 +124,7 @@ internal fun maneuverKindText(maneuver: Maneuver): String = stringResource(
  * Es ist kein Knopf und nimmt keine Beruehrung an. [compact] ist die kleine Fassung der Kartenseite, [tall] die hoehere des Querformats.
  */
 @Composable
-internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false) {
+internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false, mapLayer: MapTileLayerState? = null) {
     var last by remember { mutableStateOf<RoadbookHud?>(null) }
     if (hud != null && last !== hud) last = hud
     AnimatedVisibility(
@@ -137,7 +144,7 @@ internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Mo
                 label = "roadbookManeuver",
             ) { key ->
                 val shown = if (key == latest.maneuver.apexAlongM) latest else frozen[key]
-                if (shown != null) RoadbookHudView(shown, compact, tall = tall)
+                if (shown != null) RoadbookHudView(shown, compact, tall = tall, mapLayer = mapLayer)
             }
         }
     }
@@ -149,7 +156,7 @@ internal fun FadingRoadbookHud(hud: RoadbookHud?, compact: Boolean, modifier: Mo
  * solange die Richtungsaenderung weit weg ist ([RoadbookHud.alpha]).
  */
 @Composable
-internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false) {
+internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modifier = Modifier, tall: Boolean = false, mapLayer: MapTileLayerState? = null) {
     val locale = LocalLocale.current.platformLocale
     val distance = formatRoadbookDistance(hud.distanceM, locale)
     val kind = maneuverKindText(hud.maneuver)
@@ -187,7 +194,7 @@ internal fun RoadbookHudView(hud: RoadbookHud, compact: Boolean, modifier: Modif
                     )
                 }
             }
-            if (!compact) RoadbookMiniMap(hud, Modifier.size(width = sizes.mapWidth!!, height = sizes.mapHeight!!).testTag(ROADBOOK_MAP_TEST_TAG), sizes.mapScale)
+            if (!compact) RoadbookMiniMap(hud, sizes.mapWidth!!, sizes.mapHeight!!, Modifier.testTag(ROADBOOK_MAP_TEST_TAG), sizes.mapScale, mapLayer)
         }
     }
 }
@@ -265,7 +272,7 @@ private fun DrawScope.drawFlag(color: androidx.compose.ui.graphics.Color, s: Flo
 
 /** Der Streckenausschnitt: der Linienzug in Fahrtrichtung oben, das Passierte gedaempft, der Scheitelpunkt als Punkt und die eigene Position als Pfeil unten (wie in der Karte). */
 @Composable
-private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier, scale: Float = 1f) {
+private fun RoadbookMiniMap(hud: RoadbookHud, width: Dp, height: Dp, modifier: Modifier, scale: Float = 1f, mapLayer: MapTileLayerState? = null) {
     val line = MaterialTheme.colorScheme.primary
     val behind = MaterialTheme.colorScheme.outline
     val halo = MaterialTheme.colorScheme.surface
@@ -281,8 +288,20 @@ private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier, scale: Float =
         glide.snapTo(0f)
         glide.animateTo(1f, tween(FIX_GLIDE_MS, easing = LinearEasing))
     }
+    // Welche Kacheln gebraucht werden, folgt der Zielposition (mit grossem Rand: waehrend des Gleitens und Drehens bleiben alle Ecken belegt); gezeichnet wird mit der Lage je Bild.
+    val density = LocalDensity.current
+    val widthPx = with(density) { width.toPx() }
+    val heightPx = with(density) { height.toPx() }
+    val visible = if (mapLayer != null) {
+        remember(mapLayer, hud.position, hud.bearingDeg, hud.path, hud.apex, widthPx, heightPx) {
+            val target = roadbookMap(hud.path, hud.position, hud.bearingDeg, hud.apex, widthPx, heightPx)
+            mapLayer.visibleFor(target.trackView(hud.position, hud.bearingDeg, widthPx, heightPx), widthPx.toDouble(), heightPx.toDouble(), hud.position.lon, HUD_TILE_MARGIN_PX)
+        }
+    } else null
+    if (mapLayer != null && visible != null) mapLayer.RequestTiles(visible)
     Canvas(
         modifier
+            .size(width = width, height = height)
             .background(MaterialTheme.colorScheme.background)
             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
             .clipToBounds()
@@ -290,6 +309,7 @@ private fun RoadbookMiniMap(hud: RoadbookHud, modifier: Modifier, scale: Float =
     ) {
         val pose = interpolatePose(from, to, glide.value)
         val map = roadbookMap(hud.path, pose.position, pose.bearingDeg, hud.apex, size.width, size.height)
+        if (mapLayer != null && visible != null) drawMapTiles(mapLayer, visible, map.trackView(pose.position, pose.bearingDeg, size.width, size.height), pose.position.lon)
         val pts = map.line
         for (i in 1 until pts.size) {
             val a = pts[i - 1]

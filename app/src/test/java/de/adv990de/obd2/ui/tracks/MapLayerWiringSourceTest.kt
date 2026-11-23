@@ -45,4 +45,37 @@ class MapLayerWiringSourceTest {
         assertTrue(s.contains("drawMapTiles(layer, visible, view, bounds.minLon)"))
         assertTrue(s.contains("layer.RequestTiles(visible)"))
     }
+
+    private fun dashboardSource() = File(projectRoot, "app/src/main/java/de/adv990de/obd2/ui/dashboard/DashboardScreen.kt").readText()
+
+    @Test
+    fun `the dashboard builds the hud map only while following and hands it to the hud`() {
+        val s = dashboardSource()
+        // Die Ablage (und damit der Speicher der Kacheln) gibt es nur, solange nachgefahren wird.
+        assertTrue(Regex("""val hudMapLayer = if \(followInfo != null\) rememberHudMapLayer\(\) else null""").containsMatchIn(s))
+        val call = s.substringAfter("FadingRoadbookHud(\n").substringBefore("\n                )")
+        assertTrue("das HUD bekommt die Karte nicht: $call", Regex("""\bmapLayer\s*=\s*hudMapLayer\b""").containsMatchIn(call))
+    }
+
+    @Test
+    fun `the hud hands the map layer through to the mini map and the mini map draws it behind the line`() {
+        val s = source("RoadbookHud.kt")
+        assertTrue(s.contains("RoadbookHudView(shown, compact, tall = tall, mapLayer = mapLayer)"))
+        assertTrue(s.contains("RoadbookMiniMap(hud, sizes.mapWidth!!, sizes.mapHeight!!, Modifier.testTag(ROADBOOK_MAP_TEST_TAG), sizes.mapScale, mapLayer)"))
+        assertTrue(s.contains("mapLayer.RequestTiles(visible)"))
+        val draw = s.indexOf("drawMapTiles(mapLayer, visible, map.trackView(")
+        val line = s.indexOf("drawLine(if (passed) behind else line")
+        assertTrue("die Karte muss vor der Linie gezeichnet werden", draw in 0 until line)
+        // Nur die volle Fassung hat eine Karte; die kompakte (Kartenseite) zeichnet keine Mini-Karte.
+        assertTrue(s.contains("if (!compact) RoadbookMiniMap("))
+    }
+
+    @Test
+    fun `the hud map uses the hud profile and its own small cache`() {
+        val s = source("MapTileLayer.kt")
+        assertTrue(s.contains("rememberMapTileLayer(tiles, MapProfile.HUD, HUD_TILE_CACHE_SIZE)"))
+        val derive = s.substringAfter("MapPalette.derive(").substringBefore(")\n")
+        assertTrue("das Profil muss in die Palette", derive.contains("profile"))
+        assertTrue("das HUD malt auf background", s.contains("if (profile == MapProfile.HUD) scheme.background else scheme.surface"))
+    }
 }
