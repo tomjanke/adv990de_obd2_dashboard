@@ -921,8 +921,8 @@
     <string name="roadbook_sens_default">Estándar</string>
     <string name="roadbook_sens_also_slight">También suaves</string>
     <string name="roadbook_sens_only_sharp_desc">Solo giros cerrados, desde 90 grados</string>
-    <string name="roadbook_sens_default_desc">Giros desde 60 grados</string>
-    <string name="roadbook_sens_also_slight_desc">También giros suaves, desde 40 grados</string>
+    <string name="roadbook_sens_default_desc">Giros desde 40 grados</string>
+    <string name="roadbook_sens_also_slight_desc">También giros suaves, desde 30 grados</string>
     <string name="track_follow_summary">A %1$s de la ruta, %2$s recorridos, %3$s restantes</string>
     <string name="follow_status_on_track">En la ruta · %1$s</string>
     <string name="follow_status_off_track">Fuera de la ruta · %1$s</string>

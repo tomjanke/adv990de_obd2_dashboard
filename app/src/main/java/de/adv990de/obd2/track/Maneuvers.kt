@@ -35,7 +35,7 @@ internal const val MANEUVER_CHORD_STEPS = 2
 internal const val MANEUVER_WINDOW_STEPS = 5
 
 /** Ab dieser Aenderung (Grad) auf einem Fenster ist ein Stueck der Linie Teil einer Richtungsaenderung; mehr ist der Wert der Empfindlichkeit „auch leichte“. */
-const val MANEUVER_CANDIDATE_MIN_DEG = 40.0
+const val MANEUVER_CANDIDATE_MIN_DEG = 30.0
 
 /** Gleichsinnige Richtungsaenderungen, die naeher zusammenliegen als das (Meter), gelten als eine. */
 internal const val MANEUVER_MERGE_GAP_M = 40.0
@@ -175,12 +175,12 @@ private fun shortest(from: Double, to: Double): Double {
 }
 
 /**
- * Wie viele Richtungsaenderungen das Roadbook zeigt (Einstellung „Empfindlichkeit“): nur scharfe ab 90 Grad, Standard ab 60 Grad, auch leichte ab 40 Grad. Die Zahl ist der gespeicherte Wert
+ * Wie viele Richtungsaenderungen das Roadbook zeigt (Einstellung „Empfindlichkeit“): nur scharfe ab 90 Grad, Standard ab 40 Grad, auch leichte ab 30 Grad. Die Zahl ist der gespeicherte Wert
  * (persistierter Zustand, nie umnummerieren).
  */
 enum class RoadbookSensitivity(val level: Int, val minTurnDeg: Double) {
     ONLY_SHARP(1, 90.0),
-    STANDARD(2, 60.0),
+    STANDARD(2, 40.0),
     ALSO_SLIGHT(3, MANEUVER_CANDIDATE_MIN_DEG),
     ;
 

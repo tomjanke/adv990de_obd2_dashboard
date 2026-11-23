@@ -9,6 +9,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -100,9 +101,10 @@ class FollowSessionTest {
         roadbookEnabled: Boolean = true,
         roadbookSensitivity: Int = 2,
         loadPoints: suspend () -> List<TrackPoint> = { points },
+        tracksFlow: MutableStateFlow<List<TrackSummary>> = MutableStateFlow(tracks),
     ): FollowSession {
         val repo = mockk<TrackRepository> {
-            every { this@mockk.tracks } returns MutableStateFlow(tracks)
+            every { this@mockk.tracks } returns tracksFlow
             coEvery { points(any()) } coAnswers { loadPoints() }
         }
         return FollowSession(repo, location, fakeAppPreferences(roadbookEnabled = roadbookEnabled, roadbookSensitivity = roadbookSensitivity), scope)
@@ -412,6 +414,67 @@ class FollowSessionTest {
         runCurrent()
         v.loaded()
         assertEquals(FollowInfo(5, "Track 5"), v.info.value)
+    }
+
+    @Test
+    fun `a rename shows at once in the track and in the info without starting the position over`() = runTest {
+        val location = FakeLocation()
+        val names = MutableStateFlow(listOf(summary(5)))
+        val v = vm(location = location, tracksFlow = names)
+        runCurrent()
+        v.loaded()
+        val job = backgroundScope.launch { v.reading.collect { } }
+        runCurrent()
+        location.emit(fix(300.0))
+        runCurrent()
+        val before = v.reading.value as FollowReading.Following
+        val points = (v.track.value as FollowTrackState.Ready).points
+
+        names.value = listOf(summary(5).copy(name = "Sonntagsrunde"))
+        runCurrent()
+
+        val ready = v.track.value as FollowTrackState.Ready
+        assertEquals("Sonntagsrunde", ready.name)
+        assertEquals(FollowInfo(5, "Sonntagsrunde"), v.info.value)
+        assertTrue("the line is the same list", points === ready.points)
+        assertEquals("one listener all along", 1, location.registrations)
+        assertEquals("the reading is untouched", before, v.reading.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `a rename of a track that is too short shows too`() = runTest {
+        val names = MutableStateFlow(listOf(summary(5)))
+        val v = vm(points = List(3) { at(0.0) }, tracksFlow = names)
+        runCurrent()
+        assertEquals(FollowTrackState.TooShort("Track 5"), v.loaded())
+        names.value = listOf(summary(5).copy(name = "Kurz"))
+        runCurrent()
+        assertEquals(FollowTrackState.TooShort("Kurz"), v.track.value)
+    }
+
+    @Test
+    fun `a rename while the points are still loading is not lost`() = runTest {
+        val names = MutableStateFlow(listOf(summary(5)))
+        val gate = CompletableDeferred<Unit>()
+        val v = vm(tracksFlow = names, loadPoints = { gate.await(); List(11) { at(it * 100.0) } })
+        runCurrent()
+        names.value = listOf(summary(5).copy(name = "Neu"))
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals("Neu", (v.loaded() as FollowTrackState.Ready).name)
+    }
+
+    @Test
+    fun `a deleted track keeps the name it had`() = runTest {
+        val names = MutableStateFlow(listOf(summary(5)))
+        val v = vm(tracksFlow = names)
+        runCurrent()
+        v.loaded()
+        names.value = emptyList()
+        runCurrent()
+        assertEquals("Track 5", (v.track.value as FollowTrackState.Ready).name)
     }
 
     @Test

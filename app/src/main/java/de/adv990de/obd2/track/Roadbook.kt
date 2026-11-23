@@ -10,11 +10,11 @@ import kotlin.math.ln
  */
 
 /** So viele Sekunden voraus zeigt das HUD die naechste Richtungsaenderung, bei hoher Geschwindigkeit also weiter weg. */
-internal const val ROADBOOK_LOOKAHEAD_S = 12.0
+internal const val ROADBOOK_LOOKAHEAD_S = 18.0
 
 /** Naeher als das (Meter) blendet das HUD nie ein, auch im Stand nicht; weiter als das ([ROADBOOK_MAX_TRIGGER_M]) auch bei hoher Geschwindigkeit nicht. */
-internal const val ROADBOOK_MIN_TRIGGER_M = 150.0
-internal const val ROADBOOK_MAX_TRIGGER_M = 800.0
+internal const val ROADBOOK_MIN_TRIGGER_M = 200.0
+internal const val ROADBOOK_MAX_TRIGGER_M = 1_000.0
 
 /** Ein einmal sichtbares HUD bleibt, bis die Entfernung um diesen Faktor ueber der Einblendschwelle liegt (kein Flackern an der Grenze, wenn die Geschwindigkeit schwankt). */
 internal const val ROADBOOK_HYSTERESIS = 1.1
@@ -26,8 +26,8 @@ internal const val ROADBOOK_MIN_DWELL_MS = 3_000L
 internal const val ROADBOOK_OFF_TRACK_SHOW_M = 60.0
 internal const val ROADBOOK_OFF_TRACK_HIDE_M = 100.0
 
-/** Eine Richtungsaenderung gilt als durchfahren, wenn man so weit (Meter) hinter ihrem Ende ist. */
-internal const val ROADBOOK_PASSED_M = 15.0
+/** Eine Richtungsaenderung gilt als durchfahren, wenn man so weit (Meter) hinter ihrem **Scheitelpunkt** ist; 0 = das HUD verschwindet, sobald die Entfernung 0 m erreicht. */
+internal const val ROADBOOK_PASSED_M = 0.0
 
 /** Das Ziel gilt als erreicht, wenn der Rest kuerzer ist (Meter); dann blendet das HUD aus. */
 internal const val ROADBOOK_ARRIVED_M = 20.0
@@ -99,7 +99,7 @@ class RoadbookTracker(private val maneuvers: List<Maneuver>, private val line: F
         if (result.distanceToTrackM > limitOffTrack) return hide()
         val list = maneuversFor(minTurnDeg)
         val along = result.alongM
-        // Die erste Richtungsaenderung, die noch nicht durchfahren ist (das Ziel gilt kurz davor als erreicht).
+        // Die erste Richtungsaenderung, deren Scheitelpunkt noch vor uns liegt (das Ziel gilt kurz davor als erreicht).
         val index = firstAhead(list, along)
         if (index < 0) return hide()
         val target = list[index]
@@ -138,13 +138,13 @@ class RoadbookTracker(private val maneuvers: List<Maneuver>, private val line: F
         return null
     }
 
-    /** Der Index der ersten Richtungsaenderung, deren Ende [along] noch nicht um [ROADBOOK_PASSED_M] hinter sich hat; −1, wenn es keine mehr gibt. */
+    /** Der Index der ersten Richtungsaenderung, deren Scheitelpunkt [along] noch nicht um [ROADBOOK_PASSED_M] hinter sich hat; −1, wenn es keine mehr gibt. */
     private fun firstAhead(list: List<Maneuver>, along: Double): Int {
         var lo = 0
         var hi = list.size
         while (lo < hi) {
             val mid = (lo + hi) ushr 1
-            if (list[mid].endAlongM + ROADBOOK_PASSED_M > along) hi = mid else lo = mid + 1
+            if (list[mid].apexAlongM + ROADBOOK_PASSED_M > along) hi = mid else lo = mid + 1
         }
         return if (lo < list.size) lo else -1
     }

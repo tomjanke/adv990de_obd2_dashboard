@@ -18,11 +18,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -97,6 +100,10 @@ class FollowSession @Inject constructor(
     private val _direction = MutableStateFlow(FollowDirection.FORWARD)
     private val _permission = MutableStateFlow(location.hasPermission())
     private var loadJob: Job? = null
+    private var nameJob: Job? = null
+
+    /** Der zuletzt gemeldete Name des Tracks in der Datenbank; ein Laden, das noch laeuft, nimmt ihn statt des Namens vom Beginn. */
+    @Volatile private var currentName: String? = null
 
     /** Der Track der Sitzung; `null`, wenn keine laeuft. */
     val track: StateFlow<FollowTrackState?> = _track.asStateFlow()
@@ -136,12 +143,16 @@ class FollowSession @Inject constructor(
         _trackId.value = trackId
         _track.value = FollowTrackState.Loading
         loadJob = scope.launch { load(trackId) }
+        nameJob = scope.launch { watchName(trackId) }
     }
 
     /** Beendet die Sitzung; sie ist danach nicht mehr da (das Dashboard zeigt den Knopf wieder grau, die Karte holt keine Position mehr). */
     fun stop() {
         loadJob?.cancel()
         loadJob = null
+        nameJob?.cancel()
+        nameJob = null
+        currentName = null
         _trackId.value = null
         _track.value = null
         _direction.value = FollowDirection.FORWARD
@@ -162,7 +173,7 @@ class FollowSession @Inject constructor(
      * der Fortschritt auf der Linie bleibt dabei erhalten. Ein Wechsel der Richtung, des Tracks oder der Berechtigung beginnt einen neuen Verfolger.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val reading: StateFlow<FollowReading> = combine(_track, _direction, _permission) { t, d, granted -> Triple(t, d, granted) }
+    val reading: StateFlow<FollowReading> = combine(_track.distinctUntilChanged(::sameTrackIgnoringName), _direction, _permission) { t, d, granted -> Triple(t, d, granted) }
         .flatMapLatest { (t, d, granted) -> readingFlow(t, d, granted) }
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), FollowReading.Searching)
 
@@ -202,6 +213,29 @@ class FollowSession @Inject constructor(
         }
     }
 
+    /**
+     * Haelt den Namen des Tracks aktuell: ein Umbenennen (auch waehrend des Nachfahrens) erreicht Kartenseite, Dialog und Statuszeile sofort. Ersetzt wird nur der Name; die Punkte bleiben
+     * dieselben Objekte, damit die Positionsverfolgung ([reading], [sameTrackIgnoringName]) nicht neu beginnt. Ein geloeschter Track meldet nichts (der Name vom Laden bleibt).
+     */
+    private suspend fun watchName(id: Long) {
+        try {
+            repository.tracks.map { list -> list.firstOrNull { it.id == id }?.name }.distinctUntilChanged().collect { name ->
+                if (name == null) return@collect
+                currentName = name
+                _track.update { t ->
+                    when {
+                        t is FollowTrackState.Ready && t.name != name -> t.copy(name = name)
+                        t is FollowTrackState.TooShort && t.name != name -> t.copy(name = name)
+                        else -> t
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // Der Name ist Beiwerk: ohne diese Beobachtung bleibt der Name vom Laden stehen.
+        }
+    }
+
     private suspend fun load(id: Long) {
         try {
             val summary = repository.tracks.first().firstOrNull { it.id == id }
@@ -211,14 +245,21 @@ class FollowSession @Inject constructor(
             }
             val all = repository.points(id)
             if (!FollowLine.of(all, FollowDirection.FORWARD).canFollow) {
-                _track.value = FollowTrackState.TooShort(summary.name)
+                _track.value = FollowTrackState.TooShort(currentName ?: summary.name)
                 return
             }
             val (bounds, drawn) = withContext(computeDispatcher) { trackStats(all).bounds to simplifyTrack(all, TRACK_DRAW_POINTS) }
-            _track.value = FollowTrackState.Ready(summary.name, all, drawn, bounds!!)
+            _track.value = FollowTrackState.Ready(currentName ?: summary.name, all, drawn, bounds!!)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             _track.value = FollowTrackState.Failed
         }
     }
+}
+
+/** Zwei Staende desselben Tracks, die sich nur im Namen unterscheiden, gelten als gleich: ein Umbenennen darf die Positionsverfolgung nicht neu beginnen lassen. */
+private fun sameTrackIgnoringName(a: FollowTrackState?, b: FollowTrackState?): Boolean = when {
+    a is FollowTrackState.Ready && b is FollowTrackState.Ready -> a.points === b.points && a.drawn === b.drawn && a.bounds == b.bounds
+    a is FollowTrackState.TooShort && b is FollowTrackState.TooShort -> true
+    else -> a == b
 }

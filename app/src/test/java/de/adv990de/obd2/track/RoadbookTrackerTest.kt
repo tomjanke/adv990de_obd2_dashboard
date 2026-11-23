@@ -24,27 +24,28 @@ class RoadbookTrackerTest {
 
     @Test
     fun `the trigger distance follows the speed within its limits`() {
-        assertEquals(150.0, roadbookTriggerM(null), 0.0)
-        assertEquals(150.0, roadbookTriggerM(0f), 0.0)
-        assertEquals(150.0, roadbookTriggerM(30f), 0.0) // 100 m, unter dem Minimum
-        assertEquals(333.3, roadbookTriggerM(100f), 0.5)
-        assertEquals(800.0, roadbookTriggerM(300f), 0.0)
-        assertEquals(150.0, roadbookTriggerM(-5f), 0.0)
+        assertEquals(200.0, roadbookTriggerM(null), 0.0)
+        assertEquals(200.0, roadbookTriggerM(0f), 0.0)
+        assertEquals(200.0, roadbookTriggerM(30f), 0.0) // 150 m, unter dem Minimum
+        assertEquals(250.0, roadbookTriggerM(50f), 0.5) // 18 s
+        assertEquals(500.0, roadbookTriggerM(100f), 0.5)
+        assertEquals(1_000.0, roadbookTriggerM(300f), 0.0)
+        assertEquals(200.0, roadbookTriggerM(-5f), 0.0)
     }
 
     @Test
     fun `nothing shows while the turn is farther than the trigger`() {
         val t = tracker(turn(1_000.0, 90.0))
         assertNull(t.at(0.0))
-        assertNull(t.at(849.0))
-        assertNotNull("exactly at the limit", t.at(850.0))
+        assertNull(t.at(799.0))
+        assertNotNull("exactly at the limit", t.at(800.0))
     }
 
     @Test
     fun `a higher speed shows the turn earlier`() {
         val t = tracker(turn(1_000.0, 90.0))
-        assertNull(t.at(700.0, speed = 50f)) // 300 m, Schwelle 167 m
-        assertNotNull(t.at(700.0, speed = 100f)) // 300 m, Schwelle 333 m
+        assertNull(t.at(700.0, speed = 50f)) // 300 m, Schwelle 250 m
+        assertNotNull(t.at(700.0, speed = 100f)) // 300 m, Schwelle 500 m
     }
 
     @Test
@@ -52,47 +53,47 @@ class RoadbookTrackerTest {
         val hud = tracker(turn(1_000.0, 90.0)).at(900.0)!!
         assertEquals(100.0, hud.distanceM, 0.01)
         assertEquals(90.0, hud.maneuver.turnDeg, 0.0)
-        assertEquals(150.0, hud.triggerM, 0.0)
+        assertEquals(200.0, hud.triggerM, 0.0)
     }
 
     @Test
     fun `the bar fills towards the turn and the opacity rises`() {
         val t = tracker(turn(1_000.0, 90.0))
-        val atTrigger = t.at(850.0)!!
+        val atTrigger = t.at(800.0)!!
         assertEquals(0f, atTrigger.progress, 0.001f)
         assertEquals(ROADBOOK_MIN_ALPHA, atTrigger.alpha, 0.001f)
-        val half = t.at(925.0)!!
+        val half = t.at(900.0)!!
         assertEquals(0.5f, half.progress, 0.01f)
-        val near = t.at(1_000.0)!!
-        assertEquals(1f, near.progress, 0.001f)
+        val near = t.at(999.0)!!
+        assertEquals(0.995f, near.progress, 0.001f)
         assertEquals(1f, near.alpha, 0.001f)
         // Bei 60 Prozent des Weges ist die Deckkraft schon voll.
-        assertEquals(1f, t.at(940.0)!!.alpha, 0.001f)
+        assertEquals(1f, t.at(920.0)!!.alpha, 0.001f)
     }
 
     @Test
     fun `a visible hud stays a little beyond the limit and for at least three seconds`() {
         val t = tracker(turn(1_000.0, 90.0))
-        assertNotNull(t.at(850.0, nowMs = 0)) // 150 m: sichtbar
-        assertNotNull("within the hysteresis band", t.at(836.0, nowMs = 500)) // 164 m < 165 m
-        assertNotNull("beyond the band but inside the dwell time", t.at(800.0, nowMs = 1_000))
-        assertNull("after the dwell time it goes", t.at(800.0, nowMs = ROADBOOK_MIN_DWELL_MS + 1))
+        assertNotNull(t.at(800.0, nowMs = 0)) // 200 m: sichtbar
+        assertNotNull("within the hysteresis band", t.at(785.0, nowMs = 500)) // 215 m < 220 m
+        assertNotNull("beyond the band but inside the dwell time", t.at(700.0, nowMs = 1_000))
+        assertNull("after the dwell time it goes", t.at(700.0, nowMs = ROADBOOK_MIN_DWELL_MS + 1))
     }
 
     @Test
     fun `after the dwell time the hysteresis band is the only reason to stay`() {
         val t = tracker(turn(1_000.0, 90.0))
         val late = ROADBOOK_MIN_DWELL_MS + 1_000
-        assertNotNull(t.at(850.0, nowMs = 0)) // 150 m: sichtbar
-        assertNotNull("164 m is inside the 165 m band", t.at(836.0, nowMs = late))
-        assertNull("166 m is outside the band", t.at(834.0, nowMs = late + 10))
+        assertNotNull(t.at(800.0, nowMs = 0)) // 200 m: sichtbar
+        assertNotNull("215 m is inside the 220 m band", t.at(785.0, nowMs = late))
+        assertNull("221 m is outside the band", t.at(779.0, nowMs = late + 10))
     }
 
     @Test
     fun `a hud that was never shown does not stay`() {
         val t = tracker(turn(1_000.0, 90.0))
-        assertNull(t.at(800.0, nowMs = 0))
-        assertNull(t.at(800.0, nowMs = 100))
+        assertNull(t.at(700.0, nowMs = 0))
+        assertNull(t.at(700.0, nowMs = 100))
     }
 
     @Test
@@ -108,16 +109,26 @@ class RoadbookTrackerTest {
     fun `a passed turn gives way to the next one`() {
         val t = tracker(turn(1_000.0, 90.0), turn(1_900.0, -80.0))
         assertEquals(1_000.0, t.at(990.0)!!.maneuver.apexAlongM, 0.0)
-        // 15 m hinter dem Ende (1010): durchfahren; die naechste liegt weit weg.
+        // Am Scheitelpunkt (1000) ist die Kurve durchfahren; die naechste liegt weit weg.
         assertNull(t.at(1_030.0))
         assertEquals(1_900.0, t.at(1_800.0)!!.maneuver.apexAlongM, 0.0)
     }
 
     @Test
-    fun `inside a turn the distance is zero and not negative`() {
-        val hud = tracker(turn(1_000.0, 90.0)).at(1_004.0)!!
-        assertEquals(0.0, hud.distanceM, 0.0)
-        assertEquals(1f, hud.progress, 0.001f)
+    fun `the hud is gone as soon as the distance reaches zero`() {
+        val t = tracker(turn(1_000.0, 90.0))
+        val before = t.at(995.0)!!
+        assertEquals(5.0, before.distanceM, 0.01)
+        assertNull("at the apex the turn is done", t.at(1_000.0))
+        assertNull("and it does not come back inside the turn", t.at(1_004.0))
+        assertNull(t.at(1_008.0))
+    }
+
+    @Test
+    fun `right behind a turn the next one shows at once if it is near`() {
+        val t = tracker(turn(1_000.0, 90.0), turn(1_100.0, -80.0))
+        assertEquals(1_000.0, t.at(990.0)!!.maneuver.apexAlongM, 0.0)
+        assertEquals(1_100.0, t.at(1_001.0)!!.maneuver.apexAlongM, 0.0)
     }
 
     @Test

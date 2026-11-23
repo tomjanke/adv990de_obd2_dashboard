@@ -168,8 +168,8 @@ class ManeuversTest {
     @Test
     fun `the sensitivity levels map to their thresholds and unknown values are the default`() {
         assertEquals(90.0, RoadbookSensitivity.fromLevel(1).minTurnDeg, 0.0)
-        assertEquals(60.0, RoadbookSensitivity.fromLevel(2).minTurnDeg, 0.0)
-        assertEquals(40.0, RoadbookSensitivity.fromLevel(3).minTurnDeg, 0.0)
+        assertEquals(40.0, RoadbookSensitivity.fromLevel(2).minTurnDeg, 0.0)
+        assertEquals(30.0, RoadbookSensitivity.fromLevel(3).minTurnDeg, 0.0)
         assertEquals(RoadbookSensitivity.STANDARD, RoadbookSensitivity.fromLevel(0))
         assertEquals(RoadbookSensitivity.STANDARD, RoadbookSensitivity.fromLevel(99))
         assertEquals(listOf(1, 2, 3), RoadbookSensitivity.OPTIONS)
@@ -179,8 +179,8 @@ class ManeuversTest {
     @Test
     fun `the candidate floor is the smallest threshold`() {
         assertEquals(MANEUVER_CANDIDATE_MIN_DEG, RoadbookSensitivity.ALSO_SLIGHT.minTurnDeg, 0.0)
-        // Ein Knick von 30 Grad liegt unter jeder Schwelle.
-        val m = maneuvers(path(0.0 to 0.0, 300.0 to 0.0, 300.0 + 260.0 * cos(Math.toRadians(30.0)) to 260.0 * sin(Math.toRadians(30.0))))
+        // Ein Knick von 25 Grad liegt unter jeder Schwelle.
+        val m = maneuvers(path(0.0 to 0.0, 300.0 to 0.0, 300.0 + 260.0 * cos(Math.toRadians(25.0)) to 260.0 * sin(Math.toRadians(25.0))))
         assertTrue(m.isEmpty())
     }
 }

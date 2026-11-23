@@ -882,8 +882,8 @@
     <string name="roadbook_sens_default">Standard</string>
     <string name="roadbook_sens_also_slight">Auch leichte</string>
     <string name="roadbook_sens_only_sharp_desc">Nur scharfe Kurven, ab 90 Grad</string>
-    <string name="roadbook_sens_default_desc">Kurven ab 60 Grad</string>
-    <string name="roadbook_sens_also_slight_desc">Auch leichte Kurven, ab 40 Grad</string>
+    <string name="roadbook_sens_default_desc">Kurven ab 40 Grad</string>
+    <string name="roadbook_sens_also_slight_desc">Auch leichte Kurven, ab 30 Grad</string>
     <string name="track_follow_summary">%1$s vom Track entfernt, %2$s zurückgelegt, %3$s übrig</string>
     <string name="follow_status_on_track">Auf dem Track · %1$s</string>
     <string name="follow_status_off_track">Abseits · %1$s</string>
