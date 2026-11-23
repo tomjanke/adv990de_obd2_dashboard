@@ -885,6 +885,11 @@
     <string name="roadbook_sens_default_desc">Kurven ab 60 Grad</string>
     <string name="roadbook_sens_also_slight_desc">Auch leichte Kurven, ab 40 Grad</string>
     <string name="track_follow_summary">%1$s vom Track entfernt, %2$s zurückgelegt, %3$s übrig</string>
+    <string name="follow_status_on_track">Auf dem Track · %1$s</string>
+    <string name="follow_status_off_track">Abseits · %1$s</string>
+    <string name="follow_status_waiting">Track: warte auf GPS</string>
+    <string name="follow_status_no_location">Track: kein Standort</string>
+    <string name="follow_status_arrived">Ziel erreicht</string>
     <string name="track_cd_export_save">Als GPX speichern</string>
     <string name="track_cd_export_share">Als GPX teilen</string>
     <string name="track_export_chooser">Track teilen (GPX)</string>

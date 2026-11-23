@@ -4,6 +4,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.CompositionLocalProvider
 import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -33,10 +35,12 @@ import de.adv990de.obd2.data.AppPreferences
 import de.adv990de.obd2.data.AppPreferences.Companion.THEME_SYSTEM
 import de.adv990de.obd2.data.ObdRepository
 import de.adv990de.obd2.idleObdRepository
+import de.adv990de.obd2.track.FollowStatus
 import de.adv990de.obd2.ui.DriveStateViewModel
 import de.adv990de.obd2.ui.ExitAppViewModel
 import de.adv990de.obd2.ui.navigation.Screen
 import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
+import de.adv990de.obd2.ui.tracks.FollowStatusViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import io.mockk.coVerify
 import io.mockk.every
@@ -185,6 +189,12 @@ class BottomNavTest {
             every { this@mockk.outsideTempC } returns MutableStateFlow(outsideTempC)
         }
 
+    /** Die Statuszeile des Nachfahrens: eine Attrappe, wie [makeWeatherVm] (das echte ViewModel braucht die Sitzung und die Ortung). */
+    private fun makeFollowVm(status: FollowStatus?): FollowStatusViewModel =
+        mockk(relaxed = true) {
+            every { this@mockk.status } returns MutableStateFlow(status)
+        }
+
     /** Real [ExitAppViewModel], mocked [ObdRepository]/[Context] — same pattern as [makeVm]:
      *  its constructor does nothing dangerous, so there is no reason to mock the class itself. */
     private fun makeExitAppVm(obdRepo: ObdRepository = mockk(relaxed = true)): ExitAppViewModel =
@@ -197,6 +207,7 @@ class BottomNavTest {
 
     private lateinit var navController: NavHostController
     private lateinit var weatherVm: WeatherViewModel
+    private lateinit var followVm: FollowStatusViewModel
     private lateinit var exitAppObdRepo: ObdRepository
 
     private fun launchBottomNav(
@@ -207,10 +218,13 @@ class BottomNavTest {
         useImperial: Boolean = false,
         restoration: StateRestorationTester? = null,
         hostIsNoActivity: Boolean = false,
+        followStatus: FollowStatus? = null,
+        rowWidthDp: Int? = null,
     ) {
         val content: @androidx.compose.runtime.Composable () -> Unit = {
             val vm = remember { makeVm(isMoving = isMoving, hideNavOnDrive = hideNavOnDrive) }
             weatherVm = remember { makeWeatherVm(outsideTempC = outsideTempC) }
+            followVm = remember { makeFollowVm(followStatus) }
             val displayVm = remember { makeDisplayVm(useImperial = useImperial) }
             exitAppObdRepo = remember { mockk(relaxed = true) }
             val exitAppVm = remember { makeExitAppVm(obdRepo = exitAppObdRepo) }
@@ -222,13 +236,18 @@ class BottomNavTest {
                 composable(Screen.AppLogs.route) { Text(APP_LOGS_MARKER) }
                 composable(Screen.FreezeFrame.route) { Text(FREEZE_FRAME_MARKER) }
             }
-            BottomNav(
-                navController = navController,
-                vm = vm,
-                weatherVm = weatherVm,
-                displayVm = displayVm,
-                exitAppVm = exitAppVm,
-            )
+            val nav: @androidx.compose.runtime.Composable () -> Unit = {
+                BottomNav(
+                    navController = navController,
+                    vm = vm,
+                    weatherVm = weatherVm,
+                    displayVm = displayVm,
+                    exitAppVm = exitAppVm,
+                    followVm = followVm,
+                )
+            }
+            // Die Statuszeile steht nur in einer breiten Zeile; das Testgeraet kann im Hochformat stehen, die Breite wird deshalb erzwungen.
+            if (rowWidthDp != null) Box(Modifier.requiredWidth(rowWidthDp.dp)) { nav() } else nav()
         }
         // Bestaetigt der Test das Beenden, darf `finishAffinity()` nicht die Activity der Test-Regel treffen: mit einem Kontext, der KEINE Activity ist
         // (`context as? Activity` ist dann null), laeuft alles bis dorthin (Dialog zu, Sitzung beenden) und die Test-Activity bleibt stehen.
@@ -398,6 +417,46 @@ class BottomNavTest {
     }
 
     @Test
+    fun navHidden_true_withAFollowStatus_showsItInTheMiddleOfTheRow() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, followStatus = FollowStatus.OffTrack(85.0), rowWidthDp = 900)
+
+        // Die erzwungene Breite ragt im Hochformat ueber den Bildschirm hinaus: geprueft wird, dass die Knoten da sind, nicht, dass sie im Bild liegen.
+        composeRule.onNodeWithTag(FOLLOW_STATUS_TEST_TAG).assertExists()
+        composeRule.onNodeWithText("20 °C").assertExists()
+    }
+
+    @Test
+    fun navHidden_true_withoutAFollowStatus_showsNoMiddleText() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, followStatus = null, rowWidthDp = 900)
+
+        composeRule.onNodeWithTag(FOLLOW_STATUS_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun navHidden_false_neverTouchesTheFollowStatus() {
+        // Der Fluss ist kalt (WhileSubscribed): wer ihn sammelt, startet die Ortung der Nachfahren-Sitzung. Bei sichtbarem Hauptmenue darf das nicht geschehen.
+        launchBottomNav(isMoving = false, hideNavOnDrive = true, followStatus = FollowStatus.Waiting, rowWidthDp = 900)
+
+        composeRule.onNodeWithText(label(R.string.nav_live)).assertExists()
+        verify(exactly = 0) { followVm.status }
+    }
+
+    @Test
+    fun navHidden_true_collectsTheFollowStatusOnlyInTheRow() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, followStatus = FollowStatus.Waiting, rowWidthDp = 900)
+
+        verify(atLeast = 1) { followVm.status }
+    }
+
+    @Test
+    fun navHidden_true_withAFollowStatusInANarrowRow_showsNoMiddleText() {
+        launchBottomNav(isMoving = true, hideNavOnDrive = true, followStatus = FollowStatus.OffTrack(85.0), rowWidthDp = 448)
+
+        composeRule.onNodeWithText("20 °C").assertIsDisplayed()
+        composeRule.onNodeWithTag(FOLLOW_STATUS_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
     fun navHidden_true_withNullTemperature_stillHidesNavItems() {
         // WeatherRepository returns null on any failure (no fix, no permission, network error) —
         // AmbientStatusRow must degrade gracefully (no crash, just no temperature shown) rather than
@@ -423,7 +482,7 @@ class BottomNavTest {
                 composable(Screen.Dashboard.route) { Text(DASHBOARD_MARKER) }
             }
             Box(Modifier.testTag(BOTTOM_AREA_TAG)) {
-                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm)
+                BottomNav(navController = navController, vm = vm, weatherVm = weatherVm, displayVm = displayVm, exitAppVm = exitAppVm, followVm = remember { makeFollowVm(null) })
             }
         }
         composeRule.waitForIdle()

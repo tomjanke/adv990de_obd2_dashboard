@@ -1,5 +1,22 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.2 (versionCode 177)
+
+**Neu: eine Statuszeile beim Nachfahren — in der Mitte der Statuszeile während der Fahrt.**
+
+### Was sich ändert
+
+- **Statuszeile in der Mitte:** wenn das Hauptmenü während der Fahrt durch die Statuszeile ersetzt ist (Einstellung „Navigationsleiste beim Fahren ausblenden“ an, in Bewegung) und ein Track nachgefahren wird, steht **zwischen Datum/Uhrzeit und Temperatur**, wie es um den Track steht — auch wenn gerade kein Roadbook-HUD zu sehen ist: „Auf dem Track · 12,4 km“ (Rest bis zum Ziel, unter 1 km in Metern auf 5 m gerundet), „Abseits · 85 m“ (Abstand zum Track, in der Warnfarbe), „Ziel erreicht“ (weniger als 20 m Rest), „Track: warte auf GPS“ oder „Track: kein Standort“. Anlass: eine Fahrt, bei der das Nachfahren erst nach einigen hundert Metern gestartet wurde und das HUD ausblieb — das HUD erscheint nur, wenn eine Richtungsänderung in Reichweite ist, und sonst gab es keine Rückmeldung, ob das Nachfahren überhaupt läuft.
+- **Schwellen:** „Auf dem Track“ gilt bis 20 m Abstand und endet erst über 30 m; wer abseits ist, ist erst bei 20 m oder weniger wieder auf dem Track. Die Totzone verhindert Flackern, weil ein GPS-Fix um 5 bis 15 m schwankt (10 m hätte bei jedem Fix gewechselt). **Die Zahlen sind Schätzungen, nicht an Fahrten abgestimmt.**
+- **Nur im Querformat:** die Zeile erscheint ab einer Breite von 720 dp. Im Hochformat (448 dp) bleiben neben Datum und Temperatur nur rund 62 dp frei, dort entfällt die Anzeige.
+- **Datenschutz unverändert:** die Position wird dafür nur gelesen, solange die Zeile zu sehen ist (die Ortung der Nachfahren-Sitzung läuft nur bei sichtbarer App), und weder gespeichert noch protokolliert (ein Quelltext-Test hält fest, dass die Statuszeile nichts loggt).
+- **Texte** in Deutsch, Englisch und Spanisch (Spanisch ist meine Übersetzung, nicht gegengelesen).
+- **Geprüft:** JVM 4413 Tests (33 neu), Geräte-Suite voll, Lint ohne Fehler; 21 Mutationsproben an Regel, Formatierung, ViewModel, Zeile und Verdrahtung, alle erkannt (zwei erst nach Schärfung der Tests für große Systemschrift und Auslassung).
+- **Nicht belegt:** nie auf einer Fahrt und mit keinem echten GPS-Fix gesehen; die Zeile habe ich nur als gerenderte Vorschau und in Geräte-Tests (mit erzwungener Breite) gesehen, nicht im Querformat am Gerät; ob 20 und 30 m passen, zeigt eine Fahrt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.1 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt strikt lesend.
+
+---
+
 ## Version 1.49.1 (versionCode 176)
 
 **Behoben: die Karte erschien in der Ansicht eines Tracks nicht; dazu zwei Fehler, die erst eine echte Kartendatei zeigte.**

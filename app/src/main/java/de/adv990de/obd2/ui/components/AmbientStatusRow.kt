@@ -1,6 +1,8 @@
 package de.adv990de.obd2.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -18,8 +21,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
+import de.adv990de.obd2.R
+import de.adv990de.obd2.track.FollowStatus
+import de.adv990de.obd2.track.formatFollowDistance
+import de.adv990de.obd2.ui.theme.StatusColors
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,7 +50,8 @@ import kotlinx.coroutines.delay
  * Erscheint auf jedem Screen, nicht nur dem Dashboard, weil `BottomNav` in der einen app-weiten
  * `Scaffold` sitzt (s. `AppNavHost.kt`) — User-bestaetigte Design-Entscheidung, kein Uebersehen.
  *
- * Datum/Uhrzeit links, Aussentemperatur rechts (nur wenn vorhanden — `WeatherRepository` liefert
+ * Datum/Uhrzeit links, Aussentemperatur rechts, **in der Mitte beim Nachfahren die Statuszeile** ([FollowStatus]: „Auf dem Track · 12,4 km“, „Abseits · 85 m“; nur in einer breiten Zeile, ab
+ * [FOLLOW_STATUS_MIN_ROW_WIDTH], im Hochformat entfaellt sie) (Temperatur nur wenn vorhanden — `WeatherRepository` liefert
  * `null` statt zu werfen, s. dessen KDoc). Die Temperatur folgt der Einstellung "Imperiale
  * Einheiten" ([useImperial] -> °F) ueber dieselbe `convertUnit`-Konvention wie `SensorCard`
  * (s. [formatOutsideTemperature]). Aufbau exakt wie die `NavigationBar`, die diese Row ersetzt
@@ -60,8 +75,17 @@ import kotlinx.coroutines.delay
  * klar kleiner als `ValueTileStyle` (~53sp) der echten Sensor-Kacheln, da diese Zeile Ambient-Info
  * bleibt, kein primaerer Messwert.
  */
+/** Test-Tag des Textes der Nachfahren-Statuszeile in der Mitte. */
+const val FOLLOW_STATUS_TEST_TAG = "ambient_follow_status"
+
+/**
+ * Ab dieser Breite der Zeile steht die Nachfahren-Statuszeile in der Mitte. Datum und Temperatur brauchen zusammen rund 350 dp (Plex Mono 26 sp), der laengste Text („Auf dem Track · 12,4 km“)
+ * rund 360 dp: im Hochformat (448 dp) bleiben nur rund 62 dp frei, im Querformat (rund 1000 dp) reicht es. **Im Hochformat entfaellt die Anzeige** (Entscheidung nach Rueckfrage).
+ */
+val FOLLOW_STATUS_MIN_ROW_WIDTH: Dp = 720.dp
+
 @Composable
-fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
+fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean, followStatus: FollowStatus? = null) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         // Tick genau auf den Minutenwechsel (die Anzeige hat keine Sekunden) statt in festem
@@ -104,29 +128,60 @@ fun AmbientStatusRow(outsideTempC: Float?, useImperial: Boolean) {
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LiveValueText(
-                    value = formatDashboardHeader(nowMillis, locale),
-                    style = MaterialTheme.typography.titleLarge.asLiveValue(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val showFollowStatus = followStatus != null && maxWidth >= FOLLOW_STATUS_MIN_ROW_WIDTH
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     LiveValueText(
-                        value = temperature,
+                        value = formatDashboardHeader(nowMillis, locale),
                         style = MaterialTheme.typography.titleLarge.asLiveValue(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (showFollowStatus && followStatus != null) {
+                        // Die Mitte nimmt den Rest der Zeile; ein zu langer Text endet mit Auslassung, statt Datum oder Temperatur zu verdraengen.
+                        Box(Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                            LiveValueText(
+                                value = followStatusText(followStatus, locale),
+                                modifier = Modifier.testTag(FOLLOW_STATUS_TEST_TAG),
+                                style = MaterialTheme.typography.titleLarge.asLiveValue(),
+                                color = followStatusColor(followStatus),
+                                textAlign = TextAlign.Center,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    formatOutsideTemperature(outsideTempC, useImperial)?.let { temperature ->
+                        LiveValueText(
+                            value = temperature,
+                            style = MaterialTheme.typography.titleLarge.asLiveValue(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** Der Text der Statuszeile in der Sprache des Geraetes. */
+@Composable
+internal fun followStatusText(status: FollowStatus, locale: Locale): String = when (status) {
+    FollowStatus.NoLocation -> stringResource(R.string.follow_status_no_location)
+    FollowStatus.Waiting -> stringResource(R.string.follow_status_waiting)
+    FollowStatus.Arrived -> stringResource(R.string.follow_status_arrived)
+    is FollowStatus.OnTrack -> stringResource(R.string.follow_status_on_track, formatFollowDistance(status.remainingM, locale))
+    is FollowStatus.OffTrack -> stringResource(R.string.follow_status_off_track, formatFollowDistance(status.distanceM, locale))
+}
+
+/** Abseits in der Warnfarbe (Text, deshalb `warningOn`), alles andere wie Datum und Temperatur — die Farbe traegt nichts allein, der Text sagt es. */
+@Composable
+internal fun followStatusColor(status: FollowStatus): Color =
+    if (status is FollowStatus.OffTrack) StatusColors.warningOn(MaterialTheme.colorScheme.surface) else MaterialTheme.colorScheme.onSurfaceVariant
 
 // region — Previews
 
@@ -168,6 +223,56 @@ private fun PreviewAmbientStatusRowDefaultLight() {
     MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
         Surface(color = MaterialTheme.colorScheme.background) {
             AmbientStatusRow(outsideTempC = 18.4f, useImperial = false)
+        }
+    }
+}
+
+// Die Statuszeile des Nachfahrens steht nur in einer breiten Zeile (Querformat); die Vorschauen erzwingen die Breite, weil die Testumgebung des Renderns die Fenstergroesse des Geraetes hat.
+
+@Preview(name = "AmbientStatusRow · following, on the track (blue)", showBackground = true, widthDp = 900)
+@Composable
+private fun PreviewAmbientStatusRowOnTrack() {
+    MaterialTheme(colorScheme = blueColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.requiredWidth(900.dp)) {
+                AmbientStatusRow(outsideTempC = 18.4f, useImperial = false, followStatus = FollowStatus.OnTrack(12_400.0))
+            }
+        }
+    }
+}
+
+@Preview(name = "AmbientStatusRow · following, off the track (amber)", showBackground = true, widthDp = 900)
+@Composable
+private fun PreviewAmbientStatusRowOffTrack() {
+    MaterialTheme(colorScheme = amberColorScheme, typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.requiredWidth(900.dp)) {
+                AmbientStatusRow(outsideTempC = 18.4f, useImperial = false, followStatus = FollowStatus.OffTrack(85.0))
+            }
+        }
+    }
+}
+
+@Preview(name = "AmbientStatusRow · following, waiting for GPS (default light)", showBackground = true, widthDp = 900)
+@Composable
+private fun PreviewAmbientStatusRowFollowWaiting() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.requiredWidth(900.dp)) {
+                AmbientStatusRow(outsideTempC = null, useImperial = false, followStatus = FollowStatus.Waiting)
+            }
+        }
+    }
+}
+
+@Preview(name = "AmbientStatusRow · following, off the track (default light)", showBackground = true, widthDp = 900)
+@Composable
+private fun PreviewAmbientStatusRowOffTrackLight() {
+    MaterialTheme(colorScheme = lightColorScheme(), typography = AppTypography) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.requiredWidth(900.dp)) {
+                AmbientStatusRow(outsideTempC = 18.4f, useImperial = false, followStatus = FollowStatus.OffTrack(185.0))
+            }
         }
     }
 }

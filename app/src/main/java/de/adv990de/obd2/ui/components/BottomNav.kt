@@ -52,6 +52,7 @@ import de.adv990de.obd2.ui.settings.DisplaySettingsViewModel
 import de.adv990de.obd2.ui.theme.AppTypography
 import de.adv990de.obd2.ui.theme.ProvideMinTouchTarget
 import de.adv990de.obd2.ui.theme.blueColorScheme
+import de.adv990de.obd2.ui.tracks.FollowStatusViewModel
 import de.adv990de.obd2.ui.weather.WeatherViewModel
 import kotlinx.coroutines.launch
 
@@ -75,6 +76,9 @@ private val navItems: List<Triple<Screen, ImageVector, Int>> = listOf(
  * `collectAsStateWithLifecycle`: kein Abruf, solange das Hauptmenue sichtbar ist oder die App im
  * Hintergrund liegt (s. KDoc von [WeatherViewModel]).
  *
+ * `followVm` liefert die Statuszeile des Nachfahrens fuer die Mitte der Zeile — gleiches Parameter-Muster, gesammelt nur im Zweig der Zeile: das Sammeln startet die Ortung der Sitzung
+ * (nur wenn eine laeuft), und nur solange die Zeile zu sehen ist.
+ *
  * `displayVm` liefert die Einstellung "Imperiale Einheiten" fuer die Temperatur in
  * [AmbientStatusRow] — gleiches Parameter-Muster. Gesammelt wird sie hier oben (wie `isNavHidden`)
  * statt erst in der Zeile: `useImperial` ist ein `WhileSubscribed`-StateFlow mit Startwert `false`,
@@ -88,6 +92,7 @@ fun BottomNav(
     weatherVm: WeatherViewModel = hiltViewModel(),
     displayVm: DisplaySettingsViewModel = hiltViewModel(),
     exitAppVm: ExitAppViewModel = hiltViewModel(),
+    followVm: FollowStatusViewModel = hiltViewModel(),
 ) {
     val isNavHidden by vm.isNavHidden.collectAsStateWithLifecycle()
     val useImperial by displayVm.useImperial.collectAsStateWithLifecycle()
@@ -118,7 +123,9 @@ fun BottomNav(
     ) { hidden ->
         if (hidden) {
             val outsideTempC by weatherVm.outsideTempC.collectAsStateWithLifecycle()
-            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial)
+            // Wie die Temperatur nur hier gesammelt: ohne Statuszeile (kein Nachfahren) liest nichts die Position.
+            val followStatus by followVm.status.collectAsStateWithLifecycle()
+            AmbientStatusRow(outsideTempC = outsideTempC, useImperial = useImperial, followStatus = followStatus)
         } else {
             Column {
                 HorizontalDivider()
