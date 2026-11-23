@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -90,9 +91,10 @@ class MapSettingDeviceTest {
         composeRule.onNodeWithText("Mittelgebirge", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag(MAP_ROW_TEST_TAG).performClick()
         composeRule.onNodeWithTag(MAP_INFO_DIALOG_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.settings_map_zoom, 2, 14)).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.settings_map_coverage, 49.25, 51.0, 9.5, 11.0)).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.map_attribution)).assertIsDisplayed()
+        // Im Querformat reicht die Hoehe nicht fuer alle Zeilen: der Inhalt scrollt, jede Zeile ist erreichbar (die Quellenangabe ist Pflicht).
+        composeRule.onNodeWithText(text(R.string.settings_map_coverage, 49.25, 51.0, 9.5, 11.0)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.settings_map_zoom, 2, 14)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.map_attribution)).performScrollTo().assertIsDisplayed()
         assertEquals(0, picks)
     }
 

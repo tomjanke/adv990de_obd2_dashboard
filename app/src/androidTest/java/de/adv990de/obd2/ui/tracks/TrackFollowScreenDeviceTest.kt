@@ -840,20 +840,27 @@ class TrackFollowScreenDeviceTest {
         composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).assertDoesNotExist()
     }
 
-    @Test
-    fun theHudDoesNotCoverTheControlsOrTheNorthArrowInBothOrientations() {
-        for (orientation in listOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)) {
-            requestOrientation(orientation)
-            show(reading = followingWithHud())
-            composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTag(ROADBOOK_HUD_TEST_TAG).fetchSemanticsNodes().isNotEmpty() }
-            val hud = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
-            for (tag in listOf(TRACK_ZOOM_IN_TEST_TAG, TRACK_FIT_TEST_TAG, TRACK_ORIENTATION_TEST_TAG, TRACK_PAN_DOWN_TEST_TAG)) {
-                val b = composeRule.onNodeWithTag(tag).getBoundsInRoot()
-                val overlaps = hud.left < b.right && b.left < hud.right && hud.top < b.bottom && b.top < hud.bottom
-                assertFalse("the HUD must not cover $tag in orientation $orientation", overlaps)
-            }
+    /**
+     * Eine Ausrichtung je Test, **vor** dem Inhalt gesetzt: ein Wechsel der Ausrichtung mit eingeblendetem HUD (dessen Animationen laufen) liess in einem vollen Lauf
+     * `waitForIdle` nie zurueckkehren (4 von 4 vollen Laeufen, einzeln nie).
+     */
+    private fun assertTheHudDoesNotCoverTheControls(orientation: Int) {
+        requestOrientation(orientation)
+        show(reading = followingWithHud())
+        composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTag(ROADBOOK_HUD_TEST_TAG).fetchSemanticsNodes().isNotEmpty() }
+        val hud = composeRule.onNodeWithTag(ROADBOOK_HUD_TEST_TAG).getBoundsInRoot()
+        for (tag in listOf(TRACK_ZOOM_IN_TEST_TAG, TRACK_FIT_TEST_TAG, TRACK_ORIENTATION_TEST_TAG, TRACK_PAN_DOWN_TEST_TAG)) {
+            val b = composeRule.onNodeWithTag(tag).getBoundsInRoot()
+            val overlaps = hud.left < b.right && b.left < hud.right && hud.top < b.bottom && b.top < hud.bottom
+            assertFalse("the HUD must not cover $tag in orientation $orientation", overlaps)
         }
     }
+
+    @Test
+    fun theHudDoesNotCoverTheControlsOrTheNorthArrowInPortrait() = assertTheHudDoesNotCoverTheControls(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+
+    @Test
+    fun theHudDoesNotCoverTheControlsOrTheNorthArrowInLandscape() = assertTheHudDoesNotCoverTheControls(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 
     // ── Auto-Zoom: die Karte folgt der Position, auch in Norden oben ───────────
 

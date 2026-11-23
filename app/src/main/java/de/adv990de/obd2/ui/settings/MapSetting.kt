@@ -5,6 +5,8 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.AlertDialog
@@ -122,7 +124,8 @@ private fun MapInfoDialog(info: MapInfo, onReplace: () -> Unit, onRemove: () -> 
         modifier = Modifier.testTag(MAP_INFO_DIALOG_TEST_TAG),
         title = { Text(info.name ?: stringResource(R.string.settings_map_default_name)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Scrollbar: im Querformat (448 dp hoch) reicht der Platz neben den drei 56-dp-Knoepfen nicht, die Quellenangabe (ODbL-Pflicht) lag unter dem Rand.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.settings_map_coverage, info.minLat, info.maxLat, info.minLon, info.maxLon))
                 Text(stringResource(R.string.settings_map_zoom, info.minZoom, info.maxZoom))
                 Text(Formatter.formatFileSize(context, info.bytes))
