@@ -1,5 +1,19 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.3 (versionCode 178)
+
+**Neu: die Mini-Karte des Roadbook-HUD zeigt die Karte.**
+
+### Was sich ändert
+
+- **Karte hinter der Linie:** solange ein Track nachgefahren wird, zeichnet die Mini-Karte des Roadbooks im Dashboard (volle Fassung; die kleine auf der Nachfahren-Seite hat keine Mini-Karte) die Kacheln der eingespielten Kartendatei hinter ihrer Linie: Wald, Wiese, Wasser und Straßen, gedämpft (keine Wege und Äcker), auf dem Grund des HUD. Kacheln und Linie liegen deckungsgleich, die Karte dreht sich mit dem Kurs und gleitet wie die Linie von einem Fix zum nächsten. Ohne eingespielte Karte sieht das HUD aus wie vorher; die Ablage der Kacheln gibt es nur, solange nachgefahren wird.
+- **Bildzeiten gemessen** (Debug-Build, Pixel 8 Pro, quer, simulierte Fahrt über der echten Frankfurt-Datei, rund 14 000 Bilder): Median 8 statt 6 ms, 99. Perzentil 22 statt 21 ms, ruckelnde Bilder 0,78 % statt 0,80 %. Ein Zwischenspeicher je Kachel ist dafür nicht nötig.
+- **Geprüft:** JVM 4419 Tests (6 neu), Geräte-Tests (2 neu); 9 Mutationsproben, alle erkannt. Die volle Geräte-Suite lief nicht in einem Stück durch: ein Test hing im großen Lauf (derselbe wie schon bei 1.49.2, einzeln grün, Ursache offen), ein anderer war einmal rot (einzeln grün).
+- **Nicht belegt:** nie im Release-Build und nie auf einer Fahrt gesehen, kein echtes GPS; die Straßen sind in der HUD-Palette dünn und dunkel — ob sie am Lenker lesbar sind, zeigt eine Fahrt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.2 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt strikt lesend. Das Herunterladen von Kacheln je Track gibt es weiterhin nicht.
+
+---
+
 ## Version 1.49.2 (versionCode 177)
 
 **Neu: eine Statuszeile beim Nachfahren — in der Mitte der Statuszeile während der Fahrt.**
