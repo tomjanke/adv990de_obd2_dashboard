@@ -1,5 +1,22 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.4 (versionCode 179)
+
+**Das Roadbook beim Nachfahren kommt früher, geht am Scheitelpunkt und zeigt auch leichtere Richtungsänderungen; ein umbenannter Track zeigt sofort den neuen Namen; der Karten-Dialog zeigt im Querformat die Quellenangabe.**
+
+### Was sich ändert
+
+- **HUD früher:** die Anzeige erscheint früher vor einer Richtungsänderung — Vorlaufzeit 12 → 18 s, Mindestabstand 150 → 200 m, Höchstabstand 800 → 1000 m (bei 80 km/h rund 400 statt 267 m).
+- **HUD geht am Scheitelpunkt:** vorher blieb es bis 15 m hinter dem Ende der Kurve mit „0 m“ stehen, jetzt verschwindet es, sobald die Entfernung 0 m erreicht; liegt die nächste Richtungsänderung in Reichweite, übernimmt sie sofort.
+- **Auch schwächere Richtungsänderungen:** die Erkennung greift ab 30° statt 40°; die Stufen der Empfindlichkeit sind 90° („Nur scharfe“), **40°** („Standard“, vorher 60°) und **30°** („Auch leichte“, vorher 40°). Das gilt auch für alle, die die Einstellung nie verstellt haben. Auf Landstraßen mit vielen leichten Bögen löst die Anzeige jetzt öfter aus; „Nur scharfe“ bleibt dagegen. **Die Zahlen sind Schätzungen nach einer Fahrt, nicht an weiteren Fahrten abgestimmt.**
+- **Umbenannte Tracks sofort sichtbar:** die Nachfahren-Sitzung las den Namen nur beim Start und behielt ihn bis zum Neustart der App (Kartenseite und Dialog „Nachfahren beenden“ zeigten den alten Namen). Jetzt folgt der Name der Datenbank; die Positionsverfolgung und das HUD beginnen durch ein Umbenennen nicht neu.
+- **Karten-Dialog im Querformat (Fehler seit 1.49.0):** die Quellenangabe „© OpenStreetMap-Mitwirkende“ war im Dialog der Kartendatei bei geringer Höhe abgeschnitten (der Text scrollte nicht). Der Inhalt scrollt jetzt.
+- **Geräte-Tests:** ein Wachhund bricht einen hängenden Test nach 300 s mit Thread-Dump ab; ein Test, der in vollen Läufen hing, ist je Ausrichtung geteilt (nur Tests, keine Änderung der App).
+- **Geprüft:** JVM 4424 Tests (frisch, 0 Fehler), Geräte-Suite voll 1227 Tests (0 Fehler, 1 übersprungen: die Simulationsfahrt), Lint (Debug und Release) ohne Fehler; die Umbenennen-Tests waren gegen den alten Stand rot.
+- **Nicht belegt:** nie auf einer Fahrt mit den neuen Werten gesehen, kein Mutationslauf für die neuen Werte; ob 18 s Vorlauf und 30°/40° passen, zeigt eine Fahrt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.3 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt strikt lesend.
+
+---
 ## Version 1.49.3 (versionCode 178)
 
 **Neu: die Mini-Karte des Roadbook-HUD zeigt die Karte.**
