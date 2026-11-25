@@ -1,5 +1,18 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.5 (versionCode 180)
+
+**Nach einem unerwarteten Fehler der Abfrage beendet die App die Sitzung sauber, statt mit stehender Verbindung und laufendem Dienst nichts mehr zu tun.**
+
+### Was sich ändert
+
+- **Sitzung sauber beenden:** scheitert die Abfrage an einem unerwarteten Fehler (ein Netz für Programmfehler; ein Auslöser im Produktionscode ist nicht bekannt), trennt die App den Adapter selbst und beendet den Bedarf des Vordergrunddienstes für die OBD-Sitzung. Vorher blieb der Bluetooth-Link stehen, die Benachrichtigung sagte „zeichnet auf“, aber nichts las mehr und nichts verband neu, bis man von Hand trennte und verband. Eine laufende Streckenaufzeichnung hält den Dienst weiter.
+- **Kein Neuverbinden:** ein Fehler, der jedes Mal auftritt, liefe sonst in eine Schleife aus Verbinden und Scheitern (jede Runde eine neue Fahrt). Der Fehlertext bleibt auf dem Dashboard stehen; das App-Log nennt den Vorgang. Danach verbindest du wie nach jedem Fehler von Hand.
+- **Geprüft:** JVM 4429 Tests (frisch, 0 Fehler), Geräte-Suite voll 1227 Tests (0 Fehler, 1 übersprungen: die Simulationsfahrt), Lint (Debug und Release) ohne Fehler; drei Mutationsproben an der neuen Logik erkannt.
+- **Nicht belegt:** am Gerät nie ausgelöst, weil der Fehler im Produktionscode nicht erreichbar ist; der Weg ist nur durch JVM-Tests mit einer Attrappe der Pipeline belegt.
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.4 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt rein lesend.
+
+---
 ## Version 1.49.4 (versionCode 179)
 
 **Das Roadbook beim Nachfahren kommt früher, geht am Scheitelpunkt und zeigt auch leichtere Richtungsänderungen; ein umbenannter Track zeigt sofort den neuen Namen; der Karten-Dialog zeigt im Querformat die Quellenangabe.**
