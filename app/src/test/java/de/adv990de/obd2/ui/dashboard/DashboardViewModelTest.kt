@@ -1917,6 +1917,45 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `a failed session ends the session cleanly - the adapter is disconnected without a reconnect and the error stays on screen`() = runTest {
+        val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
+        val coordinator = mockk<ConnectionCoordinator>(relaxed = true)
+        val vm = DashboardViewModel(fakeObdRepository(), fakeAppPreferences(), coordinator, strictPipeline(events, mutableListOf()), SavedStateHandle(), FuelDistanceSink.None)
+        advanceUntilIdle()
+        events.emit(SessionEvent.Values(listOf(rpmAt(1_000L)), gpsSpeedKmh = null))
+        advanceUntilIdle()
+
+        events.emit(SessionEvent.Failed(UiText.DynamicString("boom")))
+        advanceUntilIdle()
+        // Die Trennung meldet isConnectedFlow als false, und die Pipeline meldet daraufhin Idle: der Fehlertext bleibt stehen.
+        events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { coordinator.endSessionAfterFailure() }
+        verify(exactly = 0) { coordinator.requestReconnect() }
+        assertEquals(UiText.DynamicString("boom"), vm.uiState.value.error)
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isReconnecting)
+    }
+
+    @Test
+    fun `values, an idle session and a lost connection do not end the session after a failure`() = runTest {
+        val events = kotlinx.coroutines.flow.MutableSharedFlow<SessionEvent>(extraBufferCapacity = 16)
+        val coordinator = mockk<ConnectionCoordinator>(relaxed = true)
+        DashboardViewModel(fakeObdRepository(), fakeAppPreferences(), coordinator, strictPipeline(events, mutableListOf()), SavedStateHandle(), FuelDistanceSink.None)
+        advanceUntilIdle()
+
+        events.emit(SessionEvent.Values(listOf(rpmAt(1_000L)), gpsSpeedKmh = null))
+        events.emit(SessionEvent.Stale)
+        events.emit(SessionEvent.Frozen)
+        events.emit(SessionEvent.ConnectionLost())
+        events.emit(SessionEvent.Idle)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { coordinator.endSessionAfterFailure() }
+    }
+
+    @Test
     fun `a failed session clears the sparkline buffer too (UID-16)`() = runTest {
         val d = driven()
         advanceUntilIdle()

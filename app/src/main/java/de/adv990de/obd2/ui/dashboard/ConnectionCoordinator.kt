@@ -11,10 +11,12 @@ import de.adv990de.obd2.obd.connectedLogMessage
 import de.adv990de.obd2.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
@@ -237,6 +239,29 @@ class ConnectionCoordinator @Inject constructor(
             }
             appLogRepository.log(LogLevel.ERROR, "Connection failed after $RECONNECT_ATTEMPT_COUNT attempts")
             fail(onEvent, R.string.err_reconnect_fail)
+        }
+    }
+
+    /**
+     * Die Sitzung ist an einem **unerwarteten** Fehler gescheitert ([SessionEvent.Failed], ein Netz fuer Programmfehler): die Abfrage ist beendet, aber der Link stand weiter, und
+     * der Dienst haette "zeichnet auf" gemeldet, obwohl nichts mehr liest. Hier wird der Zustand ehrlich: trennen und den Dienst-Bedarf der OBD-Sitzung beenden (eine laufende
+     * Streckenaufzeichnung haelt ihn weiter). **Kein Neuverbinden** — der Koordinator bekommt kein Signal, und die Trennung zaehlt nicht als Nutzer-Trennen. Ein
+     * deterministischer Fehler liefe sonst in eine Schleife aus Verbinden und Scheitern (jede Runde eine neue Fahrt). Den Fehlertext zeigt das Dashboard weiter an
+     * (`afterIdle` laesst einen Fehler stehen). Laeuft unabbrechbar zu Ende (das ViewModel kann schon enden) und wirft nie: ein Fehler steht im App-Log.
+     */
+    suspend fun endSessionAfterFailure() {
+        withContext(NonCancellable) {
+            try {
+                appLogRepository.log(LogLevel.INFO, "Session failed unexpectedly: disconnecting the adapter and stopping the service, not reconnecting")
+                obdRepository.disconnect()
+            } catch (e: Exception) {
+                appLogRepository.log(LogLevel.WARN, "Disconnecting after a failed session failed: ${e.javaClass.simpleName}: ${e.message ?: "-"}")
+            }
+            try {
+                serviceController.stop()
+            } catch (e: Exception) {
+                appLogRepository.log(LogLevel.WARN, "Stopping the service after a failed session failed: ${e.javaClass.simpleName}: ${e.message ?: "-"}")
+            }
         }
     }
 

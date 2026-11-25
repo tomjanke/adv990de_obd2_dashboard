@@ -249,6 +249,9 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = DashboardUiState.disconnected(event.error)
                 alarmStaleGrace.cancel()
                 alarmController.onSessionEnded()
+                // Der Link stuende sonst weiter, ohne dass etwas liest (Dienst: "zeichnet auf"): sauber trennen, kein Neuverbinden (s. [ConnectionCoordinator.endSessionAfterFailure]).
+                // Nach dem Zustand gesetzt und in eigener Coroutine: das folgende Idle laesst den Fehler stehen, und der Sammler dieses Stroms wartet nicht auf die Trennung.
+                viewModelScope.launch { connectionCoordinator.endSessionAfterFailure() }
             }
             is SessionEvent.FaultCodes -> alarmController.onFaultCodes(event.codes, event.isBaseline)
         }

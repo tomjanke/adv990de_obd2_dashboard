@@ -533,4 +533,53 @@ class ConnectionCoordinatorTest {
         assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Aborted), events)
         coVerify(exactly = 0) { repo.reconnect() }
     }
+
+    // ── Nach einem unerwarteten Sitzungsfehler (SessionEvent.Failed) ──────────────────────────────
+
+    @Test
+    fun `after a failed session the adapter is disconnected, the service stops and nothing reconnects`() = runTest {
+        val userDisconnects = MutableStateFlow(0)
+        val repo = makeRepo(connected = true, lastConnected = device, userDisconnects = userDisconnects)
+        coEvery { repo.disconnect() } just Runs
+        coEvery { repo.reconnect() } just Runs
+        val context = mockk<Context>(relaxed = true)
+        val events = mutableListOf<ConnectionEvent>()
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context)
+        coordinator.start(coordinatorScope, events::add)
+        advanceUntilIdle()
+
+        coordinator.endSessionAfterFailure()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repo.disconnect() }
+        verify { context.stopService(any()) }
+        coVerify(exactly = 0) { repo.reconnect() }
+        assertEquals("kein Nutzer-Trennen: der Zaehler bleibt", 0, userDisconnects.value)
+        assertTrue("kein Ereignis der Wiederverbindung", events.isEmpty())
+    }
+
+    @Test
+    fun `a disconnect that throws after a failed session still stops the service and does not throw`() = runTest {
+        val repo = makeRepo(connected = true, lastConnected = device)
+        coEvery { repo.disconnect() } throws IllegalStateException("socket gone")
+        val context = mockk<Context>(relaxed = true)
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+        val coordinator = makeCoordinator(repo, fakeAppPreferences(lastDevice = null), context = context, logRepo = logRepo)
+
+        coordinator.endSessionAfterFailure()
+
+        verify { context.stopService(any()) }
+        coVerify { logRepo.log(LogLevel.WARN, match { "Disconnecting after a failed session failed" in it && "socket gone" in it }) }
+    }
+
+    @Test
+    fun `the end after a failed session is logged`() = runTest {
+        val repo = makeRepo(connected = true, lastConnected = device)
+        coEvery { repo.disconnect() } just Runs
+        val logRepo = mockk<AppLogRepository>(relaxed = true)
+
+        makeCoordinator(repo, fakeAppPreferences(lastDevice = null), logRepo = logRepo).endSessionAfterFailure()
+
+        coVerify { logRepo.log(LogLevel.INFO, match { "Session failed unexpectedly" in it }) }
+    }
 }
