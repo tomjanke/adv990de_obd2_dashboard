@@ -1,5 +1,18 @@
 # Release Notes — OBD Dashboard
 
+## Version 1.49.6 (versionCode 181)
+
+**Ein gespeicherter Trackname wird in der Trackliste nicht mehr stillschweigend abgeschnitten.**
+
+### Was sich ändert
+
+- **Trackliste:** ein Name wie „2026-11-19 19:52 work2home“ passte im Hochformat nicht auf eine Zeile; die Zeile war auf eine Zeile begrenzt, und Compose brach an der Leerstelle um und ließ den Rest ohne Auslassungspunkte weg (sichtbar blieb nur „2026-11-19 19:52“, im Bearbeiten-Dialog stand der volle Name). Jetzt darf der Name zwei Zeilen belegen und endet bei Bedarf mit „…“.
+- **Titel der Track-Ansicht und der Nachfahren-Seite:** dasselbe Muster; der Name steht dort auf einer Zeile und endet bei Bedarf mit „…“.
+- **Geprüft:** drei neue Geräte-Tests lesen das Text-Layout (vor der Korrektur alle rot), JVM 4429 Tests (frisch, 0 Fehler), Geräte-Suite voll 1230 Tests (0 Fehler, 1 übersprungen: die Simulationsfahrt), Lint (Debug und Release) ohne Fehler.
+- **Nicht belegt:** keine Mutationsproben; die Korrektur habe ich nicht in der Release-App gesehen (der Smoke-Test prüft die Liste nicht).
+- **Unverändert:** Paketkennung und Signaturschlüssel (ein Update von 1.49.5 ist möglich), Datenbank v7, Paketformat der Sicherung (Format 1), kein neues Netz, keine neue Berechtigung, das Fahrzeug bleibt strikt lesend.
+
+---
 ## Version 1.49.5 (versionCode 180)
 
 **Nach einem unerwarteten Fehler der Abfrage beendet die App die Sitzung sauber, statt mit stehender Verbindung und laufendem Dienst nichts mehr zu tun.**
