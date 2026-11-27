@@ -53,6 +53,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -273,7 +274,8 @@ internal fun TrackRow(track: TrackSummary, onOpen: () -> Unit, onRename: () -> U
     val source = stringResource(if (track.source == TrackSource.RECORDED) R.string.tracks_source_recorded else R.string.tracks_source_imported)
     ListItem(
         modifier = modifier.clickable(onClick = onOpen),
-        headlineContent = { Text(track.name, maxLines = 1) },
+        // Zwei Zeilen und Auslassungspunkte: mit `maxLines = 1` ohne `overflow` bricht Compose an der Leerstelle um und schneidet den Rest lautlos ab („… work2home“ fehlte, 1.49.5).
+        headlineContent = { Text(track.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Column {
                 Text("$whenText · $source")

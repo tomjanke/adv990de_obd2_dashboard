@@ -3,7 +3,9 @@ package de.adv990de.obd2.ui.tracks
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -181,6 +183,51 @@ class TracksScreenDeviceTest {
         assertEquals(listOf(1L), renamed)
         assertEquals(listOf(2L), deleted)
         composeRule.onNodeWithText(string(R.string.tracks_source_imported), substring = true).assertIsDisplayed()
+    }
+
+    /** Das Layout des Textknotens mit genau diesem Text: wie viele Zeilen, ob etwas fehlt, ob eine Zeile mit Auslassungspunkten endet. */
+    private fun layoutOf(text: String): TextLayoutResult {
+        val node = composeRule.onNode(hasText(text)).fetchSemanticsNode()
+        val results = mutableListOf<TextLayoutResult>()
+        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.single()
+    }
+
+    /**
+     * Fehler aus 1.49.5: „2026-11-19 19:52 work2home“ passte im Hochformat nicht auf eine Zeile. Mit `maxLines = 1` ohne `overflow` bricht Compose an der Leerstelle um und
+     * schneidet die zweite Zeile ohne ein Zeichen weg — die Liste zeigte nur „2026-11-19 19:52“, der Name steckte nur im Eingabefeld des Dialogs. Ein Name darf nie still gekappt werden.
+     */
+    @Test
+    fun aTrackName_thatDoesNotFitOneLine_isShownInFull_notCutOffSilently() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        val name = "2026-11-19 19:52 work2home"
+        showList(tracks = listOf(track(1, name)))
+
+        val layout = layoutOf(name)
+        assertTrue("Der Name ist abgeschnitten (${layout.lineCount} Zeile(n), didOverflowHeight=${layout.didOverflowHeight})", !layout.didOverflowHeight)
+        assertTrue("Der Name braucht hoechstens zwei Zeilen: ${layout.lineCount}", layout.lineCount <= 2)
+    }
+
+    @Test
+    fun aTrackNameThatIsTooLongForTwoLines_endsWithAnEllipsis_soTheCutIsVisible() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        val name = "2026-11-19 19:52 Rundfahrt ueber die Landstrasse durch den Taunus und zurueck ueber den Feldberg mit Pause"
+        showList(tracks = listOf(track(1, name)))
+
+        val layout = layoutOf(name)
+        assertEquals("zwei Zeilen", 2, layout.lineCount)
+        assertTrue("Die gekappte letzte Zeile endet mit Auslassungspunkten", layout.isLineEllipsized(layout.lineCount - 1))
+    }
+
+    @Test
+    fun theTitleOfTheDetailView_withALongName_isOneLineWithAnEllipsis_notCutAtASpace() {
+        requestOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        val name = "2026-11-19 19:52 Rundfahrt ueber die Landstrasse durch den Taunus"
+        showDetail(TrackDetailState.Ready(track(1, name), points, bounds))
+
+        val layout = layoutOf(name)
+        assertEquals("eine Zeile", 1, layout.lineCount)
+        assertTrue("Die Zeile endet mit Auslassungspunkten, statt an der Leerstelle zu enden", layout.isLineEllipsized(0))
     }
 
     // ── Dialoge ───────────────────────────────────────────────────────────────
